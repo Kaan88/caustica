@@ -1,0 +1,521 @@
+{
+ "format": 1,
+ "title": "Glass stack",
+ "description": "Stacked glass slabs, a cone, a torus and a knot at 32 bounces: long chains of refraction.",
+ "tags": [
+  "material",
+  "glass",
+  "bounces"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.15,
+  "base": [
+   0.75,
+   0.72,
+   0.68
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 2.0,
+  "light_intensity": 18.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Cool rim",
+    "position": [
+     2.5,
+     3,
+     -2.5
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2,
+     2
+    ],
+    "color": [
+     0.42,
+     0.65,
+     1.0
+    ],
+    "intensity": 10,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 32,
+  "yaw": 15,
+  "pitch": 18,
+  "distance": 6.5,
+  "target": [
+   0,
+   -0.2,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Glass slab 1",
+    "shape": "box",
+    "position": [
+     0.0,
+     0.1
+    ],
+    "size": 0.9,
+    "stretch": 0.5,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8425,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass slab 2",
+    "shape": "box",
+    "position": [
+     0.0841,
+     0.054
+    ],
+    "size": 0.83,
+    "stretch": 0.5,
+    "rotation": 17,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.9,
+      0.8
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass slab 3",
+    "shape": "box",
+    "position": [
+     0.0909,
+     -0.0416
+    ],
+    "size": 0.76,
+    "stretch": 0.5,
+    "rotation": 34,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.237,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      1.0,
+      0.9
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass slab 4",
+    "shape": "box",
+    "position": [
+     0.0141,
+     -0.099
+    ],
+    "size": 0.69,
+    "stretch": 0.5,
+    "rotation": 51,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.029,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.92,
+      0.97
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass slab 5",
+    "shape": "box",
+    "position": [
+     -0.0757,
+     -0.0654
+    ],
+    "size": 0.62,
+    "stretch": 0.5,
+    "rotation": 68,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.2705,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass slab 6",
+    "shape": "box",
+    "position": [
+     -0.0959,
+     0.0284
+    ],
+    "size": 0.55,
+    "stretch": 0.5,
+    "rotation": 85,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.4875,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.9,
+      0.8
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass cone",
+    "shape": "cone",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.8225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass torus",
+    "shape": "torus",
+    "position": [
+     -1.5,
+     0.4
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     80,
+     10
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass knot",
+    "shape": "knot",
+    "position": [
+     1.6,
+     -0.2
+    ],
+    "size": 1.3,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass sphere",
+    "shape": "sphere",
+    "position": [
+     0.9,
+     1.1
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

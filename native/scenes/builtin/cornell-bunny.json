@@ -1,0 +1,101 @@
+{
+ "format": 1,
+ "title": "Cornell bunny",
+ "description": "The classic box with a jade Stanford bunny in place of the tall block.",
+ "tags": [
+  "cornell",
+  "mesh"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": true,
+  "objects": [
+   {
+    "name": "Jade bunny",
+    "shape": "bunny",
+    "position": [
+     -0.3,
+     -0.1
+    ],
+    "size": 1.45,
+    "stretch": 1.0,
+    "rotation": 25,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.09,
+      0.46,
+      0.25
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.15,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Short block",
+    "shape": "box",
+    "position": [
+     0.38,
+     -0.38
+    ],
+    "size": 0.62,
+    "stretch": 0.62,
+    "rotation": -14,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.7,
+      0.66
+     ],
+     "roughness": 0.55,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

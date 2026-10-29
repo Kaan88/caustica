@@ -1,0 +1,8691 @@
+{
+ "format": 1,
+ "title": "Domino spiral",
+ "description": "200 dominoes along an Archimedean spiral: many copies of a simple shape near the object limit.",
+ "tags": [
+  "still life",
+  "pattern",
+  "many objects"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.08,
+  "base": [
+   0.5,
+   0.42,
+   0.34
+  ],
+  "floor": {
+   "color": [
+    0.5,
+    0.42,
+    0.34
+   ],
+   "roughness": 0.35,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 4.0,
+  "light_intensity": 10.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Cool rim",
+    "position": [
+     2.5,
+     3,
+     -2.5
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2,
+     2
+    ],
+    "color": [
+     0.42,
+     0.65,
+     1.0
+    ],
+    "intensity": 10,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 10,
+  "pitch": 50,
+  "distance": 11,
+  "target": [
+   0,
+   -1,
+   0
+  ],
+  "fov": 45,
+  "objects": [
+   {
+    "name": "Domino 1",
+    "shape": "box",
+    "position": [
+     -0.5808,
+     0.4339
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 139.957,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 2",
+    "shape": "box",
+    "position": [
+     -0.7841,
+     0.1591
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 113.468,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 3",
+    "shape": "box",
+    "position": [
+     -0.8508,
+     -0.1723
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 89.635,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 4",
+    "shape": "box",
+    "position": [
+     -0.7844,
+     -0.501
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 67.783,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 5",
+    "shape": "box",
+    "position": [
+     -0.6053,
+     -0.7823
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 47.484,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 6",
+    "shape": "box",
+    "position": [
+     -0.3433,
+     -0.9861
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 28.444,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 7",
+    "shape": "box",
+    "position": [
+     -0.0313,
+     -1.0958
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 10.452,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 8",
+    "shape": "box",
+    "position": [
+     0.2983,
+     -1.1064
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -6.649,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 9",
+    "shape": "box",
+    "position": [
+     0.6162,
+     -1.0219
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -22.981,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 10",
+    "shape": "box",
+    "position": [
+     0.898,
+     -0.8536
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -38.639,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 11",
+    "shape": "box",
+    "position": [
+     1.1247,
+     -0.617
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -53.703,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 12",
+    "shape": "box",
+    "position": [
+     1.2833,
+     -0.3308
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -68.234,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 13",
+    "shape": "box",
+    "position": [
+     1.3662,
+     -0.0148
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -82.286,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 14",
+    "shape": "box",
+    "position": [
+     1.3712,
+     0.3115
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -95.904,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 15",
+    "shape": "box",
+    "position": [
+     1.3004,
+     0.6297
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -109.126,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 16",
+    "shape": "box",
+    "position": [
+     1.1597,
+     0.9234
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -121.985,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 17",
+    "shape": "box",
+    "position": [
+     0.9582,
+     1.1788
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -134.51,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 18",
+    "shape": "box",
+    "position": [
+     0.7068,
+     1.385
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -146.724,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 19",
+    "shape": "box",
+    "position": [
+     0.4181,
+     1.534
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -158.652,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 20",
+    "shape": "box",
+    "position": [
+     0.1052,
+     1.6207
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -170.311,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 21",
+    "shape": "box",
+    "position": [
+     -0.2185,
+     1.6432
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 178.28,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 22",
+    "shape": "box",
+    "position": [
+     -0.5402,
+     1.6018
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 167.107,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 23",
+    "shape": "box",
+    "position": [
+     -0.8478,
+     1.4996
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 156.154,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 24",
+    "shape": "box",
+    "position": [
+     -1.1305,
+     1.3414
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 145.41,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 25",
+    "shape": "box",
+    "position": [
+     -1.3791,
+     1.1337
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 134.863,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 26",
+    "shape": "box",
+    "position": [
+     -1.5857,
+     0.8845
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 124.502,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 27",
+    "shape": "box",
+    "position": [
+     -1.7445,
+     0.6026
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 114.318,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 28",
+    "shape": "box",
+    "position": [
+     -1.8514,
+     0.2973
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 104.302,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 29",
+    "shape": "box",
+    "position": [
+     -1.904,
+     -0.0218
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 94.446,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 30",
+    "shape": "box",
+    "position": [
+     -1.9017,
+     -0.3451
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 84.742,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 31",
+    "shape": "box",
+    "position": [
+     -1.8453,
+     -0.6633
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 75.184,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 32",
+    "shape": "box",
+    "position": [
+     -1.7372,
+     -0.9678
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 65.765,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 33",
+    "shape": "box",
+    "position": [
+     -1.5812,
+     -1.2506
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 56.479,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 34",
+    "shape": "box",
+    "position": [
+     -1.3819,
+     -1.5047
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 47.321,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 35",
+    "shape": "box",
+    "position": [
+     -1.145,
+     -1.724
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 38.285,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 36",
+    "shape": "box",
+    "position": [
+     -0.8768,
+     -1.9037
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 29.368,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 37",
+    "shape": "box",
+    "position": [
+     -0.5842,
+     -2.0398
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 20.563,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 38",
+    "shape": "box",
+    "position": [
+     -0.2744,
+     -2.1299
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 11.868,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 39",
+    "shape": "box",
+    "position": [
+     0.0454,
+     -2.1723
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 3.277,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 40",
+    "shape": "box",
+    "position": [
+     0.3678,
+     -2.1668
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -5.212,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 41",
+    "shape": "box",
+    "position": [
+     0.686,
+     -2.1141
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -13.603,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 42",
+    "shape": "box",
+    "position": [
+     0.993,
+     -2.0157
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -21.9,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 43",
+    "shape": "box",
+    "position": [
+     1.2827,
+     -1.8744
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -30.105,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 44",
+    "shape": "box",
+    "position": [
+     1.5494,
+     -1.6934
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -38.222,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 45",
+    "shape": "box",
+    "position": [
+     1.7879,
+     -1.4767
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -46.253,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 46",
+    "shape": "box",
+    "position": [
+     1.9941,
+     -1.229
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -54.202,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 47",
+    "shape": "box",
+    "position": [
+     2.1641,
+     -0.9554
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -62.069,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 48",
+    "shape": "box",
+    "position": [
+     2.2953,
+     -0.6612
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -69.859,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 49",
+    "shape": "box",
+    "position": [
+     2.3855,
+     -0.352
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -77.574,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 50",
+    "shape": "box",
+    "position": [
+     2.4337,
+     -0.0336
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -85.214,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 51",
+    "shape": "box",
+    "position": [
+     2.4393,
+     0.2884
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -92.783,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 52",
+    "shape": "box",
+    "position": [
+     2.4026,
+     0.6083
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -100.283,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 53",
+    "shape": "box",
+    "position": [
+     2.3247,
+     0.9206
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -107.715,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 54",
+    "shape": "box",
+    "position": [
+     2.2073,
+     1.2203
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -115.081,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 55",
+    "shape": "box",
+    "position": [
+     2.0525,
+     1.5026
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -122.383,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 56",
+    "shape": "box",
+    "position": [
+     1.8633,
+     1.7629
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -129.623,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 57",
+    "shape": "box",
+    "position": [
+     1.6429,
+     1.9974
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -136.802,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 58",
+    "shape": "box",
+    "position": [
+     1.3951,
+     2.2027
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -143.921,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 59",
+    "shape": "box",
+    "position": [
+     1.1239,
+     2.3758
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -150.983,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 60",
+    "shape": "box",
+    "position": [
+     0.8335,
+     2.5143
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -157.988,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 61",
+    "shape": "box",
+    "position": [
+     0.5285,
+     2.6166
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -164.937,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 62",
+    "shape": "box",
+    "position": [
+     0.2134,
+     2.6813
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -171.833,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 63",
+    "shape": "box",
+    "position": [
+     -0.1071,
+     2.7079
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -178.676,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 64",
+    "shape": "box",
+    "position": [
+     -0.4286,
+     2.6963
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 174.532,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 65",
+    "shape": "box",
+    "position": [
+     -0.7463,
+     2.6468
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 167.79,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 66",
+    "shape": "box",
+    "position": [
+     -1.0561,
+     2.5606
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 161.098,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 67",
+    "shape": "box",
+    "position": [
+     -1.3538,
+     2.4389
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 154.454,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 68",
+    "shape": "box",
+    "position": [
+     -1.6354,
+     2.2838
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 147.857,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 69",
+    "shape": "box",
+    "position": [
+     -1.8974,
+     2.0974
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 141.306,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 70",
+    "shape": "box",
+    "position": [
+     -2.1365,
+     1.8825
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 134.8,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 71",
+    "shape": "box",
+    "position": [
+     -2.3498,
+     1.642
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 128.339,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 72",
+    "shape": "box",
+    "position": [
+     -2.5348,
+     1.3791
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 121.921,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 73",
+    "shape": "box",
+    "position": [
+     -2.6893,
+     1.0972
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 115.545,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 74",
+    "shape": "box",
+    "position": [
+     -2.8116,
+     0.8
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 109.212,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 75",
+    "shape": "box",
+    "position": [
+     -2.9005,
+     0.4912
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 102.918,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 76",
+    "shape": "box",
+    "position": [
+     -2.9552,
+     0.1745
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 96.665,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 77",
+    "shape": "box",
+    "position": [
+     -2.9751,
+     -0.1463
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 90.452,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 78",
+    "shape": "box",
+    "position": [
+     -2.9603,
+     -0.4673
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 84.277,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 79",
+    "shape": "box",
+    "position": [
+     -2.9112,
+     -0.7848
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 78.139,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 80",
+    "shape": "box",
+    "position": [
+     -2.8285,
+     -1.0953
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 72.039,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 81",
+    "shape": "box",
+    "position": [
+     -2.7134,
+     -1.3953
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 65.976,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 82",
+    "shape": "box",
+    "position": [
+     -2.5673,
+     -1.6814
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 59.948,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 83",
+    "shape": "box",
+    "position": [
+     -2.3921,
+     -1.9507
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 53.956,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 84",
+    "shape": "box",
+    "position": [
+     -2.1898,
+     -2.2003
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 47.998,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 85",
+    "shape": "box",
+    "position": [
+     -1.9628,
+     -2.4276
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 42.074,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 86",
+    "shape": "box",
+    "position": [
+     -1.7136,
+     -2.6303
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 36.184,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 87",
+    "shape": "box",
+    "position": [
+     -1.445,
+     -2.8064
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 30.326,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 88",
+    "shape": "box",
+    "position": [
+     -1.1598,
+     -2.9543
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 24.501,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 89",
+    "shape": "box",
+    "position": [
+     -0.8612,
+     -3.0725
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 18.708,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 90",
+    "shape": "box",
+    "position": [
+     -0.5522,
+     -3.1601
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 12.946,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 91",
+    "shape": "box",
+    "position": [
+     -0.236,
+     -3.2163
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 7.214,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 92",
+    "shape": "box",
+    "position": [
+     0.0842,
+     -3.2407
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 1.513,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 93",
+    "shape": "box",
+    "position": [
+     0.4053,
+     -3.2333
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -4.158,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 94",
+    "shape": "box",
+    "position": [
+     0.724,
+     -3.1943
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -9.799,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 95",
+    "shape": "box",
+    "position": [
+     1.0374,
+     -3.1242
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -15.412,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 96",
+    "shape": "box",
+    "position": [
+     1.3424,
+     -3.0238
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -20.997,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 97",
+    "shape": "box",
+    "position": [
+     1.6362,
+     -2.8944
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -26.553,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 98",
+    "shape": "box",
+    "position": [
+     1.9162,
+     -2.7372
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -32.082,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 99",
+    "shape": "box",
+    "position": [
+     2.1797,
+     -2.5538
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -37.583,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 100",
+    "shape": "box",
+    "position": [
+     2.4245,
+     -2.346
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -43.058,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 101",
+    "shape": "box",
+    "position": [
+     2.6484,
+     -2.1159
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -48.506,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 102",
+    "shape": "box",
+    "position": [
+     2.8495,
+     -1.8656
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -53.928,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 103",
+    "shape": "box",
+    "position": [
+     3.026,
+     -1.5975
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -59.325,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 104",
+    "shape": "box",
+    "position": [
+     3.1767,
+     -1.3141
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -64.696,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 105",
+    "shape": "box",
+    "position": [
+     3.3002,
+     -1.0178
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -70.043,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 106",
+    "shape": "box",
+    "position": [
+     3.3956,
+     -0.7113
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -75.364,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 107",
+    "shape": "box",
+    "position": [
+     3.4623,
+     -0.3973
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -80.662,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 108",
+    "shape": "box",
+    "position": [
+     3.4997,
+     -0.0785
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -85.935,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 109",
+    "shape": "box",
+    "position": [
+     3.5078,
+     0.2424
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -91.185,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 110",
+    "shape": "box",
+    "position": [
+     3.4865,
+     0.5626
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -96.411,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 111",
+    "shape": "box",
+    "position": [
+     3.4362,
+     0.8796
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -101.615,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 112",
+    "shape": "box",
+    "position": [
+     3.3575,
+     1.1908
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -106.796,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 113",
+    "shape": "box",
+    "position": [
+     3.251,
+     1.4935
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -111.954,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 114",
+    "shape": "box",
+    "position": [
+     3.1178,
+     1.7855
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -117.09,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 115",
+    "shape": "box",
+    "position": [
+     2.959,
+     2.0644
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -122.205,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 116",
+    "shape": "box",
+    "position": [
+     2.7761,
+     2.3281
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -127.298,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 117",
+    "shape": "box",
+    "position": [
+     2.5705,
+     2.5745
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -132.369,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 118",
+    "shape": "box",
+    "position": [
+     2.344,
+     2.8018
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -137.42,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 119",
+    "shape": "box",
+    "position": [
+     2.0984,
+     3.0084
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -142.45,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 120",
+    "shape": "box",
+    "position": [
+     1.8357,
+     3.1926
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -147.459,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 121",
+    "shape": "box",
+    "position": [
+     1.5579,
+     3.3533
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -152.448,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 122",
+    "shape": "box",
+    "position": [
+     1.2673,
+     3.4892
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -157.417,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 123",
+    "shape": "box",
+    "position": [
+     0.966,
+     3.5995
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -162.367,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 124",
+    "shape": "box",
+    "position": [
+     0.6563,
+     3.6835
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -167.296,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 125",
+    "shape": "box",
+    "position": [
+     0.3405,
+     3.7406
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -172.207,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 126",
+    "shape": "box",
+    "position": [
+     0.0211,
+     3.7705
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -177.098,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 127",
+    "shape": "box",
+    "position": [
+     -0.2997,
+     3.773
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 178.03,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 128",
+    "shape": "box",
+    "position": [
+     -0.6196,
+     3.7484
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 173.176,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 129",
+    "shape": "box",
+    "position": [
+     -0.9363,
+     3.6969
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 168.34,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 130",
+    "shape": "box",
+    "position": [
+     -1.2475,
+     3.6189
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 163.523,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 131",
+    "shape": "box",
+    "position": [
+     -1.551,
+     3.5151
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 158.724,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 132",
+    "shape": "box",
+    "position": [
+     -1.8449,
+     3.3863
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 153.943,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 133",
+    "shape": "box",
+    "position": [
+     -2.127,
+     3.2335
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 149.179,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 134",
+    "shape": "box",
+    "position": [
+     -2.3954,
+     3.0579
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 144.433,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 135",
+    "shape": "box",
+    "position": [
+     -2.6484,
+     2.8607
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 139.704,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 136",
+    "shape": "box",
+    "position": [
+     -2.8843,
+     2.6434
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 134.992,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 137",
+    "shape": "box",
+    "position": [
+     -3.1016,
+     2.4074
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 130.297,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 138",
+    "shape": "box",
+    "position": [
+     -3.2989,
+     2.1545
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 125.618,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 139",
+    "shape": "box",
+    "position": [
+     -3.475,
+     1.8863
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 120.956,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 140",
+    "shape": "box",
+    "position": [
+     -3.6287,
+     1.6048
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 116.311,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 141",
+    "shape": "box",
+    "position": [
+     -3.7591,
+     1.3117
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 111.681,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 142",
+    "shape": "box",
+    "position": [
+     -3.8655,
+     1.0091
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 107.068,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 143",
+    "shape": "box",
+    "position": [
+     -3.9473,
+     0.699
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 102.47,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 144",
+    "shape": "box",
+    "position": [
+     -4.004,
+     0.3833
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 97.888,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 145",
+    "shape": "box",
+    "position": [
+     -4.0353,
+     0.0641
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 93.322,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 146",
+    "shape": "box",
+    "position": [
+     -4.0411,
+     -0.2566
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 88.771,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 147",
+    "shape": "box",
+    "position": [
+     -4.0216,
+     -0.5767
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 84.235,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 148",
+    "shape": "box",
+    "position": [
+     -3.9768,
+     -0.8943
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 79.714,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 149",
+    "shape": "box",
+    "position": [
+     -3.9072,
+     -1.2074
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 75.209,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 150",
+    "shape": "box",
+    "position": [
+     -3.8132,
+     -1.514
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 70.717,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 151",
+    "shape": "box",
+    "position": [
+     -3.6955,
+     -1.8124
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 66.241,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 152",
+    "shape": "box",
+    "position": [
+     -3.555,
+     -2.1006
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 61.779,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 153",
+    "shape": "box",
+    "position": [
+     -3.3925,
+     -2.3771
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 57.331,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 154",
+    "shape": "box",
+    "position": [
+     -3.209,
+     -2.6402
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 52.898,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 155",
+    "shape": "box",
+    "position": [
+     -3.0059,
+     -2.8883
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 48.478,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 156",
+    "shape": "box",
+    "position": [
+     -2.7842,
+     -3.12
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 44.073,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 157",
+    "shape": "box",
+    "position": [
+     -2.5454,
+     -3.3341
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 39.681,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 158",
+    "shape": "box",
+    "position": [
+     -2.291,
+     -3.5293
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 35.303,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 159",
+    "shape": "box",
+    "position": [
+     -2.0224,
+     -3.7045
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 30.938,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 160",
+    "shape": "box",
+    "position": [
+     -1.7413,
+     -3.8588
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 26.587,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 161",
+    "shape": "box",
+    "position": [
+     -1.4493,
+     -3.9913
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 22.249,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 162",
+    "shape": "box",
+    "position": [
+     -1.1482,
+     -4.1015
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 17.925,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 163",
+    "shape": "box",
+    "position": [
+     -0.8396,
+     -4.1886
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 13.613,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 164",
+    "shape": "box",
+    "position": [
+     -0.5253,
+     -4.2523
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 9.314,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 165",
+    "shape": "box",
+    "position": [
+     -0.2072,
+     -4.2923
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 5.029,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 166",
+    "shape": "box",
+    "position": [
+     0.1131,
+     -4.3085
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 0.755,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 167",
+    "shape": "box",
+    "position": [
+     0.4336,
+     -4.3008
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -3.505,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 168",
+    "shape": "box",
+    "position": [
+     0.7527,
+     -4.2694
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -7.753,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 169",
+    "shape": "box",
+    "position": [
+     1.0686,
+     -4.2144
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -11.989,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 170",
+    "shape": "box",
+    "position": [
+     1.3796,
+     -4.1363
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -16.213,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 171",
+    "shape": "box",
+    "position": [
+     1.684,
+     -4.0355
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -20.424,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 172",
+    "shape": "box",
+    "position": [
+     1.9801,
+     -3.9127
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -24.623,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 173",
+    "shape": "box",
+    "position": [
+     2.2665,
+     -3.7685
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -28.81,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 174",
+    "shape": "box",
+    "position": [
+     2.5416,
+     -3.6039
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -32.986,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 175",
+    "shape": "box",
+    "position": [
+     2.804,
+     -3.4196
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -37.15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 176",
+    "shape": "box",
+    "position": [
+     3.0524,
+     -3.2169
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -41.302,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 177",
+    "shape": "box",
+    "position": [
+     3.2855,
+     -2.9967
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -45.442,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 178",
+    "shape": "box",
+    "position": [
+     3.502,
+     -2.7603
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -49.571,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 179",
+    "shape": "box",
+    "position": [
+     3.701,
+     -2.509
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -53.689,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 180",
+    "shape": "box",
+    "position": [
+     3.8815,
+     -2.244
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -57.795,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 181",
+    "shape": "box",
+    "position": [
+     4.0425,
+     -1.9668
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -61.891,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 182",
+    "shape": "box",
+    "position": [
+     4.1834,
+     -1.6788
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -65.975,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 183",
+    "shape": "box",
+    "position": [
+     4.3034,
+     -1.3815
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -70.048,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 184",
+    "shape": "box",
+    "position": [
+     4.4021,
+     -1.0765
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -74.11,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 185",
+    "shape": "box",
+    "position": [
+     4.4789,
+     -0.7652
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -78.162,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 186",
+    "shape": "box",
+    "position": [
+     4.5336,
+     -0.4494
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -82.202,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 187",
+    "shape": "box",
+    "position": [
+     4.5658,
+     -0.1304
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -86.232,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 188",
+    "shape": "box",
+    "position": [
+     4.5757,
+     0.19
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -90.252,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 189",
+    "shape": "box",
+    "position": [
+     4.5631,
+     0.5103
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -94.261,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 190",
+    "shape": "box",
+    "position": [
+     4.5281,
+     0.829
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -98.26,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 191",
+    "shape": "box",
+    "position": [
+     4.471,
+     1.1444
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -102.248,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 192",
+    "shape": "box",
+    "position": [
+     4.3922,
+     1.4551
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -106.226,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 193",
+    "shape": "box",
+    "position": [
+     4.292,
+     1.7596
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -110.194,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 194",
+    "shape": "box",
+    "position": [
+     4.171,
+     2.0565
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -114.152,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 195",
+    "shape": "box",
+    "position": [
+     4.0299,
+     2.3443
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -118.1,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 196",
+    "shape": "box",
+    "position": [
+     3.8693,
+     2.6217
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -122.037,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 197",
+    "shape": "box",
+    "position": [
+     3.69,
+     2.8874
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -125.965,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 198",
+    "shape": "box",
+    "position": [
+     3.493,
+     3.1403
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -129.884,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 199",
+    "shape": "box",
+    "position": [
+     3.2792,
+     3.3791
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -133.792,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.85
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Domino 200",
+    "shape": "box",
+    "position": [
+     3.0496,
+     3.6028
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": -137.691,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

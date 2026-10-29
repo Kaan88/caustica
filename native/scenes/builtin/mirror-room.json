@@ -1,0 +1,169 @@
+{
+ "format": 1,
+ "title": "Mirror room",
+ "description": "Every wall a mirror around one matte sphere: interreflections down to the bounce limit.",
+ "tags": [
+  "cornell",
+  "mirror",
+  "bounces"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": true,
+  "objects": [
+   {
+    "name": "Matte sphere",
+    "shape": "sphere",
+    "position": [
+     0,
+     -0.2
+    ],
+    "size": 1.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.18,
+      0.08
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Front mirror",
+    "shape": "box",
+    "position": [
+     0,
+     1.02
+    ],
+    "size": 1.0,
+    "stretch": 2.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.86,
+     0.05
+    ],
+    "elevation": 0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.93,
+      0.93
+     ],
+     "roughness": 0.0,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ],
+  "left": [
+   0.93,
+   0.86,
+   0.86
+  ],
+  "right": [
+   0.86,
+   0.93,
+   0.88
+  ],
+  "base": [
+   0.93,
+   0.93,
+   0.93
+  ],
+  "walls": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.0,
+   "metallic": 1,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "floor": {
+   "color": [
+    0.4,
+    0.4,
+    0.4
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "bounces": 24,
+  "yaw": 0,
+  "pitch": 6,
+  "distance": 0.9,
+  "target": [
+   0,
+   -0.15,
+   -0.2
+  ],
+  "fov": 72
+ }
+}

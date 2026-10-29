@@ -1,0 +1,478 @@
+{
+ "format": 1,
+ "title": "Ice cubes",
+ "description": "Frosted glass cubes tumbled on dark slate: rough transmission.",
+ "tags": [
+  "material",
+  "glass",
+  "roughness"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.02,
+  "base": [
+   0.06,
+   0.065,
+   0.07
+  ],
+  "floor": {
+   "color": [
+    0.06,
+    0.06,
+    0.07
+   ],
+   "roughness": 0.35,
+   "metallic": 0.0,
+   "reflectivity": 0.1,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -2.0,
+   3.0,
+   1.0
+  ],
+  "light_size": 1.5,
+  "light_intensity": 24.0,
+  "light_visible": false,
+  "light_temperature": 6500.0,
+  "lights": [
+   {
+    "name": "Warm back",
+    "position": [
+     1.5,
+     1.2,
+     -2.5
+    ],
+    "rotation": [
+     55.55,
+     149.036,
+     0.0
+    ],
+    "size": [
+     1.2,
+     1.2
+    ],
+    "color": [
+     1.0,
+     0.4116,
+     0.1148
+    ],
+    "intensity": 30,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 16,
+  "yaw": 10,
+  "pitch": 30,
+  "distance": 5.0,
+  "target": [
+   0,
+   -0.7,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Ice 1",
+    "shape": "box",
+    "position": [
+     -0.4933,
+     -0.6983
+    ],
+    "size": 0.8953,
+    "stretch": 1.0,
+    "rotation": 12.918,
+    "tilt": [
+     -6.716,
+     -22.1
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.1330385316001577,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 2",
+    "shape": "box",
+    "position": [
+     0.0208,
+     -0.925
+    ],
+    "size": 0.8301,
+    "stretch": 1.0,
+    "rotation": -147.343,
+    "tilt": [
+     -3.774,
+     16.343
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.1325739762434314,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 3",
+    "shape": "box",
+    "position": [
+     -1.0534,
+     -0.5535
+    ],
+    "size": 0.8882,
+    "stretch": 1.0,
+    "rotation": 27.757,
+    "tilt": [
+     -5.166,
+     23.813
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.29058760964226105,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 4",
+    "shape": "box",
+    "position": [
+     -1.2696,
+     0.7169
+    ],
+    "size": 0.7869,
+    "stretch": 1.0,
+    "rotation": -137.595,
+    "tilt": [
+     -9.576,
+     15.806
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.14596591500433875,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 5",
+    "shape": "box",
+    "position": [
+     -0.894,
+     0.1632
+    ],
+    "size": 0.8917,
+    "stretch": 1.0,
+    "rotation": 17.188,
+    "tilt": [
+     -21.861,
+     -22.02
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.18703155769063162,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 6",
+    "shape": "box",
+    "position": [
+     -0.8233,
+     0.3608
+    ],
+    "size": 0.8283,
+    "stretch": 1.0,
+    "rotation": 30.802,
+    "tilt": [
+     -2.341,
+     -10.012
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.17654649066782246,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 7",
+    "shape": "box",
+    "position": [
+     0.8243,
+     0.398
+    ],
+    "size": 0.7732,
+    "stretch": 1.0,
+    "rotation": 9.071,
+    "tilt": [
+     18.757,
+     11.472
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.22339626784656078,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 8",
+    "shape": "box",
+    "position": [
+     -0.5938,
+     0.9603
+    ],
+    "size": 0.7354,
+    "stretch": 1.0,
+    "rotation": 92.571,
+    "tilt": [
+     -17.401,
+     -0.552
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.19526210792134088,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ice 9",
+    "shape": "box",
+    "position": [
+     -1.2902,
+     0.3364
+    ],
+    "size": 0.9294,
+    "stretch": 1.0,
+    "rotation": 135.172,
+    "tilt": [
+     -9.313,
+     9.765
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.2231446692499291,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

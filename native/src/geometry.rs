@@ -380,20 +380,24 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
             1,
         );
     }
-    let l = Vec3::from(s.light_position);
-    let x = s.light_size * 0.5;
-    let z = x * s.light_aspect;
-    quad(
-        [
-            l + p(-x, 0., -z),
-            l + p(x, 0., -z),
-            l + p(x, 0., z),
-            l + p(-x, 0., z),
-        ],
-        -Vec3::Y,
-        4,
-    );
-    for (i, l) in s.lights.iter().enumerate() {
+    // A light that is off leaves no geometry: its unlit quad would otherwise show up black in
+    // reflections and cast a shadow.
+    if s.light_on {
+        let l = Vec3::from(s.light_position);
+        let x = s.light_size * 0.5;
+        let z = x * s.light_aspect;
+        quad(
+            [
+                l + p(-x, 0., -z),
+                l + p(x, 0., -z),
+                l + p(x, 0., z),
+                l + p(-x, 0., z),
+            ],
+            -Vec3::Y,
+            4,
+        );
+    }
+    for (i, l) in s.lights.iter().enumerate().filter(|(_, l)| l.enabled) {
         let r = Mat4::from_euler(
             EulerRot::YXZ,
             l.rotation[1].to_radians(),

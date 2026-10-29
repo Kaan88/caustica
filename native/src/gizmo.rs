@@ -722,20 +722,23 @@ pub fn draw_lights(
         painter.add(egui::Shape::line(line, egui::Stroke::new(width, color)));
     }
 }
+/// Quads of the lights that are on (off lights leave no geometry, so nothing to see or click).
 fn light_quads(s: &Settings) -> Vec<(Selection, [Vec3; 4])> {
     let mut out = vec![];
     let l = Vec3::from(s.light_position);
     let (x, z) = (s.light_size * 0.5, s.light_size * 0.5 * s.light_aspect);
-    out.push((
-        Selection::MainLight,
-        [
-            l + Vec3::new(-x, 0., -z),
-            l + Vec3::new(x, 0., -z),
-            l + Vec3::new(x, 0., z),
-            l + Vec3::new(-x, 0., z),
-        ],
-    ));
-    for (i, a) in s.lights.iter().enumerate() {
+    if s.light_on {
+        out.push((
+            Selection::MainLight,
+            [
+                l + Vec3::new(-x, 0., -z),
+                l + Vec3::new(x, 0., -z),
+                l + Vec3::new(x, 0., z),
+                l + Vec3::new(-x, 0., z),
+            ],
+        ));
+    }
+    for (i, a) in s.lights.iter().enumerate().filter(|(_, a)| a.enabled) {
         let r = light_quat(a.rotation);
         let c = Vec3::from(a.position);
         let (x, z) = (a.size[0] * 0.5, a.size[1] * 0.5);

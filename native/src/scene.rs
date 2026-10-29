@@ -408,6 +408,20 @@ impl Settings {
         }
         self.light_temperature = 2800. + rand() * 5200.;
     }
+    /// Takes the viewer's render and display choices from `from` (used when a scene file
+    /// replaces the scene): resolution, RR and its model, upscaler, DLSS preset, DLAA, VSync, HDR.
+    pub fn keep_output(&mut self, from: &Settings) {
+        self.scale = from.scale;
+        self.rr = from.rr;
+        self.vsync = from.vsync;
+        self.rr_preset = from.rr_preset;
+        self.upscaler = from.upscaler;
+        self.dlss_preset = from.dlss_preset;
+        self.native_aa = from.native_aa;
+        self.hdr_mode = from.hdr_mode;
+        self.hdr_peak = from.hdr_peak;
+        self.hdr_white = from.hdr_white;
+    }
     pub fn preset(&mut self, id: usize) {
         // Presets 0–8 share the Cornell box, so moving between them keeps the
         // user's camera. Any other switch takes the preset's own camera.

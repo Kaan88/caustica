@@ -1,0 +1,435 @@
+{
+ "format": 1,
+ "title": "Armillary sphere",
+ "description": "Five gold rings at different tilts around a glass globe.",
+ "tags": [
+  "still life",
+  "metal",
+  "glass"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.05,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 2.0,
+  "light_intensity": 16.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Cool rim",
+    "position": [
+     2.5,
+     3,
+     -2.5
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2,
+     2
+    ],
+    "color": [
+     0.42,
+     0.65,
+     1.0
+    ],
+    "intensity": 10,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 16,
+  "yaw": 20,
+  "pitch": 15,
+  "distance": 6.0,
+  "target": [
+   0,
+   0.3,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Base",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.6,
+    "stretch": 0.15,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Stem",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.08,
+     0.08
+    ],
+    "elevation": 0.08,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass globe",
+    "shape": "sphere",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.6,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ring 1",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 4.0373,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ring 2",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 4.0373,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     60
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ring 3",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 4.0373,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     120
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ring 4",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 4.0373,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Ring 5",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 4.0373,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     66,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

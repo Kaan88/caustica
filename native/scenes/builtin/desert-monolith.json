@@ -1,0 +1,138 @@
+{
+ "format": 1,
+ "title": "Desert monolith",
+ "description": "A black slab on orange sand under a hard sun and a bright sky: minimalism and a sharp shadow.",
+ "tags": [
+  "open",
+  "shadows"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 1.4,
+  "base": [
+   0.8,
+   0.42,
+   0.18
+  ],
+  "floor": {
+   "color": [
+    0.8,
+    0.42,
+    0.18
+   ],
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Sun",
+    "position": [
+     25,
+     30,
+     20
+    ],
+    "rotation": [
+     45.923,
+     51.34,
+     0.0
+    ],
+    "size": [
+     2.5,
+     2.5
+    ],
+    "color": [
+     1.0,
+     0.8694,
+     0.7615
+    ],
+    "intensity": 2000,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": -30,
+  "pitch": 6,
+  "distance": 11,
+  "target": [
+   0,
+   0.8,
+   0
+  ],
+  "fov": 40,
+  "background": [
+   0.45,
+   0.6,
+   0.85
+  ],
+  "objects": [
+   {
+    "name": "Monolith",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 6.5,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.3
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.012,
+      0.012,
+      0.014
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

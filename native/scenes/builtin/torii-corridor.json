@@ -1,0 +1,2159 @@
+{
+ "format": 1,
+ "title": "Torii corridor",
+ "description": "Twelve red gates receding toward a setting sun: repetition, perspective and colour bleeding.",
+ "tags": [
+  "architecture",
+  "sunset"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.2,
+  "base": [
+   0.35,
+   0.3,
+   0.26
+  ],
+  "floor": {
+   "color": [
+    0.4,
+    0.35,
+    0.3
+   ],
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "reflectivity": 0.02,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Sunset",
+    "position": [
+     0,
+     1.8,
+     -36
+    ],
+    "rotation": [
+     87.138,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     8,
+     4
+    ],
+    "color": [
+     1.0,
+     0.3147,
+     0.0281
+    ],
+    "intensity": 300,
+    "enabled": true,
+    "visible": true
+   }
+  ],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 3,
+  "distance": 6,
+  "target": [
+   0,
+   0.3,
+   0
+  ],
+  "fov": 50,
+  "background": [
+   0.2,
+   0.1,
+   0.08
+  ],
+  "objects": [
+   {
+    "name": "Gate 1 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     2.0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 1 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     2.0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 1 beam",
+    "shape": "box",
+    "position": [
+     0,
+     2.0
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 1 tie",
+    "shape": "box",
+    "position": [
+     0,
+     2.0
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 2 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -0.2
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 2 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -0.2
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 2 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 2 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 3 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -2.4
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 3 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -2.4
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 3 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -2.4
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 3 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -2.4
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 4 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -4.6
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 4 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -4.6
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 4 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -4.6
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 4 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -4.6
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 5 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -6.8
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 5 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -6.8
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 5 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -6.8
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 5 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -6.8
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 6 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -9.0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 6 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -9.0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 6 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -9.0
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 6 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -9.0
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 7 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -11.2
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 7 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -11.2
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 7 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -11.2
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 7 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -11.2
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 8 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -13.4
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 8 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -13.4
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 8 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -13.4
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 8 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -13.4
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 9 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -15.6
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 9 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -15.6
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 9 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -15.6
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 9 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -15.6
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 10 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -17.8
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 10 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -17.8
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 10 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -17.8
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 10 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -17.8
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 11 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -20.0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 11 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -20.0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 11 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -20.0
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 11 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -20.0
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 12 pillar",
+    "shape": "cylinder",
+    "position": [
+     -1.3,
+     -22.2
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 12 pillar",
+    "shape": "cylinder",
+    "position": [
+     1.3,
+     -22.2
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.065,
+     0.065
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 12 beam",
+    "shape": "box",
+    "position": [
+     0,
+     -22.2
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     0.45
+    ],
+    "elevation": 1.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gate 12 tie",
+    "shape": "box",
+    "position": [
+     0,
+     -22.2
+    ],
+    "size": 1.0,
+    "stretch": 0.22,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.6,
+     0.3
+    ],
+    "elevation": 0.95,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.08,
+      0.03
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

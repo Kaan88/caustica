@@ -1,0 +1,737 @@
+{
+ "format": 1,
+ "title": "Bunny museum",
+ "description": "Six Stanford bunnies on plinths in glass, gold, jade, marble, chrome and rubber, each under its own light in a dark gallery.",
+ "tags": [
+  "material",
+  "mesh",
+  "gallery"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.12,
+   0.11,
+   0.1
+  ],
+  "floor": {
+   "color": [
+    0.12,
+    0.11,
+    0.1
+   ],
+   "roughness": 0.25,
+   "metallic": 0.0,
+   "reflectivity": 0.15,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Spot Glass",
+    "position": [
+     -2.6046,
+     3.6,
+     0.5395
+    ],
+    "rotation": [
+     16.382,
+     36.967,
+     0.0
+    ],
+    "size": [
+     0.7,
+     0.7
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 36,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Spot Gold",
+    "position": [
+     -1.7,
+     3.6,
+     -0.2195
+    ],
+    "rotation": [
+     17.159,
+     21.944,
+     0.0
+    ],
+    "size": [
+     0.7,
+     0.7
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 36,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Spot Jade",
+    "position": [
+     -0.5904,
+     3.6,
+     -0.6233
+    ],
+    "rotation": [
+     17.555,
+     7.277,
+     0.0
+    ],
+    "size": [
+     0.7,
+     0.7
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 36,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Spot Marble",
+    "position": [
+     0.5904,
+     3.6,
+     -0.6233
+    ],
+    "rotation": [
+     17.555,
+     -7.277,
+     0.0
+    ],
+    "size": [
+     0.7,
+     0.7
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 36,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Spot Chrome",
+    "position": [
+     1.7,
+     3.6,
+     -0.2195
+    ],
+    "rotation": [
+     17.159,
+     -21.944,
+     0.0
+    ],
+    "size": [
+     0.7,
+     0.7
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 36,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Spot Red rubber",
+    "position": [
+     2.6046,
+     3.6,
+     0.5395
+    ],
+    "rotation": [
+     16.382,
+     -36.967,
+     0.0
+    ],
+    "size": [
+     0.7,
+     0.7
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 36,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 16,
+  "yaw": 0,
+  "pitch": 12,
+  "distance": 8.5,
+  "target": [
+   0,
+   0.6,
+   -0.8
+  ],
+  "fov": 45,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Plinth 1",
+    "shape": "box",
+    "position": [
+     -3.0642,
+     -0.0712
+    ],
+    "size": 1.1,
+    "stretch": 2.4,
+    "rotation": 50.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.82,
+      0.8,
+      0.76
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Glass bunny",
+    "shape": "bunny",
+    "position": [
+     -3.0642,
+     -0.0712
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 70.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.848,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plinth 2",
+    "shape": "box",
+    "position": [
+     -2.0,
+     -0.9641
+    ],
+    "size": 1.1,
+    "stretch": 2.4,
+    "rotation": 30.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.82,
+      0.8,
+      0.76
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gold bunny",
+    "shape": "bunny",
+    "position": [
+     -2.0,
+     -0.9641
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 50.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.848,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plinth 3",
+    "shape": "box",
+    "position": [
+     -0.6946,
+     -1.4392
+    ],
+    "size": 1.1,
+    "stretch": 2.4,
+    "rotation": 10.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.82,
+      0.8,
+      0.76
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Jade bunny",
+    "shape": "bunny",
+    "position": [
+     -0.6946,
+     -1.4392
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 30.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.848,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.09,
+      0.46,
+      0.25
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.15,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plinth 4",
+    "shape": "box",
+    "position": [
+     0.6946,
+     -1.4392
+    ],
+    "size": 1.1,
+    "stretch": 2.4,
+    "rotation": -10.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.82,
+      0.8,
+      0.76
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Marble bunny",
+    "shape": "bunny",
+    "position": [
+     0.6946,
+     -1.4392
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 10.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.848,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plinth 5",
+    "shape": "box",
+    "position": [
+     2.0,
+     -0.9641
+    ],
+    "size": 1.1,
+    "stretch": 2.4,
+    "rotation": -30.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.82,
+      0.8,
+      0.76
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Chrome bunny",
+    "shape": "bunny",
+    "position": [
+     2.0,
+     -0.9641
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": -10.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.848,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.035,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plinth 6",
+    "shape": "box",
+    "position": [
+     3.0642,
+     -0.0712
+    ],
+    "size": 1.1,
+    "stretch": 2.4,
+    "rotation": -50.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.82,
+      0.8,
+      0.76
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Red rubber bunny",
+    "shape": "bunny",
+    "position": [
+     3.0642,
+     -0.0712
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": -30.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.848,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.68,
+      0.025,
+      0.018
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

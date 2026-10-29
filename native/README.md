@@ -84,6 +84,16 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 | Tab | Hide the panel, then everything, then show all again |
 | Ctrl +/− | UI size |
 
+### Scene files
+
+`scenes/` holds scene packs: one folder per pack with a `pack.json` (name and scene order) and one JSON file per scene. A scene file wraps the native settings with a title, description and tags; fields it leaves out take the defaults, so files only list what they change. `scenes/builtin` ships **42 scenes** (the buildable list of `docs/scene-research.md`): Cornell variants (mirror room, measured box, bunny, caustic, dark room, water tank), validation and lighting studies (white furnace, Veach MIS plates, Veach ajar room, penumbra ladder, light temperatures, overcast sky, glossy tiles), material showcases (shape × material matrix, gems, jewellery, ice, glass stack, bunny museum, tea set), architecture (Stonehenge at dusk, torii corridor, spiral staircase, colonnade at night, night skyline, desert monolith, zen garden, disco floor, mirror maze, stained-glass hall) and still lifes (Newton's cradle, domino spiral, orrery, atom, armillary sphere, snowmen, pool table, candle shelf, bowling lane, stylised forest, abacus, pipe organ).
+
+- **Scenes** in the top bar opens the browser: a grid of thumbnails grouped by pack, search, tag filters, a larger preview with description, tags, licence and credits, double-click to load. Each pack shows its licence as a label (amber when it is non-commercial); `pack.json` may give `license`, `commercial_use`, `attribution` and `source`. Loading keeps your render choices (resolution, RR, upscaler, presets, VSync, HDR). With a scene file loaded, ◀ ▶ step through the files.
+- **Save to scenes/user** in the same window writes the current scene with a title and description.
+- **Thumbnails** are rendered in the background the first time the browser opens, by running the exe headless for each scene (320×200), and cached in `scenes/thumbnails/` under the file's hash, so an edited scene gets a new one. *Re-render thumbnails* redoes them all; `--make-thumbnails` renders the missing ones from the command line.
+- `--scene NAME` loads a scene by file name, title or path on the command line; `--help` lists them.
+- `tools/build_scenes.py` generates the built-in pack (edit scenes there, then rerun it); `tools/scene_sheet.py` renders every scene into a labelled contact sheet in `captures/scenes/`.
+
 Save/load uses `settings.json` in the working directory. PNG/EXR buttons write `cornell.png` / `cornell.exr`; high-resolution export writes `cornell-high-res.png`. These are native settings; the browser JSON schema is separate. All material colors are linear RGB. Lighting temperature is normalized to unit luminance, then multiplied by the gel and intensity.
 
 ## Offline rendering and verification
@@ -152,7 +162,7 @@ The previous filter fed its own blurred output back as history, so it got worse 
 
 The RR bridge converts ray-sampling offsets to NGX image displacements with opposite signs on both axes. Specular hit distances come from a stable primary reflection ray rather than a randomly selected BSDF lobe; this prevents false reflection-motion changes on stationary surfaces.
 
-The 204-frame integration self-test covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export, draws every tab and inspector with the advanced rows shown, draws each gizmo, and runs a keyed G X 0.5 Enter and its undo. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
+The integration self-test (204 scripted frames, then one per scene file) covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export, draws every tab and inspector with the advanced rows shown, draws each gizmo, runs a keyed G X 0.5 Enter and its undo, and then loads every scene file in `scenes/`. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
 
 ## Implementation map
 
@@ -164,6 +174,7 @@ The 204-frame integration self-test covers all 24 presets including the empty st
 | `src/geometry.rs` | Cached shape meshes, scene assembly, framing, focus and viewport picking |
 | `src/lighting.rs` | Packed GPU materials and the power-weighted emissive-triangle table |
 | `src/display.rs` | Windows display query (HDR state, calibrated luminance, SDR white level), HDR transform reference and HDR PNG writer |
+| `src/scenes.rs` | Scene files: folder lookup, pack listing, loading (wrapper or bare settings, validated), saving to `scenes/user` |
 | `src/gizmo.rs` | Transform gizmos: projection, handle layout and hit tests, drag and modal G / R / S math, light outlines and picking |
 | `src/ui.rs` | Top bar, side panel tabs, status bar, toasts, theme; UI state kept out of `Settings` |
 | `src/editor.rs` | Object, area-light and material inspectors |

@@ -1,0 +1,799 @@
+{
+ "format": 1,
+ "title": "Light temperature row",
+ "description": "Seven white pawns, each lit by one light from 2000 K to 10000 K. Kelvin colours side by side.",
+ "tags": [
+  "lighting",
+  "color"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.6,
+   0.6,
+   0.6
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "2000 K",
+    "position": [
+     -4.2,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     1.0,
+     0.2544,
+     0.0017
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "2700 K",
+    "position": [
+     -2.8,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     1.0,
+     0.3926,
+     0.0948
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "3500 K",
+    "position": [
+     -1.4,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     1.0,
+     0.5389,
+     0.2708
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "4500 K",
+    "position": [
+     -0.0,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     1.0,
+     0.705,
+     0.508
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "5600 K",
+    "position": [
+     1.4,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     1.0,
+     0.8694,
+     0.7615
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "7500 K",
+    "position": [
+     2.8,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     0.7958,
+     0.8342,
+     1.0
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "10000 K",
+    "position": [
+     4.2,
+     2.2,
+     1.0
+    ],
+    "rotation": [
+     19.654,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     0.597,
+     0.7088,
+     1.0
+    ],
+    "intensity": 25,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 14,
+  "distance": 9.5,
+  "target": [
+   0,
+   -0.4,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Pawn 2000 K",
+    "shape": "pawn",
+    "position": [
+     -4.2,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Divider 1",
+    "shape": "box",
+    "position": [
+     -3.5,
+     -0.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.05,
+     3.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pawn 2700 K",
+    "shape": "pawn",
+    "position": [
+     -2.8,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Divider 2",
+    "shape": "box",
+    "position": [
+     -2.1,
+     -0.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.05,
+     3.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pawn 3500 K",
+    "shape": "pawn",
+    "position": [
+     -1.4,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Divider 3",
+    "shape": "box",
+    "position": [
+     -0.7,
+     -0.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.05,
+     3.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pawn 4500 K",
+    "shape": "pawn",
+    "position": [
+     -0.0,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Divider 4",
+    "shape": "box",
+    "position": [
+     0.7,
+     -0.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.05,
+     3.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pawn 5600 K",
+    "shape": "pawn",
+    "position": [
+     1.4,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Divider 5",
+    "shape": "box",
+    "position": [
+     2.1,
+     -0.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.05,
+     3.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pawn 7500 K",
+    "shape": "pawn",
+    "position": [
+     2.8,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Divider 6",
+    "shape": "box",
+    "position": [
+     3.5,
+     -0.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.05,
+     3.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pawn 10000 K",
+    "shape": "pawn",
+    "position": [
+     4.2,
+     0
+    ],
+    "size": 1.3,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.85,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

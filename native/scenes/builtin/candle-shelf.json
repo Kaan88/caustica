@@ -1,0 +1,2005 @@
+{
+ "format": 1,
+ "title": "Candle shelf",
+ "description": "Twenty-one candles on shelves in a dark room: many small lights, a test for light sampling.",
+ "tags": [
+  "emissive",
+  "night",
+  "many lights"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.18,
+   0.14,
+   0.11
+  ],
+  "floor": {
+   "color": [
+    0.18,
+    0.14,
+    0.11
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.04,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 8,
+  "distance": 5.2,
+  "target": [
+   0,
+   0.0,
+   0
+  ],
+  "fov": 45,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Shelf",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.12,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     14.0,
+     1.6
+    ],
+    "elevation": -0.3,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.22,
+      0.12,
+      0.06
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Shelf",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.12,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     14.0,
+     1.6
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.22,
+      0.12,
+      0.06
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     16.0,
+     0.2
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.3,
+      0.26
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Candle 1.1",
+    "shape": "cylinder",
+    "position": [
+     -2.0528,
+     -0.188
+    ],
+    "size": 0.2807,
+    "stretch": 1.0839,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8935,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.1",
+    "shape": "sphere",
+    "position": [
+     -2.0528,
+     -0.188
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.727,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 1.2",
+    "shape": "cylinder",
+    "position": [
+     -1.4267,
+     0.0702
+    ],
+    "size": 0.3344,
+    "stretch": 1.3179,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8457,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.2",
+    "shape": "sphere",
+    "position": [
+     -1.4267,
+     0.0702
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.6315,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 1.3",
+    "shape": "cylinder",
+    "position": [
+     -0.627,
+     -0.1393
+    ],
+    "size": 0.2952,
+    "stretch": 1.2147,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8745,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.3",
+    "shape": "sphere",
+    "position": [
+     -0.627,
+     -0.1393
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.689,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 1.4",
+    "shape": "cylinder",
+    "position": [
+     -0.0855,
+     0.121
+    ],
+    "size": 0.2621,
+    "stretch": 1.1665,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.893,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.4",
+    "shape": "sphere",
+    "position": [
+     -0.0855,
+     0.121
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.726,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 1.5",
+    "shape": "cylinder",
+    "position": [
+     0.7058,
+     -0.1726
+    ],
+    "size": 0.3223,
+    "stretch": 1.9418,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7809,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.5",
+    "shape": "sphere",
+    "position": [
+     0.7058,
+     -0.1726
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5019,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 1.6",
+    "shape": "cylinder",
+    "position": [
+     1.262,
+     0.0919
+    ],
+    "size": 0.3153,
+    "stretch": 1.7247,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8097,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.6",
+    "shape": "sphere",
+    "position": [
+     1.262,
+     0.0919
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5594,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 1.7",
+    "shape": "cylinder",
+    "position": [
+     2.036,
+     0.0187
+    ],
+    "size": 0.3023,
+    "stretch": 0.9817,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8961,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 1.7",
+    "shape": "sphere",
+    "position": [
+     2.036,
+     0.0187
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7323,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.1",
+    "shape": "cylinder",
+    "position": [
+     -1.9988,
+     -0.2143
+    ],
+    "size": 0.2887,
+    "stretch": 1.1722,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.1396,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.1",
+    "shape": "sphere",
+    "position": [
+     -1.9988,
+     -0.2143
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0389,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.2",
+    "shape": "cylinder",
+    "position": [
+     -1.2531,
+     -0.1299
+    ],
+    "size": 0.2963,
+    "stretch": 2.2029,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.0295,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.2",
+    "shape": "sphere",
+    "position": [
+     -1.2531,
+     -0.1299
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.259,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.3",
+    "shape": "cylinder",
+    "position": [
+     -0.5982,
+     0.0892
+    ],
+    "size": 0.3308,
+    "stretch": 1.5685,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.0764,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.3",
+    "shape": "sphere",
+    "position": [
+     -0.5982,
+     0.0892
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1652,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.4",
+    "shape": "cylinder",
+    "position": [
+     -0.0183,
+     -0.0776
+    ],
+    "size": 0.3016,
+    "stretch": 1.48,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.1018,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.4",
+    "shape": "sphere",
+    "position": [
+     -0.0183,
+     -0.0776
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1145,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.5",
+    "shape": "cylinder",
+    "position": [
+     0.5723,
+     -0.2327
+    ],
+    "size": 0.3236,
+    "stretch": 1.2257,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.1192,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.5",
+    "shape": "sphere",
+    "position": [
+     0.5723,
+     -0.2327
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0796,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.6",
+    "shape": "cylinder",
+    "position": [
+     1.2093,
+     -0.0362
+    ],
+    "size": 0.2688,
+    "stretch": 2.0215,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.0678,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.6",
+    "shape": "sphere",
+    "position": [
+     1.2093,
+     -0.0362
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1824,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 2.7",
+    "shape": "cylinder",
+    "position": [
+     1.9542,
+     -0.1718
+    ],
+    "size": 0.3426,
+    "stretch": 1.2081,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.1131,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 2.7",
+    "shape": "sphere",
+    "position": [
+     1.9542,
+     -0.1718
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0917,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.1",
+    "shape": "cylinder",
+    "position": [
+     -2.0174,
+     -0.1395
+    ],
+    "size": 0.3051,
+    "stretch": 1.1466,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0644,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.1",
+    "shape": "sphere",
+    "position": [
+     -2.0174,
+     -0.1395
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.2469,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.2",
+    "shape": "cylinder",
+    "position": [
+     -1.3688,
+     -0.0266
+    ],
+    "size": 0.273,
+    "stretch": 2.1928,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1515,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.2",
+    "shape": "sphere",
+    "position": [
+     -1.3688,
+     -0.0266
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.421,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.3",
+    "shape": "cylinder",
+    "position": [
+     -0.5991,
+     -0.1585
+    ],
+    "size": 0.2463,
+    "stretch": 1.2313,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0482,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.3",
+    "shape": "sphere",
+    "position": [
+     -0.5991,
+     -0.1585
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.2143,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.4",
+    "shape": "cylinder",
+    "position": [
+     0.033,
+     -0.1176
+    ],
+    "size": 0.2644,
+    "stretch": 2.0365,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1305,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.4",
+    "shape": "sphere",
+    "position": [
+     0.033,
+     -0.1176
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.3789,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.5",
+    "shape": "cylinder",
+    "position": [
+     0.5755,
+     0.0289
+    ],
+    "size": 0.2444,
+    "stretch": 1.9107,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1054,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.5",
+    "shape": "sphere",
+    "position": [
+     0.5755,
+     0.0289
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.3289,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.6",
+    "shape": "cylinder",
+    "position": [
+     1.3792,
+     0.1339
+    ],
+    "size": 0.3156,
+    "stretch": 2.1978,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1848,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.6",
+    "shape": "sphere",
+    "position": [
+     1.3792,
+     0.1339
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.4875,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Candle 3.7",
+    "shape": "cylinder",
+    "position": [
+     1.8636,
+     0.0601
+    ],
+    "size": 0.3394,
+    "stretch": 1.147,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0782,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.88,
+      0.76
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Flame 3.7",
+    "shape": "sphere",
+    "position": [
+     1.8636,
+     0.0601
+    ],
+    "size": 0.1,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.2745,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.18
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 18,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   }
+  ]
+ }
+}

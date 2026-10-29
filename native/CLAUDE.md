@@ -19,7 +19,7 @@ Paths here are relative to `native/` unless noted.
   - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap.
 - **Personal project, never published:** license terms don't limit assets or SDK use. The ordered plan is `docs/roadmap.md`:
-  - Near term: DLSS presets, native HDR, UI phase 1 and Blender-style gizmos are done (2026-10-30); next are scene files, then quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
+  - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.
 - **Git:** the repo root is `cornell/` (WebGL app plus `native/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
@@ -48,12 +48,12 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - Compiles the bridge and links `nvsdk_ngx_d`.
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
 - Headless runs need a real GPU and use a hidden window:
-  - Command: `cornell-rtx.exe --headless --frames N [--width W --height H --scale s --spp n --samples cap --preset 0..23 --settings f.json --rr|--no-rr|--require-rr --raw --debug] --capture out.png|out.exr`.
+  - Command: `cornell-rtx.exe --headless --frames N [--width W --height H --scale s --spp n --samples cap --preset 0..23 --settings f.json --scene name --rr|--no-rr|--require-rr --raw --debug] --capture out.png|out.exr`.
   - Success prints `RENDER_OK frames= samples= gpu_ms= rr= size= gpu_ms_mean= frame_ms_mean=`. The means are taken from frame 10 on, so use ≥ 200 frames with `--no-vsync` for benchmarks.
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 204 scripted frames; implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 204 scripted frames, then one frame per scene file (246 with the built-in pack); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -80,6 +80,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `src/display.rs` | `Monitor::query(hwnd)`: the DXGI output holding most of the window, `GetDesc1` (HDR on, peak/full-frame/min nits) and the SDR white level via `DisplayConfigGetDeviceInfo`; `current()` = `IDXGIFactory1::IsCurrent`. Also `hdr_map` (CPU copy of the shader transform, for tests) and `write_hdr_png` (16-bit PQ/BT.2020 with a cICP chunk). |
 | `src/ui.rs` | UI plan phase 1 (2026-10-30). `UiState` (tab, advanced, panel_hidden, selection, toasts, export size/samples): never in `Settings`. `impl App { fn ui }` draws top bar, status bar, right `SidePanel` with Scene / Render / Look / Export tabs, toasts. Helpers `row` (2-column grid row, label carries the tooltip), `more` (inline when advanced, else a "More" header), `theme`. `UiState::delete_selected`, `toast`, `error`. |
 | `src/gizmo.rs` | Roadmap 3b (2026-10-30). `View` (camera in physical pixels: project, ray, world-per-pixel), `frame()` (pivot + rotation of the selection; lights are `flat`), `Transform` (mode, constraint, typed value, snap, original settings; `apply` restores the target then transforms; `restore` cancels), `layout`/`hit`/`draw`, `draw_lights`, `pick` (objects via `pick_object_hit` plus light quads). Unit tests cover typed values, arrow drags, screen-angle rotation, Blender's axis toggling and light scaling. |
+| `src/scenes.rs` | Roadmap 4 (2026-10-30). `folder()` (`./scenes`, next to the exe, or `exe/../../scenes`), `list()` (packs by `pack.json` order; builtin first, user last), `read()` (wrapper `{format, title, description, tags, credits, settings}` or bare `Settings`; validated; title becomes `scene_name`), `find()` (path, stem or title), `load_into()` (uses `Settings::keep_output` so render choices survive), `save_user()`. Test `builtin_scenes_are_valid`. |
 | `src/editor.rs` | Inspectors used by the Scene tab: `object_ui`, `light_ui`, `material_ui`, `shape_combo`, `new_object`. Ranges match `validate()`. |
 | `src/gpu.rs` | Everything D3D12. Highlights: `new()`, `resize()` (l.496, allocates the 19 UAV textures), `rebuild_scene()` (l.611), `update_materials()`, `render()` (l.749), `capture()`, `capture_reference()`, egui atlas and draw. |
 | `src/teapot_data.rs` | Generated by `tools/build_teapot_data.py` from `assets/TeapotGeometry.source.js`. Do not hand-edit. |
@@ -162,12 +163,12 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 1 | SRV t0 TLAS |
 | 2 | SRV t1 vertices |
 | 3 | Table: UAV u0–u26 (heap slots 0–26) |
-| 4 | Table: SRV t2, egui atlas (heap slot 32, pixel-visible only) |
+| 4 | Table: SRV t2, the egui texture of each GUI draw (heap slots 32–511, one per texture; pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
 | 7 | Root SRV t5 emitter lookup |
 
-There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
+There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–26, egui textures from 32.
 
 **Acceleration structures.** There is one BLAS of the whole triangle soup and one TLAS instance with an identity transform. Both use PREFER_FAST_TRACE. Geometry is **non-opaque**, so every candidate runs through the `Proceed()` loop. That loop is how hidden lights and glass shadows are skipped.
 
@@ -368,6 +369,26 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - The rest is new upload, BLAS and scratch allocations, plus the whole-scene BLAS build. Instancing (core track 4) is the real fix.
 - Capture CLI: `--ui-tool`. Self-test 198–202: each tool drawn on object 0 and the main light, then a keyed G X 0.5 Enter (asserts +0.5 and that the transform ended), then undo (asserts the move is gone).
 - Not done: see the list under roadmap item 3b (object snapping, pivot options, multi-select, Alt-drag / Shift+D duplicate, vector entry, cheap drags).
+
+## Scene files (roadmap item 4, 2026-10-30)
+
+- `scenes/builtin/` holds 42 files plus `pack.json`, **generated by `tools/build_scenes.py`**: edit scenes there, never the JSON.
+  - Helpers mirror the presets: `obj`, `float_at` (non-grounded, y is the mesh center), `light` with `aim()` (pitch/yaw so the downward quad faces a target), `kelvin()`, `studio()` and `dark_stage()`.
+  - `check()` mirrors `validate()` ranges and fails with a list. `obj()` moves excess `stretch` / `scale_xz` into `size` (same world size) and wraps rotation to ±180.
+  - Files are sparse (omitted fields take `Settings::default()`). Objects are always written in full because `Object::default()` is the tall block (stretch 1.7, rotation 18).
+- `tools/scene_sheet.py` renders every scene (480×300, 48 frames, RR) into `captures/scenes/sheet.png`. All 42 were checked by eye and retuned.
+- **Engine fix found by the scenes:** a light that is off (main `light_on`, area `enabled`) used to keep its unlit quad in the BLAS: black in reflections, and a shadow caster. `geometry()` now skips those quads, `geometry_key` includes `light_on` / `enabled`, and gizmo outlines and picking skip them too.
+- Scene title = `scene_name`. The top-bar picker shows it, and the Scene tab shows the file's description. ◀ ▶ step through files while a file scene is loaded.
+- Scenes window (`UiState::show_scenes`): search, tag chips, list grouped by pack, details, Load, "Save to scenes/user".
+- CLI: `--scene`, `--ui-scenes` (opens the window for captures).
+- Self-test frames 204+: load each listed scene file and assert the title; the per-frame GPU count checks cover each scene's geometry.
+- **Thumbnails and licences (2026-10-30, owner request):**
+  - `gpu.rs` supports any egui texture. `gui_textures` maps `TextureId` → texture, heap slot (32..512, `free_slots`) and a CPU copy for partial updates. `update_gui_textures` replaces `update_atlas`; `delta.free` is applied after `draw_gui`; `draw_gui` binds root table 4 per mesh texture. The heap grew from 64 to 512 descriptors.
+  - `scenes::Entry` has `hash` (FNV-1a of the file), `credits` and `license` (from `pack.json`: `license`, `commercial_use`, `attribution`, `source`). `Entry::thumbnail()` = `scenes/thumbnails/<pack dir>--<stem>-<hash>.png` (gitignored).
+  - `scenes::render_thumbnails(entries)` runs this exe headless per scene on a thread (320×200, 32 frames, `CREATE_NO_WINDOW`, written as `.partial.png` then renamed, stale hashes removed) and reports each result on a channel. The Scenes window starts it for missing thumbnails on first open, never when `hidden`. `update_thumbnails` loads at most 4 PNGs per frame into egui textures. `--make-thumbnails` does the same from the CLI and exits.
+  - Cards are painted at a fixed 160×100 (egui's `ImageButton` padding made the grid uneven). The selected scene shows a 256×160 preview, licence badge, tags, attribution and credits.
+  - Self-test 203 loads a generated texture as entry 0's thumbnail and opens the window with it selected, so the scene-file frames draw the textured UI under the debug layer.
+- Not done: relative asset paths (nothing references assets yet).
 
 ## Review findings: fixed and merged (2026-10-29)
 

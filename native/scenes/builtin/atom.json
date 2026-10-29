@@ -1,0 +1,929 @@
+{
+ "format": 1,
+ "title": "Atom",
+ "description": "A nucleus of red and blue spheres inside three tilted glowing orbits.",
+ "tags": [
+  "still life",
+  "emissive"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.05,
+   0.05,
+   0.06
+  ],
+  "floor": {
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "roughness": 0.2,
+   "metallic": 0.0,
+   "reflectivity": 0.2,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": 10,
+  "pitch": 10,
+  "distance": 6.5,
+  "target": [
+   0,
+   1.3,
+   0
+  ],
+  "fov": 40,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Nucleon 1",
+    "shape": "sphere",
+    "position": [
+     0.1506,
+     0.0084
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6646,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 2",
+    "shape": "sphere",
+    "position": [
+     -0.0831,
+     -0.1061
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.5321,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 3",
+    "shape": "sphere",
+    "position": [
+     0.0006,
+     -0.2712
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.4882,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 4",
+    "shape": "sphere",
+    "position": [
+     0.2146,
+     0.0156
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6049,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 5",
+    "shape": "sphere",
+    "position": [
+     0.0379,
+     0.1001
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6848,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 6",
+    "shape": "sphere",
+    "position": [
+     0.0399,
+     0.0864
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.5228,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 7",
+    "shape": "sphere",
+    "position": [
+     0.1393,
+     -0.0446
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.2824,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 8",
+    "shape": "sphere",
+    "position": [
+     -0.0755,
+     0.1791
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.3699,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 9",
+    "shape": "sphere",
+    "position": [
+     0.1247,
+     -0.0644
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.2761,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 10",
+    "shape": "sphere",
+    "position": [
+     0.1792,
+     -0.0235
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.4542,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 11",
+    "shape": "sphere",
+    "position": [
+     0.0917,
+     -0.0746
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.683,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 12",
+    "shape": "sphere",
+    "position": [
+     -0.1615,
+     -0.0619
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.526,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 13",
+    "shape": "sphere",
+    "position": [
+     0.1549,
+     0.148
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.5338,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.3,
+      0.9
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Nucleon 14",
+    "shape": "sphere",
+    "position": [
+     -0.0191,
+     -0.0202
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.765,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.15,
+      0.1
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Orbit 1",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 3.7267,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     70,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.45,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.7,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Electron 1",
+    "shape": "sphere",
+    "position": [
+     0.836,
+     0.2944
+    ],
+    "size": 0.3,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6911,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Orbit 2",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 3.7267,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     70,
+     60
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.45,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.7,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Electron 2",
+    "shape": "sphere",
+    "position": [
+     -0.5826,
+     -0.85
+    ],
+    "size": 0.3,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.8851,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Orbit 3",
+    "shape": "ring",
+    "position": [
+     0,
+     0
+    ],
+    "size": 3.7267,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     70,
+     -60
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.45,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.7,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Electron 3",
+    "shape": "sphere",
+    "position": [
+     0.1702,
+     -0.6706
+    ],
+    "size": 0.3,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 2.4805,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   }
+  ]
+ }
+}

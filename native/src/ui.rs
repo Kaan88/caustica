@@ -73,6 +73,12 @@ const GROUPS: [(&str, std::ops::Range<usize>); 3] = [
     ("Build your own", 23..24),
 ];
 
+/// Background thumbnail renders: results as they finish, total, done so far.
+type ThumbnailJobs = (
+    std::sync::mpsc::Receiver<Result<std::path::PathBuf, String>>,
+    usize,
+    usize,
+);
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Scene,
@@ -104,6 +110,19 @@ pub struct UiState {
     pub search: String,
     pub export_scale: u32,
     pub export_samples: u32,
+    /// Scenes window: the scene files found on disk, filters, selection and the save form.
+    pub show_scenes: bool,
+    /// Thumbnails: loaded textures by file, the background render (results, total, done) and
+    /// whether this session already asked for the missing ones.
+    pub thumbnails: std::collections::HashMap<std::path::PathBuf, egui::TextureHandle>,
+    thumbnail_jobs: Option<ThumbnailJobs>,
+    thumbnails_requested: bool,
+    pub scenes: Vec<crate::scenes::Entry>,
+    scene_search: String,
+    scene_tag: Option<String>,
+    pub scene_selected: Option<usize>,
+    save_title: String,
+    save_description: String,
     toasts: Vec<Toast>,
     /// Transform gizmo: active tool, Global / Local axes, handle under the pointer, and the
     /// running transform (handle drag or modal G / R / S) with its header text.
@@ -127,6 +146,16 @@ impl Default for UiState {
             search: String::new(),
             export_scale: 2,
             export_samples: 128,
+            show_scenes: false,
+            thumbnails: Default::default(),
+            thumbnail_jobs: None,
+            thumbnails_requested: false,
+            scenes: crate::scenes::list(),
+            scene_search: String::new(),
+            scene_tag: None,
+            scene_selected: None,
+            save_title: String::new(),
+            save_description: String::new(),
             toasts: Vec::new(),
             tool: gizmo::Tool::Move,
             local: false,
@@ -303,6 +332,105 @@ fn pipeline(app: &App) -> (String, bool) {
 pub fn view_name(view: u32) -> &'static str {
     VIEWS[view as usize]
 }
+/// A scene card: thumbnail (or a placeholder) and the title under it, all cards the same size.
+fn card(
+    ui: &mut egui::Ui,
+    e: &crate::scenes::Entry,
+    texture: Option<&egui::TextureHandle>,
+    selected: bool,
+) -> egui::Response {
+    let size = egui::vec2(160., 100.);
+    let (rect, r) = ui.allocate_exact_size(egui::vec2(size.x, size.y + 18.), egui::Sense::click());
+    let image = egui::Rect::from_min_size(rect.min, size);
+    match texture {
+        Some(t) => egui::Image::new((t.id(), size))
+            .corner_radius(3.)
+            .paint_at(ui, image),
+        None => {
+            ui.painter()
+                .rect_filled(image, 3., egui::Color32::from_gray(38));
+            ui.painter().text(
+                image.center(),
+                egui::Align2::CENTER_CENTER,
+                e.title.chars().next().unwrap_or('?'),
+                egui::FontId::proportional(40.),
+                egui::Color32::from_gray(110),
+            );
+        }
+    }
+    if selected || r.hovered() {
+        let color = if selected {
+            ACCENT
+        } else {
+            egui::Color32::from_gray(150)
+        };
+        ui.painter().rect_stroke(
+            image.expand(1.),
+            4.,
+            egui::Stroke::new(2_f32, color),
+            egui::StrokeKind::Outside,
+        );
+    }
+    let title: String = if e.title.chars().count() > 26 {
+        e.title.chars().take(25).collect::<String>() + "…"
+    } else {
+        e.title.clone()
+    };
+    ui.painter().text(
+        egui::pos2(rect.min.x + 2., image.max.y + 3.),
+        egui::Align2::LEFT_TOP,
+        title,
+        egui::FontId::proportional(12.),
+        if selected {
+            ACCENT
+        } else {
+            ui.visuals().text_color()
+        },
+    );
+    r.on_hover_text(&e.description)
+}
+/// A grey card with the scene's initial, until its thumbnail exists.
+fn placeholder(ui: &mut egui::Ui, title: &str, size: egui::Vec2) -> egui::Response {
+    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+    let painter = ui.painter();
+    painter.rect_filled(
+        rect,
+        3.,
+        egui::Color32::from_gray(if r.hovered() { 52 } else { 38 }),
+    );
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        title.chars().next().unwrap_or('?'),
+        egui::FontId::proportional(size.y * 0.4),
+        egui::Color32::from_gray(110),
+    );
+    r
+}
+/// The pack's licence as a small label; amber when it does not allow commercial use.
+fn license_badge(ui: &mut egui::Ui, l: &crate::scenes::License) {
+    if l.name.is_empty() {
+        return;
+    }
+    let (text, color) = if l.commercial_use {
+        (l.name.clone(), ACCENT)
+    } else {
+        (format!("{} · non-commercial", l.name), WARN)
+    };
+    egui::Frame::new()
+        .stroke(egui::Stroke::new(1_f32, color))
+        .corner_radius(3.)
+        .inner_margin(egui::Margin::symmetric(5, 1))
+        .show(ui, |ui| {
+            ui.label(egui::RichText::new(text).small().color(color));
+        })
+        .response
+        .on_hover_text(if l.commercial_use {
+            "Licence of this pack"
+        } else {
+            "Licence of this pack: not for commercial use"
+        });
+}
 fn hdr_line(app: &App) -> String {
     let g = app.gpu.as_ref().unwrap();
     let info = app
@@ -352,8 +480,240 @@ impl App {
             self.status_bar(ctx);
             self.side_panel(ctx, known.is_some());
         }
+        self.scenes_window(ctx);
         self.overlay(ctx);
         self.toasts(ctx);
+    }
+    /// The loaded scene file's entry, if the current scene came from one.
+    fn scene_entry(&self) -> Option<usize> {
+        self.ui
+            .scenes
+            .iter()
+            .position(|e| e.title == self.settings.scene_name)
+    }
+    pub fn load_scene_file(&mut self, index: usize) {
+        let Some(e) = self.ui.scenes.get(index).cloned() else {
+            return;
+        };
+        self.ui.checkpoint(&self.settings);
+        match crate::scenes::load_into(&mut self.settings, &e.path) {
+            Ok(()) => {
+                self.ui.selection = Selection::Stage;
+                self.ui.scene_selected = Some(index);
+                self.ui.toast(format!("Loaded {}", e.title));
+            }
+            Err(err) => self.ui.error(format!("{err:#}")),
+        }
+    }
+    /// Starts rendering the thumbnails that are missing (or all of them).
+    fn request_thumbnails(&mut self, all: bool) {
+        let missing: Vec<_> = self
+            .ui
+            .scenes
+            .iter()
+            .filter(|e| all || e.thumbnail().is_some_and(|t| !t.is_file()))
+            .cloned()
+            .collect();
+        self.ui.thumbnails_requested = true;
+        if !missing.is_empty() {
+            if all {
+                self.ui.thumbnails.clear();
+            }
+            let total = missing.len();
+            self.ui.thumbnail_jobs = Some((crate::scenes::render_thumbnails(missing), total, 0));
+        }
+    }
+    /// Collects finished renders and loads thumbnail files into textures, a few per frame.
+    fn update_thumbnails(&mut self, ctx: &egui::Context) {
+        if let Some((jobs, total, done)) = &mut self.ui.thumbnail_jobs {
+            while let Ok(result) = jobs.try_recv() {
+                *done += 1;
+                match result {
+                    Ok(path) => {
+                        self.ui.thumbnails.remove(&path);
+                    }
+                    Err(title) => self.ui.toasts.push(Toast {
+                        text: format!("Thumbnail of {title} failed"),
+                        error: true,
+                        until: Instant::now() + Duration::from_secs(6),
+                    }),
+                }
+            }
+            if *done >= *total {
+                self.ui.thumbnail_jobs = None;
+            }
+        }
+        let mut loaded = 0;
+        for e in &self.ui.scenes {
+            let Some(path) = e.thumbnail() else { continue };
+            if loaded >= 4 || self.ui.thumbnails.contains_key(&path) || !path.is_file() {
+                continue;
+            }
+            if let Ok(img) = image::open(&path) {
+                let rgba = img.to_rgba8();
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let image = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+                let texture =
+                    ctx.load_texture(path.to_string_lossy(), image, egui::TextureOptions::LINEAR);
+                self.ui.thumbnails.insert(path, texture);
+                loaded += 1;
+            }
+        }
+        if loaded > 0 || self.ui.thumbnail_jobs.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(200));
+        }
+    }
+    fn scenes_window(&mut self, ctx: &egui::Context) {
+        if !self.ui.show_scenes {
+            return;
+        }
+        // Headless runs (captures, self-test) never spawn renders.
+        if !self.ui.thumbnails_requested && !self.hidden {
+            self.request_thumbnails(false);
+        }
+        self.update_thumbnails(ctx);
+        let mut open = self.ui.show_scenes;
+        let mut load = None;
+        let mut rerender = false;
+        egui::Window::new("Scenes")
+            .open(&mut open)
+            .default_size([760., 640.])
+            .default_pos([120., 50.])
+            .collapsible(false)
+            .show(ctx, |ui| {
+                let state = &mut self.ui;
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut state.scene_search).hint_text("Search scenes…").desired_width(220.));
+                    if ui.button("Refresh").on_hover_text("Read the scenes folder again").clicked() {
+                        state.scenes = crate::scenes::list();
+                        state.scene_selected = None;
+                    }
+                    match &state.thumbnail_jobs {
+                        Some((_, total, done)) => {
+                            ui.add(egui::Spinner::new());
+                            note(ui, &format!("Rendering thumbnails {done} / {total}"));
+                        }
+                        None => {
+                            if ui.button("Re-render thumbnails").on_hover_text("Render every thumbnail again in the background").clicked() {
+                                rerender = true;
+                            }
+                        }
+                    }
+                });
+                let mut tags: Vec<String> = state.scenes.iter().flat_map(|e| e.tags.clone()).collect();
+                tags.sort();
+                tags.dedup();
+                ui.horizontal_wrapped(|ui| {
+                    if ui.selectable_label(state.scene_tag.is_none(), "all").clicked() {
+                        state.scene_tag = None;
+                    }
+                    for t in tags {
+                        let on = state.scene_tag.as_deref() == Some(t.as_str());
+                        if ui.selectable_label(on, &t).clicked() {
+                            state.scene_tag = if on { None } else { Some(t) };
+                        }
+                    }
+                });
+                ui.separator();
+                let search = state.scene_search.to_lowercase();
+                let visible: Vec<usize> = (0..state.scenes.len())
+                    .filter(|i| {
+                        let e = &state.scenes[*i];
+                        (e.title.to_lowercase().contains(&search)
+                            || e.description.to_lowercase().contains(&search)
+                            || e.tags.iter().any(|t| t.contains(&search)))
+                            && state.scene_tag.as_ref().is_none_or(|t| e.tags.contains(t))
+                    })
+                    .collect();
+                egui::ScrollArea::vertical().id_salt("scene grid").max_height(360.).auto_shrink([false, true]).show(ui, |ui| {
+                    let mut start = 0;
+                    while start < visible.len() {
+                        let pack = state.scenes[visible[start]].pack.clone();
+                        let end = visible[start..].iter().position(|i| state.scenes[*i].pack != pack).map_or(visible.len(), |n| start + n);
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(&pack).color(ACCENT));
+                            license_badge(ui, &state.scenes[visible[start]].license);
+                        });
+                        ui.horizontal_wrapped(|ui| {
+                            for &i in &visible[start..end] {
+                                let e = &state.scenes[i];
+                                let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
+                                let r = card(ui, e, texture, state.scene_selected == Some(i));
+                                if r.clicked() {
+                                    state.scene_selected = Some(i);
+                                }
+                                if r.double_clicked() {
+                                    load = Some(i);
+                                }
+                            }
+                        });
+                        start = end;
+                    }
+                });
+                ui.separator();
+                if let Some(e) = state.scene_selected.and_then(|i| state.scenes.get(i)) {
+                    ui.horizontal(|ui| {
+                        let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
+                        match texture {
+                            Some(t) => {
+                                ui.add(egui::Image::new((t.id(), egui::vec2(256., 160.))).corner_radius(4.));
+                            }
+                            None => {
+                                placeholder(ui, &e.title, egui::vec2(256., 160.));
+                            }
+                        }
+                        ui.vertical(|ui| {
+                            ui.label(egui::RichText::new(&e.title).heading());
+                            ui.label(&e.description);
+                            ui.horizontal_wrapped(|ui| {
+                                license_badge(ui, &e.license);
+                                for t in &e.tags {
+                                    ui.label(egui::RichText::new(t).small().weak());
+                                }
+                            });
+                            if !e.license.attribution.is_empty() {
+                                note(ui, &format!("Attribution: {}", e.license.attribution));
+                            }
+                            if !e.credits.is_empty() && e.credits != e.license.attribution {
+                                note(ui, &format!("Credits: {}", e.credits));
+                            }
+                            if !e.license.source.is_empty() {
+                                ui.hyperlink_to(egui::RichText::new(&e.license.source).small(), &e.license.source);
+                            }
+                            note(ui, &e.path.display().to_string());
+                            if ui.button("Load (or double-click)").clicked() {
+                                load = state.scene_selected;
+                            }
+                        });
+                    });
+                } else {
+                    note(ui, "Pick a scene; double-click loads it. Your render settings (resolution, RR, upscaler, HDR) stay as they are.");
+                }
+                ui.separator();
+                ui.label(egui::RichText::new("Save the current scene").strong());
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut state.save_title).hint_text("Title").desired_width(180.));
+                    ui.add(egui::TextEdit::singleline(&mut state.save_description).hint_text("Description").desired_width(260.));
+                    if ui.button("Save to scenes/user").clicked() {
+                        match crate::scenes::save_user(&self.settings, &state.save_title, &state.save_description) {
+                            Ok(path) => {
+                                state.scenes = crate::scenes::list();
+                                state.thumbnails_requested = false;
+                                self.settings.scene_name = state.save_title.trim().to_string();
+                                state.toast(format!("Saved {}", path.display()));
+                            }
+                            Err(e) => state.error(format!("{e:#}")),
+                        }
+                    }
+                });
+            });
+        self.ui.show_scenes = open;
+        if rerender {
+            self.request_thumbnails(true);
+        }
+        if let Some(i) = load {
+            self.load_scene_file(i);
+        }
     }
     pub fn tool_mode(&self) -> gizmo::Mode {
         match self.ui.tool {
@@ -586,14 +946,23 @@ impl App {
                 });
                 ui.separator();
                 let count = PRESETS.len();
+                // ◀ ▶ step through the scene files while one is loaded, else the presets.
+                let file = self.scene_entry();
                 if ui.button("◀").on_hover_text("Previous scene").clicked() {
-                    self.preset = (self.preset + count - 1) % count;
-                    self.settings.preset(self.preset);
+                    match file {
+                        Some(i) => self.load_scene_file((i + self.ui.scenes.len() - 1) % self.ui.scenes.len()),
+                        None => {
+                            self.preset = (self.preset + count - 1) % count;
+                            self.settings.preset(self.preset);
+                        }
+                    }
                 }
                 let current = if known {
-                    PRESETS[self.preset]
+                    PRESETS[self.preset].to_string()
+                } else if !self.settings.scene_name.is_empty() {
+                    self.settings.scene_name.clone()
                 } else {
-                    "Custom scene"
+                    "Custom scene".to_string()
                 };
                 egui::ComboBox::from_id_salt("scene picker")
                     .selected_text(current)
@@ -618,8 +987,20 @@ impl App {
                     .response
                     .on_hover_text("Pick a scene. Picking the current one again restores it.");
                 if ui.button("▶").on_hover_text("Next scene").clicked() {
-                    self.preset = (self.preset + 1) % count;
-                    self.settings.preset(self.preset);
+                    match file {
+                        Some(i) => self.load_scene_file((i + 1) % self.ui.scenes.len()),
+                        None => {
+                            self.preset = (self.preset + 1) % count;
+                            self.settings.preset(self.preset);
+                        }
+                    }
+                }
+                if ui
+                    .selectable_label(self.ui.show_scenes, format!("Scenes ({})", self.ui.scenes.len()))
+                    .on_hover_text("Browse the scene files in scenes/")
+                    .clicked()
+                {
+                    self.ui.show_scenes = !self.ui.show_scenes;
                 }
                 if ui
                     .button("Randomize")
@@ -825,18 +1206,18 @@ impl App {
             });
     }
     fn scene_tab(&mut self, ui: &mut egui::Ui, known: bool) {
+        let description = if known {
+            crate::presets::description(self.preset).to_string()
+        } else if let Some(i) = self.scene_entry() {
+            self.ui.scenes[i].description.clone()
+        } else {
+            "Custom scene from a settings file.".to_string()
+        };
         let g = self.gpu.as_ref().unwrap();
         let aspect = g.width as f32 / g.height as f32;
         let s = &mut self.settings;
         let state = &mut self.ui;
-        note(
-            ui,
-            if known {
-                crate::presets::description(self.preset)
-            } else {
-                "Custom scene from a settings file."
-            },
-        );
+        note(ui, &description);
         section(ui, "Outliner");
         egui::ScrollArea::vertical()
             .id_salt("outliner")

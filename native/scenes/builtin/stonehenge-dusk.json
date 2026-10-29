@@ -1,0 +1,1368 @@
+{
+ "format": 1,
+ "title": "Stonehenge at dusk",
+ "description": "A ring of stones and lintels under a 2800 K sun on the horizon: long shadows and warm–cool contrast.",
+ "tags": [
+  "architecture",
+  "sunset",
+  "open"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.2,
+  "base": [
+   0.22,
+   0.26,
+   0.14
+  ],
+  "floor": {
+   "color": [
+    0.3,
+    0.32,
+    0.18
+   ],
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Low sun",
+    "position": [
+     -38,
+     3.0,
+     -12
+    ],
+    "rotation": [
+     84.268,
+     -107.526,
+     0.0
+    ],
+    "size": [
+     6,
+     6
+    ],
+    "color": [
+     1.0,
+     0.4116,
+     0.1148
+    ],
+    "intensity": 900,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Blue sky fill",
+    "position": [
+     6,
+     20,
+     10
+    ],
+    "rotation": [
+     29.045,
+     30.964,
+     0.0
+    ],
+    "size": [
+     14,
+     14
+    ],
+    "color": [
+     0.4,
+     0.55,
+     1.0
+    ],
+    "intensity": 0.6,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 72,
+  "pitch": 8,
+  "distance": 13,
+  "target": [
+   0,
+   0.2,
+   0
+  ],
+  "fov": 45,
+  "background": [
+   0.16,
+   0.09,
+   0.08
+  ],
+  "objects": [
+   {
+    "name": "Upright 1",
+    "shape": "box",
+    "position": [
+     4.0,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 87.904,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 2",
+    "shape": "box",
+    "position": [
+     3.6542,
+     1.6269
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 66.354,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 3",
+    "shape": "box",
+    "position": [
+     2.6765,
+     2.9726
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 40.96,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 4",
+    "shape": "box",
+    "position": [
+     1.2361,
+     3.8042
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 18.831,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 5",
+    "shape": "box",
+    "position": [
+     -0.4181,
+     3.9781
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -4.994,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 6",
+    "shape": "box",
+    "position": [
+     -2.0,
+     3.4641
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -33.476,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 7",
+    "shape": "box",
+    "position": [
+     -3.2361,
+     2.3511
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -57.895,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 8",
+    "shape": "box",
+    "position": [
+     -3.9126,
+     0.8316
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -75.3,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 9",
+    "shape": "box",
+    "position": [
+     -3.9126,
+     -0.8316
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -103.925,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 10",
+    "shape": "box",
+    "position": [
+     -3.2361,
+     -2.3511
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -128.125,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 11",
+    "shape": "box",
+    "position": [
+     -2.0,
+     -3.4641
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -146.035,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 12",
+    "shape": "box",
+    "position": [
+     -0.4181,
+     -3.9781
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": -174.238,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 13",
+    "shape": "box",
+    "position": [
+     1.2361,
+     -3.8042
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 164.692,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 14",
+    "shape": "box",
+    "position": [
+     2.6765,
+     -2.9726
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 137.811,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Upright 15",
+    "shape": "box",
+    "position": [
+     3.6542,
+     -1.6269
+    ],
+    "size": 1.0,
+    "stretch": 3.2,
+    "rotation": 115.113,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2,
+     0.65
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 1",
+    "shape": "box",
+    "position": [
+     3.9126,
+     0.8316
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": 78.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 2",
+    "shape": "box",
+    "position": [
+     2.0,
+     3.4641
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": 30.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 3",
+    "shape": "box",
+    "position": [
+     -1.2361,
+     3.8042
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": -18.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 4",
+    "shape": "box",
+    "position": [
+     -3.6542,
+     1.6269
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": -66.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 5",
+    "shape": "box",
+    "position": [
+     -3.6542,
+     -1.6269
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": -114.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 6",
+    "shape": "box",
+    "position": [
+     -1.2361,
+     -3.8042
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": -162.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 7",
+    "shape": "box",
+    "position": [
+     2.0,
+     -3.4641
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": 150.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Lintel 8",
+    "shape": "box",
+    "position": [
+     3.9126,
+     -0.8316
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": 102.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     0.65
+    ],
+    "elevation": 1.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Trilithon 1",
+    "shape": "box",
+    "position": [
+     -1.6914,
+     -0.6156
+    ],
+    "size": 1.0,
+    "stretch": 4.5,
+    "rotation": -110.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Trilithon 2",
+    "shape": "box",
+    "position": [
+     -1.157,
+     -1.3789
+    ],
+    "size": 1.0,
+    "stretch": 4.5,
+    "rotation": -140.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Trilithon 3",
+    "shape": "box",
+    "position": [
+     -0.3126,
+     -1.7727
+    ],
+    "size": 1.0,
+    "stretch": 4.5,
+    "rotation": -170.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Trilithon 4",
+    "shape": "box",
+    "position": [
+     0.6156,
+     -1.6914
+    ],
+    "size": 1.0,
+    "stretch": 4.5,
+    "rotation": 160.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Trilithon 5",
+    "shape": "box",
+    "position": [
+     1.3789,
+     -1.157
+    ],
+    "size": 1.0,
+    "stretch": 4.5,
+    "rotation": 130.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Altar stone",
+    "shape": "box",
+    "position": [
+     0.3,
+     -0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.35,
+    "rotation": 10,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.48,
+      0.46,
+      0.42
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

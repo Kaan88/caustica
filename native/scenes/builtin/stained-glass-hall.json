@@ -1,0 +1,2887 @@
+{
+ "format": 1,
+ "title": "Stained-glass hall",
+ "description": "A wall of coloured glass panes with the sun behind. Shadow rays pass glass untinted here, so the colours show in the glass, not on the floor: an engine limit made visible.",
+ "tags": [
+  "architecture",
+  "glass",
+  "limits"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.05,
+  "base": [
+   0.5,
+   0.47,
+   0.42
+  ],
+  "floor": {
+   "color": [
+    0.5,
+    0.47,
+    0.42
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.06,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Sun",
+    "position": [
+     0,
+     1.5,
+     -12
+    ],
+    "rotation": [
+     87.614,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     14,
+     7
+    ],
+    "color": [
+     1.0,
+     0.8694,
+     0.7615
+    ],
+    "intensity": 3,
+    "enabled": true,
+    "visible": true
+   }
+  ],
+  "bounces": 12,
+  "yaw": 0,
+  "pitch": 10,
+  "distance": 8,
+  "target": [
+   0,
+   0.6,
+   -0.5
+  ],
+  "fov": 50,
+  "glass_shadow": false,
+  "objects": [
+   {
+    "name": "Pier 1",
+    "shape": "box",
+    "position": [
+     -4,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pier 2",
+    "shape": "box",
+    "position": [
+     -2,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pier 3",
+    "shape": "box",
+    "position": [
+     0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pier 4",
+    "shape": "box",
+    "position": [
+     2,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pier 5",
+    "shape": "box",
+    "position": [
+     4,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.1.1",
+    "shape": "box",
+    "position": [
+     -3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.1.2",
+    "shape": "box",
+    "position": [
+     -3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.1.3",
+    "shape": "box",
+    "position": [
+     -2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.2.1",
+    "shape": "box",
+    "position": [
+     -3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.2.2",
+    "shape": "box",
+    "position": [
+     -3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.2.3",
+    "shape": "box",
+    "position": [
+     -2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.3.1",
+    "shape": "box",
+    "position": [
+     -3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.3.2",
+    "shape": "box",
+    "position": [
+     -3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.3.3",
+    "shape": "box",
+    "position": [
+     -2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.4.1",
+    "shape": "box",
+    "position": [
+     -3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.4.2",
+    "shape": "box",
+    "position": [
+     -3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 1.4.3",
+    "shape": "box",
+    "position": [
+     -2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Sill 1",
+    "shape": "box",
+    "position": [
+     -3,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Head 1",
+    "shape": "box",
+    "position": [
+     -3,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": 2.55,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.1.1",
+    "shape": "box",
+    "position": [
+     -1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.1.2",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.1.3",
+    "shape": "box",
+    "position": [
+     -0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.2.1",
+    "shape": "box",
+    "position": [
+     -1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.7,
+      0.04
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.2.2",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.2.3",
+    "shape": "box",
+    "position": [
+     -0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.3.1",
+    "shape": "box",
+    "position": [
+     -1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.3.2",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.3.3",
+    "shape": "box",
+    "position": [
+     -0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.4.1",
+    "shape": "box",
+    "position": [
+     -1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.4.2",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 2.4.3",
+    "shape": "box",
+    "position": [
+     -0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Sill 2",
+    "shape": "box",
+    "position": [
+     -1,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Head 2",
+    "shape": "box",
+    "position": [
+     -1,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": 2.55,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.1.1",
+    "shape": "box",
+    "position": [
+     0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.1.2",
+    "shape": "box",
+    "position": [
+     1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.1.3",
+    "shape": "box",
+    "position": [
+     1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.2.1",
+    "shape": "box",
+    "position": [
+     0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.2.2",
+    "shape": "box",
+    "position": [
+     1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.2.3",
+    "shape": "box",
+    "position": [
+     1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.3.1",
+    "shape": "box",
+    "position": [
+     0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.3.2",
+    "shape": "box",
+    "position": [
+     1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.3.3",
+    "shape": "box",
+    "position": [
+     1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.4.1",
+    "shape": "box",
+    "position": [
+     0.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.4.2",
+    "shape": "box",
+    "position": [
+     1.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 3.4.3",
+    "shape": "box",
+    "position": [
+     1.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Sill 3",
+    "shape": "box",
+    "position": [
+     1,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Head 3",
+    "shape": "box",
+    "position": [
+     1,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": 2.55,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.1.1",
+    "shape": "box",
+    "position": [
+     2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.1.2",
+    "shape": "box",
+    "position": [
+     3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.1.3",
+    "shape": "box",
+    "position": [
+     3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.2.1",
+    "shape": "box",
+    "position": [
+     2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.04,
+      0.03
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.2.2",
+    "shape": "box",
+    "position": [
+     3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.2.3",
+    "shape": "box",
+    "position": [
+     3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 0.47,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.7,
+      0.04
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.3.1",
+    "shape": "box",
+    "position": [
+     2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.6,
+      0.12
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.3.2",
+    "shape": "box",
+    "position": [
+     3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.3.3",
+    "shape": "box",
+    "position": [
+     3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.09,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.4.1",
+    "shape": "box",
+    "position": [
+     2.53,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.05,
+      0.7
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.4.2",
+    "shape": "box",
+    "position": [
+     3.0,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.15,
+      0.9
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pane 4.4.3",
+    "shape": "box",
+    "position": [
+     3.47,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 0.86,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.45
+    ],
+    "elevation": 1.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.35,
+      0.02
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Sill 4",
+    "shape": "box",
+    "position": [
+     3,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Head 4",
+    "shape": "box",
+    "position": [
+     3,
+     -2
+    ],
+    "size": 1.0,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.6,
+     0.6
+    ],
+    "elevation": 2.55,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Low wall",
+    "shape": "box",
+    "position": [
+     0,
+     -2
+    ],
+    "size": 1.3,
+    "stretch": 0.4615,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     0.4615
+    ],
+    "elevation": -0.85,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.62,
+      0.58,
+      0.52
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Bench 1",
+    "shape": "box",
+    "position": [
+     -2.5,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.0,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.22,
+      0.13
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Bench 2",
+    "shape": "box",
+    "position": [
+     0.0,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.0,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.22,
+      0.13
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Bench 3",
+    "shape": "box",
+    "position": [
+     2.5,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.0,
+     0.9
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.22,
+      0.13
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

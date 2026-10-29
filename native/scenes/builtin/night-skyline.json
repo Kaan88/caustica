@@ -1,0 +1,6348 @@
+{
+ "format": 1,
+ "title": "Night skyline",
+ "description": "About 150 towers with glowing window bands under a faint night sky: hundreds of emissive triangles.",
+ "tags": [
+  "city",
+  "night",
+  "emissive"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.03,
+  "base": [
+   0.04,
+   0.04,
+   0.05
+  ],
+  "floor": {
+   "color": [
+    0.05,
+    0.05,
+    0.06
+   ],
+   "roughness": 0.4,
+   "metallic": 0.0,
+   "reflectivity": 0.1,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": 30,
+  "pitch": 22,
+  "distance": 22,
+  "target": [
+   0,
+   1.0,
+   0
+  ],
+  "fov": 45,
+  "background": [
+   0.01,
+   0.015,
+   0.04
+  ],
+  "objects": [
+   {
+    "name": "Tower 1",
+    "shape": "box",
+    "position": [
+     -7.5826,
+     -7.5156
+    ],
+    "size": 1.0,
+    "stretch": 1.6876,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1148,
+     1.1148
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1482719179876658,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 2",
+    "shape": "box",
+    "position": [
+     -7.5102,
+     -5.0444
+    ],
+    "size": 1.0,
+    "stretch": 5.2902,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.993,
+     0.993
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.12719063689651466,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 3",
+    "shape": "box",
+    "position": [
+     -7.5796,
+     -3.774
+    ],
+    "size": 1.0,
+    "stretch": 7.1911,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0582,
+     1.0582
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.07445020193721422,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 4",
+    "shape": "box",
+    "position": [
+     -7.5842,
+     -2.5414
+    ],
+    "size": 1.0,
+    "stretch": 4.0797,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1096,
+     1.1096
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0599721860565135,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 5",
+    "shape": "box",
+    "position": [
+     -7.403,
+     -1.1789
+    ],
+    "size": 1.0,
+    "stretch": 8.1409,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1572,
+     1.1572
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.14580213097083364,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 6",
+    "shape": "box",
+    "position": [
+     -7.5581,
+     -0.0466
+    ],
+    "size": 1.0,
+    "stretch": 4.3509,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2022,
+     1.2022
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 7",
+    "shape": "box",
+    "position": [
+     -7.546,
+     1.3351
+    ],
+    "size": 1.0,
+    "stretch": 6.3603,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2785,
+     1.2785
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.06614439900190855,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 8",
+    "shape": "box",
+    "position": [
+     -7.439,
+     2.4802
+    ],
+    "size": 1.0,
+    "stretch": 3.1471,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1389,
+     1.1389
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 9",
+    "shape": "box",
+    "position": [
+     -7.5082,
+     4.953
+    ],
+    "size": 1.0,
+    "stretch": 5.7539,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3318,
+     1.3318
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1815493046218724,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 10",
+    "shape": "box",
+    "position": [
+     -7.5276,
+     6.3495
+    ],
+    "size": 1.0,
+    "stretch": 5.7103,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1087,
+     1.1087
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 11",
+    "shape": "box",
+    "position": [
+     -6.1916,
+     -7.5156
+    ],
+    "size": 1.0,
+    "stretch": 5.2014,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3503,
+     1.3503
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 12",
+    "shape": "box",
+    "position": [
+     -6.2139,
+     -5.0771
+    ],
+    "size": 1.0,
+    "stretch": 8.9709,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2393,
+     1.2393
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 13",
+    "shape": "box",
+    "position": [
+     -6.1592,
+     -3.6748
+    ],
+    "size": 1.0,
+    "stretch": 7.1316,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3566,
+     1.3566
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.06530524069514715,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 14",
+    "shape": "box",
+    "position": [
+     -6.1817,
+     -2.4985
+    ],
+    "size": 1.0,
+    "stretch": 5.2544,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0675,
+     1.0675
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 15",
+    "shape": "box",
+    "position": [
+     -6.2302,
+     -1.2523
+    ],
+    "size": 1.0,
+    "stretch": 4.3044,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0592,
+     1.0592
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 16",
+    "shape": "box",
+    "position": [
+     -6.1744,
+     0.0894
+    ],
+    "size": 1.0,
+    "stretch": 4.2224,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4628,
+     1.4628
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 17",
+    "shape": "box",
+    "position": [
+     -6.218,
+     1.3394
+    ],
+    "size": 1.0,
+    "stretch": 5.1449,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0139,
+     1.0139
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 18",
+    "shape": "box",
+    "position": [
+     -6.212,
+     2.5426
+    ],
+    "size": 1.0,
+    "stretch": 5.4576,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2772,
+     1.2772
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 19",
+    "shape": "box",
+    "position": [
+     -6.3051,
+     3.7176
+    ],
+    "size": 1.0,
+    "stretch": 6.5377,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.163,
+     1.163
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 20",
+    "shape": "box",
+    "position": [
+     -6.1781,
+     4.9142
+    ],
+    "size": 1.0,
+    "stretch": 3.2259,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0879,
+     1.0879
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.07663068540978471,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 21",
+    "shape": "box",
+    "position": [
+     -6.3014,
+     6.2446
+    ],
+    "size": 1.0,
+    "stretch": 6.5173,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.085,
+     1.085
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1313668949320455,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 22",
+    "shape": "box",
+    "position": [
+     -4.9653,
+     -7.4032
+    ],
+    "size": 1.0,
+    "stretch": 2.2074,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3029,
+     1.3029
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.17821387973913652,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 23",
+    "shape": "box",
+    "position": [
+     -4.9927,
+     -6.322
+    ],
+    "size": 1.0,
+    "stretch": 4.5197,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1463,
+     1.1463
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 24",
+    "shape": "box",
+    "position": [
+     -5.0899,
+     -4.9001
+    ],
+    "size": 1.0,
+    "stretch": 4.9697,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4085,
+     1.4085
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.17695470279493966,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 25",
+    "shape": "box",
+    "position": [
+     -5.0037,
+     -3.6771
+    ],
+    "size": 1.0,
+    "stretch": 8.7675,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4339,
+     1.4339
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 26",
+    "shape": "box",
+    "position": [
+     -5.0154,
+     -2.4085
+    ],
+    "size": 1.0,
+    "stretch": 2.7348,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9811,
+     0.9811
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.16562069708705945,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 27",
+    "shape": "box",
+    "position": [
+     -4.9529,
+     -1.3378
+    ],
+    "size": 1.0,
+    "stretch": 5.6683,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.332,
+     1.332
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1949934983950654,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 28",
+    "shape": "box",
+    "position": [
+     -4.9078,
+     -0.084
+    ],
+    "size": 1.0,
+    "stretch": 1.8761,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2136,
+     1.2136
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 29",
+    "shape": "box",
+    "position": [
+     -4.9842,
+     1.1579
+    ],
+    "size": 1.0,
+    "stretch": 5.9628,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3109,
+     1.3109
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.18244597026071002,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 30",
+    "shape": "box",
+    "position": [
+     -5.0523,
+     2.4792
+    ],
+    "size": 1.0,
+    "stretch": 6.4303,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.257,
+     1.257
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.14715615596317266,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 31",
+    "shape": "box",
+    "position": [
+     -4.9758,
+     3.7626
+    ],
+    "size": 1.0,
+    "stretch": 3.75,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1349,
+     1.1349
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 32",
+    "shape": "box",
+    "position": [
+     -5.0261,
+     4.9315
+    ],
+    "size": 1.0,
+    "stretch": 5.5323,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2279,
+     1.2279
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.05100661024960308,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 33",
+    "shape": "box",
+    "position": [
+     -4.9664,
+     6.2609
+    ],
+    "size": 1.0,
+    "stretch": 6.7765,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2797,
+     1.2797
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 34",
+    "shape": "box",
+    "position": [
+     -3.7955,
+     -7.479
+    ],
+    "size": 1.0,
+    "stretch": 2.2769,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4103,
+     1.4103
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1587866694369598,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 35",
+    "shape": "box",
+    "position": [
+     -3.8315,
+     -6.2653
+    ],
+    "size": 1.0,
+    "stretch": 3.027,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2908,
+     1.2908
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.18485383857269172,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 36",
+    "shape": "box",
+    "position": [
+     -3.7616,
+     -4.9589
+    ],
+    "size": 1.0,
+    "stretch": 1.5266,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3578,
+     1.3578
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 37",
+    "shape": "box",
+    "position": [
+     -3.6831,
+     -3.7335
+    ],
+    "size": 1.0,
+    "stretch": 2.3391,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4431,
+     1.4431
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 38",
+    "shape": "box",
+    "position": [
+     -3.6702,
+     -2.558
+    ],
+    "size": 1.0,
+    "stretch": 2.4558,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.131,
+     1.131
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 39",
+    "shape": "box",
+    "position": [
+     -3.7001,
+     -1.1648
+    ],
+    "size": 1.0,
+    "stretch": 2.271,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3623,
+     1.3623
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 40",
+    "shape": "box",
+    "position": [
+     -3.6935,
+     -0.0177
+    ],
+    "size": 1.0,
+    "stretch": 3.8063,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3719,
+     1.3719
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.06869770614691312,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 41",
+    "shape": "box",
+    "position": [
+     -3.6783,
+     1.1945
+    ],
+    "size": 1.0,
+    "stretch": 7.0129,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1016,
+     1.1016
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1012066756155095,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 42",
+    "shape": "box",
+    "position": [
+     -3.718,
+     2.4797
+    ],
+    "size": 1.0,
+    "stretch": 4.9523,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1295,
+     1.1295
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 43",
+    "shape": "box",
+    "position": [
+     -3.7838,
+     3.6555
+    ],
+    "size": 1.0,
+    "stretch": 2.0207,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3589,
+     1.3589
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.14872289893764218,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 44",
+    "shape": "box",
+    "position": [
+     -3.7631,
+     5.0457
+    ],
+    "size": 1.0,
+    "stretch": 3.4591,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2645,
+     1.2645
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 45",
+    "shape": "box",
+    "position": [
+     -3.7628,
+     6.254
+    ],
+    "size": 1.0,
+    "stretch": 6.0466,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2306,
+     1.2306
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0807556009821731,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 46",
+    "shape": "box",
+    "position": [
+     -2.586,
+     -7.4672
+    ],
+    "size": 1.0,
+    "stretch": 6.6514,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4407,
+     1.4407
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 47",
+    "shape": "box",
+    "position": [
+     -2.4666,
+     -6.2848
+    ],
+    "size": 1.0,
+    "stretch": 3.8544,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3955,
+     1.3955
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 48",
+    "shape": "box",
+    "position": [
+     -2.4194,
+     -4.9769
+    ],
+    "size": 1.0,
+    "stretch": 5.6581,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.074,
+     1.074
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 49",
+    "shape": "box",
+    "position": [
+     -2.5356,
+     -3.7616
+    ],
+    "size": 1.0,
+    "stretch": 5.6095,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9802,
+     0.9802
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.13279756499130912,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 50",
+    "shape": "box",
+    "position": [
+     -2.583,
+     -2.4969
+    ],
+    "size": 1.0,
+    "stretch": 5.3338,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3689,
+     1.3689
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 51",
+    "shape": "box",
+    "position": [
+     -2.4387,
+     -1.3205
+    ],
+    "size": 1.0,
+    "stretch": 5.6195,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.381,
+     1.381
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 52",
+    "shape": "box",
+    "position": [
+     -2.5611,
+     1.2893
+    ],
+    "size": 1.0,
+    "stretch": 8.5184,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3566,
+     1.3566
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 53",
+    "shape": "box",
+    "position": [
+     -2.4443,
+     2.4438
+    ],
+    "size": 1.0,
+    "stretch": 3.3299,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3015,
+     1.3015
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.16320739017184402,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 54",
+    "shape": "box",
+    "position": [
+     -2.5087,
+     3.8103
+    ],
+    "size": 1.0,
+    "stretch": 6.7193,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2076,
+     1.2076
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 55",
+    "shape": "box",
+    "position": [
+     -2.437,
+     5.0784
+    ],
+    "size": 1.0,
+    "stretch": 8.9092,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2718,
+     1.2718
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 56",
+    "shape": "box",
+    "position": [
+     -2.432,
+     6.2055
+    ],
+    "size": 1.0,
+    "stretch": 8.3014,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1985,
+     1.1985
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1120111611595053,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 57",
+    "shape": "box",
+    "position": [
+     -1.2861,
+     -7.492
+    ],
+    "size": 1.0,
+    "stretch": 5.1345,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0972,
+     1.0972
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.07751897248234166,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 58",
+    "shape": "box",
+    "position": [
+     -1.2838,
+     -6.2568
+    ],
+    "size": 1.0,
+    "stretch": 3.2345,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.32,
+     1.32
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 59",
+    "shape": "box",
+    "position": [
+     -1.2739,
+     -3.8488
+    ],
+    "size": 1.0,
+    "stretch": 4.4211,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3572,
+     1.3572
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 60",
+    "shape": "box",
+    "position": [
+     -1.2031,
+     -2.44
+    ],
+    "size": 1.0011,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3966,
+     1.3966
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 61",
+    "shape": "box",
+    "position": [
+     -1.2142,
+     -1.2691
+    ],
+    "size": 1.0,
+    "stretch": 7.2264,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1137,
+     1.1137
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 62",
+    "shape": "box",
+    "position": [
+     -1.2316,
+     0.0326
+    ],
+    "size": 1.0,
+    "stretch": 7.0076,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0425,
+     1.0425
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 63",
+    "shape": "box",
+    "position": [
+     -1.2846,
+     1.3022
+    ],
+    "size": 1.0,
+    "stretch": 6.6004,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4048,
+     1.4048
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.09237642671067749,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 64",
+    "shape": "box",
+    "position": [
+     -1.3396,
+     2.5904
+    ],
+    "size": 1.0,
+    "stretch": 9.9961,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3876,
+     1.3876
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.04310132592800171,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 65",
+    "shape": "box",
+    "position": [
+     -1.2257,
+     3.6977
+    ],
+    "size": 1.0,
+    "stretch": 2.0146,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4491,
+     1.4491
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.07956532859726032,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 66",
+    "shape": "box",
+    "position": [
+     -1.3164,
+     5.0214
+    ],
+    "size": 1.0,
+    "stretch": 2.3579,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4444,
+     1.4444
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 67",
+    "shape": "box",
+    "position": [
+     -1.1642,
+     6.2652
+    ],
+    "size": 1.0,
+    "stretch": 2.359,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3815,
+     1.3815
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 68",
+    "shape": "box",
+    "position": [
+     -0.0796,
+     -7.4455
+    ],
+    "size": 1.0,
+    "stretch": 4.3148,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4413,
+     1.4413
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.17289146140485095,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 69",
+    "shape": "box",
+    "position": [
+     0.0065,
+     -6.2177
+    ],
+    "size": 1.0,
+    "stretch": 6.0031,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0393,
+     1.0393
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 70",
+    "shape": "box",
+    "position": [
+     0.0271,
+     -3.6843
+    ],
+    "size": 1.0,
+    "stretch": 2.2328,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1858,
+     1.1858
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 71",
+    "shape": "box",
+    "position": [
+     0.0549,
+     -2.507
+    ],
+    "size": 1.0,
+    "stretch": 6.6726,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3396,
+     1.3396
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 72",
+    "shape": "box",
+    "position": [
+     -0.0512,
+     -1.2571
+    ],
+    "size": 1.0,
+    "stretch": 8.321,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1379,
+     1.1379
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.08462851987079523,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 73",
+    "shape": "box",
+    "position": [
+     -0.029,
+     -0.0483
+    ],
+    "size": 1.0,
+    "stretch": 6.0794,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9941,
+     0.9941
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 74",
+    "shape": "box",
+    "position": [
+     -0.0829,
+     1.294
+    ],
+    "size": 1.0,
+    "stretch": 8.3596,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4113,
+     1.4113
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 75",
+    "shape": "box",
+    "position": [
+     -0.0814,
+     2.4443
+    ],
+    "size": 1.0061,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3104,
+     1.3104
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 76",
+    "shape": "box",
+    "position": [
+     0.0993,
+     3.7601
+    ],
+    "size": 1.0,
+    "stretch": 5.3152,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.265,
+     1.265
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 77",
+    "shape": "box",
+    "position": [
+     0.0072,
+     5.0524
+    ],
+    "size": 1.0,
+    "stretch": 4.9031,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1302,
+     1.1302
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.09048767104095784,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 78",
+    "shape": "box",
+    "position": [
+     0.0194,
+     6.3461
+    ],
+    "size": 1.0,
+    "stretch": 3.1229,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2173,
+     1.2173
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 79",
+    "shape": "box",
+    "position": [
+     1.3449,
+     -7.4893
+    ],
+    "size": 1.0,
+    "stretch": 3.7218,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1568,
+     1.1568
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.06025327357567706,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 80",
+    "shape": "box",
+    "position": [
+     1.2069,
+     -6.2543
+    ],
+    "size": 1.0,
+    "stretch": 2.4471,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4055,
+     1.4055
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 81",
+    "shape": "box",
+    "position": [
+     1.2301,
+     -5.0852
+    ],
+    "size": 1.0,
+    "stretch": 8.7412,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1037,
+     1.1037
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 82",
+    "shape": "box",
+    "position": [
+     1.1737,
+     -3.6971
+    ],
+    "size": 1.0,
+    "stretch": 1.9021,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0531,
+     1.0531
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 83",
+    "shape": "box",
+    "position": [
+     1.2095,
+     -2.4823
+    ],
+    "size": 1.0403,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0484,
+     1.0484
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 84",
+    "shape": "box",
+    "position": [
+     1.2751,
+     -1.2971
+    ],
+    "size": 1.0,
+    "stretch": 8.0706,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0095,
+     1.0095
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 85",
+    "shape": "box",
+    "position": [
+     1.2083,
+     -0.0537
+    ],
+    "size": 1.0,
+    "stretch": 4.6186,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2505,
+     1.2505
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.15029938172556304,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 86",
+    "shape": "box",
+    "position": [
+     1.268,
+     1.3108
+    ],
+    "size": 1.0,
+    "stretch": 9.4814,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2025,
+     1.2025
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 87",
+    "shape": "box",
+    "position": [
+     1.1832,
+     2.4615
+    ],
+    "size": 1.0,
+    "stretch": 3.3052,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0902,
+     1.0902
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.06275780567098836,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 88",
+    "shape": "box",
+    "position": [
+     1.2501,
+     3.7488
+    ],
+    "size": 1.0,
+    "stretch": 5.7691,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1214,
+     1.1214
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.15195738959611477,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 89",
+    "shape": "box",
+    "position": [
+     1.3172,
+     5.015
+    ],
+    "size": 1.0,
+    "stretch": 1.799,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1917,
+     1.1917
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.054612301860957634,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 90",
+    "shape": "box",
+    "position": [
+     1.2538,
+     6.2384
+    ],
+    "size": 1.0,
+    "stretch": 8.9968,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3094,
+     1.3094
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.16100301286600913,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 91",
+    "shape": "box",
+    "position": [
+     2.4696,
+     -7.5333
+    ],
+    "size": 1.0,
+    "stretch": 8.9771,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1936,
+     1.1936
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 92",
+    "shape": "box",
+    "position": [
+     2.5627,
+     -6.24
+    ],
+    "size": 1.0,
+    "stretch": 7.933,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1416,
+     1.1416
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 93",
+    "shape": "box",
+    "position": [
+     2.565,
+     -5.0998
+    ],
+    "size": 1.0,
+    "stretch": 3.8589,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1384,
+     1.1384
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 94",
+    "shape": "box",
+    "position": [
+     2.5251,
+     -3.698
+    ],
+    "size": 1.0,
+    "stretch": 4.9648,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0066,
+     1.0066
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 95",
+    "shape": "box",
+    "position": [
+     2.5218,
+     -2.5521
+    ],
+    "size": 1.0,
+    "stretch": 5.6191,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4346,
+     1.4346
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.059428173338019176,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 96",
+    "shape": "box",
+    "position": [
+     2.5894,
+     -1.2205
+    ],
+    "size": 1.0,
+    "stretch": 7.8838,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2506,
+     1.2506
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1860687805574669,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 97",
+    "shape": "box",
+    "position": [
+     2.596,
+     -0.0513
+    ],
+    "size": 1.1893,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9443,
+     0.9443
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 98",
+    "shape": "box",
+    "position": [
+     2.4552,
+     1.308
+    ],
+    "size": 1.0,
+    "stretch": 6.1277,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4317,
+     1.4317
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 99",
+    "shape": "box",
+    "position": [
+     2.5675,
+     2.516
+    ],
+    "size": 1.0,
+    "stretch": 8.5069,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2288,
+     1.2288
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 100",
+    "shape": "box",
+    "position": [
+     2.4754,
+     3.8366
+    ],
+    "size": 1.0,
+    "stretch": 7.9895,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1988,
+     1.1988
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 101",
+    "shape": "box",
+    "position": [
+     2.5489,
+     5.041
+    ],
+    "size": 1.0,
+    "stretch": 8.8558,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.097,
+     1.097
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.10572401528793252,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 102",
+    "shape": "box",
+    "position": [
+     2.593,
+     6.1752
+    ],
+    "size": 1.0,
+    "stretch": 4.3956,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3052,
+     1.3052
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 103",
+    "shape": "box",
+    "position": [
+     3.6531,
+     -7.5712
+    ],
+    "size": 1.0,
+    "stretch": 3.99,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0292,
+     1.0292
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 104",
+    "shape": "box",
+    "position": [
+     3.7885,
+     -6.22
+    ],
+    "size": 1.0,
+    "stretch": 8.7747,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0167,
+     1.0167
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 105",
+    "shape": "box",
+    "position": [
+     3.8245,
+     -5.0928
+    ],
+    "size": 1.0,
+    "stretch": 7.8926,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4011,
+     1.4011
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1549947880356773,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 106",
+    "shape": "box",
+    "position": [
+     3.8021,
+     -2.4592
+    ],
+    "size": 1.0,
+    "stretch": 8.407,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4687,
+     1.4687
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 107",
+    "shape": "box",
+    "position": [
+     3.725,
+     -1.3209
+    ],
+    "size": 1.0,
+    "stretch": 2.7477,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1267,
+     1.1267
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.04897907649680111,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 108",
+    "shape": "box",
+    "position": [
+     3.7866,
+     -0.0005
+    ],
+    "size": 1.0,
+    "stretch": 8.0422,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3683,
+     1.3683
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.17933433578317678,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 109",
+    "shape": "box",
+    "position": [
+     3.8302,
+     1.2855
+    ],
+    "size": 1.0,
+    "stretch": 3.2414,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2926,
+     1.2926
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 110",
+    "shape": "box",
+    "position": [
+     3.7881,
+     2.4914
+    ],
+    "size": 1.0,
+    "stretch": 4.813,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1493,
+     1.1493
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 111",
+    "shape": "box",
+    "position": [
+     3.8485,
+     3.709
+    ],
+    "size": 1.0,
+    "stretch": 8.9953,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3981,
+     1.3981
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.09743346521235934,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 112",
+    "shape": "box",
+    "position": [
+     3.8447,
+     5.0821
+    ],
+    "size": 1.0,
+    "stretch": 6.4367,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1145,
+     1.1145
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 113",
+    "shape": "box",
+    "position": [
+     3.6938,
+     6.188
+    ],
+    "size": 1.0,
+    "stretch": 7.7463,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4224,
+     1.4224
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 114",
+    "shape": "box",
+    "position": [
+     5.0807,
+     -7.4707
+    ],
+    "size": 1.0,
+    "stretch": 7.1668,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3561,
+     1.3561
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 115",
+    "shape": "box",
+    "position": [
+     4.9653,
+     -6.2669
+    ],
+    "size": 1.0,
+    "stretch": 4.8062,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.264,
+     1.264
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 116",
+    "shape": "box",
+    "position": [
+     4.9514,
+     -4.9351
+    ],
+    "size": 1.0,
+    "stretch": 7.3988,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4095,
+     1.4095
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.08360437611397817,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 117",
+    "shape": "box",
+    "position": [
+     5.0508,
+     -3.8049
+    ],
+    "size": 1.0,
+    "stretch": 7.5487,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3458,
+     1.3458
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.19406292685902043,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 118",
+    "shape": "box",
+    "position": [
+     5.0581,
+     -2.5972
+    ],
+    "size": 1.0,
+    "stretch": 6.558,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1747,
+     1.1747
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 119",
+    "shape": "box",
+    "position": [
+     5.0881,
+     -1.3283
+    ],
+    "size": 1.0,
+    "stretch": 4.9109,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3097,
+     1.3097
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 120",
+    "shape": "box",
+    "position": [
+     5.0295,
+     0.0271
+    ],
+    "size": 1.0,
+    "stretch": 1.6877,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4133,
+     1.4133
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 121",
+    "shape": "box",
+    "position": [
+     4.9232,
+     1.197
+    ],
+    "size": 1.0,
+    "stretch": 6.7581,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2981,
+     1.2981
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0459539405159528,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 122",
+    "shape": "box",
+    "position": [
+     4.9838,
+     2.5485
+    ],
+    "size": 1.0,
+    "stretch": 4.4148,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1618,
+     1.1618
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 123",
+    "shape": "box",
+    "position": [
+     4.9065,
+     3.7241
+    ],
+    "size": 1.0,
+    "stretch": 4.6116,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0285,
+     1.0285
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 124",
+    "shape": "box",
+    "position": [
+     4.9717,
+     4.9796
+    ],
+    "size": 1.0,
+    "stretch": 8.6292,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3992,
+     1.3992
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1271145378371432,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 125",
+    "shape": "box",
+    "position": [
+     5.0279,
+     6.3442
+    ],
+    "size": 1.0,
+    "stretch": 2.4162,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3955,
+     1.3955
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 126",
+    "shape": "box",
+    "position": [
+     6.1932,
+     -6.1761
+    ],
+    "size": 1.0,
+    "stretch": 8.9162,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3656,
+     1.3656
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.12867324615378065,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 127",
+    "shape": "box",
+    "position": [
+     6.258,
+     -4.9403
+    ],
+    "size": 1.0,
+    "stretch": 2.6067,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4213,
+     1.4213
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.06315007685128128,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 128",
+    "shape": "box",
+    "position": [
+     6.1848,
+     -3.8395
+    ],
+    "size": 1.0,
+    "stretch": 7.9984,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0446,
+     1.0446
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.13421646752807076,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 129",
+    "shape": "box",
+    "position": [
+     6.2687,
+     -2.5096
+    ],
+    "size": 1.0,
+    "stretch": 5.4456,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3454,
+     1.3454
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 130",
+    "shape": "box",
+    "position": [
+     6.2416,
+     -1.1572
+    ],
+    "size": 1.0,
+    "stretch": 6.1133,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3363,
+     1.3363
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 131",
+    "shape": "box",
+    "position": [
+     6.3299,
+     1.2144
+    ],
+    "size": 1.0,
+    "stretch": 4.5121,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3162,
+     1.3162
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 132",
+    "shape": "box",
+    "position": [
+     6.3489,
+     2.5061
+    ],
+    "size": 1.0,
+    "stretch": 2.4464,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2859,
+     1.2859
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 133",
+    "shape": "box",
+    "position": [
+     6.3255,
+     3.7603
+    ],
+    "size": 1.0,
+    "stretch": 6.0407,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 134",
+    "shape": "box",
+    "position": [
+     6.169,
+     4.9854
+    ],
+    "size": 1.0,
+    "stretch": 4.7255,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4152,
+     1.4152
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.10379682948111252,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 135",
+    "shape": "box",
+    "position": [
+     6.1686,
+     6.1693
+    ],
+    "size": 1.0,
+    "stretch": 4.3073,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0548,
+     1.0548
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 136",
+    "shape": "box",
+    "position": [
+     7.534,
+     -7.5178
+    ],
+    "size": 1.0,
+    "stretch": 7.5883,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2526,
+     1.2526
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 137",
+    "shape": "box",
+    "position": [
+     7.5201,
+     -6.2797
+    ],
+    "size": 1.0,
+    "stretch": 8.5585,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1872,
+     1.1872
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 138",
+    "shape": "box",
+    "position": [
+     7.423,
+     -5.0443
+    ],
+    "size": 1.0,
+    "stretch": 3.0955,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3018,
+     1.3018
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.1752597469762152,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 139",
+    "shape": "box",
+    "position": [
+     7.5285,
+     -3.8447
+    ],
+    "size": 1.0,
+    "stretch": 4.7183,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2549,
+     1.2549
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 140",
+    "shape": "box",
+    "position": [
+     7.4702,
+     -2.5637
+    ],
+    "size": 1.0,
+    "stretch": 7.721,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.111,
+     1.111
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.8,
+      1.0
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.08943755021278563,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 141",
+    "shape": "box",
+    "position": [
+     7.5492,
+     -1.307
+    ],
+    "size": 1.0,
+    "stretch": 6.4301,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0141,
+     1.0141
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 16.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 142",
+    "shape": "box",
+    "position": [
+     7.5192,
+     0.0767
+    ],
+    "size": 1.0,
+    "stretch": 4.0567,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1613,
+     1.1613
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 143",
+    "shape": "box",
+    "position": [
+     7.4884,
+     1.2046
+    ],
+    "size": 1.0,
+    "stretch": 7.1583,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0044,
+     1.0044
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.10784236369807923,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 144",
+    "shape": "box",
+    "position": [
+     7.4617,
+     2.4441
+    ],
+    "size": 1.0,
+    "stretch": 2.3536,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1907,
+     1.1907
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.72,
+      0.42
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.11786124053828012,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 145",
+    "shape": "box",
+    "position": [
+     7.4579,
+     3.674
+    ],
+    "size": 1.0,
+    "stretch": 1.9109,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0802,
+     1.0802
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 20.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Tower 146",
+    "shape": "box",
+    "position": [
+     7.5667,
+     5.0612
+    ],
+    "size": 1.0,
+    "stretch": 4.7299,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0433,
+     1.0433
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.06,
+      0.065,
+      0.08
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "stripes",
+     "secondary_color": [
+      0.01,
+      0.011,
+      0.015
+     ],
+     "pattern_scale": 24.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

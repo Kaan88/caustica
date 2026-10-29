@@ -1,0 +1,784 @@
+{
+ "format": 1,
+ "title": "Snowmen",
+ "description": "Two snowmen on snow under a cool sky and a warm low sun: subtle white-on-white shading.",
+ "tags": [
+  "still life",
+  "winter"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.55,
+  "base": [
+   0.9,
+   0.92,
+   0.96
+  ],
+  "floor": {
+   "color": [
+    0.9,
+    0.92,
+    0.96
+   ],
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "reflectivity": 0.02,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Low sun",
+    "position": [
+     -12,
+     5,
+     10
+    ],
+    "rotation": [
+     68.988,
+     -50.194,
+     0.0
+    ],
+    "size": [
+     2.5,
+     2.5
+    ],
+    "color": [
+     1.0,
+     0.5389,
+     0.2708
+    ],
+    "intensity": 260,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 15,
+  "pitch": 10,
+  "distance": 6.5,
+  "target": [
+   0,
+   0.0,
+   0
+  ],
+  "fov": 40,
+  "background": [
+   0.45,
+   0.55,
+   0.75
+  ],
+  "objects": [
+   {
+    "name": "Snowman 1 ball 1",
+    "shape": "sphere",
+    "position": [
+     -1.0,
+     0.0
+    ],
+    "size": 1.5714,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.494,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 ball 2",
+    "shape": "sphere",
+    "position": [
+     -1.0,
+     0.0
+    ],
+    "size": 1.1429,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.3305,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 ball 3",
+    "shape": "sphere",
+    "position": [
+     -1.0,
+     0.0
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.9201,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 nose",
+    "shape": "cone",
+    "position": [
+     -1.0,
+     0.3
+    ],
+    "size": 0.15,
+    "stretch": 2.4,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.9201,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.4,
+      0.05
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 eye",
+    "shape": "sphere",
+    "position": [
+     -1.1,
+     0.24
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0001,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02,
+      0.02,
+      0.02
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 eye",
+    "shape": "sphere",
+    "position": [
+     -0.9,
+     0.24
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0001,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02,
+      0.02,
+      0.02
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 hat",
+    "shape": "cylinder",
+    "position": [
+     -1.0,
+     0.0
+    ],
+    "size": 0.55,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.3201,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 1 brim",
+    "shape": "cylinder",
+    "position": [
+     -1.0,
+     0.0
+    ],
+    "size": 0.85,
+    "stretch": 0.08,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1201,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 ball 1",
+    "shape": "sphere",
+    "position": [
+     1.2,
+     -0.6
+    ],
+    "size": 1.2571,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5952,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 ball 2",
+    "shape": "sphere",
+    "position": [
+     1.2,
+     -0.6
+    ],
+    "size": 0.9143,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0644,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 ball 3",
+    "shape": "sphere",
+    "position": [
+     1.2,
+     -0.6
+    ],
+    "size": 0.64,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.5361,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 nose",
+    "shape": "cone",
+    "position": [
+     1.2,
+     -0.36
+    ],
+    "size": 0.12,
+    "stretch": 2.4,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.5361,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.4,
+      0.05
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 eye",
+    "shape": "sphere",
+    "position": [
+     1.12,
+     -0.408
+    ],
+    "size": 0.08,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6001,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02,
+      0.02,
+      0.02
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 eye",
+    "shape": "sphere",
+    "position": [
+     1.28,
+     -0.408
+    ],
+    "size": 0.08,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6001,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02,
+      0.02,
+      0.02
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 hat",
+    "shape": "cylinder",
+    "position": [
+     1.2,
+     -0.6
+    ],
+    "size": 0.44,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.8561,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Snowman 2 brim",
+    "shape": "cylinder",
+    "position": [
+     1.2,
+     -0.6
+    ],
+    "size": 0.68,
+    "stretch": 0.08,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6961,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ],
+  "exposure": 0.75
+ }
+}

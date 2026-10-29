@@ -1,0 +1,735 @@
+{
+ "format": 1,
+ "title": "Jewellery box",
+ "description": "Gold, silver and copper rings, pearls and a diamond on velvet: metals reflecting each other at close range.",
+ "tags": [
+  "material",
+  "metal"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.03,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -1.5,
+   3.0,
+   1.5
+  ],
+  "light_size": 1.5,
+  "light_intensity": 20.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Warm rim",
+    "position": [
+     2.0,
+     1.5,
+     -2.0
+    ],
+    "rotation": [
+     48.527,
+     135.0,
+     0.0
+    ],
+    "size": [
+     1.5,
+     1.5
+    ],
+    "color": [
+     1.0,
+     0.4856,
+     0.2015
+    ],
+    "intensity": 14,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 25,
+  "pitch": 42,
+  "distance": 3.4,
+  "target": [
+   0,
+   -0.85,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Velvet tray",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     8.0,
+     5.5
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gold ring",
+    "shape": "ring",
+    "position": [
+     -1.0,
+     0.2
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 30,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.62,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Silver ring",
+    "shape": "ring",
+    "position": [
+     -0.3,
+     -0.4
+    ],
+    "size": 0.75,
+    "stretch": 1.0,
+    "rotation": -20,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.67,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.93
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Gold band",
+    "shape": "torus",
+    "position": [
+     0.6,
+     0.3
+    ],
+    "size": 0.55,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.87,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Copper bangle",
+    "shape": "torus",
+    "position": [
+     -1.2,
+     -0.8
+    ],
+    "size": 0.9,
+    "stretch": 0.5,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.87,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.47,
+      0.26
+     ],
+     "roughness": 0.25,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 1",
+    "shape": "sphere",
+    "position": [
+     1.45,
+     -0.5
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 2",
+    "shape": "sphere",
+    "position": [
+     1.3447,
+     -0.3072
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 3",
+    "shape": "sphere",
+    "position": [
+     1.0781,
+     -0.2046
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 4",
+    "shape": "sphere",
+    "position": [
+     0.775,
+     -0.2402
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 5",
+    "shape": "sphere",
+    "position": [
+     0.5771,
+     -0.3974
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 6",
+    "shape": "sphere",
+    "position": [
+     0.5771,
+     -0.6026
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 7",
+    "shape": "sphere",
+    "position": [
+     0.775,
+     -0.7598
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 8",
+    "shape": "sphere",
+    "position": [
+     1.0781,
+     -0.7954
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pearl 9",
+    "shape": "sphere",
+    "position": [
+     1.3447,
+     -0.6928
+    ],
+    "size": 0.32,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.14,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.92,
+      0.88
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Diamond",
+    "shape": "octahedron",
+    "position": [
+     0.1,
+     0.75
+    ],
+    "size": 0.45,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 2.42,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

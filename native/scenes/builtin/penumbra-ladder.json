@@ -1,0 +1,405 @@
+{
+ "format": 1,
+ "title": "Penumbra ladder",
+ "description": "Five posts, each under its own light from 0.1 to 2 units wide at equal power: shadow softness grows with light size.",
+ "tags": [
+  "validation",
+  "shadows"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.02,
+  "base": [
+   0.75,
+   0.74,
+   0.72
+  ],
+  "floor": {
+   "color": [
+    0.7,
+    0.7,
+    0.7
+   ],
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Light 0.1",
+    "position": [
+     -3.2,
+     3.2,
+     -1.4
+    ],
+    "rotation": [
+     27.646,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     0.1,
+     0.1
+    ],
+    "color": [
+     1,
+     0.97,
+     0.92
+    ],
+    "intensity": 720.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Light 0.3",
+    "position": [
+     -1.6,
+     3.2,
+     -1.4
+    ],
+    "rotation": [
+     27.646,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     0.3,
+     0.3
+    ],
+    "color": [
+     1,
+     0.97,
+     0.92
+    ],
+    "intensity": 80.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Light 0.6",
+    "position": [
+     0.0,
+     3.2,
+     -1.4
+    ],
+    "rotation": [
+     27.646,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     0.6,
+     0.6
+    ],
+    "color": [
+     1,
+     0.97,
+     0.92
+    ],
+    "intensity": 20.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Light 1.2",
+    "position": [
+     1.6,
+     3.2,
+     -1.4
+    ],
+    "rotation": [
+     27.646,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     1.2,
+     1.2
+    ],
+    "color": [
+     1,
+     0.97,
+     0.92
+    ],
+    "intensity": 5.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Light 2.0",
+    "position": [
+     3.2,
+     3.2,
+     -1.4
+    ],
+    "rotation": [
+     27.646,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     2.0,
+     2.0
+    ],
+    "color": [
+     1,
+     0.97,
+     0.92
+    ],
+    "intensity": 1.8,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 38,
+  "distance": 9,
+  "target": [
+   0,
+   -0.6,
+   0.6
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Post 1",
+    "shape": "cylinder",
+    "position": [
+     -3.2,
+     0
+    ],
+    "size": 3.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.07,
+     0.07
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.78,
+      0.74
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Post 2",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     0
+    ],
+    "size": 3.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.07,
+     0.07
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.78,
+      0.74
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Post 3",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     0
+    ],
+    "size": 3.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.07,
+     0.07
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.78,
+      0.74
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Post 4",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     0
+    ],
+    "size": 3.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.07,
+     0.07
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.78,
+      0.74
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Post 5",
+    "shape": "cylinder",
+    "position": [
+     3.2,
+     0
+    ],
+    "size": 3.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.07,
+     0.07
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.78,
+      0.74
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

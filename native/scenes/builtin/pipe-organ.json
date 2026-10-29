@@ -1,0 +1,3616 @@
+{
+ "format": 1,
+ "title": "Pipe organ",
+ "description": "Forty chrome pipes of rising height in front of a warm wall: long streaky reflections on cylinders.",
+ "tags": [
+  "architecture",
+  "metal"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.03,
+  "base": [
+   0.3,
+   0.2,
+   0.12
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -2.0,
+   5.0,
+   4.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 3800.0,
+  "lights": [
+   {
+    "name": "Cool fill",
+    "position": [
+     3.0,
+     2.0,
+     4.0
+    ],
+    "rotation": [
+     78.69,
+     36.87,
+     0.0
+    ],
+    "size": [
+     2,
+     2
+    ],
+    "color": [
+     0.5,
+     0.65,
+     1.0
+    ],
+    "intensity": 6,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 4,
+  "distance": 10,
+  "target": [
+   0,
+   1.4,
+   0
+  ],
+  "fov": 45,
+  "objects": [
+   {
+    "name": "Wall",
+    "shape": "box",
+    "position": [
+     0,
+     -1.0
+    ],
+    "size": 1.2,
+    "stretch": 7.5,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     0.25
+    ],
+    "elevation": 2.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.2,
+      0.08
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Console",
+    "shape": "box",
+    "position": [
+     0,
+     1.3
+    ],
+    "size": 1.0,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.0,
+     1.5
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.12,
+      0.05
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 1",
+    "shape": "cylinder",
+    "position": [
+     -3.6,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 2.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 1",
+    "shape": "cone",
+    "position": [
+     -3.6,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 2",
+    "shape": "cylinder",
+    "position": [
+     -3.4154,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 1.7878,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 2",
+    "shape": "cone",
+    "position": [
+     -3.4154,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 3",
+    "shape": "cylinder",
+    "position": [
+     -3.2308,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 2.3026,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 3",
+    "shape": "cone",
+    "position": [
+     -3.2308,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 4",
+    "shape": "cylinder",
+    "position": [
+     -3.0462,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 2.1203,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 4",
+    "shape": "cone",
+    "position": [
+     -3.0462,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 5",
+    "shape": "cylinder",
+    "position": [
+     -2.8615,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 2.5691,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 5",
+    "shape": "cone",
+    "position": [
+     -2.8615,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 6",
+    "shape": "cylinder",
+    "position": [
+     -2.6769,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 2.6115,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 6",
+    "shape": "cone",
+    "position": [
+     -2.6769,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 7",
+    "shape": "cylinder",
+    "position": [
+     -2.4923,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 2.9082,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 7",
+    "shape": "cone",
+    "position": [
+     -2.4923,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 8",
+    "shape": "cylinder",
+    "position": [
+     -2.3077,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 3.2081,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 8",
+    "shape": "cone",
+    "position": [
+     -2.3077,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 9",
+    "shape": "cylinder",
+    "position": [
+     -2.1231,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 3.3281,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 9",
+    "shape": "cone",
+    "position": [
+     -2.1231,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 10",
+    "shape": "cylinder",
+    "position": [
+     -1.9385,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 3.8671,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 10",
+    "shape": "cone",
+    "position": [
+     -1.9385,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 11",
+    "shape": "cylinder",
+    "position": [
+     -1.7538,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 3.8452,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 11",
+    "shape": "cone",
+    "position": [
+     -1.7538,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 12",
+    "shape": "cylinder",
+    "position": [
+     -1.5692,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 4.5544,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 12",
+    "shape": "cone",
+    "position": [
+     -1.5692,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 13",
+    "shape": "cylinder",
+    "position": [
+     -1.3846,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 4.473,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 13",
+    "shape": "cone",
+    "position": [
+     -1.3846,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 14",
+    "shape": "cylinder",
+    "position": [
+     -1.2,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 5.2483,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 14",
+    "shape": "cone",
+    "position": [
+     -1.2,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 15",
+    "shape": "cylinder",
+    "position": [
+     -1.0154,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 5.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 15",
+    "shape": "cone",
+    "position": [
+     -1.0154,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 16",
+    "shape": "cylinder",
+    "position": [
+     -0.8308,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 5.9428,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 16",
+    "shape": "cone",
+    "position": [
+     -0.8308,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 17",
+    "shape": "cylinder",
+    "position": [
+     -0.6462,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 6.0586,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 17",
+    "shape": "cone",
+    "position": [
+     -0.6462,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 18",
+    "shape": "cylinder",
+    "position": [
+     -0.4615,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 6.6473,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 18",
+    "shape": "cone",
+    "position": [
+     -0.4615,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 19",
+    "shape": "cylinder",
+    "position": [
+     -0.2769,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 6.9833,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 19",
+    "shape": "cone",
+    "position": [
+     -0.2769,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 20",
+    "shape": "cylinder",
+    "position": [
+     -0.0923,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 7.3825,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 20",
+    "shape": "cone",
+    "position": [
+     -0.0923,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 21",
+    "shape": "cylinder",
+    "position": [
+     0.0923,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 7.5188,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 21",
+    "shape": "cone",
+    "position": [
+     0.0923,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 22",
+    "shape": "cylinder",
+    "position": [
+     0.2769,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 6.856,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 22",
+    "shape": "cone",
+    "position": [
+     0.2769,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 23",
+    "shape": "cylinder",
+    "position": [
+     0.4615,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 6.757,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 23",
+    "shape": "cone",
+    "position": [
+     0.4615,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 24",
+    "shape": "cylinder",
+    "position": [
+     0.6462,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 5.9736,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 24",
+    "shape": "cone",
+    "position": [
+     0.6462,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 25",
+    "shape": "cylinder",
+    "position": [
+     0.8308,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 5.9973,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 25",
+    "shape": "cone",
+    "position": [
+     0.8308,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 26",
+    "shape": "cylinder",
+    "position": [
+     1.0154,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 5.1938,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 26",
+    "shape": "cone",
+    "position": [
+     1.0154,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 27",
+    "shape": "cylinder",
+    "position": [
+     1.2,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 5.2333,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 27",
+    "shape": "cone",
+    "position": [
+     1.2,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 28",
+    "shape": "cylinder",
+    "position": [
+     1.3846,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 4.5224,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 28",
+    "shape": "cone",
+    "position": [
+     1.3846,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 29",
+    "shape": "cylinder",
+    "position": [
+     1.5692,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 4.4739,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 29",
+    "shape": "cone",
+    "position": [
+     1.5692,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 30",
+    "shape": "cylinder",
+    "position": [
+     1.7538,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 3.9516,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 30",
+    "shape": "cone",
+    "position": [
+     1.7538,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 31",
+    "shape": "cylinder",
+    "position": [
+     1.9385,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 3.7421,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 31",
+    "shape": "cone",
+    "position": [
+     1.9385,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 32",
+    "shape": "cylinder",
+    "position": [
+     2.1231,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 3.4636,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 32",
+    "shape": "cone",
+    "position": [
+     2.1231,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 33",
+    "shape": "cylinder",
+    "position": [
+     2.3077,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 3.0712,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 33",
+    "shape": "cone",
+    "position": [
+     2.3077,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 34",
+    "shape": "cylinder",
+    "position": [
+     2.4923,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 3.0375,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 34",
+    "shape": "cone",
+    "position": [
+     2.4923,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 35",
+    "shape": "cylinder",
+    "position": [
+     2.6769,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 2.4985,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 35",
+    "shape": "cone",
+    "position": [
+     2.6769,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 36",
+    "shape": "cylinder",
+    "position": [
+     2.8615,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 2.6584,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 36",
+    "shape": "cone",
+    "position": [
+     2.8615,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 37",
+    "shape": "cylinder",
+    "position": [
+     3.0462,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 2.0607,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 37",
+    "shape": "cone",
+    "position": [
+     3.0462,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 38",
+    "shape": "cylinder",
+    "position": [
+     3.2308,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 2.3286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 38",
+    "shape": "cone",
+    "position": [
+     3.2308,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 39",
+    "shape": "cylinder",
+    "position": [
+     3.4154,
+     -0.5
+    ],
+    "size": 1.0,
+    "stretch": 1.7971,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 39",
+    "shape": "cone",
+    "position": [
+     3.4154,
+     -0.5
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Pipe 40",
+    "shape": "cylinder",
+    "position": [
+     3.6,
+     -0.65
+    ],
+    "size": 1.0,
+    "stretch": 2.0988,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.22,
+     0.22
+    ],
+    "elevation": 0.4,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Foot 40",
+    "shape": "cone",
+    "position": [
+     3.6,
+     -0.65
+    ],
+    "size": 0.45,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     180,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.82,
+      0.78
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   }
+  ]
+ }
+}

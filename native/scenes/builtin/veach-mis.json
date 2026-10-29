@@ -1,0 +1,415 @@
+{
+ "format": 1,
+ "title": "Veach MIS plates",
+ "description": "Four plates from sharp to rough reflect four lights from tiny to large at equal power: NEE wins on rough plates and small lights, BSDF sampling on sharp plates and large lights; MIS combines both.",
+ "tags": [
+  "validation",
+  "mis",
+  "veach"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 8.0,
+  "sky": 0.0,
+  "base": [
+   0.04,
+   0.04,
+   0.045
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 12,
+  "distance": 8.5,
+  "target": [
+   0,
+   0.0,
+   -0.8
+  ],
+  "fov": 34,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "exposure": 2.5,
+  "objects": [
+   {
+    "name": "Plate roughness 0.005",
+    "shape": "box",
+    "position": [
+     0,
+     1.4
+    ],
+    "size": 1.0,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     2.433,
+     0
+    ],
+    "scale_xz": [
+     5.6,
+     1.05
+    ],
+    "elevation": -0.85,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.6,
+      0.6
+     ],
+     "roughness": 0.005,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plate roughness 0.02",
+    "shape": "box",
+    "position": [
+     0,
+     0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     5.584,
+     0
+    ],
+    "scale_xz": [
+     5.6,
+     1.05
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.6,
+      0.6
+     ],
+     "roughness": 0.02,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plate roughness 0.05",
+    "shape": "box",
+    "position": [
+     0,
+     -0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     8.673,
+     0
+    ],
+    "scale_xz": [
+     5.6,
+     1.05
+    ],
+    "elevation": -0.3,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.6,
+      0.6
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Plate roughness 0.12",
+    "shape": "box",
+    "position": [
+     0,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     11.882,
+     0
+    ],
+    "scale_xz": [
+     5.6,
+     1.05
+    ],
+    "elevation": 0.05,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.6,
+      0.6
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    }
+   },
+   {
+    "name": "Light radius 0.04",
+    "shape": "sphere",
+    "position": [
+     -2.4,
+     -3.2
+    ],
+    "size": 0.1143,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      0.85,
+      0.5
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Light radius 0.11",
+    "shape": "sphere",
+    "position": [
+     -0.8,
+     -3.2
+    ],
+    "size": 0.3143,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      1,
+      0.55
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.644628099173554,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Light radius 0.28",
+    "shape": "sphere",
+    "position": [
+     0.8,
+     -3.2
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.7,
+      1
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.4081632653061224,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   },
+   {
+    "name": "Light radius 0.6",
+    "shape": "sphere",
+    "position": [
+     2.4,
+     -3.2
+    ],
+    "size": 1.7143,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      0.5,
+      0.45
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.08888888888888889,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    }
+   }
+  ]
+ }
+}

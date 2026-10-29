@@ -21,6 +21,16 @@ use windows::{
 };
 
 const TEXTURES: usize = 27;
+/// Shader-visible heap: UAVs 0..TEXTURES, then one SRV slot per egui texture from 32.
+const HEAP_SIZE: usize = 512;
+const FIRST_GUI_SLOT: usize = 32;
+struct GuiTexture {
+    texture: Texture,
+    slot: usize,
+    /// CPU copy, so partial updates (the font atlas grows) can be patched in.
+    pixels: Vec<u8>,
+    size: [usize; 2],
+}
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Constants {
@@ -176,13 +186,13 @@ pub struct Gpu {
     pub emitter_count: usize,
     blas: Option<ID3D12Resource>,
     tlas: Option<ID3D12Resource>,
-    atlas: Option<Texture>,
+    /// egui textures (font atlas, scene thumbnails), each with its own heap slot (32 and up).
+    gui_textures: std::collections::HashMap<egui::TextureId, GuiTexture>,
+    free_slots: Vec<usize>,
     /// When set, each frame's backbuffer (with UI) is copied here before Present, because a
     /// FLIP_DISCARD buffer's contents are undefined once presented. Kept in COPY_DEST.
     pub keep_ui_frame: bool,
     ui_frame: Option<ID3D12Resource>,
-    atlas_pixels: Vec<u8>,
-    atlas_size: [usize; 2],
     ngx: *mut c_void,
     fsr: *mut c_void,
     xess: *mut c_void,
@@ -318,7 +328,7 @@ impl Gpu {
         let event = CreateEventW(None, false, false, None)?;
         let heap = device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
             Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors: 64,
+            NumDescriptors: HEAP_SIZE as u32,
             Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
             NodeMask: 0,
         })?;
@@ -536,11 +546,10 @@ impl Gpu {
             geometry,
             blas: None,
             tlas: None,
-            atlas: None,
+            gui_textures: Default::default(),
+            free_slots: (FIRST_GUI_SLOT..HEAP_SIZE).rev().collect(),
             keep_ui_frame: false,
             ui_frame: None,
-            atlas_pixels: vec![],
-            atlas_size: [0, 0],
             ngx,
             rr_status,
             fsr,
@@ -1021,7 +1030,7 @@ impl Gpu {
     ) -> Result<()> {
         self.begin()?;
         let mut keep = Vec::new();
-        self.update_atlas(delta, &mut keep)?;
+        self.update_gui_textures(delta, &mut keep)?;
         let (view, proj, eye) = s.camera(self.width as f32 / self.height as f32);
         let vp = proj * view;
         let reset = self.rr_reset;
@@ -1299,6 +1308,14 @@ impl Gpu {
         };
         self.list.OMSetRenderTargets(1, Some(&handle), false, None);
         self.draw_gui(primitives, pixels_per_point, &mut keep)?;
+        // Freed textures go after the draw that may still use them this frame; one frame in
+        // flight means the slot is free again by the next one.
+        for id in &delta.free {
+            if let Some(old) = self.gui_textures.remove(id) {
+                self.free_slots.push(old.slot);
+                keep.push(old.texture.resource);
+            }
+        }
         if self.keep_ui_frame {
             if self.ui_frame.is_none() {
                 self.ui_frame = Some(
@@ -1443,37 +1460,44 @@ impl Gpu {
             eprintln!("{}", self.upscale_status);
         }
     }
-    unsafe fn update_atlas(
+    unsafe fn update_gui_textures(
         &mut self,
         delta: &egui::TexturesDelta,
         keep: &mut Vec<ID3D12Resource>,
     ) -> Result<()> {
         for (id, change) in &delta.set {
-            ensure!(
-                *id == egui::TextureId::Managed(0),
-                "Only the egui font atlas is supported"
-            );
             let size = change.image.size();
             let pixels: Vec<egui::Color32> = match &change.image {
                 egui::ImageData::Color(i) => i.pixels.clone(),
                 egui::ImageData::Font(i) => i.srgba_pixels(None).collect(),
             };
+            let (mut data, mut full, slot) = match self.gui_textures.remove(id) {
+                Some(old) => {
+                    keep.push(old.texture.resource);
+                    (old.pixels, old.size, old.slot)
+                }
+                None => (
+                    vec![],
+                    [0, 0],
+                    self.free_slots.pop().context("Out of egui texture slots")?,
+                ),
+            };
             if let Some(pos) = change.pos {
                 for y in 0..size[1] {
-                    let start = ((pos[1] + y) * self.atlas_size[0] + pos[0]) * 4;
+                    let start = ((pos[1] + y) * full[0] + pos[0]) * 4;
                     for x in 0..size[0] {
-                        self.atlas_pixels[start + x * 4..start + x * 4 + 4]
+                        data[start + x * 4..start + x * 4 + 4]
                             .copy_from_slice(&pixels[y * size[0] + x].to_array());
                     }
                 }
             } else {
-                self.atlas_size = size;
-                self.atlas_pixels = pixels.iter().flat_map(|p| p.to_array()).collect();
+                full = size;
+                data = pixels.iter().flat_map(|p| p.to_array()).collect();
             }
             let t = texture(
                 &self.device,
-                self.atlas_size[0] as _,
-                self.atlas_size[1] as _,
+                full[0] as _,
+                full[1] as _,
                 DXGI_FORMAT_R8G8B8A8_UNORM,
                 D3D12_RESOURCE_FLAG_NONE,
                 D3D12_RESOURCE_STATE_COPY_DEST,
@@ -1486,9 +1510,8 @@ impl Gpu {
                 D3D12_RESOURCE_FLAG_NONE,
                 D3D12_RESOURCE_STATE_GENERIC_READ,
             )?;
-            for y in 0..self.atlas_size[1] {
-                let row = &self.atlas_pixels
-                    [y * self.atlas_size[0] * 4..(y + 1) * self.atlas_size[0] * 4];
+            for y in 0..full[1] {
+                let row = &data[y * full[0] * 4..(y + 1) * full[0] * 4];
                 write_buffer(&staging, y as u64 * layout.Footprint.RowPitch as u64, row)?;
             }
             let mut dst = location(&t.resource);
@@ -1520,10 +1543,16 @@ impl Gpu {
                 },
             };
             self.device
-                .CreateShaderResourceView(&t.resource, Some(&srv), self.cpu(32));
-            if let Some(old) = self.atlas.replace(t) {
-                keep.push(old.resource);
-            }
+                .CreateShaderResourceView(&t.resource, Some(&srv), self.cpu(slot));
+            self.gui_textures.insert(
+                *id,
+                GuiTexture {
+                    texture: t,
+                    slot,
+                    pixels: data,
+                    size: full,
+                },
+            );
             keep.push(staging);
         }
         Ok(())
@@ -1534,7 +1563,7 @@ impl Gpu {
         ppp: f32,
         keep: &mut Vec<ID3D12Resource>,
     ) -> Result<()> {
-        if self.atlas.is_none() {
+        if self.gui_textures.is_empty() {
             return Ok(());
         }
         #[repr(C)]
@@ -1548,7 +1577,6 @@ impl Gpu {
         self.list.SetGraphicsRootSignature(&self.root);
         self.list
             .SetGraphicsRootConstantBufferView(0, self.constants.GetGPUVirtualAddress());
-        self.list.SetGraphicsRootDescriptorTable(4, self.gpu(32));
         self.list.SetPipelineState(if self.hdr_active {
             &self.gui_hdr
         } else {
@@ -1569,12 +1597,14 @@ impl Gpu {
         for primitive in primitives {
             if let egui::epaint::Primitive::Mesh(mesh) = &primitive.primitive
                 && !mesh.indices.is_empty()
+                && let Some(texture) = self.gui_textures.get(&mesh.texture_id)
             {
                 draws.push((
                     primitive.clip_rect,
                     indices.len() as u32,
                     mesh.indices.len() as u32,
                     vertices.len() as i32,
+                    texture.slot,
                 ));
                 indices.extend_from_slice(&mesh.indices);
                 vertices.extend(mesh.vertices.iter().map(|v| GuiVertex {
@@ -1602,7 +1632,8 @@ impl Gpu {
             SizeInBytes: (indices.len() * 4) as _,
             Format: DXGI_FORMAT_R32_UINT,
         }));
-        for (r, first, count, base) in draws {
+        let mut bound = usize::MAX;
+        for (r, first, count, base, slot) in draws {
             let left = (r.min.x * ppp).clamp(0., self.width as f32) as i32;
             let top = (r.min.y * ppp).clamp(0., self.height as f32) as i32;
             let right = (r.max.x * ppp).clamp(left as f32, self.width as f32) as i32;
@@ -1619,6 +1650,10 @@ impl Gpu {
                     right,
                     bottom,
                 }]);
+            if slot != bound {
+                self.list.SetGraphicsRootDescriptorTable(4, self.gpu(slot));
+                bound = slot;
+            }
             self.list.DrawIndexedInstanced(count, 1, first, base, 0);
         }
         keep.push(vb);

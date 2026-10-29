@@ -8,6 +8,7 @@ mod gpu;
 mod lighting;
 mod presets;
 mod scene;
+mod scenes;
 mod teapot_data;
 mod ui;
 use anyhow::{Context, Result, bail};
@@ -134,6 +135,7 @@ fn geometry_key(s: &Settings) -> String {
                 o.grounded
             ))
             .collect::<Vec<_>>(),
+        s.light_on,
         s.light_position,
         s.light_size,
         s.light_aspect,
@@ -141,7 +143,7 @@ fn geometry_key(s: &Settings) -> String {
         s.floor_extent,
         s.lights
             .iter()
-            .map(|l| (l.position, l.rotation, l.size))
+            .map(|l| (l.enabled, l.position, l.rotation, l.size))
             .collect::<Vec<_>>()
     ])
     .to_string()
@@ -171,10 +173,10 @@ impl App {
         let mut rest: Vec<String> = vec![];
         let mut all = std::env::args().skip(1);
         while let Some(arg) = all.next() {
-            if arg == "--preset" || arg == "--settings" {
+            if arg == "--preset" || arg == "--settings" || arg == "--scene" {
                 anyhow::ensure!(
                     ordered.is_empty(),
-                    "Give only one of --preset and --settings"
+                    "Give only one of --preset, --settings and --scene"
                 );
                 ordered.push(arg);
                 ordered.extend(all.next());
@@ -223,6 +225,13 @@ impl App {
                         args.next().context("--settings needs a path")?,
                     )?)?
                 }
+                // A scene file by path, file name or title (see scenes/).
+                "--scene" => {
+                    let name = args
+                        .next()
+                        .context("--scene needs a path or a scene name")?;
+                    s = scenes::read(&scenes::find(&name)?)?;
+                }
                 "--set" => {
                     // Override one top-level setting, e.g. --set direct=0.
                     let pair = args.next().context("--set needs key=value")?;
@@ -256,6 +265,7 @@ impl App {
                     }
                 }
                 "--ui-advanced" => interface.advanced = true,
+                "--ui-scenes" => interface.show_scenes = true,
                 "--ui-tool" => {
                     interface.tool = match args.next().context("--ui-tool needs a name")?.as_str() {
                         "select" => gizmo::Tool::Select,
@@ -288,15 +298,24 @@ impl App {
                     self_test = true;
                     hidden = true;
                     debug = true;
-                    frames = Some(204);
+                    // Then one frame per scene file.
+                    frames = Some(204 + scenes::list().len() as u32);
                 }
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --orbit-test --drag-test --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --orbit-test --drag-test --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
+                    }
+                    for e in scenes::list() {
+                        println!(
+                            "  --scene {:24} {} ({})",
+                            e.path.file_stem().unwrap_or_default().to_string_lossy(),
+                            e.title,
+                            e.pack
+                        );
                     }
                     std::process::exit(0);
                 }
@@ -539,6 +558,33 @@ impl App {
                         "G X 0.5 Enter moved the object by {moved}"
                     );
                     self.ui.tool = gizmo::Tool::Move;
+                }
+                // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
+                // scene files below load with the window still open.
+                203 => {
+                    let image =
+                        egui::ColorImage::new([64, 40], egui::Color32::from_rgb(40, 120, 200));
+                    let texture =
+                        self.egui
+                            .load_texture("self-test", image, egui::TextureOptions::LINEAR);
+                    if let Some(path) = self.ui.scenes.first().and_then(|e| e.thumbnail()) {
+                        self.ui.thumbnails.insert(path, texture);
+                    }
+                    self.ui.show_scenes = true;
+                    self.ui.scene_selected = Some(0);
+                }
+                // Every scene file, one per frame; the per-frame checks compare GPU triangle and
+                // emitter counts with the loaded settings.
+                n if n >= 204 => {
+                    let entries = scenes::list();
+                    if let Some(e) = entries.get((n - 204) as usize) {
+                        scenes::load_into(&mut self.settings, &e.path)
+                            .with_context(|| format!("Scene file {}", e.path.display()))?;
+                        anyhow::ensure!(
+                            self.settings.scene_name == e.title,
+                            "Scene title not applied"
+                        );
+                    }
                 }
                 202 => {
                     let after = self.settings.objects[0].position[0];
@@ -1328,6 +1374,21 @@ fn main() {
     }
 }
 fn run() -> Result<()> {
+    // Renders the missing scene thumbnails (each one a headless run of this exe) and exits.
+    if std::env::args().any(|a| a == "--make-thumbnails") {
+        let missing: Vec<_> = scenes::list()
+            .into_iter()
+            .filter(|e| e.thumbnail().is_some_and(|t| !t.is_file()))
+            .collect();
+        println!("{} thumbnails to render", missing.len());
+        for result in scenes::render_thumbnails(missing) {
+            match result {
+                Ok(path) => println!("THUMBNAIL {}", path.display()),
+                Err(title) => println!("THUMBNAIL FAILED {title}"),
+            }
+        }
+        return Ok(());
+    }
     let mut app = App::new()?;
     let event_loop = EventLoop::new()?;
     event_loop.run_app(&mut app)?;
