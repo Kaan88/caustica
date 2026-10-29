@@ -35,6 +35,15 @@ impl Default for Material {
 }
 pub const MAX_OBJECTS: usize = 256;
 pub const MAX_LIGHTS: usize = 32;
+/// DLSS Super Resolution presets offered by SDK 310.9.16 (`NVSDK_NGX_DLSS_Hint_Render_Preset`).
+/// A–D are removed, E/F deprecated, and G–I, N, O revert to the default.
+pub const DLSS_PRESETS: [(u32, &str); 5] = [
+    (0, "NVIDIA default"),
+    (10, "J · transformer, less ghosting"),
+    (11, "K · transformer, best quality"),
+    (12, "L · ultra performance"),
+    (13, "M · performance"),
+];
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Shape {
@@ -235,6 +244,8 @@ pub struct Settings {
     pub rr: bool,
     pub rr_preset: u32,
     pub upscaler: Upscaler,
+    /// DLSS Super Resolution preset: 0 = NVIDIA's choice per quality mode, 10–13 = J, K, L, M.
+    pub dlss_preset: u32,
     pub temporal: bool,
     pub yaw: f32,
     pub pitch: f32,
@@ -309,6 +320,7 @@ impl Default for Settings {
             rr: true,
             rr_preset: 6,
             upscaler: Upscaler::Dlss,
+            dlss_preset: 0,
             temporal: true,
             yaw: 0.,
             pitch: 4.,
@@ -395,6 +407,7 @@ impl Settings {
             self.vsync,
             self.rr_preset,
             self.upscaler,
+            self.dlss_preset,
         );
         *self = Self::default();
         match id {
@@ -498,6 +511,7 @@ impl Settings {
             self.vsync,
             self.rr_preset,
             self.upscaler,
+            self.dlss_preset,
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {
@@ -520,6 +534,10 @@ impl Settings {
         anyhow::ensure!(
             [0, 4, 5, 6].contains(&self.rr_preset),
             "Invalid DLSS RR model preset"
+        );
+        anyhow::ensure!(
+            DLSS_PRESETS.iter().any(|(id, _)| *id == self.dlss_preset),
+            "Invalid DLSS Super Resolution preset"
         );
         // serde_json rejects nonfinite values. Bound every value used for resource sizes or transport.
         anyhow::ensure!(

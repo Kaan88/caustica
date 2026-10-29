@@ -234,7 +234,7 @@ impl App {
                     self_test = true;
                     hidden = true;
                     debug = true;
-                    frames = Some(180);
+                    frames = Some(186);
                 }
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
@@ -396,6 +396,18 @@ impl App {
                 177 => self.settings.rr = true,
                 // Valid, but above the sample-limit slider's range (the panel is open).
                 178 => self.settings.max_samples = 100_000,
+                // Every DLSS Super Resolution preset recreates the feature, then back to RR.
+                180..=184 => {
+                    self.settings.rr = false;
+                    self.settings.scale = 0.5;
+                    self.settings.upscaler = scene::Upscaler::Dlss;
+                    self.settings.dlss_preset =
+                        scene::DLSS_PRESETS[(self.rendered - 180) as usize].0;
+                }
+                185 => {
+                    self.settings.dlss_preset = 0;
+                    self.settings.rr = true;
+                }
                 _ => {}
             }
             if (10..=125).contains(&self.rendered) && self.rendered.is_multiple_of(5) {
@@ -480,7 +492,7 @@ impl App {
             if key != self.last_key {
                 let mut old: serde_json::Value = serde_json::from_str(&self.last_key)?;
                 let mut new: serde_json::Value = serde_json::from_str(&key)?;
-                if ["rr_preset", "rr", "upscaler"]
+                if ["rr_preset", "rr", "upscaler", "dlss_preset"]
                     .iter()
                     .any(|k| old[k] != new[k])
                 {
@@ -546,6 +558,15 @@ impl App {
                     s.max_samples == 100_000,
                     "Drawing the UI changed a loaded value"
                 ),
+                180..=184 => {
+                    let label = scene::DLSS_PRESETS[(self.rendered - 180) as usize].1;
+                    anyhow::ensure!(
+                        !g.upscaler_available(scene::Upscaler::Dlss)
+                            || g.upscale_status.ends_with(label),
+                        "DLSS preset {label} did not start: {}",
+                        g.upscale_status
+                    );
+                }
                 172..=176 => {
                     let u = s.upscaler;
                     anyhow::ensure!(
@@ -746,6 +767,7 @@ if ui.button("Reset all").clicked(){self.settings=Settings::default();self.prese
                 egui::ComboBox::from_label("Quality mode").selected_text(if s.scale>=0.99{"Native (100%)"}else if s.scale>=0.62{"Quality (67%)"}else if s.scale>=0.54{"Balanced (58%)"}else if s.scale>=0.42{"Performance (50%)"}else{"Ultra performance (33%)"}).show_ui(ui,|ui|{for (scale,label) in [(1.,"Native (100%)"),(2./3.,"Quality (67%)"),(0.58,"Balanced (58%)"),(0.5,"Performance (50%)"),(1./3.,"Ultra performance (33%)")]{ui.selectable_value(&mut s.scale,scale,label);}});
                 // Without RR, a render scale below 1 needs an upscaler; temporal ones resolve detail from jittered frames.
                 ui.add_enabled_ui(!g.rr_active,|ui|{egui::ComboBox::from_label("Upscaler").selected_text(s.upscaler.label()).show_ui(ui,|ui|{for u in scene::Upscaler::ALL{let label=if g.upscaler_available(u){u.label().to_string()}else{format!("{} (unavailable)",u.label())};ui.selectable_value(&mut s.upscaler,u,label);}});}).response.on_hover_text("Used when Ray Reconstruction is off and the quality mode renders below 100%. RR does its own upscaling.");
+                if s.upscaler==scene::Upscaler::Dlss&&!g.rr_active{let label=scene::DLSS_PRESETS.iter().find(|(id,_)|*id==s.dlss_preset).map_or("NVIDIA default",|(_,l)|*l);egui::ComboBox::from_label("DLSS preset").selected_text(label).show_ui(ui,|ui|{for (id,label) in scene::DLSS_PRESETS{ui.selectable_value(&mut s.dlss_preset,id,label);}}).response.on_hover_text("Default lets NVIDIA pick: K for DLAA, Quality and Balanced; M for Performance; L for Ultra Performance.");}
                 if !g.upscale_status.is_empty(){ui.label(egui::RichText::new(&g.upscale_status).small());}
                 ui.checkbox(&mut s.temporal,"Reuse temporal history");ui.checkbox(&mut s.denoise,"Native à-trous denoiser [D]");
                 ui.add(crate::slider(&mut s.denoise_strength,0. ..=1.).text("Denoise strength"));

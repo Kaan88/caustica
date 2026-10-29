@@ -65,9 +65,11 @@ unsigned cornell_ngx_eval(Ngx* n,ID3D12GraphicsCommandList* cmd,ID3D12Resource**
     return NGX_D3D12_EVALUATE_DLSSD_EXT(cmd,n->handle,n->params,&p);
 }
 // DLSS Super Resolution over the native renderer's denoised color: device depth, low-res pixel motion.
-unsigned cornell_ngx_create_sr(Ngx* n, ID3D12GraphicsCommandList* cmd,unsigned w,unsigned h,unsigned ow,unsigned oh) {
+unsigned cornell_ngx_create_sr(Ngx* n, ID3D12GraphicsCommandList* cmd,unsigned w,unsigned h,unsigned ow,unsigned oh,unsigned preset) {
     if(!(n->caps&2u)) return NVSDK_NGX_Result_FAIL_FeatureNotSupported;
     if(n->sr){NVSDK_NGX_D3D12_ReleaseFeature(n->sr);n->sr=nullptr;}
+    // 0 lets NVIDIA pick per quality mode; 10-13 are presets J, K, L and M.
+    for(const char* key:{NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA,NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality,NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced,NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance,NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance,NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraQuality}) n->sr_params->Set(key,preset);
     NVSDK_NGX_DLSS_Create_Params p={};p.Feature.InWidth=w;p.Feature.InHeight=h;p.Feature.InTargetWidth=ow;p.Feature.InTargetHeight=oh;p.Feature.InPerfQualityValue=quality_for(w,ow);
     p.InFeatureCreateFlags=NVSDK_NGX_DLSS_Feature_Flags_IsHDR|NVSDK_NGX_DLSS_Feature_Flags_MVLowRes|NVSDK_NGX_DLSS_Feature_Flags_AutoExposure;
     return NGX_D3D12_CREATE_DLSS_EXT(cmd,1,1,&n->sr,n->sr_params,&p);

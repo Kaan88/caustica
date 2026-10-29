@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 180 scripted frames; implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 186 scripted frames; implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -227,7 +227,7 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
       - Also integrates luminance moments. The variance is spatial (5×5) while fewer than 4 samples exist, otherwise from the moments.
     - **Passes 2–6, à-trous:** B3 kernel. Weights: object id (hard stop), normal pow 64, view-space plane distance, and luminance against 8·strength·√(3×3 Gaussian of variance).
       - Variance propagates with w², and pass 6 multiplies the albedo back in.
-  - At render scale < 1 without RR, display upscales by nearest neighbour.
+  - At render scale < 1 without RR, an upscaler takes over (see "Upscalers").
 - **RR (`bridge/ngx.cpp`):**
   - Settings: DLUnified denoise mode, packed roughness, linear depth, IsHDR and MVLowRes flags, MV scale 1.
   - **NGX jitter offset = −ray jitter on both axes. Do not change it without rerunning `tools/rr_stability.py`.** Measured result: 94% less edge shimmer (`captures/rr-stability/regression/metrics.json`).
@@ -269,11 +269,11 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
 
-## Upscalers (2026-10-29, not yet committed)
+## Upscalers (2026-10-29)
 
 - **Setting:** `Settings.upscaler` (`Upscaler`: dlss default, fsr, xess, bicubic, bilinear). Used only when RR is off and `rw < width`.
   - It is in `transport_key`, so a change resets the render.
-  - `main.rs` also calls `Gpu::reconfigure_upscalers()` when `rr`, `rr_preset` or `upscaler` changes. This replaces `reconfigure_rr`.
+  - `main.rs` also calls `Gpu::reconfigure_upscalers()` when `rr`, `rr_preset`, `upscaler` or `dlss_preset` changes. This replaces `reconfigure_rr`.
 - **`Gpu::prepare_upscaler`** creates the selected temporal upscaler lazily, at render size × output size.
   - A failure goes into `sr_failed`, and the display falls back to bicubic. `upscale_status` explains this in the UI.
   - `release_upscalers()` runs on resize and reconfigure.
@@ -302,6 +302,13 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
   - With the rim included, DLSS SR and XeSS score about 9.5 on the still camera, because of how they blend the 12× HDR light edge.
 - **Self-test:** frames 172–176 switch through every upscaler at scale 0.5 and assert that the available temporal ones start; frame 177 turns RR back on.
+- **DLSS SR presets** (roadmap item 1, 2026-10-30): `Settings.dlss_preset` ∈ `scene::DLSS_PRESETS` (0 default, 10 J, 11 K, 12 L, 13 M), checked by `validate()` and kept across `preset()`.
+  - `cornell_ngx_create_sr` sets all six `NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_*` hints on `sr_params`. A change reconfigures the upscalers (`main.rs` trigger list).
+  - The UI combo shows only while DLSS SR is the active choice; `upscale_status` names the preset.
+  - Self-test frames 180–184 cycle the presets and assert each starts; 185 restores default + RR.
+  - Checked: at 50% (Performance), M renders identical to Default (NVIDIA picks M there), while J/K/L differ, so the hint reaches NGX.
+  - SDK 310.9.16 has no RR presets beyond D/E/F.
+- **egui scissor:** `draw_gui` skips meshes whose clipped scissor is empty. Off-screen windows after a self-test resize produced D3D12 warnings that failed the self-test, on `main` too.
 - **Sliders:** all go through `crate::slider` (`SliderClamping::Edits`). egui's default clamps the stored value whenever a slider is drawn, which silently rewrote valid loaded values (found by the UI-plan agent). Self-test frames 178–179 guard this.
 
 ## Review findings: fixed and merged (2026-10-29)
@@ -353,7 +360,6 @@ The gains come from:
 **Not a bug:** windows going off-screen after a resize only happened because the self-test resizes the swapchain without resizing the window.
 
 **Still open (not started):**
-- Native upscaling below render scale 1 is nearest-neighbor.
 - Faint low-frequency blotches at very low spp, which is typical of SVGF.
 
 ## Measurement conventions (carried over from the WebGL work)

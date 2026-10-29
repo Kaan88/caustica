@@ -76,6 +76,7 @@ unsafe extern "C" {
         h: u32,
         ow: u32,
         oh: u32,
+        preset: u32,
     ) -> u32;
     fn cornell_ngx_eval_sr(
         ngx: *mut c_void,
@@ -643,7 +644,15 @@ impl Gpu {
         let (w, h, ow, oh) = (self.rw, self.rh, self.width, self.height);
         let (ok, code) = match kind {
             Upscaler::Dlss => {
-                let code = cornell_ngx_create_sr(self.ngx, self.list.as_raw(), w, h, ow, oh);
+                let code = cornell_ngx_create_sr(
+                    self.ngx,
+                    self.list.as_raw(),
+                    w,
+                    h,
+                    ow,
+                    oh,
+                    s.dlss_preset,
+                );
                 (ngx_ok(code), code)
             }
             Upscaler::Fsr => {
@@ -658,7 +667,17 @@ impl Gpu {
         if ok {
             self.sr_created = Some(kind);
             self.sr_reset = true;
-            self.upscale_status = format!("{} active", kind.label());
+            self.upscale_status = match kind {
+                Upscaler::Dlss => format!(
+                    "{} active · preset {}",
+                    kind.label(),
+                    crate::scene::DLSS_PRESETS
+                        .iter()
+                        .find(|(id, _)| *id == s.dlss_preset)
+                        .map_or("default", |(_, l)| l)
+                ),
+                _ => format!("{} active", kind.label()),
+            };
             Some(kind)
         } else {
             self.sr_failed.push(kind);
@@ -1517,6 +1536,11 @@ impl Gpu {
             let top = (r.min.y * ppp).clamp(0., self.height as f32) as i32;
             let right = (r.max.x * ppp).clamp(left as f32, self.width as f32) as i32;
             let bottom = (r.max.y * ppp).clamp(top as f32, self.height as f32) as i32;
+            // Fully clipped meshes (e.g. a window outside a small swapchain) draw nothing,
+            // and the debug layer warns about an empty scissor.
+            if right <= left || bottom <= top {
+                continue;
+            }
             self.list
                 .RSSetScissorRects(&[windows::Win32::Foundation::RECT {
                     left,

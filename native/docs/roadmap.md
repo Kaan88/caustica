@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Nothing here is implemented yet.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Item 1 is done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -18,7 +18,7 @@ Each item lists its prerequisites by number.
 
 ## Near term
 
-### 1. DLSS preset selection (small)
+### 1. DLSS preset selection (small) — done 2026-10-30
 
 Let the user choose the DLSS model presets the SDK offers, for both DLSS features.
 
