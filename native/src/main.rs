@@ -1,5 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod display;
 mod editor;
 mod geometry;
 mod gpu;
@@ -31,6 +32,7 @@ struct Actions {
     load: bool,
     png: bool,
     exr: bool,
+    hdr_png: bool,
     reference: bool,
     high_res: bool,
     frame_scene: bool,
@@ -76,6 +78,11 @@ struct App {
     actions: Actions,
     export_scale: u32,
     export_samples: u32,
+    hwnd: Option<windows::Win32::Foundation::HWND>,
+    /// The monitor under the window, re-read when it moves or Windows changes the display setup.
+    monitor: Option<display::Monitor>,
+    display_dirty: bool,
+    hdr_note: String,
 }
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
@@ -91,6 +98,9 @@ fn transport_key(s: &Settings) -> String {
         "compare",
         "split",
         "vsync",
+        "hdr_mode",
+        "hdr_peak",
+        "hdr_white",
         "rotate",
         "rotate_speed",
         "temporal",
@@ -234,7 +244,7 @@ impl App {
                     self_test = true;
                     hidden = true;
                     debug = true;
-                    frames = Some(186);
+                    frames = Some(190);
                 }
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
@@ -297,6 +307,10 @@ impl App {
             actions: Actions::default(),
             export_scale: 2,
             export_samples: 128,
+            hwnd: None,
+            monitor: None,
+            display_dirty: true,
+            hdr_note: String::new(),
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -408,6 +422,18 @@ impl App {
                     self.settings.dlss_preset = 0;
                     self.settings.rr = true;
                 }
+                // scRGB output with fixed levels (works on SDR monitors too), then SDR, then Auto.
+                186 => {
+                    self.settings.hdr_mode = 2;
+                    self.settings.hdr_peak = 1000.;
+                    self.settings.hdr_white = 200.;
+                }
+                188 => self.settings.hdr_mode = 1,
+                189 => {
+                    self.settings.hdr_mode = 0;
+                    self.settings.hdr_peak = 0.;
+                    self.settings.hdr_white = 0.;
+                }
                 _ => {}
             }
             if (10..=125).contains(&self.rendered) && self.rendered.is_multiple_of(5) {
@@ -466,6 +492,54 @@ impl App {
             self.actions.frame_scene = false;
         }
         let s = &self.settings.clone();
+        // HDR output follows the monitor: re-read it after a move, or once Windows changed the
+        // display setup (HDR toggled, calibration rerun, SDR brightness moved).
+        if self.display_dirty
+            || (self.rendered.is_multiple_of(30)
+                && self
+                    .monitor
+                    .as_ref()
+                    .is_some_and(|m| !unsafe { m.current() }))
+        {
+            let previous = self.monitor.take().map(|m| m.info);
+            self.monitor = self
+                .hwnd
+                .and_then(|h| unsafe { display::Monitor::query(h) }.ok());
+            self.display_dirty = false;
+            if let Some(m) = &self.monitor
+                && previous.as_ref() != Some(&m.info)
+            {
+                println!("DISPLAY {:?}", m.info);
+            }
+        }
+        let info = self
+            .monitor
+            .as_ref()
+            .map(|m| m.info.clone())
+            .unwrap_or_default();
+        let want = match s.hdr_mode {
+            0 => info.hdr,
+            1 => false,
+            _ => true,
+        };
+        self.hdr_note.clear();
+        if want != g.hdr_active && !unsafe { g.set_hdr(want, s)? } {
+            self.hdr_note = "The swapchain can't present scRGB; staying SDR.".into();
+        }
+        g.hdr_levels = [
+            if s.hdr_white > 0. {
+                s.hdr_white
+            } else {
+                info.sdr_white_nits.max(40.)
+            },
+            if s.hdr_peak > 0. {
+                s.hdr_peak
+            } else if info.peak_nits >= 80. {
+                info.peak_nits
+            } else {
+                1000.
+            },
+        ];
         let rw = ((g.width as f32 * s.scale).round() as u32).max(1);
         if g.rw != rw {
             unsafe {
@@ -558,6 +632,24 @@ impl App {
                     s.max_samples == 100_000,
                     "Drawing the UI changed a loaded value"
                 ),
+                187 => {
+                    anyhow::ensure!(g.hdr_active, "Forced HDR output did not start");
+                    let (linear, out) = unsafe { (g.read_floats(18)?, g.read_floats(26)?) };
+                    let (mut worst, mut brightest) = (0f32, 0f32);
+                    for (l, h) in linear.as_chunks::<4>().0.iter().zip(out.as_chunks::<4>().0) {
+                        let want = display::hdr_map([l[0], l[1], l[2]], s.exposure, 200., 1000.);
+                        for i in 0..3 {
+                            worst = worst.max((h[i] - want[i]).abs() / (want[i].abs() + 0.01));
+                            brightest = brightest.max(h[i]);
+                        }
+                    }
+                    // RGBA16F keeps 11 significant bits.
+                    anyhow::ensure!(
+                        worst < 2e-3 && brightest <= 12.5 * 1.001 && brightest > 4.,
+                        "HDR transform mismatch: relative error {worst}, brightest {brightest}"
+                    );
+                }
+                188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
                 180..=184 => {
                     let label = scene::DLSS_PRESETS[(self.rendered - 180) as usize].1;
                     anyhow::ensure!(
@@ -622,6 +714,21 @@ impl App {
                 g.capture(std::path::Path::new("cornell.exr"), true, false)?;
             }
             self.status = "Saved linear HDR cornell.exr".into();
+        }
+        if self.actions.hdr_png {
+            self.actions.hdr_png = false;
+            if g.hdr_active {
+                let pixels = unsafe { g.read_floats(26)? };
+                display::write_hdr_png(
+                    std::path::Path::new("cornell-hdr.png"),
+                    &pixels,
+                    g.width,
+                    g.height,
+                )?;
+                self.status = "Saved cornell-hdr.png (PQ / BT.2020)".into();
+            } else {
+                self.status = "HDR PNG needs HDR output".into();
+            }
         }
         if self.actions.high_res {
             self.actions.high_res = false;
@@ -717,7 +824,20 @@ impl App {
             let g = self.gpu.as_mut().unwrap();
             if let Some(path) = &self.capture {
                 let hdr = path.extension().is_some_and(|v| v == "exr");
-                if let Err(e) = unsafe { g.capture(path, hdr, self.capture_ui && !hdr) } {
+                // name.hdr.png: the HDR screen image as a PQ PNG (needs HDR output).
+                let result = if path.to_string_lossy().ends_with(".hdr.png") {
+                    if g.hdr_active {
+                        unsafe { g.read_floats(26) }
+                            .and_then(|p| display::write_hdr_png(path, &p, g.width, g.height))
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "--capture *.hdr.png needs HDR output (--set hdr_mode=2)"
+                        ))
+                    }
+                } else {
+                    unsafe { g.capture(path, hdr, self.capture_ui && !hdr) }
+                };
+                if let Err(e) = result {
                     self.fail(event_loop, e);
                     return;
                 }
@@ -743,6 +863,46 @@ impl App {
             self.preset = i;
         }
         let g = self.gpu.as_ref().unwrap();
+        let hdr_line = {
+            let info = self
+                .monitor
+                .as_ref()
+                .map(|m| m.info.clone())
+                .unwrap_or_default();
+            let name = if info.name.is_empty() {
+                "Display".to_string()
+            } else {
+                info.name.clone()
+            };
+            let windows = if info.hdr {
+                "Windows HDR on"
+            } else {
+                "Windows HDR off"
+            };
+            let mut line = if g.hdr_active {
+                format!(
+                    "{name}: {windows} · HDR output, {:.0} nits peak, paper white {:.0} nits",
+                    g.hdr_levels[1], g.hdr_levels[0]
+                )
+            } else {
+                format!("{name}: {windows} · SDR output")
+            };
+            if info.peak_nits > 0. {
+                line += &format!(
+                    "
+Panel: {:.0} nits peak, {:.0} full frame, SDR white {:.0} nits",
+                    info.peak_nits, info.full_frame_nits, info.sdr_white_nits
+                );
+            }
+            if !self.hdr_note.is_empty() {
+                line += &format!(
+                    "
+{}",
+                    self.hdr_note
+                );
+            }
+            line
+        };
         egui::Window::new("CORNELL / RTX LAB").default_pos([16.,16.]).default_width(330.).vscroll(true).max_height(ctx.screen_rect().height()-32.).show(ctx,|ui|{
             ui.label(egui::RichText::new("RUST  /  DIRECT3D 12  /  DXR 1.1").small().color(egui::Color32::from_rgb(93,194,211)));
             ui.label(&g.adapter_name);
@@ -794,12 +954,23 @@ if ui.button("Reset all").clicked(){self.settings=Settings::default();self.prese
             egui::CollapsingHeader::new("Display & export").default_open(true).show(ui,|ui|{
                 let views=["Beauty","Normals","Albedo","Depth","Direct","Indirect","Specular","Convergence"];
                 egui::ComboBox::from_label("View [1–8]").selected_text(views[s.view as usize]).show_ui(ui,|ui|{for(i,n)in views.iter().enumerate(){ui.selectable_value(&mut s.view,i as u32,*n);}});
+                let outputs=["Auto (follow Windows)","SDR","HDR (forced)"];
+                egui::ComboBox::from_label("Output").selected_text(outputs[s.hdr_mode as usize]).show_ui(ui,|ui|{for(i,n)in outputs.iter().enumerate(){ui.selectable_value(&mut s.hdr_mode,i as u32,*n);}}).response.on_hover_text("Auto shows real HDR when Windows HDR is on for this monitor, using Windows' calibration and SDR content brightness.");
+                ui.label(egui::RichText::new(&hdr_line).small());
+                if g.hdr_active{
+                    let mut windows_peak=s.hdr_peak==0.;if ui.checkbox(&mut windows_peak,"Peak brightness from Windows").changed(){s.hdr_peak=if windows_peak{0.}else{g.hdr_levels[1].clamp(80.,10000.)};}
+                    if !windows_peak{ui.add(crate::slider(&mut s.hdr_peak,80. ..=4000.).logarithmic(true).text("Peak nits"));}
+                    let mut windows_white=s.hdr_white==0.;if ui.checkbox(&mut windows_white,"Paper white from Windows").changed(){s.hdr_white=if windows_white{0.}else{g.hdr_levels[0].clamp(40.,1000.)};}
+                    if !windows_white{ui.add(crate::slider(&mut s.hdr_white,40. ..=1000.).logarithmic(true).text("Paper white nits"));}
+                    ui.label(egui::RichText::new("The screen uses an HDR roll-off into the panel peak; the tone map and gamma below shape the PNG and the SDR view.").small());
+                }
                 let maps=["Linear","Reinhard","Reinhard white","ACES","Uncharted 2","High contrast"];
                 egui::ComboBox::from_label("Tone map").selected_text(maps[s.tonemap as usize]).show_ui(ui,|ui|{for(i,n)in maps.iter().enumerate(){ui.selectable_value(&mut s.tonemap,i as u32,*n);}});
                 ui.add(crate::slider(&mut s.exposure,0. ..=10.).text("Exposure"));ui.add(crate::slider(&mut s.gamma,0.1..=4.).text("Gamma"));
                 ui.checkbox(&mut s.compare,"A/B reference");if s.compare{ui.add(crate::slider(&mut s.split,0. ..=1.).text("Split"));}
                 ui.horizontal(|ui|{if ui.button("PNG").clicked(){self.actions.png=true;}
 if ui.button("HDR EXR").clicked(){self.actions.exr=true;}
+if g.hdr_active&&ui.button("HDR PNG").on_hover_text("What the HDR screen shows: 16-bit PNG, PQ / BT.2020").clicked(){self.actions.hdr_png=true;}
 if ui.button("Save settings").clicked(){self.actions.save=true;}
 if ui.button("Load").clicked(){self.actions.load=true;}});
                 ui.label(egui::RichText::new("For true high-resolution renders use --width / --height / --scale 1 --frames N --capture file.png").small());
@@ -860,6 +1031,7 @@ impl ApplicationHandler for App {
             let mut gpu =
                 unsafe { Gpu::new(hwnd, size.width, size.height, &self.settings, self.debug)? };
             gpu.keep_ui_frame = self.capture_ui;
+            self.hwnd = Some(hwnd);
             let input = egui_winit::State::new(
                 self.egui.clone(),
                 egui::ViewportId::ROOT,
@@ -894,6 +1066,9 @@ impl ApplicationHandler for App {
                 {
                     self.fail(event_loop, e);
                 }
+            }
+            WindowEvent::Moved(_) | WindowEvent::ScaleFactorChanged { .. } => {
+                self.display_dirty = true;
             }
             WindowEvent::RedrawRequested => {
                 if !self.hidden {

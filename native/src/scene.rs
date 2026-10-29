@@ -246,6 +246,11 @@ pub struct Settings {
     pub upscaler: Upscaler,
     /// DLSS Super Resolution preset: 0 = NVIDIA's choice per quality mode, 10–13 = J, K, L, M.
     pub dlss_preset: u32,
+    /// Display output: 0 follows Windows HDR, 1 always SDR, 2 forces the scRGB HDR path.
+    pub hdr_mode: u32,
+    /// HDR peak and paper white in nits; 0 takes the values Windows reports.
+    pub hdr_peak: f32,
+    pub hdr_white: f32,
     pub temporal: bool,
     pub yaw: f32,
     pub pitch: f32,
@@ -321,6 +326,9 @@ impl Default for Settings {
             rr_preset: 6,
             upscaler: Upscaler::Dlss,
             dlss_preset: 0,
+            hdr_mode: 0,
+            hdr_peak: 0.,
+            hdr_white: 0.,
             temporal: true,
             yaw: 0.,
             pitch: 4.,
@@ -408,6 +416,7 @@ impl Settings {
             self.rr_preset,
             self.upscaler,
             self.dlss_preset,
+            (self.hdr_mode, self.hdr_peak, self.hdr_white),
         );
         *self = Self::default();
         match id {
@@ -512,6 +521,7 @@ impl Settings {
             self.rr_preset,
             self.upscaler,
             self.dlss_preset,
+            (self.hdr_mode, self.hdr_peak, self.hdr_white),
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {
@@ -538,6 +548,12 @@ impl Settings {
         anyhow::ensure!(
             DLSS_PRESETS.iter().any(|(id, _)| *id == self.dlss_preset),
             "Invalid DLSS Super Resolution preset"
+        );
+        anyhow::ensure!(
+            self.hdr_mode < 3
+                && (self.hdr_peak == 0. || (80. ..=10000.).contains(&self.hdr_peak))
+                && (self.hdr_white == 0. || (40. ..=1000.).contains(&self.hdr_white)),
+            "Invalid HDR output settings"
         );
         // serde_json rejects nonfinite values. Bound every value used for resource sizes or transport.
         anyhow::ensure!(

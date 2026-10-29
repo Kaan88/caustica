@@ -87,6 +87,20 @@ float3 tonemap(float3 c){c=max(c*display_settings.x,0);uint mode=modes.y;
     if(mode==5){c=saturate(c*(2.51*c+0.03)/(c*(2.43*c+0.59)+0.14));c=smoothstep(0,1,c);}
     return pow(saturate(c),1/max(0.1,display_settings.y));
 }
+// ST.2084 (PQ) encode/decode in nits, for the BT.2390 roll-off below.
+float pq(float nits){float y=pow(clamp(nits,0,10000)/10000,0.1593017578125);return pow((0.8359375+18.8515625*y)/(1+18.6875*y),78.84375);}
+float pq_inverse(float e){float p=pow(saturate(e),1/78.84375);return 10000*pow(max(p-0.8359375,0)/(18.8515625-18.6875*p),1/0.1593017578125);}
+// HDR display transform: scene-linear x exposure x paper white (nits), left untouched up to the
+// BT.2390 knee and rolled off into the panel peak. Applied to the brightest channel, so hue is kept.
+// Returns scRGB (1.0 = 80 nits).
+float3 hdr_map(float3 c){
+    c=max(c*display_settings.x,0)*hdr.y;float m=max(c.r,max(c.g,c.b));if(m<=0)return 0;
+    float peak=pq(hdr.z),knee=1.5*peak-0.5,e=pq(m);
+    if(e>knee){float t=(e-knee)/(1-knee),t2=t*t,t3=t2*t;e=(2*t3-3*t2+1)*knee+(t3-2*t2+t)*(1-knee)+(-2*t3+3*t2)*peak;}
+    return c*(min(pq_inverse(e),hdr.z)/m)/80;
+}
+// An SDR-encoded value (debug views, overlays) shown at paper white in HDR.
+float3 sdr_in_hdr(float3 c){return pow(saturate(c),max(0.1,display_settings.y))*hdr.y/80;}
 float3 native_at(int2 q){q=clamp(q,0,int2(dimensions.xy)-1);return modes.z!=0?ping[q].rgb:accumulation[q].rgb;}
 float catmull_rom(float t,int i){float a=abs(t-i);return a<1?1.5*a*a*a-2.5*a*a+1:(a<2?-0.5*a*a*a+2.5*a*a-4*a+2:0);}
 // Spatial upscale of the native image (render resolution) to output pixel op: bilinear or
@@ -119,7 +133,10 @@ float3 beauty(uint2 p,uint2 op){
     else if(modes.x==5)c=tonemap(max(0,accumulation[p].rgb-direct_light[p].rgb));
     else if(modes.x==6)c=tonemap(specular_light[p].rgb);
     else if(modes.x==7){float n=max(2,sampling.x+sampling.y);float se=sqrt(accumulation[p].a/(n*(n-1)))/max(0.01,luminance(accumulation[p].rgb));float t=saturate((log2(max(se,0.001))-log2(0.001))/(log2(0.3)-log2(0.001)));c=saturate(float3(t*2,1-abs(t*2-1),2-t*2));}
-    else {if(options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w)c=reference_image[op].rgb;c=tonemap(c);if(options.z>0 && abs(float(op.x)/dimensions.z-options.w)<1.0/dimensions.z)c=float3(0.3,0.8,1);}
+    float3 h;bool beauty_view=modes.x==0;
+    if(beauty_view){if(options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w)c=reference_image[op].rgb;h=hdr_map(c);c=tonemap(c);if(options.z>0 && abs(float(op.x)/dimensions.z-options.w)<1.0/dimensions.z){c=float3(0.3,0.8,1);h=sdr_in_hdr(c);}}
+    else h=sdr_in_hdr(c);
     output_image[op]=float4(c,1);
+    if(hdr.x>0)hdr_output[op]=float4(h,1);
 }
 

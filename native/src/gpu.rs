@@ -20,7 +20,7 @@ use windows::{
     core::{Interface, PCSTR},
 };
 
-const TEXTURES: usize = 26;
+const TEXTURES: usize = 27;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Constants {
@@ -41,6 +41,7 @@ struct Constants {
     filter: [u32; 4],
     scene_info: [u32; 4],
     environment: [f32; 4],
+    hdr: [f32; 4],
 }
 unsafe extern "C" {
     fn cornell_ngx_release(ngx: *mut c_void);
@@ -156,6 +157,13 @@ pub struct Gpu {
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
     gui: ID3D12PipelineState,
+    gui_hdr: ID3D12PipelineState,
+    /// The swapchain is RGBA16F scRGB (1.0 = 80 nits) and shows texture 26.
+    pub hdr_active: bool,
+    /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
+    pub hdr_levels: [f32; 2],
+    /// The swapchain accepted the color space for its current format.
+    color_space_ok: bool,
     buffers: Vec<ID3D12Resource>,
     textures: Vec<Texture>,
     constants: ID3D12Resource,
@@ -434,7 +442,8 @@ impl Gpu {
         let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
-        let gui = create_gui_pipeline(&device, &root)?;
+        let gui = create_gui_pipeline(&device, &root, DXGI_FORMAT_R8G8B8A8_UNORM)?;
+        let gui_hdr = create_gui_pipeline(&device, &root, DXGI_FORMAT_R16G16B16A16_FLOAT)?;
         let constants = buffer(
             &device,
             256 * 32,
@@ -511,6 +520,10 @@ impl Gpu {
             filter,
             display,
             gui,
+            gui_hdr,
+            hdr_active: false,
+            hdr_levels: [200., 1000.],
+            color_space_ok: true,
             buffers: vec![],
             textures: vec![],
             constants,
@@ -701,6 +714,29 @@ impl Gpu {
         );
         Ok(())
     }
+    fn swap_format(&self) -> DXGI_FORMAT {
+        if self.hdr_active {
+            DXGI_FORMAT_R16G16B16A16_FLOAT
+        } else {
+            DXGI_FORMAT_R8G8B8A8_UNORM
+        }
+    }
+    /// Switches the swapchain between 8-bit SDR and RGBA16F scRGB. Recreates the
+    /// render-size textures like a resize. Returns false when the swapchain can't present scRGB.
+    pub unsafe fn set_hdr(&mut self, on: bool, s: &Settings) -> Result<bool> {
+        if on == self.hdr_active {
+            return Ok(true);
+        }
+        // Color-space support depends on the buffer format, so switch first, then check.
+        self.hdr_active = on;
+        self.resize(self.width, self.height, s)?;
+        if on && !self.color_space_ok {
+            self.hdr_active = false;
+            self.resize(self.width, self.height, s)?;
+            return Ok(false);
+        }
+        Ok(true)
+    }
     pub unsafe fn resize(&mut self, w: u32, h: u32, s: &Settings) -> Result<()> {
         ensure!(
             w > 0 && h > 0 && w <= 8192 && h <= 8192,
@@ -712,9 +748,23 @@ impl Gpu {
         self.list.Close()?;
         self.release_upscalers();
         self.buffers.clear();
-        let resized =
-            self.swap
-                .ResizeBuffers(2, w, h, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_SWAP_CHAIN_FLAG(0));
+        let resized = self
+            .swap
+            .ResizeBuffers(2, w, h, self.swap_format(), DXGI_SWAP_CHAIN_FLAG(0))
+            .and_then(|_| {
+                let space = if self.hdr_active {
+                    DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
+                } else {
+                    DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+                };
+                let support = self.swap.CheckColorSpaceSupport(space)?;
+                self.color_space_ok =
+                    support & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT.0 as u32 != 0;
+                if self.color_space_ok {
+                    self.swap.SetColorSpace1(space)?;
+                }
+                Ok(())
+            });
         if let Err(e) = resized {
             if let Ok(q) = DXGIGetDebugInterface1::<IDXGIInfoQueue>(0) {
                 for i in 0..q.GetNumStoredMessages(DXGI_DEBUG_ALL) {
@@ -762,9 +812,10 @@ impl Gpu {
                 5 | 7 | 17 | 19 | 20 | 25 => DXGI_FORMAT_R32_FLOAT,
                 6 => DXGI_FORMAT_R32G32_FLOAT,
                 10 => DXGI_FORMAT_R8G8B8A8_UNORM,
+                26 => DXGI_FORMAT_R16G16B16A16_FLOAT,
                 _ => DXGI_FORMAT_R32G32B32A32_FLOAT,
             };
-            let (tw, th) = if [10, 13, 14, 18].contains(&i) {
+            let (tw, th) = if [10, 13, 14, 18, 26].contains(&i) {
                 (w, h)
             } else {
                 (self.rw, self.rh)
@@ -1071,7 +1122,17 @@ impl Gpu {
             ],
             // View-space ray scale (tan of the half field of view) for the denoiser.
             environment: [s.sky, 1. / proj.x_axis.x, 1. / proj.y_axis.y, 0.],
+            hdr: [
+                self.hdr_active as u32 as f32,
+                self.hdr_levels[0],
+                self.hdr_levels[1],
+                0.,
+            ],
         };
+        // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
+        if self.hdr_active {
+            c.eye[3] = self.hdr_levels[0] / 80.;
+        }
         write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
         self.list
             .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 0);
@@ -1197,9 +1258,10 @@ impl Gpu {
         );
         let index = self.swap.GetCurrentBackBufferIndex() as usize;
         let back = &self.buffers[index];
+        let shown = if self.hdr_active { 26 } else { 10 };
         transition(
             &self.list,
-            &self.textures[10].resource,
+            &self.textures[shown].resource,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COPY_SOURCE,
         );
@@ -1209,10 +1271,10 @@ impl Gpu {
             D3D12_RESOURCE_STATE_PRESENT,
             D3D12_RESOURCE_STATE_COPY_DEST,
         );
-        self.list.CopyResource(back, &self.textures[10].resource);
+        self.list.CopyResource(back, &self.textures[shown].resource);
         transition(
             &self.list,
-            &self.textures[10].resource,
+            &self.textures[shown].resource,
             D3D12_RESOURCE_STATE_COPY_SOURCE,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
         );
@@ -1239,7 +1301,7 @@ impl Gpu {
                         &self.device,
                         self.width,
                         self.height,
-                        DXGI_FORMAT_R8G8B8A8_UNORM,
+                        self.swap_format(),
                         D3D12_RESOURCE_FLAG_NONE,
                         D3D12_RESOURCE_STATE_COPY_DEST,
                     )?
@@ -1482,7 +1544,11 @@ impl Gpu {
         self.list
             .SetGraphicsRootConstantBufferView(0, self.constants.GetGPUVirtualAddress());
         self.list.SetGraphicsRootDescriptorTable(4, self.gpu(32));
-        self.list.SetPipelineState(&self.gui);
+        self.list.SetPipelineState(if self.hdr_active {
+            &self.gui_hdr
+        } else {
+            &self.gui
+        });
         self.list
             .IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         self.list.RSSetViewports(&[D3D12_VIEWPORT {
@@ -1619,7 +1685,16 @@ impl Gpu {
         self.submit()?;
         let mut p = null_mut();
         staging.Map(0, None, Some(&mut p))?;
-        let row_size = self.width as usize * if hdr { 16 } else { 4 };
+        // A UI capture in HDR mode copies the RGBA16F scRGB backbuffer.
+        let ui_hdr = include_ui && self.hdr_active;
+        let row_size = self.width as usize
+            * if hdr {
+                16
+            } else if ui_hdr {
+                8
+            } else {
+                4
+            };
         let mut packed = Vec::with_capacity(row_size * self.height as usize);
         for y in 0..self.height as usize {
             packed.extend_from_slice(std::slice::from_raw_parts(
@@ -1628,6 +1703,30 @@ impl Gpu {
             ));
         }
         staging.Unmap(0, None);
+        if ui_hdr {
+            // Back to SDR: paper white becomes 1.0, then sRGB-encode.
+            let scale = 80. / self.hdr_levels[0];
+            packed = packed
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .enumerate()
+                .map(|(i, b)| {
+                    let v = half_to_f32(u16::from_le_bytes(*b));
+                    if i % 4 == 3 {
+                        (v.clamp(0., 1.) * 255.).round() as u8
+                    } else {
+                        let v = (v * scale).clamp(0., 1.);
+                        let e = if v <= 0.0031308 {
+                            v * 12.92
+                        } else {
+                            1.055 * v.powf(1. / 2.4) - 0.055
+                        };
+                        (e * 255.).round() as u8
+                    }
+                })
+                .collect();
+        }
         if hdr {
             let floats: Vec<f32> = packed
                 .as_chunks::<4>()
@@ -1654,6 +1753,59 @@ impl Gpu {
             )?;
         }
         Ok(())
+    }
+    /// Reads an output-resolution float texture (18 linear RGBA32F, 26 scRGB RGBA16F) as RGBA f32.
+    pub unsafe fn read_floats(&mut self, index: usize) -> Result<Vec<f32>> {
+        let resource = self.textures[index].resource.clone();
+        let half = self.textures[index].format == DXGI_FORMAT_R16G16B16A16_FLOAT;
+        let (layout, bytes) = footprint(&self.device, &resource);
+        let staging = buffer(
+            &self.device,
+            bytes,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        self.begin()?;
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+        );
+        let mut src = location(&resource);
+        let mut dst = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(Some(staging.clone())),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        self.submit()?;
+        let mut p = null_mut();
+        staging.Map(0, None, Some(&mut p))?;
+        let mut out = Vec::with_capacity(self.width as usize * self.height as usize * 4);
+        for y in 0..self.height as usize {
+            let row = (p as *const u8).add(y * layout.Footprint.RowPitch as usize);
+            for i in 0..self.width as usize * 4 {
+                out.push(if half {
+                    half_to_f32((row.add(i * 2) as *const u16).read_unaligned())
+                } else {
+                    (row.add(i * 4) as *const f32).read_unaligned()
+                });
+            }
+        }
+        staging.Unmap(0, None);
+        Ok(out)
     }
     pub unsafe fn debug_messages(&self) -> Vec<String> {
         let mut result = vec![];
@@ -1692,6 +1844,15 @@ impl Drop for Gpu {
         }
     }
 }
+fn half_to_f32(h: u16) -> f32 {
+    let (sign, exponent, mantissa) = ((h >> 15) as u32, ((h >> 10) & 31) as i32, (h & 1023) as f32);
+    let magnitude = match exponent {
+        0 => mantissa * 2f32.powi(-24),
+        31 => f32::INFINITY,
+        _ => (1. + mantissa / 1024.) * 2f32.powi(exponent - 15),
+    };
+    if sign == 1 { -magnitude } else { magnitude }
+}
 fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
     D3D12_SHADER_BYTECODE {
         pShaderBytecode: code.as_ptr() as _,
@@ -1701,6 +1862,7 @@ fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
 unsafe fn create_gui_pipeline(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
+    format: DXGI_FORMAT,
 ) -> Result<ID3D12PipelineState> {
     let input = [
         D3D12_INPUT_ELEMENT_DESC {
@@ -1763,7 +1925,7 @@ unsafe fn create_gui_pipeline(
         PrimitiveTopologyType: D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
         NumRenderTargets: 1,
         RTVFormats: [
-            DXGI_FORMAT_R8G8B8A8_UNORM,
+            format,
             DXGI_FORMAT_UNKNOWN,
             DXGI_FORMAT_UNKNOWN,
             DXGI_FORMAT_UNKNOWN,
