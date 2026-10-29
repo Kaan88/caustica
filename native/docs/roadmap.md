@@ -75,7 +75,15 @@ Regroup and relabel only. Include the DLSS preset combo and the HDR status line 
 
 ### 3b. Blender-style transform gizmos (owner request, 2026-10-30) — done 2026-10-30
 
-As built: move / rotate / scale gizmos for objects, area lights and the main light (no main-light rotation, since it is always horizontal), G / R / S modal transforms with X / Y / Z, Shift+axis planes, typed values, Ctrl snap, Shift fine and cancel, Global / Local orientation, light outlines and light picking, undo / redo. Drag cost and remaining gaps are in CLAUDE.md, "Gizmos". Not done: the header's live per-axis readout for free moves is one vector line, and there is no snapping to other objects.
+As built: move / rotate / scale gizmos for objects, area lights and the main light (no main-light rotation, since it is always horizontal), G / R / S modal transforms with X / Y / Z, Shift+axis planes, typed values, Ctrl snap, Shift fine and cancel, Global / Local orientation, light outlines and light picking, undo / redo. Drag cost is in CLAUDE.md, "Gizmos".
+
+**Not done yet (owner asked to keep this list, 2026-10-30):**
+- **Snapping to other objects:** surface, vertex, edge and face snapping, as Blender's snap menu offers. Today Ctrl only snaps to a 0.1-unit grid, 15° and 0.1×.
+- **Pivot options:** median point, 3D cursor, individual origins and active element. Today the pivot is always the object's own origin.
+- **Multi-select:** Shift-click to add, box select, select all (A), and transforming several items together.
+- **Alt-drag duplicate:** Blender's Shift+D duplicate-then-move as well.
+- **Smaller gaps:** free moves show one vector line in the header, with no per-axis typed vector entry.
+- **Cheap drags:** about 20 ms per frame on the bunny and chess scenes needs instancing (core track 4).
 
 Clicking an object (in the viewport or the outliner) shows transform handles on it, as in Blender. This replaces the plain drag handles of ui-plan.md phase 2 and lands together with that phase's undo stack.
 

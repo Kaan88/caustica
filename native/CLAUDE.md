@@ -367,7 +367,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - `geometry()` rebuilt every object (about 11 ms for 600k vertices), so it now caches each object's mesh per slot (`OBJECT_CACHE`, keyed by the `Object` and its material id). That saved about 4 ms.
   - The rest is new upload, BLAS and scratch allocations, plus the whole-scene BLAS build. Instancing (core track 4) is the real fix.
 - Capture CLI: `--ui-tool`. Self-test 198–202: each tool drawn on object 0 and the main light, then a keyed G X 0.5 Enter (asserts +0.5 and that the transform ended), then undo (asserts the move is gone).
-- Not done: snapping to other objects, a numeric vector entry for free moves, pivot options, multi-select, and Alt-drag duplicate.
+- Not done: see the list under roadmap item 3b (object snapping, pivot options, multi-select, Alt-drag / Shift+D duplicate, vector entry, cheap drags).
 
 ## Review findings: fixed and merged (2026-10-29)
 
