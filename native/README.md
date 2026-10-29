@@ -18,7 +18,15 @@ cargo run --release --locked
 
 Build requirements: Windows x64, Rust MSVC (Rust 1.88 or newer), Visual Studio C++ Build Tools, Git, and a Windows SDK containing DXC. `build.rs` discovers DXC in the Windows Kits directory; override with `DXC_PATH` if necessary. Runtime requirements: D3D12 feature level 12.1 and DXR tier 1.1. DLSS RR additionally requires a supported NVIDIA RTX GPU/driver. Capability detection reports actual NGX initialization, creation and evaluation results; the native denoiser remains available when RR is unavailable. `--require-rr` makes missing or failed RR a fatal error for verification.
 
-Setup fetches NVIDIA's official DLSS **310.9.16** SDK pinned to commit `9981c6350dc58c0ce21f024fd65e31e851c31689`. Cargo copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the executable. No DLL downloads occur during application startup. NVIDIA's SDK and runtime retain their own license, available in `vendor/dlss/LICENSE.txt`; the bridge uses a stable local-development project GUID. Replace it with your registered project identity before distribution.
+Setup fetches three vendor SDKs, each pinned to a commit and sparse-checked-out into `vendor/` (not committed):
+
+| SDK | Version | Used for | License |
+|---|---|---|---|
+| [NVIDIA DLSS](https://github.com/NVIDIA/DLSS) | 310.9.16 | Ray Reconstruction, DLSS Super Resolution | `vendor/dlss/LICENSE.txt` |
+| [AMD FSR SDK](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK) | 2.3.0 | FSR upscaling through the FidelityFX API | binary redistribution, `vendor/fsr/Kits/FidelityFX/docs/license.md` |
+| [Intel XeSS SDK](https://github.com/intel/xess) | 3.0.2 | XeSS Super Resolution | Intel Simplified Software License, `vendor/xess/LICENSE.txt` |
+
+Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelityfx_loader_dx12.dll`, `amd_fidelityfx_upscaler_dx12.dll`, `libxess.dll`) next to the executable. The FSR and XeSS DLLs are loaded at runtime, so the app still starts if one is missing; that upscaler is then shown as unavailable. No DLL downloads occur during application startup. The NGX bridge uses a stable local-development project GUID; replace it with your registered project identity before distribution.
 
 ## Rendering
 
@@ -27,7 +35,11 @@ Setup fetches NVIDIA's official DLSS **310.9.16** SDK pinned to commit `9981c635
 - **Scenes:** up to 256 objects and 32 extra area lights, plus the main ceiling light. Eleven shapes: box, sphere, cylinder, cone, torus, trefoil knot, Utah teapot (tessellated from Martin Newell's Bézier patches), Stanford bunny (the 69,451-triangle scan), octahedron, chess pawn and thin ring. Each object has yaw/pitch/roll, nonuniform scale, and either rests on the floor or floats at a set height. The stage can be the Cornell enclosure or an open floor of any size with sky light. Lights can be hidden from the camera while still lighting the scene and appearing in reflections.
 - **Materials:** Lambertian/GGX reflection, dielectric Fresnel, refraction, total internal reflection, Beer–Lambert absorption, metallic color, roughness, reflectivity, IOR, transmission and emission, with optional emission-only (unlit) surfaces. Procedural checker, stripe and marble patterns, and a 12-entry material library (porcelain, chrome, gold, copper, glasses, jade, lacquer, marble, emitters).
 - **NVIDIA DLSS Ray Reconstruction:** NGX feature `RayReconstruction`, created/evaluated through the official DLSSD helpers. It consumes fresh noisy HDR samples, diffuse/specular albedo, world normals plus packed roughness, linear view depth, current-to-previous pixel motion, primary-surface specular hit distance and camera matrices. RR receives neither progressively accumulated color nor the native denoiser's output. Jitter uses a 64-phase Halton sequence, with deterministic guide surfaces for each frame. Camera motion preserves neural history; geometry/material/light edits reset it.
-- **DLSS quality:** DLAA at 100% internal resolution, Quality, Balanced, Performance and Ultra Performance, plus custom render scale. Models: NVIDIA default, Transformer D, Transformer E, and RR2/F. RR2/F is the default. Quality/model changes recreate the NGX feature with completed GPU work.
+- **Quality mode and upscalers:** Native (100%), Quality (67%), Balanced (58%), Performance (50%) and Ultra Performance (33%), plus a custom render scale.
+  - With **Ray Reconstruction** on, RR denoises and upscales in one step. Models: NVIDIA default, Transformer D, Transformer E and RR2/F (default).
+  - With RR off and a mode below 100%, the native denoiser runs at render resolution and an **upscaler** brings it to the window: **NVIDIA DLSS Super Resolution** (default), **AMD FSR** (FidelityFX API; FSR 3.1, or FSR 4 on supported AMD GPUs), **Intel XeSS** (runs on any recent DX12 GPU), or the spatial **bicubic** (Catmull-Rom, clamped to stop ringing) and **bilinear** filters.
+  - The three temporal upscalers get fresh jittered samples every frame (Halton, 64 phases), device depth and render-resolution motion vectors. The native denoiser's history and the upscaler then do the accumulation, as in a real-time renderer, so detail resolves above the render resolution. Motionless pixels keep a longer denoiser history, so a still image keeps getting cleaner. An unavailable upscaler falls back to bicubic and says so in the panel.
+  - Changing the model, quality mode or upscaler recreates the feature with completed GPU work.
 - **Native denoising (SVGF-style):** raw samples are integrated over time in albedo-demodulated space, then filtered by five à-trous passes guided by object id, normal, plane distance and a Gaussian-prefiltered luminance variance. On a camera move, the previous integration is reprojected bilinearly; each tap is checked by object id, normal and depth. While the camera is still, that history stays frozen and fades out over 256 fresh samples, so samples are never counted twice. Mirror-like pixels keep at most 2 samples of history. The history never feeds the unbiased progressive accumulation. Native rendering offers padded 2D Owen-scrambled Sobol sampling or independent random sampling. RR deliberately uses independent random path samples, following NVIDIA's noise guidance.
 - **Output:** eight views (beauty, normals, diffuse albedo, depth, direct, indirect, specular, convergence), six tone maps, exposure/gamma, direct/indirect relighting and a frozen linear-HDR A/B reference.
 - **Native controls:** egui rendered directly into the D3D12 swapchain, 24 scene presets, randomization, camera controls, validated JSON save/load, GPU timestamp timing, pause/convergence and resize support. A separate **Scene objects** window lists, searches, adds, duplicates, deletes, hides and focuses objects and edits their transform and material; click an object in the viewport to select it. The Lighting section edits the main light and up to 32 extra area lights. Material and light edits update the sampling tables without rebuilding the acceleration structures.
@@ -88,6 +100,20 @@ python -m pip install numpy Pillow
 python tools/rr_stability.py
 ```
 
+`tools/upscale_quality.py` compares the upscalers at 50% render scale (Classic preset, 1280×720 output) against a 16,384-sample full-resolution reference. Values are RMSE ×1000 of compressed luminance with a 4-pixel rim around the light excluded: DLSS and XeSS blend that extreme HDR edge differently from a linear filter, and those 0.8% of pixels would otherwise dominate their score.
+
+| 50% render scale | Still (160 frames) | Camera orbit (2 spp/frame) |
+|---|---|---|
+| Native 100%, for comparison | 1.05 | 4.06 |
+| DLSS Ray Reconstruction | **1.90** | **2.60** |
+| Intel XeSS | 2.27 | 4.70 |
+| AMD FSR | 2.28 | 4.25 |
+| DLSS Super Resolution | 2.62 | 3.82 |
+| Bicubic | 4.15 | 5.91 |
+| Bilinear | 4.70 | 6.01 |
+
+At half resolution in each axis, RR beats full-resolution rendering in motion, and DLSS SR does too. On a still camera the temporal upscalers come within about 2× of full resolution while tracing a quarter of the rays.
+
 `tools/exr.py` reads the EXR captures into numpy arrays (`exr.read(path)` returns an H×W×3 float32 array) for numerical comparisons.
 
 `tools/motion_error.py` measures the native denoiser against a 16,384-sample reference of the Classic preset at 800×600. The error is RMSE ×1000 of compressed luminance l/(1+l); "blurred" applies a 5×5 blur first, which exposes bias and smearing.
@@ -125,7 +151,9 @@ The 180-frame integration self-test covers all 24 presets including the empty st
 | `shaders/pathtrace.hlsl` | DXR transport, light sampling, material and pattern evaluation, guide generation and accumulation |
 | `shaders/post.hlsl` | Native temporal/spatial filter, AOV display, compositing and tone mapping |
 | `shaders/gui.hlsl` | D3D12 egui rendering |
-| `bridge/ngx.cpp` | NGX capability/init/create/evaluate/release C ABI |
+| `bridge/ngx.cpp` | NGX C ABI: capabilities, Ray Reconstruction and DLSS Super Resolution create/evaluate/release |
+| `bridge/fsr.cpp` | AMD FSR through the FidelityFX API, loaded at runtime |
+| `bridge/xess.cpp` | Intel XeSS Super Resolution, loaded at runtime |
 
 All frame submissions are fenced before upload buffers or descriptors can be reused. Resize/shutdown also wait for work queued by Present. Texture state transitions bracket NGX input reads, copies, UI output and readbacks. The executable embeds its compiled DXIL shaders, so DXC is needed only at build time.
 

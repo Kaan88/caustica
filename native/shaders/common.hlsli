@@ -15,7 +15,7 @@ cbuffer Frame:register(b0) {
     float4 options; // firefly,denoise strength,compare,split
     float4 jitter; // x,y,sobol,glass shadows
     uint4 filter_settings; // pass (0 reproject, 1 integrate, 2–6 à-trous),temporal,no history,reference valid
-    uint4 scene_info; // emissive triangle count, object count, Sobol sequence base, reserved
+    uint4 scene_info; // emissive triangle count, object count, Sobol sequence base, flags (bit 0 jittered primaries, bit 1 show upscaled texture 14, bits 2-3 spatial upscale: 1 bilinear, 2 bicubic)
     float4 environment; // sky intensity, view-space ray scale x, y (tan of half field of view)
 };
 StructuredBuffer<Material> materials:register(t3);
@@ -50,6 +50,7 @@ RWTexture2D<float4> integrated:register(u21); // temporally integrated raw color
 RWTexture2D<float4> moments:register(u22); // demodulated luminance E[l], E[l^2] per sample, variance of the integrated mean
 RWTexture2D<float4> history_moments:register(u23);
 RWTexture2D<float4> filter_guide:register(u24); // octahedral normal xy, depth, object id: one read per filter tap
+RWTexture2D<float> device_depth:register(u25); // projected depth 0 (near) to 1 (far), for DLSS SR / FSR / XeSS
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}
 static const float PI=3.14159265359;
 

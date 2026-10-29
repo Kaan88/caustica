@@ -387,6 +387,15 @@ impl App {
                     self.export_samples = 16;
                     self.actions.high_res = true;
                 }
+                // Every upscaler on the native path at half resolution, then back to RR.
+                172..=176 => {
+                    self.settings.rr = false;
+                    self.settings.scale = 0.5;
+                    self.settings.upscaler = scene::Upscaler::ALL[(self.rendered - 172) as usize];
+                }
+                177 => self.settings.rr = true,
+                // Valid, but above the sample-limit slider's range (the panel is open).
+                178 => self.settings.max_samples = 100_000,
                 _ => {}
             }
             if (10..=125).contains(&self.rendered) && self.rendered.is_multiple_of(5) {
@@ -471,9 +480,12 @@ impl App {
             if key != self.last_key {
                 let mut old: serde_json::Value = serde_json::from_str(&self.last_key)?;
                 let mut new: serde_json::Value = serde_json::from_str(&key)?;
-                if old["rr_preset"] != new["rr_preset"] || old["rr"] != new["rr"] {
+                if ["rr_preset", "rr", "upscaler"]
+                    .iter()
+                    .any(|k| old[k] != new[k])
+                {
                     unsafe {
-                        g.reconfigure_rr()?;
+                        g.reconfigure_upscalers()?;
                     }
                 }
                 for k in ["yaw", "pitch", "distance", "target", "fov"] {
@@ -530,6 +542,21 @@ impl App {
                     "Emissive object is not sampled"
                 ),
                 134 => anyhow::ensure!(emitters == 2, "Area light is not sampled"),
+                179 => anyhow::ensure!(
+                    s.max_samples == 100_000,
+                    "Drawing the UI changed a loaded value"
+                ),
+                172..=176 => {
+                    let u = s.upscaler;
+                    anyhow::ensure!(
+                        !u.temporal()
+                            || !g.upscaler_available(u)
+                            || g.upscale_status.contains("active"),
+                        "{} did not start: {}",
+                        u.label(),
+                        g.upscale_status
+                    );
+                }
                 138 => {
                     let (view, proj, _) = s.camera(g.width as f32 / g.height as f32);
                     let mesh = geometry::object_geometry(&s.objects[0], 0);
@@ -716,26 +743,29 @@ if ui.button("Reset all").clicked(){self.settings=Settings::default();self.prese
                 ui.checkbox(&mut s.rr,"DLSS Ray Reconstruction").on_hover_text("Uses NVIDIA's neural ray denoiser and upscaler. Native à-trous is the fallback.");
                 let model=match s.rr_preset {4=>"Transformer D",5=>"Transformer E",6=>"RR2 / F",_=>"NVIDIA default"};
                 egui::ComboBox::from_label("RR model").selected_text(model).show_ui(ui,|ui|{for (id,label) in [(0,"NVIDIA default"),(4,"Transformer D"),(5,"Transformer E"),(6,"RR2 / F")]{ui.selectable_value(&mut s.rr_preset,id,label);}});
-                egui::ComboBox::from_label("DLSS quality").selected_text(if s.scale>=0.99{"DLAA"}else if s.scale>=0.62{"Quality"}else if s.scale>=0.54{"Balanced"}else if s.scale>=0.42{"Performance"}else{"Ultra performance"}).show_ui(ui,|ui|{for (scale,label) in [(1.,"DLAA"),(2./3.,"Quality"),(0.58,"Balanced"),(0.5,"Performance"),(1./3.,"Ultra performance")]{ui.selectable_value(&mut s.scale,scale,label);}});
+                egui::ComboBox::from_label("Quality mode").selected_text(if s.scale>=0.99{"Native (100%)"}else if s.scale>=0.62{"Quality (67%)"}else if s.scale>=0.54{"Balanced (58%)"}else if s.scale>=0.42{"Performance (50%)"}else{"Ultra performance (33%)"}).show_ui(ui,|ui|{for (scale,label) in [(1.,"Native (100%)"),(2./3.,"Quality (67%)"),(0.58,"Balanced (58%)"),(0.5,"Performance (50%)"),(1./3.,"Ultra performance (33%)")]{ui.selectable_value(&mut s.scale,scale,label);}});
+                // Without RR, a render scale below 1 needs an upscaler; temporal ones resolve detail from jittered frames.
+                ui.add_enabled_ui(!g.rr_active,|ui|{egui::ComboBox::from_label("Upscaler").selected_text(s.upscaler.label()).show_ui(ui,|ui|{for u in scene::Upscaler::ALL{let label=if g.upscaler_available(u){u.label().to_string()}else{format!("{} (unavailable)",u.label())};ui.selectable_value(&mut s.upscaler,u,label);}});}).response.on_hover_text("Used when Ray Reconstruction is off and the quality mode renders below 100%. RR does its own upscaling.");
+                if !g.upscale_status.is_empty(){ui.label(egui::RichText::new(&g.upscale_status).small());}
                 ui.checkbox(&mut s.temporal,"Reuse temporal history");ui.checkbox(&mut s.denoise,"Native à-trous denoiser [D]");
-                ui.add(egui::Slider::new(&mut s.denoise_strength,0. ..=1.).text("Denoise strength"));
-                ui.add(egui::Slider::new(&mut s.scale,0.25..=1.).text("Render scale"));
+                ui.add(crate::slider(&mut s.denoise_strength,0. ..=1.).text("Denoise strength"));
+                ui.add(crate::slider(&mut s.scale,0.25..=1.).text("Render scale"));
                 ui.label(format!("Render {} × {} · output {} × {}",g.rw,g.rh,g.width,g.height));
-                ui.add(egui::Slider::new(&mut s.spp,1..=16).text("Samples / frame"));ui.add(egui::Slider::new(&mut s.bounces,1..=32).text("Bounces"));ui.add(egui::Slider::new(&mut s.max_samples,16..=65536).logarithmic(true).text("Sample limit"));
-                ui.checkbox(&mut s.sobol,"Owen-scrambled Sobol (native)").on_hover_text("DLSS RR uses independent white noise as recommended by NVIDIA. This controls the native progressive path.");ui.add(egui::Slider::new(&mut s.firefly,0. ..=50.).text("Firefly clamp (0 = off)"));ui.checkbox(&mut s.vsync,"VSync");
+                ui.add(crate::slider(&mut s.spp,1..=16).text("Samples / frame"));ui.add(crate::slider(&mut s.bounces,1..=32).text("Bounces"));ui.add(crate::slider(&mut s.max_samples,16..=65536).logarithmic(true).text("Sample limit"));
+                ui.checkbox(&mut s.sobol,"Owen-scrambled Sobol (native)").on_hover_text("DLSS RR uses independent white noise as recommended by NVIDIA. This controls the native progressive path.");ui.add(crate::slider(&mut s.firefly,0. ..=50.).text("Firefly clamp (0 = off)"));ui.checkbox(&mut s.vsync,"VSync");
             });
             egui::CollapsingHeader::new("Stage & surfaces").show(ui,|ui|{
-                ui.checkbox(&mut s.cornell_room,"Cornell enclosure");ui.add(egui::Slider::new(&mut s.floor_extent,0.5..=40.).text("Floor extent"));ui.add(egui::Slider::new(&mut s.sky,0. ..=4.).text("Sky illumination"));
+                ui.checkbox(&mut s.cornell_room,"Cornell enclosure");ui.add(crate::slider(&mut s.floor_extent,0.5..=40.).text("Floor extent"));ui.add(crate::slider(&mut s.sky,0. ..=4.).text("Sky illumination"));
                 color(ui,"Left wall",&mut s.left);color(ui,"Right wall",&mut s.right);color(ui,"Room / floor",&mut s.base);color(ui,"Background",&mut s.background);ui.collapsing("Wall material",|ui|material_ui(ui,&mut s.walls));ui.collapsing("Floor material",|ui|material_ui(ui,&mut s.floor));
             });
             egui::CollapsingHeader::new("Lighting").show(ui,|ui|{
-                ui.checkbox(&mut s.light_on,"Main area light");ui.checkbox(&mut s.light_visible,"Main light visible to camera");ui.add(egui::Slider::new(&mut s.light_intensity,0. ..=100.).text("Intensity"));ui.add(egui::Slider::new(&mut s.light_size,0.05..=20.).text("Size"));ui.add(egui::Slider::new(&mut s.light_aspect,0.25..=4.).text("Aspect"));ui.add(egui::Slider::new(&mut s.light_temperature,1000. ..=12000.).text("Kelvin"));color(ui,"Gel",&mut s.light_tint);
-                for (i,label) in ["X","Y","Z"].iter().enumerate(){ui.add(egui::Slider::new(&mut s.light_position[i],if i==1{-5. ..=20.}else{-20. ..=20.}).text(*label));}
+                ui.checkbox(&mut s.light_on,"Main area light");ui.checkbox(&mut s.light_visible,"Main light visible to camera");ui.add(crate::slider(&mut s.light_intensity,0. ..=100.).text("Intensity"));ui.add(crate::slider(&mut s.light_size,0.05..=20.).text("Size"));ui.add(crate::slider(&mut s.light_aspect,0.25..=4.).text("Aspect"));ui.add(crate::slider(&mut s.light_temperature,1000. ..=12000.).text("Kelvin"));color(ui,"Gel",&mut s.light_tint);
+                for (i,label) in ["X","Y","Z"].iter().enumerate(){ui.add(crate::slider(&mut s.light_position[i],if i==1{-5. ..=20.}else{-20. ..=20.}).text(*label));}
                 editor::lights(ui,s);
-                ui.checkbox(&mut s.glass_shadow,"Glass casts shadows");ui.add(egui::Slider::new(&mut s.direct,0. ..=4.).text("Direct intensity"));ui.add(egui::Slider::new(&mut s.indirect,0. ..=4.).text("Indirect intensity"));
+                ui.checkbox(&mut s.glass_shadow,"Glass casts shadows");ui.add(crate::slider(&mut s.direct,0. ..=4.).text("Direct intensity"));ui.add(crate::slider(&mut s.indirect,0. ..=4.).text("Indirect intensity"));
             });
             egui::CollapsingHeader::new("Camera").show(ui,|ui|{
-                ui.checkbox(&mut s.rotate,"Auto orbit [A]");ui.add(egui::Slider::new(&mut s.rotate_speed,-30. ..=30.).text("Degrees / second"));ui.add(egui::Slider::new(&mut s.fov,10. ..=100.).text("Field of view"));ui.add(egui::Slider::new(&mut s.distance,0.5..=200.).logarithmic(true).text("Distance"));
+                ui.checkbox(&mut s.rotate,"Auto orbit [A]");ui.add(crate::slider(&mut s.rotate_speed,-30. ..=30.).text("Degrees / second"));ui.add(crate::slider(&mut s.fov,10. ..=100.).text("Field of view"));ui.add(crate::slider(&mut s.distance,0.5..=200.).logarithmic(true).text("Distance"));
                 if ui.button("Reset camera").clicked(){let mut d=Settings::default();d.preset(self.preset);s.yaw=d.yaw;s.pitch=d.pitch;s.distance=d.distance;s.target=d.target;s.fov=d.fov;}
                 ui.label("Drag: orbit · Right / Shift-drag: pan\nWheel: dolly · Tab: hide controls");
             });
@@ -744,15 +774,15 @@ if ui.button("Reset all").clicked(){self.settings=Settings::default();self.prese
                 egui::ComboBox::from_label("View [1–8]").selected_text(views[s.view as usize]).show_ui(ui,|ui|{for(i,n)in views.iter().enumerate(){ui.selectable_value(&mut s.view,i as u32,*n);}});
                 let maps=["Linear","Reinhard","Reinhard white","ACES","Uncharted 2","High contrast"];
                 egui::ComboBox::from_label("Tone map").selected_text(maps[s.tonemap as usize]).show_ui(ui,|ui|{for(i,n)in maps.iter().enumerate(){ui.selectable_value(&mut s.tonemap,i as u32,*n);}});
-                ui.add(egui::Slider::new(&mut s.exposure,0. ..=10.).text("Exposure"));ui.add(egui::Slider::new(&mut s.gamma,0.1..=4.).text("Gamma"));
-                ui.checkbox(&mut s.compare,"A/B reference");if s.compare{ui.add(egui::Slider::new(&mut s.split,0. ..=1.).text("Split"));}
+                ui.add(crate::slider(&mut s.exposure,0. ..=10.).text("Exposure"));ui.add(crate::slider(&mut s.gamma,0.1..=4.).text("Gamma"));
+                ui.checkbox(&mut s.compare,"A/B reference");if s.compare{ui.add(crate::slider(&mut s.split,0. ..=1.).text("Split"));}
                 ui.horizontal(|ui|{if ui.button("PNG").clicked(){self.actions.png=true;}
 if ui.button("HDR EXR").clicked(){self.actions.exr=true;}
 if ui.button("Save settings").clicked(){self.actions.save=true;}
 if ui.button("Load").clicked(){self.actions.load=true;}});
                 ui.label(egui::RichText::new("For true high-resolution renders use --width / --height / --scale 1 --frames N --capture file.png").small());
-                ui.horizontal(|ui|{ui.add(egui::Slider::new(&mut self.export_scale,1..=4).text("Export scale"));});
-                ui.add(egui::Slider::new(&mut self.export_samples,16..=2048).logarithmic(true).text("Export samples"));
+                ui.horizontal(|ui|{ui.add(crate::slider(&mut self.export_scale,1..=4).text("Export scale"));});
+                ui.add(crate::slider(&mut self.export_samples,16..=2048).logarithmic(true).text("Export samples"));
                 if ui.button("Render high-resolution PNG").clicked(){self.actions.high_res=true;}
             });
             if !self.status.is_empty(){ui.label(&self.status);}
@@ -767,6 +797,15 @@ if ui.button("Load").clicked(){self.actions.load=true;}});
             g.width as f32 / g.height as f32,
         );
     }
+}
+/// A slider that only clamps what the user drags. egui's default clamps the stored value
+/// whenever the slider is drawn, which would silently rewrite valid values loaded from a file
+/// or `--set` that lie outside the slider's convenient range (and restart the render).
+fn slider<'a, N: egui::emath::Numeric>(
+    value: &'a mut N,
+    range: std::ops::RangeInclusive<N>,
+) -> egui::Slider<'a> {
+    egui::Slider::new(value, range).clamping(egui::SliderClamping::Edits)
 }
 fn color(ui: &mut egui::Ui, label: &str, c: &mut [f32; 3]) {
     ui.horizontal(|ui| {

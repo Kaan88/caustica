@@ -79,6 +79,7 @@ float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2
         diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
         specular_albedo[p]=float4(fresnel(abs(dot(-gd,guide.n)),f0_of(m)),1);
         depth[p]=-mul(world_view,float4(guide.p,1)).z;
+        float4 projected=mul(current_vp,float4(guide.p,1));device_depth[p]=projected.z/projected.w;
         float4 prev=mul(previous_vp,float4(guide.p,1)),curr=mul(current_vp,float4(guide.p,1));
         float2 delta=prev.xy/prev.w-curr.xy/curr.w;motion[p]=delta*float2(0.5,-0.5)*dimensions.xy;
         // A stable primary reflection ray gives RR consistent reflection-motion
@@ -86,12 +87,13 @@ float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2
         // Only RR reads it; the native path skips the extra ray.
         Hit reflected;float3 reflected_direction=reflect(gd,guide.n);
         specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
-    }else{normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;motion[p]=0;specular_distance[p]=65504.0;}
+    }else{normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
     float3 batch=0;
     for(uint sample_id=0;sample_id<sampling.y;sample_id++){
         // The base changes on every reset, so a moving camera never reuses the previous frame's points.
         sequence_index=scene_info.z+sampling.x+sample_id;dimension_index=0;
-        float2 subpixel=modes.w!=0?jitter.xy:float2(random(),random())-0.5;
+        // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
+        float2 subpixel=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
         float3 direction=camera_direction(float2(p)+0.5+subpixel),origin=eye.xyz,throughput=1,radiance=0,direct=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z;bounce++){
             Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){float3 e=throughput*environment_radiance(direction);radiance+=e;if(bounce<=1)direct+=e;break;}

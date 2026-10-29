@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)]
-use crate::scene::{self, Settings, Vertex};
+use crate::scene::{self, Settings, Upscaler, Vertex};
 use anyhow::{Context, Result, ensure};
 use glam::Mat4;
 use std::{
@@ -20,7 +20,7 @@ use windows::{
     core::{Interface, PCSTR},
 };
 
-const TEXTURES: usize = 25;
+const TEXTURES: usize = 26;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Constants {
@@ -68,6 +68,69 @@ unsafe extern "C" {
         proj: *const f32,
     ) -> u32;
     fn cornell_ngx_destroy(ngx: *mut c_void);
+    fn cornell_ngx_caps(ngx: *mut c_void) -> u32;
+    fn cornell_ngx_create_sr(
+        ngx: *mut c_void,
+        cmd: *mut c_void,
+        w: u32,
+        h: u32,
+        ow: u32,
+        oh: u32,
+    ) -> u32;
+    fn cornell_ngx_eval_sr(
+        ngx: *mut c_void,
+        cmd: *mut c_void,
+        color: *mut c_void,
+        depth: *mut c_void,
+        motion: *mut c_void,
+        output: *mut c_void,
+        w: u32,
+        h: u32,
+        jx: f32,
+        jy: f32,
+        reset: i32,
+        dt: f32,
+    ) -> u32;
+    fn cornell_fsr_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
+    fn cornell_fsr_release(fsr: *mut c_void);
+    fn cornell_fsr_destroy(fsr: *mut c_void);
+    fn cornell_fsr_create(fsr: *mut c_void, w: u32, h: u32, ow: u32, oh: u32) -> u32;
+    fn cornell_fsr_eval(
+        fsr: *mut c_void,
+        cmd: *mut c_void,
+        color: *mut c_void,
+        depth: *mut c_void,
+        motion: *mut c_void,
+        output: *mut c_void,
+        w: u32,
+        h: u32,
+        ow: u32,
+        oh: u32,
+        jx: f32,
+        jy: f32,
+        reset: i32,
+        dt: f32,
+        fov_y: f32,
+        near: f32,
+        far: f32,
+    ) -> u32;
+    fn cornell_xess_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
+    fn cornell_xess_destroy(xess: *mut c_void);
+    fn cornell_xess_create(xess: *mut c_void, w: u32, ow: u32, oh: u32, velocity_scale: f32)
+    -> u32;
+    fn cornell_xess_eval(
+        xess: *mut c_void,
+        cmd: *mut c_void,
+        color: *mut c_void,
+        depth: *mut c_void,
+        motion: *mut c_void,
+        output: *mut c_void,
+        w: u32,
+        h: u32,
+        jx: f32,
+        jy: f32,
+        reset: i32,
+    ) -> u32;
 }
 fn ngx_ok(code: u32) -> bool {
     code & 0xfff00000 != 0xbad00000
@@ -112,6 +175,13 @@ pub struct Gpu {
     atlas_pixels: Vec<u8>,
     atlas_size: [usize; 2],
     ngx: *mut c_void,
+    fsr: *mut c_void,
+    xess: *mut c_void,
+    /// Temporal upscaler for the native path (RR off, render scale below 1).
+    sr_created: Option<Upscaler>,
+    sr_failed: Vec<Upscaler>,
+    sr_reset: bool,
+    pub upscale_status: String,
     pub rr_status: String,
     rr_created: bool,
     rr_failed: bool,
@@ -402,7 +472,28 @@ impl Gpu {
         } else {
             format!("NGX unavailable (0x{code:08x}); using native denoiser")
         };
-        eprintln!("GPU: {adapter_name}; {rr_status}");
+        let mut fsr = null_mut();
+        let fsr_code = cornell_fsr_init(device.as_raw(), &mut fsr);
+        let mut xess = null_mut();
+        let xess_code = cornell_xess_init(device.as_raw(), &mut xess);
+        eprintln!(
+            "GPU: {adapter_name}; {rr_status}; DLSS SR {}; FSR {}; XeSS {}",
+            if !ngx.is_null() && cornell_ngx_caps(ngx) & 2 != 0 {
+                "available".to_string()
+            } else {
+                "unavailable".into()
+            },
+            if fsr.is_null() {
+                format!("unavailable ({fsr_code})")
+            } else {
+                "available".into()
+            },
+            if xess.is_null() {
+                format!("unavailable (0x{xess_code:x})")
+            } else {
+                "available".into()
+            }
+        );
         let mut gpu = Self {
             device,
             queue,
@@ -438,6 +529,12 @@ impl Gpu {
             atlas_size: [0, 0],
             ngx,
             rr_status,
+            fsr,
+            xess,
+            sr_created: None,
+            sr_failed: vec![],
+            sr_reset: true,
+            upscale_status: String::new(),
             rr_created: false,
             rr_failed: false,
             rr_active: false,
@@ -500,13 +597,78 @@ impl Gpu {
             self.camera_moved = true;
         }
     }
-    pub unsafe fn reconfigure_rr(&mut self) -> Result<()> {
+    /// Releases every neural/temporal upscaler so the next frame recreates the one in use.
+    pub unsafe fn reconfigure_upscalers(&mut self) -> Result<()> {
         self.wait_idle()?;
-        cornell_ngx_release(self.ngx);
-        self.rr_created = false;
-        self.rr_failed = false;
+        self.release_upscalers();
         self.reset(true);
         Ok(())
+    }
+    unsafe fn release_upscalers(&mut self) {
+        cornell_ngx_release(self.ngx);
+        cornell_fsr_release(self.fsr);
+        self.rr_created = false;
+        self.rr_failed = false;
+        self.sr_created = None;
+        self.sr_failed.clear();
+    }
+    pub fn upscaler_available(&self, kind: Upscaler) -> bool {
+        match kind {
+            Upscaler::Dlss => !self.ngx.is_null() && unsafe { cornell_ngx_caps(self.ngx) } & 2 != 0,
+            Upscaler::Fsr => !self.fsr.is_null(),
+            Upscaler::Xess => !self.xess.is_null(),
+            Upscaler::Bilinear | Upscaler::Bicubic => true,
+        }
+    }
+    /// Creates the selected temporal upscaler if needed. Returns it when it can run this frame.
+    unsafe fn prepare_upscaler(&mut self, s: &Settings) -> Option<Upscaler> {
+        let kind = s.upscaler;
+        if self.rr_active || self.rw >= self.width {
+            self.upscale_status.clear();
+            return None;
+        }
+        if !kind.temporal() {
+            self.upscale_status = format!("{} upscaling", kind.label());
+            return None;
+        }
+        if !self.upscaler_available(kind) || self.sr_failed.contains(&kind) {
+            if !self.sr_failed.contains(&kind) {
+                self.upscale_status = format!("{} unavailable; bicubic upscaling", kind.label());
+            }
+            return None;
+        }
+        if self.sr_created == Some(kind) {
+            return Some(kind);
+        }
+        let (w, h, ow, oh) = (self.rw, self.rh, self.width, self.height);
+        let (ok, code) = match kind {
+            Upscaler::Dlss => {
+                let code = cornell_ngx_create_sr(self.ngx, self.list.as_raw(), w, h, ow, oh);
+                (ngx_ok(code), code)
+            }
+            Upscaler::Fsr => {
+                let code = cornell_fsr_create(self.fsr, w, h, ow, oh);
+                (code == 0, code)
+            }
+            _ => {
+                let code = cornell_xess_create(self.xess, w, ow, oh, 1.);
+                (code == 0, code)
+            }
+        };
+        if ok {
+            self.sr_created = Some(kind);
+            self.sr_reset = true;
+            self.upscale_status = format!("{} active", kind.label());
+            Some(kind)
+        } else {
+            self.sr_failed.push(kind);
+            self.upscale_status = format!(
+                "{} failed to start (0x{code:08x}); bicubic upscaling",
+                kind.label()
+            );
+            eprintln!("{}", self.upscale_status);
+            None
+        }
     }
     unsafe fn wait_idle(&mut self) -> Result<()> {
         // Present queues work after the command-list fence. Include it before resizing or shutdown.
@@ -529,7 +691,7 @@ impl Gpu {
         self.wait_idle()?;
         self.begin()?;
         self.list.Close()?;
-        cornell_ngx_release(self.ngx);
+        self.release_upscalers();
         self.buffers.clear();
         let resized =
             self.swap
@@ -578,7 +740,7 @@ impl Gpu {
         self.ui_frame = None;
         for i in 0..TEXTURES {
             let format = match i {
-                5 | 7 | 17 | 19 | 20 => DXGI_FORMAT_R32_FLOAT,
+                5 | 7 | 17 | 19 | 20 | 25 => DXGI_FORMAT_R32_FLOAT,
                 6 => DXGI_FORMAT_R32G32_FLOAT,
                 10 => DXGI_FORMAT_R8G8B8A8_UNORM,
                 _ => DXGI_FORMAT_R32G32B32A32_FLOAT,
@@ -607,8 +769,6 @@ impl Gpu {
                 .CreateUnorderedAccessView(&t.resource, None, Some(&desc), self.cpu(i));
             self.textures.push(t);
         }
-        self.rr_created = false;
-        self.rr_failed = false;
         self.rr_active = false;
         self.reference_valid = false;
         self.integrated_valid = false;
@@ -817,7 +977,16 @@ impl Gpu {
                     format!("RR creation failed: 0x{code:08x}; native denoiser active");
             }
         }
-        let jitter = if self.rr_active {
+        let sr = self.prepare_upscaler(s);
+        // With a temporal upscaler each frame is fresh jittered samples, as with RR: the native
+        // denoiser's history and the upscaler do the accumulation, so detail is resolved above
+        // the render resolution. (Feeding an accumulated image measured worse: the upscalers
+        // assume every input frame sits at its own jitter.)
+        if sr.is_some() && draw && self.samples > 0 {
+            self.reset(false);
+        }
+        let jittered = self.rr_active || sr.is_some();
+        let jitter = if jittered {
             [
                 halton(self.frame % 64 + 1, 2) - 0.5,
                 halton(self.frame % 64 + 1, 3) - 0.5,
@@ -825,6 +994,14 @@ impl Gpu {
         } else {
             [0., 0.]
         };
+        // Display flags: bit 0 jittered primary rays, bit 1 show the upscaled texture (14),
+        // bits 2-3 the spatial upscale filter (1 bilinear, 2 bicubic).
+        let spatial = if s.upscaler == Upscaler::Bilinear {
+            1
+        } else {
+            2
+        };
+        let flags = jittered as u32 | ((self.rr_active || sr.is_some()) as u32) << 1 | spatial << 2;
         let n = if draw {
             s.spp.min(s.max_samples.saturating_sub(self.samples))
         } else {
@@ -871,7 +1048,7 @@ impl Gpu {
                 self.emitter_count as u32,
                 s.objects.len() as u32,
                 self.sequence_base,
-                0,
+                flags,
             ],
             // View-space ray scale (tan of the half field of view) for the denoiser.
             environment: [s.sky, 1. / proj.x_axis.x, 1. / proj.y_axis.y, 0.],
@@ -975,6 +1152,11 @@ impl Gpu {
         }
         if n > 0 {
             self.camera_moved = false;
+        }
+        if let Some(kind) = sr
+            && (n > 0 || self.sr_reset)
+        {
+            self.run_upscaler(kind, s, &mut c, jitter, (self.sr_reset || reset) as i32, dt);
         }
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
@@ -1081,6 +1263,99 @@ impl Gpu {
             self.frame = self.frame.wrapping_add(1);
         }
         Ok(())
+    }
+    /// Upscales the native color (denoised or raw) with device depth and low-res pixel motion
+    /// into texture 14. On failure the display falls back to bicubic.
+    unsafe fn run_upscaler(
+        &mut self,
+        kind: Upscaler,
+        s: &Settings,
+        c: &mut Constants,
+        jitter: [f32; 2],
+        history_reset: i32,
+        dt: f32,
+    ) {
+        let color = if s.denoise { 8 } else { 1 };
+        let inputs = [color, 25, 6];
+        for i in inputs {
+            transition(
+                &self.list,
+                &self.textures[i].resource,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+            );
+        }
+        let r = |i: usize| self.textures[i].resource.as_raw();
+        let (cmd, w, h) = (self.list.as_raw(), self.rw, self.rh);
+        let code = match kind {
+            Upscaler::Dlss => {
+                let code = cornell_ngx_eval_sr(
+                    self.ngx,
+                    cmd,
+                    r(color),
+                    r(25),
+                    r(6),
+                    r(14),
+                    w,
+                    h,
+                    jitter[0],
+                    jitter[1],
+                    history_reset,
+                    dt * 1000.,
+                );
+                if ngx_ok(code) { 0 } else { code }
+            }
+            Upscaler::Fsr => cornell_fsr_eval(
+                self.fsr,
+                cmd,
+                r(color),
+                r(25),
+                r(6),
+                r(14),
+                w,
+                h,
+                self.width,
+                self.height,
+                jitter[0],
+                jitter[1],
+                history_reset,
+                dt * 1000.,
+                s.fov.to_radians(),
+                0.01,
+                500.,
+            ),
+            _ => cornell_xess_eval(
+                self.xess,
+                cmd,
+                r(color),
+                r(25),
+                r(6),
+                r(14),
+                w,
+                h,
+                jitter[0],
+                jitter[1],
+                history_reset,
+            ),
+        };
+        for i in inputs {
+            transition(
+                &self.list,
+                &self.textures[i].resource,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+        }
+        uav(&self.list, None);
+        self.sr_reset = false;
+        if code != 0 {
+            self.sr_failed.push(kind);
+            self.sr_created = None;
+            c.scene_info[3] &= !2;
+            self.upscale_status =
+                format!("{} failed (0x{code:08x}); bicubic upscaling", kind.label());
+            eprintln!("{}", self.upscale_status);
+        }
     }
     unsafe fn update_atlas(
         &mut self,
@@ -1387,6 +1662,8 @@ impl Drop for Gpu {
         unsafe {
             let _ = self.wait_idle();
             cornell_ngx_destroy(self.ngx);
+            cornell_fsr_destroy(self.fsr);
+            cornell_xess_destroy(self.xess);
             let _ = CloseHandle(self.event);
         }
     }

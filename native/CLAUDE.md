@@ -12,7 +12,11 @@ Paths here are relative to `native/` unless noted.
   - Direct3D 12 with DXR 1.1 inline `RayQuery`. There are no RT pipeline state objects or shader tables.
   - An egui 0.31 overlay drawn straight into the swapchain.
   - A small C++ bridge (`bridge/ngx.cpp`) to NVIDIA NGX for DLSS Ray Reconstruction.
-- The DLSS SDK is 310.9.16, pinned to commit `9981c63…`. `tools/setup.ps1` sparse-clones it into `vendor/dlss`.
+- Vendor SDKs, each pinned and sparse-cloned by `tools/setup.ps1` (function `Get-Sdk`) into `vendor/` (gitignored):
+  - `vendor/dlss`: NVIDIA DLSS 310.9.16, commit `9981c63…`.
+  - `vendor/fsr`: AMD FSR SDK 2.3.0, commit `60f4ea8…`. FidelityFX API headers plus signed `amd_fidelityfx_loader_dx12.dll` and `amd_fidelityfx_upscaler_dx12.dll`.
+  - `vendor/xess`: Intel XeSS SDK 3.0.2, commit `8fe81bd…`. Headers plus `libxess.dll`.
+  - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap.
 - **Git:** the repo root is `cornell/` (WebGL app plus `native/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
 - The native settings JSON is not compatible with the browser's.
@@ -35,7 +39,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 - **Release is a GUI-subsystem exe with no console output.** Debug builds have a console.
   - `tools/verify.ps1` runs release via `Start-Process` with stdout and stderr redirected.
 - `build.rs` does the following:
-  - Asserts that `vendor/dlss` exists.
+  - Asserts that `vendor/dlss`, `vendor/fsr` and `vendor/xess` exist.
   - Compiles 5 shader entries: `trace`, `filter` and `display` as cs_6_5; `vs_main` and `ps_main` as 6_0.
   - Compiles the bridge and links `nvsdk_ngx_d`.
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
@@ -76,7 +80,11 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `shaders/pathtrace.hlsl` | `trace` (l.56): guide/AOV ray, then the spp loop. |
 | `shaders/post.hlsl` | `filter` (5 à-trous passes plus temporal) and `display` (views, tonemap, A/B). |
 | `shaders/gui.hlsl` | Declares a partial cbuffer (4 matrices, eye, then `dimensions`) that relies on that offset in `Constants`. |
-| `bridge/ngx.cpp` | Init, create and eval for NGX DLSSD; C ABI. Contains a development project GUID that must be replaced before distribution. |
+| `bridge/ngx.cpp` | NGX C ABI: `cornell_ngx_caps` (bit 0 RR, bit 1 DLSS SR), RR create/eval (DLSSD), SR create/eval (DLSS) with its own parameter block. Contains a development project GUID that must be replaced before distribution. |
+| `bridge/fsr.cpp` | FSR through the FidelityFX API; `LoadLibrary` of the loader DLL next to the exe. Context = upscale desc → DX12 backend desc → version desc (pNext chain). |
+| `bridge/xess.cpp` | XeSS through `GetProcAddress` on `libxess.dll`; `xessD3D12Init` again on size change. |
+| `docs/ui-plan.md`, `docs/scene-research.md` | Plans written by subagents on 2026-10-29: UI redesign in 5 phases; scene sources, licenses, 42 buildable presets, generators, and an engine-feature roadmap. |
+| `tools/upscale_quality.py` | Upscaler comparison, still and orbit, against full-resolution references. |
 
 ## Frame pipeline (`Gpu::render`)
 
@@ -146,7 +154,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 0 | CBV b0 |
 | 1 | SRV t0 TLAS |
 | 2 | SRV t1 vertices |
-| 3 | Table: UAV u0–u24 (heap slots 0–24) |
+| 3 | Table: UAV u0–u25 (heap slots 0–25) |
 | 4 | Table: SRV t2, egui atlas (heap slot 32, pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
@@ -184,6 +192,7 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
 | 22 | moments (E[l], E[l²] per sample of demodulated luminance; z = variance of the integrated mean) | |
 | 23 | history_moments | |
 | 24 | filter_guide (octahedral normal xy, depth, object id: one read per à-trous tap) | |
+| 25 | device_depth (projected z/w, 0 near → 1 far) for DLSS SR / FSR / XeSS | R32F |
 
 ## Rendering behaviour worth remembering
 
@@ -255,6 +264,41 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 **Git.** The project is a git repo (root `cornell/`), with a private GitHub remote. Commit only when the user asks.
 
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
+
+## Upscalers (2026-10-29, not yet committed)
+
+- **Setting:** `Settings.upscaler` (`Upscaler`: dlss default, fsr, xess, bicubic, bilinear). Used only when RR is off and `rw < width`.
+  - It is in `transport_key`, so a change resets the render.
+  - `main.rs` also calls `Gpu::reconfigure_upscalers()` when `rr`, `rr_preset` or `upscaler` changes. This replaces `reconfigure_rr`.
+- **`Gpu::prepare_upscaler`** creates the selected temporal upscaler lazily, at render size × output size.
+  - A failure goes into `sr_failed`, and the display falls back to bicubic. `upscale_status` explains this in the UI.
+  - `release_upscalers()` runs on resize and reconfigure.
+- **Per-frame mode:** with a temporal upscaler active, `render()` calls `reset(false)` every drawn frame, so each frame is fresh jittered samples, as with RR. The native SVGF history (`camera_moved` → reproject) plus the upscaler do the accumulation. `run_upscaler` feeds color (ping when denoising, else accumulation), device depth (25) and motion (6), and writes texture 14.
+- **Measured alternatives** (`tools/upscale_quality.py`, Classic, 1280×720, 50%):
+  - Feeding the progressive accumulation (jittered or unjittered) measured worse: the upscalers assume each frame sits at its own jitter.
+  - Still-camera quality now comes from a longer denoiser history: cap 256 where motion is 0, 24 otherwise (`post.hlsl` integrate).
+- **Flags** in `scene_info.w`:
+  - Bit 0: jittered primary rays. Both RR and temporal SR set it; trace reads it, no longer `modes.w`.
+  - Bit 1: the display reads texture 14 (RR or SR output).
+  - Bits 2–3: spatial filter (1 bilinear, 2 bicubic). Catmull-Rom, clamped to the 2×2 footprint against HDR ringing.
+- **Jitter and motion conventions:**
+  - All three take the same jitter sign as RR: the negated ray offset. Verified by probing all four sign combinations; the current one is best for each.
+  - Motion is prev − curr in render pixels, scale 1. XeSS velocity scale is 1.
+- **Results** (RMSE ×1000, light rim excluded; still / orbit):
+
+| | Still | Orbit |
+|---|---|---|
+| Native 100% | 1.05 | 4.06 |
+| RR | 1.90 | 2.60 |
+| XeSS | 2.27 | 4.70 |
+| FSR | 2.28 | 4.25 |
+| DLSS SR | 2.62 | 3.82 |
+| Bicubic | 4.15 | 5.91 |
+| Bilinear | 4.70 | 6.01 |
+
+  - With the rim included, DLSS SR and XeSS score about 9.5 on the still camera, because of how they blend the 12× HDR light edge.
+- **Self-test:** frames 172–176 switch through every upscaler at scale 0.5 and assert that the available temporal ones start; frame 177 turns RR back on.
+- **Sliders:** all go through `crate::slider` (`SliderClamping::Edits`). egui's default clamps the stored value whenever a slider is drawn, which silently rewrote valid loaded values (found by the UI-plan agent). Self-test frames 178–179 guard this.
 
 ## Review findings: fixed and merged (2026-10-29)
 

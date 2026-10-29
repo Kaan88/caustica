@@ -2,25 +2,37 @@ param([switch]$DebugBuild, [switch]$SkipBuild)
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location -LiteralPath $projectRoot
-try {
-    foreach ($command in @('git','cargo')) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "$command is required. Install Rust (MSVC) and Git first." } }
-    $sdkCommit = '9981c6350dc58c0ce21f024fd65e31e851c31689'
-    $sdkPath = Join-Path $projectRoot 'vendor/dlss'
+# Sparse, pinned checkout of a vendor SDK: only the listed paths are downloaded.
+function Get-Sdk([string]$name, [string]$url, [string]$folder, [string]$commit, [string[]]$paths) {
+    $sdkPath = Join-Path $projectRoot "vendor/$folder"
     if (-not (Test-Path -LiteralPath (Join-Path $sdkPath '.git'))) {
-        & git clone --filter=blob:none --sparse --depth 1 https://github.com/NVIDIA/DLSS.git $sdkPath
-        if ($LASTEXITCODE -ne 0) { throw 'Could not fetch NVIDIA DLSS SDK' }
+        & git clone --filter=blob:none --sparse --depth 1 --no-checkout $url $sdkPath
+        if ($LASTEXITCODE -ne 0) { throw "Could not fetch $name" }
     }
     & git -C $sdkPath diff --quiet
-    if ($LASTEXITCODE -ne 0) { throw 'The vendor SDK has local edits; preserve them before rerunning setup.' }
-    & git -C $sdkPath sparse-checkout set include lib/Windows_x86_64/x64 lib/Windows_x86_64/rel doc
-    if ($LASTEXITCODE -ne 0) { throw 'SDK sparse checkout failed' }
-    & git -C $sdkPath cat-file -e "$sdkCommit`^{commit}" 2>$null
+    if ($LASTEXITCODE -ne 0) { throw "The $name checkout has local edits; preserve them before rerunning setup." }
+    & git -C $sdkPath sparse-checkout set --no-cone @paths
+    if ($LASTEXITCODE -ne 0) { throw "$name sparse checkout failed" }
+    & git -C $sdkPath cat-file -e "$commit`^{commit}" 2>$null
     if ($LASTEXITCODE -ne 0) {
-        & git -C $sdkPath fetch --depth 1 origin $sdkCommit
-        if ($LASTEXITCODE -ne 0) { throw 'Could not fetch pinned SDK revision' }
+        & git -C $sdkPath fetch --depth 1 origin $commit
+        if ($LASTEXITCODE -ne 0) { throw "Could not fetch the pinned $name revision" }
     }
-    & git -C $sdkPath checkout --detach $sdkCommit
-    if ($LASTEXITCODE -ne 0) { throw 'Could not select pinned SDK revision' }
+    & git -C $sdkPath checkout --detach $commit
+    if ($LASTEXITCODE -ne 0) { throw "Could not select the pinned $name revision" }
+}
+try {
+    foreach ($command in @('git','cargo')) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "$command is required. Install Rust (MSVC) and Git first." } }
+    # NVIDIA DLSS 310.9.16: Ray Reconstruction and Super Resolution.
+    Get-Sdk 'NVIDIA DLSS SDK' 'https://github.com/NVIDIA/DLSS.git' 'dlss' '9981c6350dc58c0ce21f024fd65e31e851c31689' `
+        @('/include/', '/lib/Windows_x86_64/x64/', '/lib/Windows_x86_64/rel/', '/doc/', '/LICENSE.txt', '/README.md')
+    # AMD FSR SDK 2.3.0: FidelityFX API headers and the signed loader/upscaler DLLs.
+    Get-Sdk 'AMD FSR SDK' 'https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK.git' 'fsr' '60f4ea81909200d8542eca14dccb2628b763a9a3' `
+        @('/Kits/FidelityFX/api/include/', '/Kits/FidelityFX/upscalers/include/', '/Kits/FidelityFX/docs/license.md',
+          '/Kits/FidelityFX/signedbin/amd_fidelityfx_loader_dx12.dll', '/Kits/FidelityFX/signedbin/amd_fidelityfx_upscaler_dx12.dll')
+    # Intel XeSS SDK 3.0.2: headers and the super-resolution DLL.
+    Get-Sdk 'Intel XeSS SDK' 'https://github.com/intel/xess.git' 'xess' '8fe81bdbbaf00b3c1b733fd0d830c333dc84e6f0' `
+        @('/inc/xess/', '/bin/libxess.dll', '/LICENSE.txt', '/third-party-programs.txt')
     if (-not $SkipBuild) {
         if ($DebugBuild) { & cargo build --locked } else { & cargo build --release --locked }
         if ($LASTEXITCODE -ne 0) { throw 'Build failed. Install Visual Studio C++ Build Tools and Windows SDK (DXC), or set DXC_PATH.' }

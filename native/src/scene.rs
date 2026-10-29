@@ -90,6 +90,39 @@ pub enum Pattern {
     Stripes,
     Marble,
 }
+/// How the native renderer reaches output resolution when Ray Reconstruction is off and the
+/// render scale is below 1. The temporal upscalers fall back to bicubic when unavailable.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Upscaler {
+    Bilinear,
+    Bicubic,
+    #[default]
+    Dlss,
+    Fsr,
+    Xess,
+}
+impl Upscaler {
+    pub const ALL: [Self; 5] = [
+        Self::Dlss,
+        Self::Fsr,
+        Self::Xess,
+        Self::Bicubic,
+        Self::Bilinear,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Bilinear => "Bilinear",
+            Self::Bicubic => "Bicubic (Catmull-Rom)",
+            Self::Dlss => "NVIDIA DLSS Super Resolution",
+            Self::Fsr => "AMD FSR",
+            Self::Xess => "Intel XeSS",
+        }
+    }
+    pub fn temporal(self) -> bool {
+        matches!(self, Self::Dlss | Self::Fsr | Self::Xess)
+    }
+}
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct AreaLight {
@@ -201,6 +234,7 @@ pub struct Settings {
     pub denoise_strength: f32,
     pub rr: bool,
     pub rr_preset: u32,
+    pub upscaler: Upscaler,
     pub temporal: bool,
     pub yaw: f32,
     pub pitch: f32,
@@ -274,6 +308,7 @@ impl Default for Settings {
             denoise_strength: 0.5,
             rr: true,
             rr_preset: 6,
+            upscaler: Upscaler::Dlss,
             temporal: true,
             yaw: 0.,
             pitch: 4.,
@@ -354,7 +389,13 @@ impl Settings {
         // user's camera. Any other switch takes the preset's own camera.
         let keep_camera = id < 9 && PRESETS[..9].contains(&self.scene_name.as_str());
         let camera = (self.yaw, self.pitch, self.distance, self.target, self.fov);
-        let output = (self.scale, self.rr, self.vsync, self.rr_preset);
+        let output = (
+            self.scale,
+            self.rr,
+            self.vsync,
+            self.rr_preset,
+            self.upscaler,
+        );
         *self = Self::default();
         match id {
             1 => {
@@ -451,7 +492,13 @@ impl Settings {
                 o.stretch = 1.;
             }
         }
-        (self.scale, self.rr, self.vsync, self.rr_preset) = output;
+        (
+            self.scale,
+            self.rr,
+            self.vsync,
+            self.rr_preset,
+            self.upscaler,
+        ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {
         for o in &mut self.objects {

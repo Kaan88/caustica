@@ -47,10 +47,25 @@ fn main() {
             .expect("DXC missing: install Windows SDK 26100 or set DXC_PATH");
         assert!(status.success(), "DXC failed for {entry}");
     }
+    for (dir, what) in [
+        ("vendor/fsr/Kits/FidelityFX/api/include", "AMD FSR SDK"),
+        ("vendor/xess/inc", "Intel XeSS SDK"),
+    ] {
+        assert!(
+            PathBuf::from(dir).exists(),
+            "{what} missing: run powershell -File tools/setup.ps1"
+        );
+    }
+    println!("cargo:rerun-if-changed=bridge");
     cc::Build::new()
         .cpp(true)
         .file("bridge/ngx.cpp")
+        .file("bridge/fsr.cpp")
+        .file("bridge/xess.cpp")
         .include("vendor/dlss/include")
+        .include("vendor/fsr/Kits/FidelityFX/api/include")
+        .include("vendor/fsr/Kits/FidelityFX/upscalers/include")
+        .include("vendor/xess/inc")
         .flag("/std:c++17")
         .flag("/EHsc")
         .compile("cornell_ngx");
@@ -65,8 +80,16 @@ fn main() {
     println!("cargo:rustc-link-lib=dxgi");
     println!("cargo:rustc-link-lib=shlwapi");
     let destination = out.ancestors().nth(3).expect("Cargo profile directory");
-    for dll in ["nvngx_dlss.dll", "nvngx_dlssd.dll"] {
-        let source = PathBuf::from("vendor/dlss/lib/Windows_x86_64/rel").join(dll);
+    // Upscaler runtimes are loaded from the executable's folder.
+    for source in [
+        "vendor/dlss/lib/Windows_x86_64/rel/nvngx_dlss.dll",
+        "vendor/dlss/lib/Windows_x86_64/rel/nvngx_dlssd.dll",
+        "vendor/fsr/Kits/FidelityFX/signedbin/amd_fidelityfx_loader_dx12.dll",
+        "vendor/fsr/Kits/FidelityFX/signedbin/amd_fidelityfx_upscaler_dx12.dll",
+        "vendor/xess/bin/libxess.dll",
+    ] {
+        let source = PathBuf::from(source);
+        let dll = source.file_name().unwrap();
         println!("cargo:rerun-if-changed={}", source.display());
         let dest = destination.join(dll);
         let bytes = std::fs::read(&source).expect("Read NVIDIA runtime");

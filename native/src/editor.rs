@@ -12,12 +12,12 @@ pub fn material_ui(ui: &mut egui::Ui, m: &mut Material) {
             }
         });
     crate::color(ui, "Base color (linear)", &mut m.color);
-    ui.add(egui::Slider::new(&mut m.roughness, 0. ..=1.).text("Roughness"));
-    ui.add(egui::Slider::new(&mut m.metallic, 0. ..=1.).text("Metallic"));
-    ui.add(egui::Slider::new(&mut m.reflectivity, 0. ..=1.).text("Reflectivity"));
-    ui.add(egui::Slider::new(&mut m.transmission, 0. ..=1.).text("Transmission"));
-    ui.add(egui::Slider::new(&mut m.ior, 1. ..=2.5).text("IOR"));
-    ui.add(egui::Slider::new(&mut m.emission, 0. ..=20.).text("Emission"));
+    ui.add(crate::slider(&mut m.roughness, 0. ..=1.).text("Roughness"));
+    ui.add(crate::slider(&mut m.metallic, 0. ..=1.).text("Metallic"));
+    ui.add(crate::slider(&mut m.reflectivity, 0. ..=1.).text("Reflectivity"));
+    ui.add(crate::slider(&mut m.transmission, 0. ..=1.).text("Transmission"));
+    ui.add(crate::slider(&mut m.ior, 1. ..=2.5).text("IOR"));
+    ui.add(crate::slider(&mut m.emission, 0. ..=20.).text("Emission"));
     ui.checkbox(&mut m.unlit, "Emission only (no scattering)");
     egui::ComboBox::from_label("Pattern")
         .selected_text(format!("{:?}", m.pattern))
@@ -33,7 +33,7 @@ pub fn material_ui(ui: &mut egui::Ui, m: &mut Material) {
         });
     if m.pattern != Pattern::Solid {
         crate::color(ui, "Secondary color", &mut m.secondary_color);
-        ui.add(egui::Slider::new(&mut m.pattern_scale, 0.1..=30.).text("Pattern scale"));
+        ui.add(crate::slider(&mut m.pattern_scale, 0.1..=30.).text("Pattern scale"));
     }
 }
 pub fn objects(
@@ -167,7 +167,7 @@ pub fn objects(
                         );
                     });
                     ui.add(
-                        egui::Slider::new(&mut o.elevation, -10. ..=20.).text(if o.grounded {
+                        crate::slider(&mut o.elevation, -10. ..=20.).text(if o.grounded {
                             "Lift above floor"
                         } else {
                             "World Y"
@@ -175,28 +175,28 @@ pub fn objects(
                     );
                     // Ranges match Settings::validate, so any valid scene stays editable.
                     ui.add(
-                        egui::Slider::new(&mut o.size, 0.05..=30.)
+                        crate::slider(&mut o.size, 0.05..=30.)
                             .logarithmic(true)
                             .text("Size"),
                     );
                     ui.add(
-                        egui::Slider::new(&mut o.stretch, 0.05..=10.)
+                        crate::slider(&mut o.stretch, 0.05..=10.)
                             .logarithmic(true)
                             .text("Y stretch"),
                     );
                     ui.add(
-                        egui::Slider::new(&mut o.scale_xz[0], 0.01..=20.)
+                        crate::slider(&mut o.scale_xz[0], 0.01..=20.)
                             .logarithmic(true)
                             .text("X stretch"),
                     );
                     ui.add(
-                        egui::Slider::new(&mut o.scale_xz[1], 0.01..=20.)
+                        crate::slider(&mut o.scale_xz[1], 0.01..=20.)
                             .logarithmic(true)
                             .text("Z stretch"),
                     );
-                    ui.add(egui::Slider::new(&mut o.rotation, -180. ..=180.).text("Yaw"));
-                    ui.add(egui::Slider::new(&mut o.tilt[0], -180. ..=180.).text("Pitch"));
-                    ui.add(egui::Slider::new(&mut o.tilt[1], -180. ..=180.).text("Roll"));
+                    ui.add(crate::slider(&mut o.rotation, -180. ..=180.).text("Yaw"));
+                    ui.add(crate::slider(&mut o.tilt[0], -180. ..=180.).text("Pitch"));
+                    ui.add(crate::slider(&mut o.tilt[1], -180. ..=180.).text("Roll"));
                 });
                 egui::CollapsingHeader::new("Material")
                     .default_open(true)
@@ -216,7 +216,7 @@ pub fn lights(ui: &mut egui::Ui, s: &mut Settings) {
                 ui.checkbox(&mut l.visible, "Visible to camera");
                 ui.add(egui::TextEdit::singleline(&mut l.name).char_limit(128));
                 crate::color(ui, "Color", &mut l.color);
-                ui.add(egui::Slider::new(&mut l.intensity, 0. ..=100.).text("Intensity"));
+                ui.add(crate::slider(&mut l.intensity, 0. ..=100.).text("Intensity"));
                 ui.horizontal(|ui| {
                     ui.label("Position");
                     for p in &mut l.position {

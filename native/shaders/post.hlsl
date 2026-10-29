@@ -32,11 +32,13 @@ void integrate(uint2 p){
     float3 alb=albedo_at(int2(p));float ld=luminance(acc.rgb/alb),lr=luminance(acc.rgb);float s=lr>1e-6?ld/lr:1/luminance(alb);
     float2 m=float2(ld,acc.a/count*s*s+ld*ld);float3 c=acc.rgb/alb;float effective=count;
     if(filter_settings.y!=0 && filter_settings.z==0){
-        // History cap: 24 samples on diffuse surfaces, down to 2 where the first bounce is
-        // specular (reflections move with the view). It fades out over 256 fresh samples.
+        // History cap down to 2 where the first bounce is specular (reflections move with the
+        // view). History fades out over 256 fresh samples.
         float spec=0,all_light=0;
         for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){int2 q=clamp(int2(p)+int2(x,y),0,int2(dimensions.xy)-1);spec+=luminance(specular_light[q].rgb);all_light+=luminance(accumulation[q].rgb);}
-        float4 h=history[p];float h_eff=min(h.a,lerp(24,2,saturate(spec/max(all_light,1e-4))))*saturate(1-count/256);
+        // Motionless pixels reproject exactly, so they may keep a much longer history (this keeps
+        // per-frame upscaler input clean on a still camera); moving ones are capped at 24 samples.
+        float4 h=history[p];float cap=dot(motion[p],motion[p])<1e-4?256:24;float h_eff=min(h.a,lerp(cap,2,saturate(spec/max(all_light,1e-4))))*saturate(1-count/256);
         float w=h_eff/(h_eff+count);c=lerp(c,h.rgb,w);m=lerp(m,history_moments[p].xy,w);effective=h_eff+count;
     }
     float variance;
@@ -85,8 +87,25 @@ float3 tonemap(float3 c){c=max(c*display_settings.x,0);uint mode=modes.y;
     if(mode==5){c=saturate(c*(2.51*c+0.03)/(c*(2.43*c+0.59)+0.14));c=smoothstep(0,1,c);}
     return pow(saturate(c),1/max(0.1,display_settings.y));
 }
+float3 native_at(int2 q){q=clamp(q,0,int2(dimensions.xy)-1);return modes.z!=0?ping[q].rgb:accumulation[q].rgb;}
+float catmull_rom(float t,int i){float a=abs(t-i);return a<1?1.5*a*a*a-2.5*a*a+1:(a<2?-0.5*a*a*a+2.5*a*a-4*a+2:0);}
+// Spatial upscale of the native image (render resolution) to output pixel op: bilinear or
+// Catmull-Rom bicubic. At render scale 1 this is an exact copy.
+float3 native_upscaled(uint2 op){
+    if(all(dimensions.xy==dimensions.zw))return native_at(int2(op));
+    float2 at=(float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)-0.5;int2 b=int2(floor(at));float2 f=at-b;
+    float3 sum=0;float total=0;
+    if(((scene_info.w>>2)&3)==1){for(int i=0;i<4;i++){int2 o=int2(i&1,i>>1);float w=(o.x!=0?f.x:1-f.x)*(o.y!=0?f.y:1-f.y);sum+=w*native_at(b+o);total+=w;}}
+    else{
+        for(int y=-1;y<=2;y++)for(int x=-1;x<=2;x++){float w=catmull_rom(f.x,x)*catmull_rom(f.y,y);sum+=w*native_at(b+int2(x,y));total+=w;}
+        // Catmull-Rom overshoots at HDR edges (a dark rim around the light); clamp to the 2x2 footprint.
+        float3 lo=native_at(b),hi=lo;for(int i=1;i<4;i++){float3 v=native_at(b+int2(i&1,i>>1));lo=min(lo,v);hi=max(hi,v);}
+        return clamp(sum/total,lo,hi);
+    }
+    return max(sum/total,0);
+}
 float3 beauty(uint2 p,uint2 op){
-    float3 raw=accumulation[p].rgb;float3 c=modes.w!=0?reconstruction[op].rgb:(modes.z!=0?ping[p].rgb:raw);
+    float3 raw=accumulation[p].rgb;float3 c=(scene_info.w&2)!=0?reconstruction[op].rgb:native_upscaled(op);
     if(display_settings.z!=1 || display_settings.w!=1){float3 composed=direct_light[p].rgb*display_settings.z+(raw-direct_light[p].rgb)*display_settings.w;c*=max(composed,0)/max(raw,0.0001);}
     return max(c,0);
 }
