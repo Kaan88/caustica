@@ -256,9 +256,9 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
 
-## Review findings: fixed on branch `review-findings` (2026-10-29)
+## Review findings: fixed and merged (2026-10-29)
 
-`main` is the state before these fixes. All are measured; not yet merged.
+Done on branch `review-findings` and fast-forwarded into `main` (commit c72f163). The pre-fix state is commit 1fc032d. All results were measured.
 
 **Native denoiser** (see "Rendering behaviour" for the design). Scores are ×1000, measured with `tools/motion_error.py`.
 
