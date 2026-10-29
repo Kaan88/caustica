@@ -51,18 +51,23 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
 
 ## Controls
 
-The window has a **top bar** (Menu, scene picker grouped into Cornell box / Studios / Build your own with ◀ ▶, Randomize, view, Pause, Restart, Frame, Hide panel), a **side panel** with four tabs and a **status bar** (state, samples and progress, GPU time, the denoiser and upscaler in words, render and output resolution, HDR).
+The window has a **top bar** (Menu, scene picker grouped into Cornell box / Studios / Build your own with ◀ ▶, Randomize, view, Pause, Restart, Frame, the gizmo tools Select / Move / Rotate / Scale with Global or Local axes, Hide panel), a **side panel** with four tabs and a **status bar** (state, samples and progress, GPU time, the denoiser and upscaler in words, render and output resolution, HDR).
 
 - **Scene:** an outliner (Stage, Camera, Main light, area lights, objects with visibility toggles) with add buttons, and an inspector for the selection.
 - **Render:** DLSS Ray Reconstruction, RR model, quality mode, upscaler and DLSS preset, native denoiser, sampling.
 - **Look:** view, exposure in EV, tone map, display output and HDR levels, A/B compare.
+
+Selecting an object or light shows a **Blender-style gizmo**: red / green / blue arrows and plane squares to move, rings to rotate, axis handles and a center circle to scale. Lights are outlined in the viewport even when hidden from the camera, and can be clicked. The main light moves and scales; area lights also rotate.
 - **Export:** PNG, HDR EXR, HDR PNG, high-resolution render, scene file.
 
 Rarely used rows sit under **More**; Menu → *Show advanced settings* shows them all inline. Labels name what a control does and show units; hover a label for a one-line explanation. Short confirmations (saved files, key toggles, errors) appear as toasts at the bottom right.
 
 | Input | Action |
 |---|---|
-| Left click | Select the object under the cursor (opens it in the Scene tab) |
+| Left click | Select the object or light under the cursor (opens it in the Scene tab); empty space deselects |
+| Drag a gizmo handle | Move along an arrow or plane, rotate on a ring, scale on an axis or (center) evenly |
+| G / R / S | Move / rotate / scale the selection with the mouse, as in Blender: then X / Y / Z for an axis (again: local axis, again: free), Shift+X/Y/Z for a plane, type a value, Ctrl snaps, Shift is fine control; click or Enter confirms, right click or Esc cancels |
+| Ctrl+Z / Ctrl+Y | Undo / redo (Ctrl+Shift+Z also redoes) |
 | Left drag | Orbit |
 | Right drag / Shift-drag | Pan |
 | Wheel | Dolly |
@@ -70,7 +75,7 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 | Delete | Delete the selected object or area light |
 | Escape | Deselect (the app closes only from the window) |
 | Space | Pause/resume |
-| R | Restart accumulation |
+| R | Restart accumulation (with an object or light selected, R rotates) |
 | A | Auto orbit |
 | D | Toggle the native denoiser |
 | C | Freeze the A/B reference |
@@ -104,7 +109,7 @@ From `native/`:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
 ```
 
-Other switches: `--spp N`, `--samples N`, `--no-vsync`, `--debug`, `--rr`, `--capture-ui`, `--self-test`, `--help`. `--preset` or `--settings` (give only one) is applied before every other switch, so the others always override it, in any order. `--headless` uses a hidden Win32 window and a real hardware D3D12 device; it requires `--frames N`. `--capture-ui` includes the controls in PNG captures; `--ui-tab scene|render|look|export`, `--ui-advanced` and `--ui-select stage|camera|main-light|light:N|object:N` set up what they show. `--debug` requires Windows Graphics Tools/debug layers and fails verification on D3D12 warnings/errors.
+Other switches: `--spp N`, `--samples N`, `--no-vsync`, `--debug`, `--rr`, `--capture-ui`, `--self-test`, `--help`. `--preset` or `--settings` (give only one) is applied before every other switch, so the others always override it, in any order. `--headless` uses a hidden Win32 window and a real hardware D3D12 device; it requires `--frames N`. `--capture-ui` includes the controls in PNG captures; `--ui-tab scene|render|look|export`, `--ui-advanced`, `--ui-tool select|move|rotate|scale` and `--ui-select stage|camera|main-light|light:N|object:N` set up what they show. `--drag-test` moves object 0 every frame to measure the acceleration-structure rebuild a gizmo drag causes. `--debug` requires Windows Graphics Tools/debug layers and fails verification on D3D12 warnings/errors.
 
 `--capture-sequence directory` captures the last 32 frames of a finite run for temporal image analysis. `--orbit-test` moves the camera by 0.25° per frame after a 64-frame warmup. The image-based RR regression renders a noise-free scene, emission-only walls and black emission-only blocks, so paths end at the first hit, to isolate reconstruction shimmer from path-tracing noise:
 
@@ -147,7 +152,7 @@ The previous filter fed its own blurred output back as history, so it got worse 
 
 The RR bridge converts ray-sampling offsets to NGX image displacements with opposite signs on both axes. Specular hit distances come from a stable primary reflection ray rather than a randomly selected BSDF lobe; this prevents false reflection-motion changes on stationary surfaces.
 
-The 198-frame integration self-test covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export, and draws every tab and inspector with the advanced rows shown. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
+The 204-frame integration self-test covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export, draws every tab and inspector with the advanced rows shown, draws each gizmo, and runs a keyed G X 0.5 Enter and its undo. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
 
 ## Implementation map
 
@@ -159,6 +164,7 @@ The 198-frame integration self-test covers all 24 presets including the empty st
 | `src/geometry.rs` | Cached shape meshes, scene assembly, framing, focus and viewport picking |
 | `src/lighting.rs` | Packed GPU materials and the power-weighted emissive-triangle table |
 | `src/display.rs` | Windows display query (HDR state, calibrated luminance, SDR white level), HDR transform reference and HDR PNG writer |
+| `src/gizmo.rs` | Transform gizmos: projection, handle layout and hit tests, drag and modal G / R / S math, light outlines and picking |
 | `src/ui.rs` | Top bar, side panel tabs, status bar, toasts, theme; UI state kept out of `Settings` |
 | `src/editor.rs` | Object, area-light and material inspectors |
 | `src/teapot_data.rs` | Utah teapot patches, generated by `tools/build_teapot_data.py` |

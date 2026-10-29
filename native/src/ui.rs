@@ -2,7 +2,7 @@
 //! Export tabs, a status bar and toasts. UI-only state lives in `UiState`, never in `Settings`,
 //! because every `Settings` field outside the exclusion list restarts the render.
 use crate::scene::{self, DLSS_PRESETS, PRESETS, Settings, Shape, Upscaler};
-use crate::{App, editor};
+use crate::{App, editor, gizmo};
 use std::time::{Duration, Instant};
 
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(96, 202, 216);
@@ -80,7 +80,7 @@ pub enum Tab {
     Look,
     Export,
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Selection {
     None,
     Stage,
@@ -105,6 +105,16 @@ pub struct UiState {
     pub export_scale: u32,
     pub export_samples: u32,
     toasts: Vec<Toast>,
+    /// Transform gizmo: active tool, Global / Local axes, handle under the pointer, and the
+    /// running transform (handle drag or modal G / R / S) with its header text.
+    pub tool: gizmo::Tool,
+    pub local: bool,
+    pub hover: Option<gizmo::Handle>,
+    pub transform: Option<gizmo::Transform>,
+    pub header: String,
+    /// Snapshots for Ctrl+Z / Ctrl+Y, taken before each edit that the UI makes.
+    undo: Vec<Settings>,
+    redo: Vec<Settings>,
 }
 impl Default for UiState {
     fn default() -> Self {
@@ -118,6 +128,13 @@ impl Default for UiState {
             export_scale: 2,
             export_samples: 128,
             toasts: Vec::new(),
+            tool: gizmo::Tool::Move,
+            local: false,
+            hover: None,
+            transform: None,
+            header: String::new(),
+            undo: Vec::new(),
+            redo: Vec::new(),
         }
     }
 }
@@ -140,8 +157,37 @@ impl UiState {
             self.toasts.remove(0);
         }
     }
+    /// Remembers `s` for undo, before an edit.
+    pub fn checkpoint(&mut self, s: &Settings) {
+        if self.undo.last() != Some(s) {
+            self.undo.push(s.clone());
+            if self.undo.len() > 100 {
+                self.undo.remove(0);
+            }
+        }
+        self.redo.clear();
+    }
+    pub fn undo(&mut self, s: &mut Settings) -> bool {
+        let Some(previous) = self.undo.pop() else {
+            return false;
+        };
+        self.redo.push(std::mem::replace(s, previous));
+        true
+    }
+    pub fn redo(&mut self, s: &mut Settings) -> bool {
+        let Some(next) = self.redo.pop() else {
+            return false;
+        };
+        self.undo.push(std::mem::replace(s, next));
+        true
+    }
     /// Deletes the selected object or area light; returns its name.
     pub fn delete_selected(&mut self, s: &mut Settings) -> Option<String> {
+        if matches!(self.selection, Selection::Object(i) if i < s.objects.len())
+            || matches!(self.selection, Selection::Light(i) if i < s.lights.len())
+        {
+            self.checkpoint(s);
+        }
         match self.selection {
             Selection::Object(i) if i < s.objects.len() => {
                 let name = s.objects.remove(i).name;
@@ -306,13 +352,201 @@ impl App {
             self.status_bar(ctx);
             self.side_panel(ctx, known.is_some());
         }
+        self.overlay(ctx);
         self.toasts(ctx);
+    }
+    pub fn tool_mode(&self) -> gizmo::Mode {
+        match self.ui.tool {
+            gizmo::Tool::Rotate => gizmo::Mode::Rotate,
+            gizmo::Tool::Scale => gizmo::Mode::Scale,
+            _ => gizmo::Mode::Move,
+        }
+    }
+    /// Gizmo, light outlines and the transform header, drawn under the panels.
+    fn overlay(&mut self, ctx: &egui::Context) {
+        let g = self.gpu.as_ref().unwrap();
+        let view = gizmo::View::new(&self.settings, [g.width, g.height]);
+        let ppp = ctx.pixels_per_point();
+        let painter = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Background,
+            egui::Id::new("gizmo"),
+        ));
+        gizmo::draw_lights(&painter, ppp, &view, &self.settings, self.ui.selection);
+        self.ui.hover = None;
+        if let Some(t) = &self.ui.transform {
+            if let Some(f) = gizmo::frame(&t.original, t.target) {
+                gizmo::draw(
+                    &painter,
+                    ppp,
+                    &view,
+                    &f,
+                    t.local,
+                    self.ui.tool,
+                    None,
+                    Some(t),
+                );
+            }
+            egui::Area::new(egui::Id::new("transform header"))
+                .anchor(egui::Align2::CENTER_TOP, [0., 44.])
+                .order(egui::Order::Foreground)
+                .interactable(false)
+                .show(ctx, |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.label(egui::RichText::new(&self.ui.header).strong());
+                        note(ui, "X / Y / Z axis (again: local, again: free) · Shift+X/Y/Z plane · type a value · Ctrl snap · Shift fine · click or Enter to confirm · right-click or Esc to cancel");
+                    });
+                });
+            return;
+        }
+        let mode = self.tool_mode();
+        if self.ui.tool == gizmo::Tool::Select || !gizmo::allows(self.ui.selection, mode) {
+            return;
+        }
+        let Some(f) = gizmo::frame(&self.settings, self.ui.selection) else {
+            return;
+        };
+        if !ctx.is_pointer_over_area()
+            && let Some(p) = ctx.pointer_hover_pos()
+        {
+            let mouse = glam::Vec2::new(p.x * ppp, p.y * ppp);
+            self.ui.hover = gizmo::hit(&view, &f, self.ui.local, self.ui.tool, mouse);
+        }
+        gizmo::draw(
+            &painter,
+            ppp,
+            &view,
+            &f,
+            self.ui.local,
+            self.ui.tool,
+            self.ui.hover,
+            None,
+        );
+    }
+    /// Starts a transform of the selection: from the handle under the pointer, or modal.
+    pub fn start_transform(&mut self, mode: gizmo::Mode, handle: Option<gizmo::Handle>) -> bool {
+        let sel = self.ui.selection;
+        if !gizmo::allows(sel, mode) || gizmo::frame(&self.settings, sel).is_none() {
+            return false;
+        }
+        let mouse = glam::Vec2::new(self.cursor[0] as f32, self.cursor[1] as f32);
+        let t = match handle {
+            Some(h) => {
+                gizmo::Transform::from_handle(mode, h, sel, mouse, &self.settings, self.ui.local)
+            }
+            None => gizmo::Transform::new(mode, sel, mouse, &self.settings, self.ui.local),
+        };
+        self.ui.transform = Some(t);
+        self.update_transform();
+        true
+    }
+    pub fn update_transform(&mut self) {
+        let Some(g) = self.gpu.as_ref() else { return };
+        let view = gizmo::View::new(&self.settings, [g.width, g.height]);
+        if let Some(t) = &mut self.ui.transform {
+            t.snap = self.ctrl;
+            self.ui.header = t.apply(&mut self.settings, &view);
+        }
+    }
+    pub fn finish_transform(&mut self) {
+        if let Some(t) = self.ui.transform.take() {
+            if self.settings != t.original {
+                self.ui.checkpoint(&t.original);
+            }
+            self.ui.header.clear();
+        }
+    }
+    pub fn cancel_transform(&mut self) {
+        if let Some(t) = self.ui.transform.take() {
+            t.restore(&mut self.settings);
+            self.ui.header.clear();
+            self.ui.toast("Transform cancelled");
+        }
+    }
+    /// Keys while a transform runs. Returns true when the key was used.
+    pub fn transform_key(&mut self, code: winit::keyboard::KeyCode) -> bool {
+        use winit::keyboard::KeyCode as K;
+        let Some(t) = &mut self.ui.transform else {
+            return false;
+        };
+        let digit = [
+            (K::Digit0, '0'),
+            (K::Digit1, '1'),
+            (K::Digit2, '2'),
+            (K::Digit3, '3'),
+            (K::Digit4, '4'),
+            (K::Digit5, '5'),
+            (K::Digit6, '6'),
+            (K::Digit7, '7'),
+            (K::Digit8, '8'),
+            (K::Digit9, '9'),
+            (K::Numpad0, '0'),
+            (K::Numpad1, '1'),
+            (K::Numpad2, '2'),
+            (K::Numpad3, '3'),
+            (K::Numpad4, '4'),
+            (K::Numpad5, '5'),
+            (K::Numpad6, '6'),
+            (K::Numpad7, '7'),
+            (K::Numpad8, '8'),
+            (K::Numpad9, '9'),
+            (K::Period, '.'),
+            (K::NumpadDecimal, '.'),
+            (K::Minus, '-'),
+            (K::NumpadSubtract, '-'),
+        ]
+        .iter()
+        .find(|(k, _)| *k == code)
+        .map(|(_, c)| *c);
+        match code {
+            K::KeyX | K::KeyY | K::KeyZ => {
+                let axis = match code {
+                    K::KeyX => 0,
+                    K::KeyY => 1,
+                    _ => 2,
+                };
+                t.constrain(axis, self.shift);
+            }
+            K::Backspace => {
+                t.typed.pop();
+            }
+            K::Enter | K::NumpadEnter => {
+                self.finish_transform();
+                return true;
+            }
+            K::Escape => {
+                self.cancel_transform();
+                return true;
+            }
+            _ => match digit {
+                Some('-') => {
+                    // Minus toggles the sign, as in Blender.
+                    if t.typed.starts_with('-') {
+                        t.typed.remove(0);
+                    } else {
+                        t.typed.insert(0, '-');
+                    }
+                }
+                Some(c) => t.typed.push(c),
+                None => return true,
+            },
+        }
+        self.update_transform();
+        true
     }
     fn top_bar(&mut self, ctx: &egui::Context, known: bool) {
         egui::TopBottomPanel::top("top bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.menu_button("Menu", |ui| {
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
+                    ui.separator();
+                    if ui.add_enabled(!self.ui.undo.is_empty(), egui::Button::new("Undo (Ctrl+Z)")).clicked() {
+                        self.ui.undo(&mut self.settings);
+                        ui.close_menu();
+                    }
+                    if ui.add_enabled(!self.ui.redo.is_empty(), egui::Button::new("Redo (Ctrl+Y)")).clicked() {
+                        self.ui.redo(&mut self.settings);
+                        ui.close_menu();
+                    }
                     ui.separator();
                     if ui.button("Save scene (settings.json)").clicked() {
                         self.actions.save = true;
@@ -323,6 +557,7 @@ impl App {
                         ui.close_menu();
                     }
                     if ui.button("Reset everything to defaults").clicked() {
+                        self.ui.checkpoint(&self.settings);
                         self.settings = Settings::default();
                         self.preset = 0;
                         self.ui.selection = Selection::Stage;
@@ -333,8 +568,10 @@ impl App {
                     ui.label(egui::RichText::new("Keys").strong());
                     for line in [
                         "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom",
-                        "Click: select an object · Delete: remove it · Esc: deselect",
-                        "Space: pause · R: restart · F: frame the scene · A: auto orbit",
+                        "Click: select an object or light · Delete: remove it · Esc: deselect",
+                        "G / R / S: move, rotate, scale · then X / Y / Z, a value, Enter",
+                        "Ctrl+Z / Ctrl+Y: undo / redo",
+                        "Space: pause · R: restart (nothing selected) · F: frame the scene · A: auto orbit",
                         "D: native denoiser · C: freeze A/B reference · 1–8: views",
                         "F12: save PNG · Tab: hide panels · Ctrl +/−: UI size",
                     ] {
@@ -433,6 +670,24 @@ impl App {
                 {
                     self.actions.frame_scene = true;
                 }
+                ui.separator();
+                for (tool, label, tip) in [
+                    (gizmo::Tool::Select, "Select", "Click to select, no handles"),
+                    (gizmo::Tool::Move, "Move", "Arrows and planes. Key: G"),
+                    (gizmo::Tool::Rotate, "Rotate", "Rings. Key: R"),
+                    (gizmo::Tool::Scale, "Scale", "Axis handles; the circle scales evenly. Key: S"),
+                ] {
+                    ui.selectable_value(&mut self.ui.tool, tool, label).on_hover_text(tip);
+                }
+                egui::ComboBox::from_id_salt("orientation")
+                    .selected_text(if self.ui.local { "Local" } else { "Global" })
+                    .width(70.)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.ui.local, false, "Global");
+                        ui.selectable_value(&mut self.ui.local, true, "Local");
+                    })
+                    .response
+                    .on_hover_text("Gizmo axes: the world's, or the object's own");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let label = if self.ui.panel_hidden {
                         "Show panel"
@@ -652,6 +907,7 @@ impl App {
                 )
                 .clicked()
             {
+                state.checkpoint(s);
                 s.objects
                     .push(editor::new_object(state.add_shape, s.objects.len()));
                 state.selection = Selection::Object(s.objects.len() - 1);
@@ -664,6 +920,7 @@ impl App {
                 .on_hover_text("Add an area light")
                 .clicked()
             {
+                state.checkpoint(s);
                 s.lights.push(scene::AreaLight {
                     name: format!("Softbox {}", s.lights.len() + 1),
                     ..Default::default()
@@ -716,6 +973,7 @@ impl App {
                         )
                         .clicked()
                     {
+                        state.checkpoint(s);
                         let mut o = s.objects[i].clone();
                         o.name = format!("{} copy", o.name.chars().take(110).collect::<String>());
                         o.position[0] += 0.25;

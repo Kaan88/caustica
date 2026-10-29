@@ -261,6 +261,29 @@ fn make_mesh(shape: Shape) -> Mesh {
     }
     out
 }
+/// The object's pivot (mesh origin in the world, as placed by `object_geometry`) and rotation.
+pub fn object_frame(o: &Object) -> (Vec3, glam::Mat3) {
+    let scale = Vec3::new(o.scale_xz[0], o.stretch, o.scale_xz[1]) * o.size * 0.35;
+    let r = Mat4::from_euler(
+        EulerRot::YXZ,
+        o.rotation.to_radians(),
+        o.tilt[0].to_radians(),
+        o.tilt[1].to_radians(),
+    );
+    let y = if o.grounded {
+        let ymin = mesh(o.kind())
+            .iter()
+            .map(|(p, _)| r.transform_vector3(*p * scale).y)
+            .fold(f32::INFINITY, f32::min);
+        -1. - ymin + o.elevation
+    } else {
+        o.elevation
+    };
+    (
+        Vec3::new(o.position[0], y, o.position[1]),
+        glam::Mat3::from_mat4(r),
+    )
+}
 pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
     if !o.visible {
         return vec![];
@@ -388,11 +411,27 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
             5 + s.objects.len() as u32 + i as u32,
         );
     }
+    // Objects come from a per-slot cache: a gizmo drag changes one object per frame, and
+    // rebuilding every mesh (600k vertices in the chess scene) cost about 11 ms.
+    let mut cache = OBJECT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    cache.resize_with(s.objects.len(), || None);
     for (i, o) in s.objects.iter().enumerate() {
-        out.extend(object_geometry(o, 5 + i as u32));
+        let id = 5 + i as u32;
+        match &cache[i] {
+            Some((cached, cached_id, mesh)) if cached == o && *cached_id == id => {
+                out.extend_from_slice(mesh)
+            }
+            _ => {
+                let mesh = object_geometry(o, id);
+                out.extend_from_slice(&mesh);
+                cache[i] = Some((o.clone(), id, mesh));
+            }
+        }
     }
     out
 }
+type CachedMesh = Option<(Object, u32, Vec<Vertex>)>;
+static OBJECT_CACHE: std::sync::Mutex<Vec<CachedMesh>> = std::sync::Mutex::new(Vec::new());
 impl Settings {
     pub fn frame_objects(&mut self, aspect: f32) {
         let mut min = Vec3::splat(f32::INFINITY);
@@ -425,6 +464,10 @@ impl Settings {
         }
     }
     pub fn pick_object(&self, pixel: [f32; 2], size: [u32; 2]) -> Option<usize> {
+        self.pick_object_hit(pixel, size).map(|(i, _)| i)
+    }
+    /// The nearest object under `pixel` and its distance along the camera ray.
+    pub fn pick_object_hit(&self, pixel: [f32; 2], size: [u32; 2]) -> Option<(usize, f32)> {
         let (view, proj, eye) = self.camera(size[0] as f32 / size[1] as f32);
         let ndc = glam::Vec4::new(
             pixel[0] / size[0] as f32 * 2. - 1.,
@@ -462,7 +505,7 @@ impl Settings {
                 let distance = e2.dot(q) * inv;
                 if distance > 0.0001 && distance < closest {
                     closest = distance;
-                    selected = Some(i);
+                    selected = Some((i, distance));
                 }
             }
         }

@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–3 are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–3 and 3b are done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -73,7 +73,9 @@ Goal: on an HDR monitor with Windows HDR on, show real HDR, using Windows' own c
 
 Regroup and relabel only. Include the DLSS preset combo and the HDR status line from items 1–2.
 
-### 3b. Blender-style transform gizmos (owner request, 2026-10-30)
+### 3b. Blender-style transform gizmos (owner request, 2026-10-30) — done 2026-10-30
+
+As built: move / rotate / scale gizmos for objects, area lights and the main light (no main-light rotation, since it is always horizontal), G / R / S modal transforms with X / Y / Z, Shift+axis planes, typed values, Ctrl snap, Shift fine and cancel, Global / Local orientation, light outlines and light picking, undo / redo. Drag cost and remaining gaps are in CLAUDE.md, "Gizmos". Not done: the header's live per-axis readout for free moves is one vector line, and there is no snapping to other objects.
 
 Clicking an object (in the viewport or the outliner) shows transform handles on it, as in Blender. This replaces the plain drag handles of ui-plan.md phase 2 and lands together with that phase's undo stack.
 

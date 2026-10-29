@@ -3,6 +3,7 @@
 mod display;
 mod editor;
 mod geometry;
+mod gizmo;
 mod gpu;
 mod lighting;
 mod presets;
@@ -51,6 +52,7 @@ struct App {
     drag: Option<MouseButton>,
     drag_distance: f32,
     shift: bool,
+    ctrl: bool,
     preset: usize,
     frames: Option<u32>,
     rendered: u32,
@@ -59,6 +61,8 @@ struct App {
     capture: Option<PathBuf>,
     capture_sequence: Option<PathBuf>,
     orbit_test: bool,
+    /// Moves object 0 a little every frame, as a gizmo drag does (BLAS rebuild cost).
+    drag_test: bool,
     require_rr: bool,
     capture_ui: bool,
     self_test: bool,
@@ -152,6 +156,7 @@ impl App {
         let mut capture = None;
         let mut capture_sequence = None;
         let mut orbit_test = false;
+        let mut drag_test = false;
         let mut require_rr = false;
         let mut debug = false;
         let mut hidden = false;
@@ -182,6 +187,7 @@ impl App {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--orbit-test" => orbit_test = true,
+                "--drag-test" => drag_test = true,
                 "--capture-sequence" => {
                     capture_sequence = Some(PathBuf::from(
                         args.next()
@@ -250,6 +256,17 @@ impl App {
                     }
                 }
                 "--ui-advanced" => interface.advanced = true,
+                "--ui-tool" => {
+                    interface.tool = match args.next().context("--ui-tool needs a name")?.as_str() {
+                        "select" => gizmo::Tool::Select,
+                        "move" => gizmo::Tool::Move,
+                        "rotate" => gizmo::Tool::Rotate,
+                        "scale" => gizmo::Tool::Scale,
+                        other => {
+                            bail!("--ui-tool: unknown tool {other} (select, move, rotate, scale)")
+                        }
+                    }
+                }
                 "--ui-select" => {
                     let what = args.next().context(
                         "--ui-select needs stage, camera, main-light, light:N or object:N",
@@ -271,12 +288,12 @@ impl App {
                     self_test = true;
                     hidden = true;
                     debug = true;
-                    frames = Some(198);
+                    frames = Some(204);
                 }
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --orbit-test --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --orbit-test --drag-test --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -312,6 +329,7 @@ impl App {
             drag: None,
             drag_distance: 0.,
             shift: false,
+            ctrl: false,
             preset: selected_preset,
             frames,
             rendered: 0,
@@ -319,6 +337,7 @@ impl App {
             capture,
             capture_sequence,
             orbit_test,
+            drag_test,
             require_rr,
             capture_ui,
             self_test,
@@ -342,6 +361,10 @@ impl App {
     fn redraw(&mut self) -> Result<()> {
         if self.orbit_test && self.rendered >= 64 {
             self.settings.yaw = (self.rendered - 64) as f32 * 0.25;
+        }
+        if self.drag_test && self.rendered >= 10 && !self.settings.objects.is_empty() {
+            let x = &mut self.settings.objects[0].position[0];
+            *x = (*x + if self.rendered % 40 < 20 { 0.01 } else { -0.01 }).clamp(-40., 40.);
         }
         if self.self_test {
             match self.rendered {
@@ -481,6 +504,50 @@ impl App {
                 197 => {
                     self.settings.native_aa = false;
                     self.settings.rr = true;
+                }
+                // Gizmos: each tool drawn on an object and on the main light, then a modal
+                // G X 0.5 Enter through the same code the keys use, and its undo.
+                198 => {
+                    self.ui.tab = ui::Tab::Scene;
+                    self.ui.selection = ui::Selection::Object(0);
+                    self.ui.tool = gizmo::Tool::Move;
+                }
+                199 => self.ui.tool = gizmo::Tool::Rotate,
+                200 => {
+                    self.ui.tool = gizmo::Tool::Scale;
+                    self.ui.selection = ui::Selection::MainLight;
+                }
+                201 => {
+                    self.ui.selection = ui::Selection::Object(0);
+                    let before = self.settings.objects[0].position[0];
+                    anyhow::ensure!(
+                        self.start_transform(gizmo::Mode::Move, None),
+                        "G did not start a transform"
+                    );
+                    for key in [
+                        KeyCode::KeyX,
+                        KeyCode::Digit0,
+                        KeyCode::Period,
+                        KeyCode::Digit5,
+                    ] {
+                        self.transform_key(key);
+                    }
+                    self.transform_key(KeyCode::Enter);
+                    let moved = self.settings.objects[0].position[0] - before;
+                    anyhow::ensure!(
+                        (moved - 0.5).abs() < 1e-5 && self.ui.transform.is_none(),
+                        "G X 0.5 Enter moved the object by {moved}"
+                    );
+                    self.ui.tool = gizmo::Tool::Move;
+                }
+                202 => {
+                    let after = self.settings.objects[0].position[0];
+                    anyhow::ensure!(self.ui.undo(&mut self.settings), "Nothing to undo");
+                    let back = self.settings.objects[0].position[0];
+                    anyhow::ensure!(
+                        (after - back - 0.5).abs() < 1e-5,
+                        "Undo did not restore the move"
+                    );
                 }
                 195 => {
                     self.ui.tab = ui::Tab::Export;
@@ -1002,34 +1069,70 @@ impl ApplicationHandler for App {
                     self.tick(event_loop);
                 }
             }
-            WindowEvent::ModifiersChanged(m) => self.shift = m.state().shift_key(),
+            WindowEvent::ModifiersChanged(m) => {
+                self.shift = m.state().shift_key();
+                self.ctrl = m.state().control_key();
+                if self.ui.transform.is_some() {
+                    self.update_transform();
+                }
+            }
             WindowEvent::MouseInput { state, button, .. } => {
+                let transforming = self.ui.transform.as_ref().map(|t| t.from_handle);
                 if state == ElementState::Released {
-                    if self.drag == Some(MouseButton::Left)
+                    if transforming == Some(true) && button == MouseButton::Left {
+                        self.finish_transform();
+                    } else if self.drag == Some(MouseButton::Left)
                         && self.drag_distance < 3.
                         && !self.egui.is_pointer_over_area()
                         && let Some(g) = &self.gpu
-                        && let Some(index) = self.settings.pick_object(
+                    {
+                        // A click selects the object or light under the pointer; empty space
+                        // deselects, as in Blender.
+                        match gizmo::pick(
+                            &self.settings,
                             [self.cursor[0] as f32, self.cursor[1] as f32],
                             [g.width, g.height],
-                        )
-                    {
-                        self.ui.selection = ui::Selection::Object(index);
-                        self.ui.tab = ui::Tab::Scene;
-                        self.ui.panel_hidden = false;
-                        self.show_ui = true;
+                        ) {
+                            Some(sel) => {
+                                self.ui.selection = sel;
+                                self.ui.tab = ui::Tab::Scene;
+                                self.ui.panel_hidden = false;
+                                self.show_ui = true;
+                            }
+                            None => self.ui.selection = ui::Selection::None,
+                        }
                     }
                     self.drag = None;
+                } else if transforming == Some(false) {
+                    // Modal G / R / S: left click confirms, right click cancels.
+                    if button == MouseButton::Right {
+                        self.cancel_transform();
+                    } else {
+                        self.finish_transform();
+                    }
                 } else if !consumed {
-                    self.drag = Some(button);
-                    self.drag_distance = 0.;
+                    let mode = self.tool_mode();
+                    if button == MouseButton::Left
+                        && let Some(h) = self.ui.hover
+                        && self.start_transform(mode, Some(h))
+                    {
+                        self.drag = None;
+                    } else {
+                        self.drag = Some(button);
+                        self.drag_distance = 0.;
+                    }
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let dx = (position.x - self.cursor[0]) as f32;
                 let dy = (position.y - self.cursor[1]) as f32;
                 self.cursor = [position.x, position.y];
-                if let Some(button) = self.drag {
+                if let Some(t) = &mut self.ui.transform {
+                    // Shift moves the pointer's effect at a tenth of the speed.
+                    let k = if self.shift { 0.1 } else { 1. };
+                    t.mouse += glam::Vec2::new(dx, dy) * k;
+                    self.update_transform();
+                } else if let Some(button) = self.drag {
                     self.drag_distance += dx.abs() + dy.abs();
                     let s = &mut self.settings;
                     if button == MouseButton::Right || self.shift {
@@ -1066,7 +1169,46 @@ impl ApplicationHandler for App {
                     && !self.egui.wants_keyboard_input() =>
             {
                 if let PhysicalKey::Code(code) = event.physical_key {
+                    if self.transform_key(code) {
+                        if let Some(w) = &self.window {
+                            w.request_redraw();
+                        }
+                        return;
+                    }
+                    let selected = !matches!(
+                        self.ui.selection,
+                        ui::Selection::None | ui::Selection::Stage | ui::Selection::Camera
+                    );
+                    let over_view = !self.egui.is_pointer_over_area();
                     match code {
+                        KeyCode::KeyZ | KeyCode::KeyY if self.ctrl => {
+                            let redo = code == KeyCode::KeyY || self.shift;
+                            let done = if redo {
+                                self.ui.redo(&mut self.settings)
+                            } else {
+                                self.ui.undo(&mut self.settings)
+                            };
+                            let text = match (redo, done) {
+                                (false, true) => "Undo",
+                                (true, true) => "Redo",
+                                (false, false) => "Nothing to undo",
+                                (true, false) => "Nothing to redo",
+                            };
+                            self.ui.toast(text);
+                        }
+                        // Blender's modal transforms, when an object or light is selected.
+                        KeyCode::KeyG | KeyCode::KeyS | KeyCode::KeyR
+                            if selected && over_view && !self.ctrl =>
+                        {
+                            let mode = match code {
+                                KeyCode::KeyG => gizmo::Mode::Move,
+                                KeyCode::KeyR => gizmo::Mode::Rotate,
+                                _ => gizmo::Mode::Scale,
+                            };
+                            if !self.start_transform(mode, None) {
+                                self.ui.toast("The main light only moves and scales");
+                            }
+                        }
                         // Escape deselects; closing the window is the only way to quit.
                         KeyCode::Escape => self.ui.selection = ui::Selection::None,
                         // Tab: all → top bar only → nothing (screenshot mode) → all.
@@ -1207,6 +1349,7 @@ mod tests {
             ("main.rs", include_str!("main.rs")),
             ("editor.rs", include_str!("editor.rs")),
             ("ui.rs", include_str!("ui.rs")),
+            ("gizmo.rs", include_str!("gizmo.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
         ] {
