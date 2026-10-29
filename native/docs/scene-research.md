@@ -1,6 +1,8 @@
 # Scene research and plan
 
 Written 2026-10-29. This is research and a plan; no code has been changed.
+
+> **Update 2026-10-30:** this is a personal project that will never be published, so license terms do not limit which scenes or assets to use. The licensing notes below are background only. The ordered plan is [roadmap.md](roadmap.md).
 Paths are relative to `native/`.
 
 ## 0. What the engine can and cannot do today

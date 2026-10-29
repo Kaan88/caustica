@@ -18,6 +18,7 @@ Paths here are relative to `native/` unless noted.
   - `vendor/xess`: Intel XeSS SDK 3.0.2, commit `8fe81bd…`. Headers plus `libxess.dll`.
   - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap.
+- **Personal project, never published:** license terms don't limit assets or SDK use. The ordered plan is `docs/roadmap.md`: DLSS presets J/K/L/M, native HDR from Windows settings, UI phase 1, scene files; later a Vulkan backend and a software fallback / CPU reference renderer.
 - **Git:** the repo root is `cornell/` (WebGL app plus `native/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
 - The native settings JSON is not compatible with the browser's.
 

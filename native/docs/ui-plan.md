@@ -1,6 +1,8 @@
 # Cornell RTX UI redesign plan
 
 Status: plan only, nothing implemented. Written 2026-10-29 against the source as it stood that day.
+
+> **Update 2026-10-30:** add a DLSS Super Resolution preset choice (Default, J, K, L, M) next to the upscaler, and an HDR section (Auto/SDR, detected peak and SDR-white values from Windows). Both are specified in [roadmap.md](roadmap.md), which is now the ordered plan.
 Line numbers are a snapshot; `main.rs` and `gpu.rs` were being edited in parallel (upscaler work), so search by the quoted code if a number has drifted.
 
 The complaint: "the UI is just a bunch of sliders packed together." That is accurate. The panel is a flat dump of `Settings` fields in declaration-ish order, grouped by implementation area rather than by what the user is trying to do. This plan regroups it by task, hides internals behind an Advanced switch, makes the viewport itself interactive, and gives the renderer a status bar that says what it is doing.
