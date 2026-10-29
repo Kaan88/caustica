@@ -20,7 +20,7 @@ use windows::{
     core::{Interface, PCSTR},
 };
 
-const TEXTURES: usize = 22;
+const TEXTURES: usize = 25;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Constants {
@@ -105,6 +105,10 @@ pub struct Gpu {
     blas: Option<ID3D12Resource>,
     tlas: Option<ID3D12Resource>,
     atlas: Option<Texture>,
+    /// When set, each frame's backbuffer (with UI) is copied here before Present, because a
+    /// FLIP_DISCARD buffer's contents are undefined once presented. Kept in COPY_DEST.
+    pub keep_ui_frame: bool,
+    ui_frame: Option<ID3D12Resource>,
     atlas_pixels: Vec<u8>,
     atlas_size: [usize; 2],
     ngx: *mut c_void,
@@ -124,10 +128,12 @@ pub struct Gpu {
     rr_reset: bool,
     restarts: u32,
     sequence_base: u32,
-    /// History textures (15–17, 20) hold the previous traced frame of a native-filtered run.
+    /// History (15, 23) holds earlier samples warped into the current view.
     history_valid: bool,
-    /// Texture 21 holds the temporal integration of the current accumulation.
+    /// Textures 21/22 hold the integration of the last traced frame, and 16/17/20 its guides.
     integrated_valid: bool,
+    /// The camera moved since the last traced frame (accumulation restarted, history kept).
+    camera_moved: bool,
     pub reference_valid: bool,
     query: ID3D12QueryHeap,
     timing: ID3D12Resource,
@@ -426,6 +432,8 @@ impl Gpu {
             blas: None,
             tlas: None,
             atlas: None,
+            keep_ui_frame: false,
+            ui_frame: None,
             atlas_pixels: vec![],
             atlas_size: [0, 0],
             ngx,
@@ -447,6 +455,7 @@ impl Gpu {
             sequence_base: 0,
             history_valid: false,
             integrated_valid: false,
+            camera_moved: false,
             reference_valid: false,
             query,
             timing,
@@ -486,6 +495,9 @@ impl Gpu {
         if reset_history {
             self.rr_reset = true;
             self.history_valid = false;
+            self.camera_moved = false;
+        } else {
+            self.camera_moved = true;
         }
     }
     pub unsafe fn reconfigure_rr(&mut self) -> Result<()> {
@@ -563,6 +575,7 @@ impl Gpu {
             self.buffers.push(b);
         }
         self.textures.clear();
+        self.ui_frame = None;
         for i in 0..TEXTURES {
             let format = match i {
                 5 | 7 | 17 | 19 | 20 => DXGI_FORMAT_R32_FLOAT,
@@ -860,7 +873,8 @@ impl Gpu {
                 self.sequence_base,
                 0,
             ],
-            environment: [s.sky, 0., 0., 0.],
+            // View-space ray scale (tan of the half field of view) for the denoiser.
+            environment: [s.sky, 1. / proj.x_axis.x, 1. / proj.y_axis.y, 0.],
         };
         write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
         self.list
@@ -915,11 +929,27 @@ impl Gpu {
             self.rr_reset = false;
         }
         if !self.rr_active && s.denoise {
-            // Pass 0 integrates new samples over time; while paused it keeps the last result.
-            let integrate = n > 0 || !self.integrated_valid;
-            for i in (if integrate { 0 } else { 1 })..6 {
+            // Pass 0 warps the last integrated frame into this view after a camera move; a
+            // still camera keeps that history frozen. Pass 1 integrates new samples (skipped
+            // while paused). Passes 2–6 are the à-trous filter.
+            let traced = n > 0;
+            let reproject = traced && self.camera_moved && s.temporal && self.integrated_valid;
+            if traced && self.camera_moved {
+                self.history_valid = reproject;
+            }
+            if !s.temporal {
+                self.history_valid = false;
+            }
+            let first = if reproject {
+                0
+            } else if traced || !self.integrated_valid {
+                1
+            } else {
+                2
+            };
+            for i in first..7 {
                 c.filter[0] = i;
-                c.filter[2] = (n == 0 || !self.history_valid) as u32;
+                c.filter[2] = !self.history_valid as u32;
                 let offset = (i as u64 + 1) * 512;
                 write_buffer(&self.constants, offset, bytemuck::bytes_of(&c))?;
                 self.bind(offset);
@@ -927,21 +957,24 @@ impl Gpu {
                 self.list
                     .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
                 uav(&self.list, None);
-                if i == 0 && n > 0 {
-                    for (from, to) in [(21, 15), (2, 16), (5, 17), (19, 20)] {
+                if i == 1 && traced {
+                    // The next reprojection checks history against these guides.
+                    for (from, to) in [(2, 16), (5, 17), (19, 20)] {
                         copy_texture(
                             &self.list,
                             &self.textures[from].resource,
                             &self.textures[to].resource,
                         );
                     }
-                    self.history_valid = true;
                 }
             }
             self.integrated_valid = true;
         } else if n > 0 {
             self.history_valid = false;
             self.integrated_valid = false;
+        }
+        if n > 0 {
+            self.camera_moved = false;
         }
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
@@ -998,12 +1031,42 @@ impl Gpu {
         };
         self.list.OMSetRenderTargets(1, Some(&handle), false, None);
         self.draw_gui(primitives, pixels_per_point, &mut keep)?;
-        transition(
-            &self.list,
-            back,
-            D3D12_RESOURCE_STATE_RENDER_TARGET,
-            D3D12_RESOURCE_STATE_PRESENT,
-        );
+        if self.keep_ui_frame {
+            if self.ui_frame.is_none() {
+                self.ui_frame = Some(
+                    texture(
+                        &self.device,
+                        self.width,
+                        self.height,
+                        DXGI_FORMAT_R8G8B8A8_UNORM,
+                        D3D12_RESOURCE_FLAG_NONE,
+                        D3D12_RESOURCE_STATE_COPY_DEST,
+                    )?
+                    .resource,
+                );
+            }
+            transition(
+                &self.list,
+                back,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.list
+                .CopyResource(self.ui_frame.as_ref().unwrap(), back);
+            transition(
+                &self.list,
+                back,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_PRESENT,
+            );
+        } else {
+            transition(
+                &self.list,
+                back,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_PRESENT,
+            );
+        }
         self.submit()?;
         self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
         let mut data = null_mut();
@@ -1134,53 +1197,62 @@ impl Gpu {
             MaxDepth: 1.,
             ..Default::default()
         }]);
+        // One vertex and one index upload per frame; each mesh draws from its offsets.
+        let mut vertices = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
+        let mut draws = Vec::new();
         for primitive in primitives {
-            if let egui::epaint::Primitive::Mesh(mesh) = &primitive.primitive {
-                if mesh.indices.is_empty() {
-                    continue;
-                }
-                let vs: Vec<_> = mesh
-                    .vertices
-                    .iter()
-                    .map(|v| GuiVertex {
-                        position: [v.pos.x * ppp, v.pos.y * ppp],
-                        uv: [v.uv.x, v.uv.y],
-                        color: v.color.to_array(),
-                    })
-                    .collect();
-                let vb = upload(&self.device, bytemuck::cast_slice(&vs))?;
-                let ib = upload(&self.device, bytemuck::cast_slice(&mesh.indices))?;
-                self.list.IASetVertexBuffers(
-                    0,
-                    Some(&[D3D12_VERTEX_BUFFER_VIEW {
-                        BufferLocation: vb.GetGPUVirtualAddress(),
-                        SizeInBytes: (vs.len() * size_of::<GuiVertex>()) as _,
-                        StrideInBytes: size_of::<GuiVertex>() as _,
-                    }]),
-                );
-                self.list.IASetIndexBuffer(Some(&D3D12_INDEX_BUFFER_VIEW {
-                    BufferLocation: ib.GetGPUVirtualAddress(),
-                    SizeInBytes: (mesh.indices.len() * 4) as _,
-                    Format: DXGI_FORMAT_R32_UINT,
+            if let egui::epaint::Primitive::Mesh(mesh) = &primitive.primitive
+                && !mesh.indices.is_empty()
+            {
+                draws.push((
+                    primitive.clip_rect,
+                    indices.len() as u32,
+                    mesh.indices.len() as u32,
+                    vertices.len() as i32,
+                ));
+                indices.extend_from_slice(&mesh.indices);
+                vertices.extend(mesh.vertices.iter().map(|v| GuiVertex {
+                    position: [v.pos.x * ppp, v.pos.y * ppp],
+                    uv: [v.uv.x, v.uv.y],
+                    color: v.color.to_array(),
                 }));
-                let r = primitive.clip_rect;
-                let left = (r.min.x * ppp).clamp(0., self.width as f32) as i32;
-                let top = (r.min.y * ppp).clamp(0., self.height as f32) as i32;
-                let right = (r.max.x * ppp).clamp(left as f32, self.width as f32) as i32;
-                let bottom = (r.max.y * ppp).clamp(top as f32, self.height as f32) as i32;
-                self.list
-                    .RSSetScissorRects(&[windows::Win32::Foundation::RECT {
-                        left,
-                        top,
-                        right,
-                        bottom,
-                    }]);
-                self.list
-                    .DrawIndexedInstanced(mesh.indices.len() as _, 1, 0, 0, 0);
-                keep.push(vb);
-                keep.push(ib);
             }
         }
+        if draws.is_empty() {
+            return Ok(());
+        }
+        let vb = upload(&self.device, bytemuck::cast_slice(&vertices))?;
+        let ib = upload(&self.device, bytemuck::cast_slice(&indices))?;
+        self.list.IASetVertexBuffers(
+            0,
+            Some(&[D3D12_VERTEX_BUFFER_VIEW {
+                BufferLocation: vb.GetGPUVirtualAddress(),
+                SizeInBytes: (vertices.len() * size_of::<GuiVertex>()) as _,
+                StrideInBytes: size_of::<GuiVertex>() as _,
+            }]),
+        );
+        self.list.IASetIndexBuffer(Some(&D3D12_INDEX_BUFFER_VIEW {
+            BufferLocation: ib.GetGPUVirtualAddress(),
+            SizeInBytes: (indices.len() * 4) as _,
+            Format: DXGI_FORMAT_R32_UINT,
+        }));
+        for (r, first, count, base) in draws {
+            let left = (r.min.x * ppp).clamp(0., self.width as f32) as i32;
+            let top = (r.min.y * ppp).clamp(0., self.height as f32) as i32;
+            let right = (r.max.x * ppp).clamp(left as f32, self.width as f32) as i32;
+            let bottom = (r.max.y * ppp).clamp(top as f32, self.height as f32) as i32;
+            self.list
+                .RSSetScissorRects(&[windows::Win32::Foundation::RECT {
+                    left,
+                    top,
+                    right,
+                    bottom,
+                }]);
+            self.list.DrawIndexedInstanced(count, 1, first, base, 0);
+        }
+        keep.push(vb);
+        keep.push(ib);
         Ok(())
     }
     pub unsafe fn capture_reference(&mut self) -> Result<()> {
@@ -1202,12 +1274,14 @@ impl Gpu {
     ) -> Result<()> {
         let index = if hdr { 18 } else { 10 };
         let resource = if include_ui {
-            self.buffers[1 - self.swap.GetCurrentBackBufferIndex() as usize].clone()
+            self.ui_frame
+                .clone()
+                .context("UI capture needs keep_ui_frame set before rendering")?
         } else {
             self.textures[index].resource.clone()
         };
         let state = if include_ui {
-            D3D12_RESOURCE_STATE_PRESENT
+            D3D12_RESOURCE_STATE_COPY_DEST
         } else {
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS
         };

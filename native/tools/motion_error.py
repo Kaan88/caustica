@@ -12,6 +12,9 @@ raw samples, spatial filter only, and filter + temporal history. Each is scored 
 Usage, from native/:
     python tools/motion_error.py --exe target/validation/debug/cornell-rtx.exe --tag mytest [--tag older]
 The reference is rendered once and reused. Light-region crops go to <out>/crop_<tags>.png.
+
+--static 4,16,64,256 instead scores a still camera (yaw 0) at those sample counts, raw against
+denoised, to check that the filter converges to the reference instead of adding bias.
 """
 import argparse
 import subprocess
@@ -44,15 +47,39 @@ def blur(x):
     return sum(p[i:i + x.shape[0], j:j + x.shape[1]] for i in range(5) for j in range(5)) / 25
 
 
+def score(image, r):
+    e = compressed(image) - r
+    return np.sqrt((e ** 2).mean()) * 1000, np.sqrt((blur(e) ** 2).mean()) * 1000
+
+
+def still(exe, out, tag, counts):
+    reference = out / "ref_still.exr"
+    if not reference.exists():
+        render(exe, reference, ["--frames", "1024", "--raw", "--spp", "16", "--samples", "16384", "--set", "sobol=false"])
+    r = compressed(exr.read(reference))
+    for spp in counts:
+        line = f"{tag:12} {spp:5} spp"
+        for config, extra in [("raw", ["--raw"]), ("denoised", [])]:
+            path = out / f"{tag}_still{spp}_{config}.exr"
+            render(exe, path, ["--frames", str(max(1, spp // 4)), "--spp", str(min(spp, 4)), *extra])
+            rmse, blurred = score(exr.read(path), r)
+            line += f"  {config} {rmse:6.2f} / {blurred:5.2f}"
+        print(line)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--exe", type=Path, default=ROOT / "target/release/cornell-rtx.exe")
     parser.add_argument("--out", type=Path, default=ROOT / "captures/motion")
+    parser.add_argument("--static", help="Comma-separated sample counts for the still-camera check")
     parser.add_argument("--tag", action="append", required=True,
                         help="Name for this run. Repeat to also score earlier runs already in --out; the first tag is rendered.")
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
+    if args.static:
+        still(args.exe.resolve(), out, args.tag[0], [int(v) for v in args.static.split(",")])
+        return
     reference = out / "ref.exr"
     if not reference.exists():
         render(args.exe.resolve(), reference, ["--frames", "1024", "--raw", "--spp", "16", "--samples", "16384",

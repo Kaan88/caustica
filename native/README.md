@@ -28,7 +28,7 @@ Setup fetches NVIDIA's official DLSS **310.9.16** SDK pinned to commit `9981c635
 - **Materials:** Lambertian/GGX reflection, dielectric Fresnel, refraction, total internal reflection, Beer–Lambert absorption, metallic color, roughness, reflectivity, IOR, transmission and emission, with optional emission-only (unlit) surfaces. Procedural checker, stripe and marble patterns, and a 12-entry material library (porcelain, chrome, gold, copper, glasses, jade, lacquer, marble, emitters).
 - **NVIDIA DLSS Ray Reconstruction:** NGX feature `RayReconstruction`, created/evaluated through the official DLSSD helpers. It consumes fresh noisy HDR samples, diffuse/specular albedo, world normals plus packed roughness, linear view depth, current-to-previous pixel motion, primary-surface specular hit distance and camera matrices. RR receives neither progressively accumulated color nor the native denoiser's output. Jitter uses a 64-phase Halton sequence, with deterministic guide surfaces for each frame. Camera motion preserves neural history; geometry/material/light edits reset it.
 - **DLSS quality:** DLAA at 100% internal resolution, Quality, Balanced, Performance and Ultra Performance, plus custom render scale. Models: NVIDIA default, Transformer D, Transformer E, and RR2/F. RR2/F is the default. Quality/model changes recreate the NGX feature with completed GPU work.
-- **Native denoising:** five variance/normal/depth/albedo-guided à-trous passes, plus validated short-lived motion reprojection. Temporal display history never feeds the unbiased progressive accumulation. Native rendering offers padded 2D Owen-scrambled Sobol sampling or independent random sampling. RR deliberately uses independent random path samples, following NVIDIA's noise guidance.
+- **Native denoising (SVGF-style):** raw samples are integrated over time in albedo-demodulated space, then filtered by five à-trous passes guided by object id, normal, plane distance and a Gaussian-prefiltered luminance variance. On a camera move, the previous integration is reprojected bilinearly; each tap is checked by object id, normal and depth. While the camera is still, that history stays frozen and fades out over 256 fresh samples, so samples are never counted twice. Mirror-like pixels keep at most 2 samples of history. The history never feeds the unbiased progressive accumulation. Native rendering offers padded 2D Owen-scrambled Sobol sampling or independent random sampling. RR deliberately uses independent random path samples, following NVIDIA's noise guidance.
 - **Output:** eight views (beauty, normals, diffuse albedo, depth, direct, indirect, specular, convergence), six tone maps, exposure/gamma, direct/indirect relighting and a frozen linear-HDR A/B reference.
 - **Native controls:** egui rendered directly into the D3D12 swapchain, 24 scene presets, randomization, camera controls, validated JSON save/load, GPU timestamp timing, pause/convergence and resize support. A separate **Scene objects** window lists, searches, adds, duplicates, deletes, hides and focuses objects and edits their transform and material; click an object in the viewport to select it. The Lighting section edits the main light and up to 32 extra area lights. Material and light edits update the sampling tables without rebuilding the acceleration structures.
 - **Presets:** 0–8 are the Cornell-box studies (classic, reflective spheres, sphere and box, mirror + glass, mirror, glass, warm, dramatic, emissive spheres). 9–23 are open studios: material matrix, weekend sphere field, Whitted checkerboard, Utah teapot studio, Stanford bunny studio, glass laboratory, RGB shadow study, sphere pyramid, mirror corridor, knot gallery, column courtyard, chess still life, neon sculpture, orbital sculpture, and an empty stage to build on. Switching between Cornell-box presets keeps your camera; any other switch uses the preset's own view. Randomize picks any preset except the empty stage: inside the Cornell box it reshapes and recolors the blocks, elsewhere it keeps the layout and recolors diffuse and glass objects.
@@ -79,7 +79,7 @@ From `native/`:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
 ```
 
-Other switches: `--spp N`, `--samples N`, `--no-vsync`, `--debug`, `--rr`, `--capture-ui`, `--self-test`, `--help`. `--preset` and `--settings` each replace the whole scene, so give at most one of them, before any `--set`. `--headless` uses a hidden Win32 window and a real hardware D3D12 device; it requires `--frames N`. `--capture-ui` includes the controls in PNG captures. `--debug` requires Windows Graphics Tools/debug layers and fails verification on D3D12 warnings/errors.
+Other switches: `--spp N`, `--samples N`, `--no-vsync`, `--debug`, `--rr`, `--capture-ui`, `--self-test`, `--help`. `--preset` or `--settings` (give only one) is applied before every other switch, so the others always override it, in any order. `--headless` uses a hidden Win32 window and a real hardware D3D12 device; it requires `--frames N`. `--capture-ui` includes the controls in PNG captures. `--debug` requires Windows Graphics Tools/debug layers and fails verification on D3D12 warnings/errors.
 
 `--capture-sequence directory` captures the last 32 frames of a finite run for temporal image analysis. `--orbit-test` moves the camera by 0.25° per frame after a 64-frame warmup. The image-based RR regression renders a noise-free scene, emission-only walls and black emission-only blocks, so paths end at the first hit, to isolate reconstruction shimmer from path-tracing noise:
 
@@ -89,6 +89,22 @@ python tools/rr_stability.py
 ```
 
 `tools/exr.py` reads the EXR captures into numpy arrays (`exr.read(path)` returns an H×W×3 float32 array) for numerical comparisons.
+
+`tools/motion_error.py` measures the native denoiser against a 16,384-sample reference of the Classic preset at 800×600. The error is RMSE ×1000 of compressed luminance l/(1+l); "blurred" applies a 5×5 blur first, which exposes bias and smearing.
+
+| Camera orbit, 2 spp per frame (last of 124 frames) | Error | Blurred | Around the light |
+|---|---|---|---|
+| Raw samples | 48.0 | 11.6 | 21.2 |
+| Previous filter + temporal | 20.7 | 16.9 | 36.9 |
+| SVGF-style filter + temporal | **9.6** | **4.4** | **7.0** |
+
+| Still camera | 4 spp | 16 spp | 64 spp | 256 spp | 1024 spp |
+|---|---|---|---|---|---|
+| Raw | 35.8 | 18.3 | 9.3 | 4.7 | 2.4 |
+| Previous filter | 14.1 | 13.0 | 10.6 | 5.3 | 4.8 |
+| SVGF-style filter | **10.0** | **6.3** | **4.1** | **2.4** | **1.6** |
+
+The previous filter fed its own blurred output back as history, so it got worse than raw samples above about 64 spp. At 1440×900 and 4 spp on an RTX 4070 Ti SUPER, the Classic preset takes 1.6 ms raw, 3.1 ms with the native denoiser and 3.9 ms with DLSS RR (means over 200 frames).
 
 The RR bridge converts ray-sampling offsets to NGX image displacements with opposite signs on both axes. Specular hit distances come from a stable primary reflection ray rather than a randomly selected BSDF lobe; this prevents false reflection-motion changes on stationary surfaces.
 
@@ -115,7 +131,8 @@ All frame submissions are fenced before upload buffers or descriptors can be reu
 
 ## Current limits
 
-- The path tracer retains the original approximation for rough glass and does not importance-sample refractive caustics. GGX uses a single-scattering model. Every shape is a triangle mesh; spheres use 64×32 tessellation with smooth normals. Sky light is not importance-sampled, so open scenes lit mainly by the sky converge more slowly. Procedural patterns are evaluated in world space, so they slide across an object that moves.- The native sampler has Sobol scrambling but does not carry over the browser's generated blue-noise texture. The native denoiser is a new à-trous implementation, not an exact SVGF port.
+- The path tracer retains the original approximation for rough glass and does not importance-sample refractive caustics. GGX uses a single-scattering model. Every shape is a triangle mesh; spheres use 64×32 tessellation with smooth normals. Sky light is not importance-sampled, so open scenes lit mainly by the sky converge more slowly. Procedural patterns are evaluated in world space, so they slide across an object that moves.
+- The native sampler has Sobol scrambling but does not carry over the browser's generated blue-noise texture. The native denoiser follows SVGF but keeps nearest-neighbor upscaling when the render scale is below 1 without RR; at very low sample counts it can leave faint low-frequency blotches on flat walls.
 - RR albedo guides use a material/Fresnel estimate; glass guides describe the primary glass surface. Neural reconstruction can leave artifacts in difficult glossy/refractive scenes, especially during disocclusion or at aggressive render scales.
 - Direct/indirect sliders are exact AOV recomposition for raw native output. On filtered/RR output they apply the accumulated AOV ratio to reconstructed beauty; that operation is an approximation. Diagnostic AOVs remain progressive raw estimates.
 - Memory scales with pixel count. Guides/history use FP32, and large output targets can allocate several GB. There is one frame in flight and no frame generation, Reflex, ReSTIR, texture importer, or mesh importer.

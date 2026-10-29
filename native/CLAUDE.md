@@ -41,8 +41,9 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
 - Headless runs need a real GPU and use a hidden window:
   - Command: `cornell-rtx.exe --headless --frames N [--width W --height H --scale s --spp n --samples cap --preset 0..23 --settings f.json --rr|--no-rr|--require-rr --raw --debug] --capture out.png|out.exr`.
-  - Success prints `RENDER_OK frames= samples= gpu_ms= rr= size=`.
-  - Argument order matters: `--preset` re-initializes settings, and `--settings` replaces them.
+  - Success prints `RENDER_OK frames= samples= gpu_ms= rr= size= gpu_ms_mean= frame_ms_mean=`. The means are taken from frame 10 on, so use ≥ 200 frames with `--no-vsync` for benchmarks.
+  - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
+    - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
   - `--self-test`: 180 scripted frames; implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
@@ -82,10 +83,11 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 1. Upload `Constants` to offset 0, then `trace` dispatch (8×8 groups, render resolution).
 2. Then one of:
    - **If RR is active:** transition inputs 0, 2–7 to SRV, call `NGX_D3D12_EVALUATE_DLSSD_EXT` into texture 14, transition back.
-   - **Otherwise, if denoise is on** (branch `review-findings`):
-     - Pass 0 integrates samples over time into texture 21. It is skipped while paused once integrated.
-     - When samples were traced, copy 21→15, 2→16, 5→17 and 19→20.
-     - Then 5 à-trous passes. Constants sit at offset 512·(i+1).
+   - **Otherwise, if denoise is on:** filter passes 0–6, constants at offset 512·(i+1).
+     - 0 reproject: only on a camera move.
+     - 1 integrate: when samples were traced, or the integration is stale. It then copies guides 2→16, 5→17 and 19→20 for the next reprojection.
+     - 2–6 à-trous.
+     - Flags `camera_moved`, `history_valid` and `integrated_valid` in `Gpu` decide which passes run.
 3. `display` (constants at offset 6144) writes `output_image` (10, RGBA8) and `linear_output` (18).
 4. Copy 10 to the backbuffer, draw egui, Present.
 5. **One frame in flight.** `submit()` blocks on the fence every frame, so per-frame upload buffers in `keep` survive until it signals. CPU writes into the shared upload CB are safe only because of that.
@@ -144,7 +146,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 0 | CBV b0 |
 | 1 | SRV t0 TLAS |
 | 2 | SRV t1 vertices |
-| 3 | Table: UAV u0–u21 (heap slots 0–21) |
+| 3 | Table: UAV u0–u24 (heap slots 0–24) |
 | 4 | Table: SRV t2, egui atlas (heap slot 32, pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
@@ -172,13 +174,16 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
 | 12 | specular_light AOV | |
 | 13 | reference_image (A/B) | **output resolution** |
 | 14 | reconstruction (RR output) | **output resolution** |
-| 15 | history color | |
+| 15 | history (reprojected integration, frozen while the camera is still) | |
 | 16 | history normal | |
 | 17 | history depth | R32F |
 | 18 | linear_output (HDR beauty, used for EXR) | **output resolution** |
 | 19 | object_id (first-hit material id + 1, 0 = miss) | R32F |
 | 20 | history object id | R32F |
-| 21 | integrated (temporal raw color; a = effective samples) | |
+| 21 | integrated (demodulated color; a = effective samples) | |
+| 22 | moments (E[l], E[l²] per sample of demodulated luminance; z = variance of the integrated mean) | |
+| 23 | history_moments | |
+| 24 | filter_guide (octahedral normal xy, depth, object id: one read per à-trous tap) | |
 
 ## Rendering behaviour worth remembering
 
@@ -198,14 +203,17 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
   - Native mode uses padded 2D Owen-scrambled Sobol. RR mode always uses white noise (NVIDIA's guidance).
   - There is no blue-noise mask, unlike the WebGL version.
   - The sequence index is `scene_info.z + samples + sample_id`. The base moves to a new 8192-aligned block on every reset, and the per-pixel scramble is fixed.
+  - **Performance:**
+    - Dimension pairs are computed together, and the second dimension uses a closed form (5-step superset transform). Before this, Sobol cost 6.5 ms vs 1.5 ms for white noise at 1440×900, 4 spp; now 1.7 ms.
+    - The output is bit-identical to the old loop. Keep any change bit-identical, or re-measure convergence.
 - **Native filter** (`post.hlsl`):
-  - Pass 0 integrates raw samples over time:
-    - Nearest-pixel reprojection through `motion`.
-    - Accepts a history pixel when the object id matches, normal dot > 0.95, and depth is within max(2.5 cm, 3%).
-    - History weight runs from 0.85 (rough) to 0.1 (glossy) and fades out by 256 spp. There is no clamp.
-  - Passes 1–5 are B3 5×5 à-trous:
-    - Weights come from object id (hard stop), normal (pow 64), depth, and luminance. The luminance σ uses the M2 variance divided by the effective sample count.
-    - Albedo demodulation uses diffuse + specular albedo.
+  - SVGF-style, with everything in albedo-demodulated light until the last pass:
+    - **Pass 0, reproject** (camera moves only): bilinear warp of last frame's integration into this view. Each tap is checked against the object id, normal (> 0.9) and depth (3% + 1 cm). Coverage below 0.25 means no history.
+    - **Pass 1, integrate:** blend the accumulation with history.
+      - Weight h/(h+n): h is the history count, capped at 24 and lowered to 2 by the 3×3 specular share, then faded over 256 fresh samples.
+      - Also integrates luminance moments. The variance is spatial (5×5) while fewer than 4 samples exist, otherwise from the moments.
+    - **Passes 2–6, à-trous:** B3 kernel. Weights: object id (hard stop), normal pow 64, view-space plane distance, and luminance against 8·strength·√(3×3 Gaussian of variance).
+      - Variance propagates with w², and pass 6 multiplies the albedo back in.
   - At render scale < 1 without RR, display upscales by nearest neighbour.
 - **RR (`bridge/ngx.cpp`):**
   - Settings: DLUnified denoise mode, packed roughness, linear depth, IsHDR and MVLowRes flags, MV scale 1.
@@ -213,7 +221,7 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
   - Quality mode is derived from the ratio of render width to output width.
   - The preset hint is set for every quality mode. Preset ids: 0 default, 4 D, 5 E, 6 F.
 - **Exports:**
-  - PNG reads texture 10 (no UI) or the last presented backbuffer (`--capture-ui`).
+  - PNG reads texture 10 (no UI). With `--capture-ui`, `Gpu::keep_ui_frame` copies each backbuffer into `ui_frame` before Present, and the capture reads that.
   - EXR reads texture 18.
   - High-resolution export resizes the swapchain to ≤ 4096, renders synchronously, then resizes back.
 
@@ -248,66 +256,57 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
 
-## Review findings: paused mid-way (2026-10-29)
+## Review findings: fixed on branch `review-findings` (2026-10-29)
 
-Work is on git branch `review-findings`; `main` is the verified state from before it.
-The user asked to pause here to set up the repo.
+`main` is the state before these fixes. All are measured; not yet merged.
 
-The branch state passes fmt, Clippy, the 5 unit tests and the 180-frame self-test. **It is not yet visually reviewed beyond the Classic preset.**
+**Native denoiser** (see "Rendering behaviour" for the design). Scores are ×1000, measured with `tools/motion_error.py`.
 
-### Done on the branch
+| Case | Before | After |
+|---|---|---|
+| Orbit, 2 spp: error / blurred / light band | 20.65 / 16.94 / 36.9 | 9.63 / 4.40 / 7.0 |
+| Still camera, 16 spp | 12.96 | 6.31 |
+| Still camera, 1024 spp | 4.79 (raw 2.43) | 1.56 |
 
-1. **Object id per pixel.**
-   - `object_id` (u19) = first-hit material id + 1; `history_id` (u20) is its copy.
-   - The à-trous filter skips taps from a different id.
-   - Temporal reuse rejects history with a different id.
-   - This keeps the dark gap beside the light: the light quad sits 3.5 cm under the ceiling with the same normal, so normal and depth checks alone could not separate them.
-2. **Sobol decorrelation.**
-   - Every `Gpu::reset` takes a new 8192-aligned sequence base (`scene_info.z`).
-   - A moving camera no longer reuses the previous frame's sample points.
-3. **Native temporal redesigned, SVGF-style.** This was the real cause of the light-gap smear: history used to store the *final filtered* image, which was blurred again every frame.
-   - Filter pass 0 now integrates **raw** samples into `integrated` (u21; a = effective sample count). History (15) is a copy of that.
-   - Passes 1–5 run à-trous over the integrated color, with variance divided by the effective count.
-   - The ±3σ history clamp was dropped. Any non-camera edit resets history, and glossy surfaces keep at most 10% history.
-   - `history_valid` and `integrated_valid` flags in `Gpu` replace `rr_reset` for the native path.
-   - While paused, pass 0 is skipped, so the integrated image stays put.
-   - Filter constants now use a 512-byte stride (offsets 512…3072); display stays at 6144.
-   - `TEXTURES` = 22.
+- The old filter was biased: its blurred output was fed back as history, so it was worse than raw above 64 spp.
+- The white specks came from per-pixel variance estimates that were near zero by chance. The 3×3 variance prefilter fixed them, so no separate firefly clamp was added.
+- The light "ghost" was the spatial and temporal blur crossing from the light to the ceiling. The object-id stop fixed it.
 
-### Measured with `tools/motion_error.py`
+**Sobol** decorrelates per reset and is now 4× cheaper. See "Rendering behaviour".
 
-Setup: Classic preset, 800×600, 2 spp per frame, last frame of a 124-frame orbit, compared with a 16,384-spp reference. Errors are ×1000.
+**Other fixes:**
+- Pan follows the screen axes, and the target is clamped to ±20.
+- The Pause glyph is ⏸, and the resolution label reads "Render … · output …".
+- The `tests::ui_strings_have_glyphs` unit test checks every non-ASCII character in UI strings against egui's fonts.
+- The Delete key only works while the Scene objects window is open.
+- The UI capture is copied before Present.
+- Marble veins are thinner and softer.
+- The CLI is order-independent.
+- RENDER_OK prints means.
 
-| Build | Temporal RMSE | Blurred | Light band |
-|---|---|---|---|
-| Before | 20.65 | 16.94 | 36.9 |
-| + object id | 21.23 | 16.68 | 34.1 |
-| + Sobol base | 20.88 | 16.46 | 33.5 |
-| + raw-sample integration | **13.19** | **7.37** | **14.6** |
+**Performance:** 1440×900, 4 spp, mean of 200 frames, before → after on this branch.
 
-For comparison, the spatial filter alone scores 22.08 / 17.47 / 38.1, and raw samples score 48.0 / 11.6 / 21.2.
+| Case | Before | After |
+|---|---|---|
+| Classic, raw | 2.87 | 1.64 |
+| Classic, native denoiser | 7.48 | 3.10 |
+| Bunny (13), native | 7.53 | 3.86 |
+| Mirror corridor (17), native | 10.04 | 5.75 |
+| RR | 3.95 | 3.88 |
+| With UI drawn, wall clock | 11.8 | 4.2 |
 
-### Still to do
+The gains come from:
+- First-hit shadow rays.
+- The Sobol pair cache.
+- The packed filter guide with demodulated filtering.
+- One egui upload per frame.
+- Skipping dirty-key serialization when settings are unchanged.
 
-- **Check the new temporal pass:**
-  - The light's far edge still loses part of its dark gap and looks stair-stepped. Try bilinear 4-tap reprojection with per-tap validation, as in the WebGL version.
-  - Possibly raise the 0.85 history weight for diffuse surfaces.
-  - Check that a static camera still converges without bias at high spp.
-  - Check pausing mid-orbit, toggling denoise while paused, other presets, and RR on/off switching.
-- **Fireflies survive the native filter** (white specks at 2 spp). Not started.
-- **Remaining findings, not started:**
-  - Pan uses yaw only (`main.rs:823`); pan along screen axes instead.
-  - Glyphs "Ⅱ" and "→" are missing from egui's font (Pause button, resolution label). Use ASCII or verified glyphs.
-  - The Delete key works even when the Scene objects window is closed.
-  - Performance:
-    - Shadow rays could use `RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH` and skip hit reconstruction.
-    - egui could use one upload buffer per frame instead of one per mesh.
-    - Skip the dirty-key serialization when `Settings` is unchanged, and stop computing `material_key` twice.
-    - Measure each before and after.
-  - `--capture-ui` reads a FLIP_DISCARD backbuffer after Present. Copy it before Present instead.
-  - The courtyard marble pattern reads as black blotches. Cosmetic; tune the marble function or `pattern_scale`.
-- **Not a bug:** windows ending up off-screen after a resize. egui constrains windows to its screen rect, and that only happened because the self-test resizes the swapchain without resizing the hidden window.
-- When finished, update README "Native denoising", rebuild release, run `tools/verify.ps1`, and merge the branch.
+**Not a bug:** windows going off-screen after a resize only happened because the self-test resizes the swapchain without resizing the window.
+
+**Still open (not started):**
+- Native upscaling below render scale 1 is nearest-neighbor.
+- Faint low-frequency blotches at very low spp, which is typical of SVGF.
 
 ## Measurement conventions (carried over from the WebGL work)
 

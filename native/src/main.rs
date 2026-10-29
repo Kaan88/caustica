@@ -52,6 +52,8 @@ struct App {
     preset: usize,
     frames: Option<u32>,
     rendered: u32,
+    /// Timing for the RENDER_OK line, from frame 10 on (after startup and BVH builds).
+    timing: Option<(Instant, f64)>,
     capture: Option<PathBuf>,
     capture_sequence: Option<PathBuf>,
     orbit_test: bool,
@@ -65,6 +67,8 @@ struct App {
     last_key: String,
     geom_key: String,
     material_key: Vec<u8>,
+    /// Settings the dirty keys were last computed from.
+    checked: Option<Settings>,
     selected_object: usize,
     add_shape: scene::Shape,
     object_search: String,
@@ -149,7 +153,25 @@ impl App {
         let mut self_test = false;
         let mut selected_preset = 0;
         let mut size = [1440, 900];
-        let mut args = std::env::args().skip(1);
+        // --preset and --settings replace the whole scene, so apply them before every other
+        // switch: the command line then means the same in any order.
+        let mut ordered: Vec<String> = vec![];
+        let mut rest: Vec<String> = vec![];
+        let mut all = std::env::args().skip(1);
+        while let Some(arg) = all.next() {
+            if arg == "--preset" || arg == "--settings" {
+                anyhow::ensure!(
+                    ordered.is_empty(),
+                    "Give only one of --preset and --settings"
+                );
+                ordered.push(arg);
+                ordered.extend(all.next());
+            } else {
+                rest.push(arg);
+            }
+        }
+        ordered.extend(rest);
+        let mut args = ordered.into_iter();
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--orbit-test" => orbit_test = true,
@@ -189,7 +211,7 @@ impl App {
                     )?)?
                 }
                 "--set" => {
-                    // Override one top-level setting after --preset/--settings, e.g. --set direct=0.
+                    // Override one top-level setting, e.g. --set direct=0.
                     let pair = args.next().context("--set needs key=value")?;
                     let (key, value) = pair.split_once('=').context("--set needs key=value")?;
                     let mut j = serde_json::to_value(&s)?;
@@ -244,6 +266,7 @@ impl App {
             last_key: transport_key(&s),
             geom_key: geometry_key(&s),
             material_key: material_key(&s),
+            checked: None,
             selected_object: 0,
             add_shape: scene::Shape::Sphere,
             object_search: String::new(),
@@ -260,6 +283,7 @@ impl App {
             preset: selected_preset,
             frames,
             rendered: 0,
+            timing: None,
             capture,
             capture_sequence,
             orbit_test,
@@ -427,36 +451,39 @@ impl App {
                 g.resize(g.width, g.height, s)?;
             }
         }
-        let geometry = geometry_key(s);
-        if self.geom_key != geometry {
-            unsafe {
-                g.rebuild_scene(s)?;
-            }
-            self.geom_key = geometry;
-            self.material_key = material_key(s);
-        }
-        let mk = material_key(s);
-        if self.material_key != mk {
-            unsafe {
-                g.update_materials(s)?;
-            }
-            self.material_key = mk;
-        }
-        let key = transport_key(s);
-        if key != self.last_key {
-            let mut old: serde_json::Value = serde_json::from_str(&self.last_key)?;
-            let mut new: serde_json::Value = serde_json::from_str(&key)?;
-            if old["rr_preset"] != new["rr_preset"] || old["rr"] != new["rr"] {
+        // The keys serialize the whole scene, so only rebuild them after an edit.
+        if self.checked.as_ref() != Some(s) {
+            let geometry = geometry_key(s);
+            let mk = material_key(s);
+            if self.geom_key != geometry {
+                // Also uploads the materials and light tables.
                 unsafe {
-                    g.reconfigure_rr()?;
+                    g.rebuild_scene(s)?;
+                }
+                self.geom_key = geometry;
+            } else if self.material_key != mk {
+                unsafe {
+                    g.update_materials(s)?;
                 }
             }
-            for k in ["yaw", "pitch", "distance", "target", "fov"] {
-                old.as_object_mut().unwrap().remove(k);
-                new.as_object_mut().unwrap().remove(k);
+            self.material_key = mk;
+            let key = transport_key(s);
+            if key != self.last_key {
+                let mut old: serde_json::Value = serde_json::from_str(&self.last_key)?;
+                let mut new: serde_json::Value = serde_json::from_str(&key)?;
+                if old["rr_preset"] != new["rr_preset"] || old["rr"] != new["rr"] {
+                    unsafe {
+                        g.reconfigure_rr()?;
+                    }
+                }
+                for k in ["yaw", "pitch", "distance", "target", "fov"] {
+                    old.as_object_mut().unwrap().remove(k);
+                    new.as_object_mut().unwrap().remove(k);
+                }
+                g.reset(old != new);
+                self.last_key = key;
             }
-            g.reset(old != new);
-            self.last_key = key;
+            self.checked = Some(s.clone());
         }
         if self.actions.reset {
             g.reset(true);
@@ -625,7 +652,20 @@ impl App {
             self.fail(event_loop, e);
             return;
         }
+        let gpu_ms = self.gpu.as_ref().unwrap().gpu_ms;
+        match &mut self.timing {
+            Some((_, sum)) => *sum += gpu_ms,
+            None if self.rendered == 10 => self.timing = Some((Instant::now(), 0.)),
+            None => {}
+        }
         if self.frames.is_some_and(|f| self.rendered >= f) {
+            let (frame_ms, mean_gpu_ms) = match self.timing {
+                Some((start, sum)) if self.rendered > 10 => {
+                    let n = (self.rendered - 10) as f64;
+                    (start.elapsed().as_secs_f64() * 1000. / n, sum / n)
+                }
+                _ => (0., 0.),
+            };
             let g = self.gpu.as_mut().unwrap();
             if let Some(path) = &self.capture {
                 let hdr = path.extension().is_some_and(|v| v == "exr");
@@ -635,8 +675,15 @@ impl App {
                 }
             }
             println!(
-                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{}",
-                self.rendered, g.samples, g.gpu_ms, g.rr_active, g.width, g.height
+                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3}",
+                self.rendered,
+                g.samples,
+                g.gpu_ms,
+                g.rr_active,
+                g.width,
+                g.height,
+                mean_gpu_ms,
+                frame_ms
             );
             event_loop.exit();
         }
@@ -654,7 +701,7 @@ impl App {
             ui.label(format!("{} objects · {} triangles · {} emissive triangles",self.settings.objects.len(),g.triangle_count,g.emitter_count));
             ui.horizontal(|ui|{ui.monospace(format!("{} spp  ·  {:.2} ms GPU",g.samples,g.gpu_ms));if g.samples>=self.settings.max_samples{ui.label("Converged");}});
             ui.label(egui::RichText::new(&g.rr_status).small());ui.separator();
-            ui.horizontal(|ui|{if ui.button(if self.paused{"▶ Resume"}else{"Ⅱ Pause"}).clicked(){self.paused= !self.paused;}
+            ui.horizontal(|ui|{if ui.button(if self.paused{"▶ Resume"}else{"⏸ Pause"}).clicked(){self.paused= !self.paused;}
 if ui.button("Reset [R]").clicked(){self.actions.reset=true;}
 if ui.button("A/B [C]").clicked(){self.actions.reference=true;}});
             egui::ComboBox::from_label("Scene preset").selected_text(self.settings.scene_name.clone()).show_ui(ui,|ui|{for (i,p) in PRESETS.iter().enumerate(){if ui.selectable_value(&mut self.preset,i,*p).changed(){self.settings.preset(i);}}});
@@ -673,7 +720,7 @@ if ui.button("Reset all").clicked(){self.settings=Settings::default();self.prese
                 ui.checkbox(&mut s.temporal,"Reuse temporal history");ui.checkbox(&mut s.denoise,"Native à-trous denoiser [D]");
                 ui.add(egui::Slider::new(&mut s.denoise_strength,0. ..=1.).text("Denoise strength"));
                 ui.add(egui::Slider::new(&mut s.scale,0.25..=1.).text("Render scale"));
-                ui.label(format!("{} × {} → {} × {}",g.rw,g.rh,g.width,g.height));
+                ui.label(format!("Render {} × {} · output {} × {}",g.rw,g.rh,g.width,g.height));
                 ui.add(egui::Slider::new(&mut s.spp,1..=16).text("Samples / frame"));ui.add(egui::Slider::new(&mut s.bounces,1..=32).text("Bounces"));ui.add(egui::Slider::new(&mut s.max_samples,16..=65536).logarithmic(true).text("Sample limit"));
                 ui.checkbox(&mut s.sobol,"Owen-scrambled Sobol (native)").on_hover_text("DLSS RR uses independent white noise as recommended by NVIDIA. This controls the native progressive path.");ui.add(egui::Slider::new(&mut s.firefly,0. ..=50.).text("Firefly clamp (0 = off)"));ui.checkbox(&mut s.vsync,"VSync");
             });
@@ -749,8 +796,9 @@ impl ApplicationHandler for App {
                 _ => bail!("Windows only"),
             };
             let size = window.inner_size();
-            let gpu =
+            let mut gpu =
                 unsafe { Gpu::new(hwnd, size.width, size.height, &self.settings, self.debug)? };
+            gpu.keep_ui_frame = self.capture_ui;
             let input = egui_winit::State::new(
                 self.egui.clone(),
                 egui::ViewportId::ROOT,
@@ -820,11 +868,17 @@ impl ApplicationHandler for App {
                     self.drag_distance += dx.abs() + dy.abs();
                     let s = &mut self.settings;
                     if button == MouseButton::Right || self.shift {
+                        // Pan along the camera's screen axes, so the scene follows the
+                        // cursor at any pitch.
                         let scale = s.distance * 0.001;
-                        let yaw = s.yaw.to_radians();
-                        s.target[0] -= dx * scale * yaw.cos();
-                        s.target[2] += dx * scale * yaw.sin();
-                        s.target[1] += dy * scale;
+                        let (sy, cy) = s.yaw.to_radians().sin_cos();
+                        let (sp, cp) = s.pitch.to_radians().sin_cos();
+                        let right = [cy, 0., -sy];
+                        let up = [-sp * sy, cp, -sp * cy];
+                        for i in 0..3 {
+                            s.target[i] = (s.target[i] + (dy * up[i] - dx * right[i]) * scale)
+                                .clamp(-20., 20.);
+                        }
                     } else if button == MouseButton::Left {
                         s.yaw += dx * 0.25;
                         s.pitch = (s.pitch + dy * 0.25).clamp(-85., 85.);
@@ -854,7 +908,10 @@ impl ApplicationHandler for App {
                         KeyCode::KeyR => self.actions.reset = true,
                         KeyCode::KeyF => self.actions.frame_scene = true,
                         KeyCode::Delete => {
-                            if self.selected_object < self.settings.objects.len() {
+                            // Only with the object list open, so the deletion is visible.
+                            if self.show_objects
+                                && self.selected_object < self.settings.objects.len()
+                            {
                                 self.settings.objects.remove(self.selected_object);
                                 self.selected_object = self
                                     .selected_object
@@ -918,4 +975,33 @@ fn run() -> Result<()> {
         bail!(error);
     }
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    /// Every non-ASCII character in a UI string must exist in egui's default fonts,
+    /// otherwise it renders as an empty box.
+    #[test]
+    fn ui_strings_have_glyphs() {
+        let ctx = egui::Context::default();
+        let _ = ctx.run(Default::default(), |_| {});
+        let font = egui::FontId::proportional(14.);
+        for (file, source) in [
+            ("main.rs", include_str!("main.rs")),
+            ("editor.rs", include_str!("editor.rs")),
+            ("presets.rs", include_str!("presets.rs")),
+            ("scene.rs", include_str!("scene.rs")),
+        ] {
+            for line in source.lines().filter(|l| !l.trim_start().starts_with("//")) {
+                for literal in line.split('"').skip(1).step_by(2) {
+                    for c in literal.chars().filter(|c| !c.is_ascii()) {
+                        assert!(
+                            ctx.fonts(|f| f.has_glyph(&font, c)),
+                            "{file}: {c:?} (U+{:04X}) in {literal:?} has no glyph",
+                            c as u32
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

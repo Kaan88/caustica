@@ -1,36 +1,80 @@
 #include "common.hlsli"
-// Iteration 0 integrates the unfiltered samples over time (rgb = color, a = effective
-// sample count). Iterations 1–5 are à-trous passes: integrated -> ping -> pong -> ... -> ping.
-// History holds integrated color, never filtered output, so features are not re-blurred every frame.
-float3 source(uint2 p,uint iteration){if(iteration==1)return integrated[p].rgb;if((iteration&1)==0)return ping[p].rgb;return pong[p].rgb;}
-void integrate(uint2 p){
-    float3 n=normal_roughness[p].xyz;float z=depth[p];float count=max(1,sampling.x+sampling.y);
-    float3 c=accumulation[p].rgb;float effective=count;
-    if(filter_settings.y!=0 && filter_settings.z==0 && count<256){
-        int2 q=int2(round(float2(p)+motion[p]));
-        if(all(q>=0)&&all(q<int2(dimensions.xy)) && history_id[q]==object_id[p] && dot(n,history_normal[q].xyz)>0.95 && abs(z-history_depth[q])<max(0.025,z*0.03)){
-            // Glossy surfaces keep little history: their reflections move with the view.
-            float4 h=history[q];float w=lerp(0.85,0.1,1-normal_roughness[p].w)*saturate(1-count/256);
-            c=lerp(c,h.rgb,w);effective=1/((1-w)*(1-w)/count+w*w/max(h.a,1));
-        }
+// Native SVGF-style denoiser, display only (the progressive accumulation stays unbiased).
+//   0 reproject: on a camera move, warp last frame's integrated color + moments into this
+//     view as the history (bilinear, each tap checked by object id, normal and depth).
+//   1 integrate: blend this frame's raw samples with that history. While the camera is
+//     still, the history stays frozen, so accumulated samples are never counted twice.
+//   2–6 à-trous: integrated -> ping -> pong -> ping -> pong -> ping (display reads ping).
+// Everything is in demodulated (albedo-divided) light until the last pass. Variance is of
+// demodulated luminance, carried in moments.z then ping/pong alpha.
+float3 albedo_at(int2 q){return max(diffuse_albedo[q].rgb+specular_albedo[q].rgb,0.05);}
+float3 view_dir(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 h=mul(inverse_vp,float4(ndc,1,1));return normalize(h.xyz/h.w-eye.xyz);}
+float3 world_at(int2 q,float3 d){return eye.xyz+d*(depth[q]/max(-mul(world_view,float4(d,0)).z,1e-4));}
+float3 view_pos(int2 q,float z){float2 ndc=((float2(q)+0.5)/float2(dimensions.xy))*2-1;return float3(ndc.x*environment.y,-ndc.y*environment.z,-1)*z;}
+float2 sign_nz(float2 v){return float2(v.x>=0?1:-1,v.y>=0?1:-1);}
+float2 oct_encode(float3 n){n/=abs(n.x)+abs(n.y)+abs(n.z)+1e-9;return n.z>=0?n.xy:(1-abs(n.yx))*sign_nz(n.xy);}
+float3 oct_decode(float2 e){float3 n=float3(e,1-abs(e.x)-abs(e.y));n.xy-=saturate(-n.z)*sign_nz(n.xy);return normalize(n);}
+void reproject(uint2 p){
+    float3 n=normal_roughness[p].xyz;float3 P=world_at(int2(p),view_dir(float2(p)+0.5));float4 previous=mul(previous_vp,float4(P,1));float id=object_id[p];
+    float2 at=float2(p)+motion[p];int2 base=int2(floor(at));float2 f=at-base;
+    float4 color=0,moment=0;float total=0;
+    for(int i=0;i<4;i++){
+        int2 o=int2(i&1,i>>1);int2 q=base+o;if(any(q<0)||any(q>=int2(dimensions.xy)))continue;
+        if(history_id[q]!=id || dot(n,history_normal[q].xyz)<0.9 || abs(history_depth[q]-previous.w)>0.03*previous.w+0.01)continue;
+        float w=(o.x!=0?f.x:1-f.x)*(o.y!=0?f.y:1-f.y);color+=w*integrated[q];moment+=w*moments[q];total+=w;
     }
-    integrated[p]=float4(c,effective);
+    // Partly covered pixels get proportionally less trust; mostly uncovered ones start over.
+    if(total<0.25){history[p]=0;history_moments[p]=0;return;}
+    color/=total;color.a*=saturate(total);history[p]=color;history_moments[p]=moment/total;
 }
+void integrate(uint2 p){
+    float count=max(1,sampling.x+sampling.y);float4 acc=accumulation[p];float id=object_id[p];
+    float3 alb=albedo_at(int2(p));float ld=luminance(acc.rgb/alb),lr=luminance(acc.rgb);float s=lr>1e-6?ld/lr:1/luminance(alb);
+    float2 m=float2(ld,acc.a/count*s*s+ld*ld);float3 c=acc.rgb/alb;float effective=count;
+    if(filter_settings.y!=0 && filter_settings.z==0){
+        // History cap: 24 samples on diffuse surfaces, down to 2 where the first bounce is
+        // specular (reflections move with the view). It fades out over 256 fresh samples.
+        float spec=0,all_light=0;
+        for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){int2 q=clamp(int2(p)+int2(x,y),0,int2(dimensions.xy)-1);spec+=luminance(specular_light[q].rgb);all_light+=luminance(accumulation[q].rgb);}
+        float4 h=history[p];float h_eff=min(h.a,lerp(24,2,saturate(spec/max(all_light,1e-4))))*saturate(1-count/256);
+        float w=h_eff/(h_eff+count);c=lerp(c,h.rgb,w);m=lerp(m,history_moments[p].xy,w);effective=h_eff+count;
+    }
+    float variance;
+    if(effective<4){
+        // Too few samples for moments: use the spread of same-surface neighbors instead.
+        float s1=0,s2=0,k=0;
+        for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){int2 q=int2(p)+int2(x,y);if(any(q<0)||any(q>=int2(dimensions.xy))||object_id[q]!=id)continue;float l=luminance(accumulation[q].rgb/albedo_at(q));s1+=l;s2+=l*l;k++;}
+        variance=max(0,s2/k-(s1/k)*(s1/k))*count/effective;
+    }else variance=max(0,m.y-m.x*m.x)/effective;
+    integrated[p]=float4(c,effective);moments[p]=float4(m,variance,0);
+    filter_guide[p]=float4(oct_encode(normal_roughness[p].xyz),depth[p],id);
+}
+float4 source(int2 q,uint pass){return pass==2?float4(integrated[q].rgb,moments[q].z):((pass&1)==1?ping[q]:pong[q]);}
+void store(uint2 p,uint pass,float4 v){if(pass==6)v.rgb*=albedo_at(int2(p));if((pass&1)==0)ping[p]=v;else pong[p]=v;}
 [numthreads(8,8,1)]void filter(uint3 tid:SV_DispatchThreadID){
-    uint2 p=tid.xy;if(any(p>=dimensions.xy))return;uint iteration=filter_settings.x;
-    if(iteration==0){integrate(p);return;}
-    float3 n=normal_roughness[p].xyz;float z=depth[p];float id=object_id[p];float3 center=source(p,iteration);float count=max(1,sampling.x+sampling.y);float effective=max(1,integrated[p].a);
-    float var=accumulation[p].a/max(1,count-1)/effective;float sigma=max(sqrt(var),max(0.02,abs(luminance(center))*0.08/sqrt(effective)))*max(0.01,options.y)*6;
-    float3 sum=0;float total=0;int step=int(1u<<(iteration-1));
+    uint2 p=tid.xy;if(any(p>=dimensions.xy))return;uint pass=filter_settings.x;
+    if(pass==0){reproject(p);return;}
+    if(pass==1){integrate(p);return;}
+    // À-trous over demodulated light. Each tap reads two textures: color + variance, and the
+    // packed guide (octahedral normal, depth, object id). The last pass restores albedo.
+    float4 center=source(int2(p),pass);float4 g=filter_guide[p];float id=g.w;
+    if(id==0){store(p,pass,center);return;}
+    float3 n=oct_decode(g.xy);float3 nv=mul(world_view,float4(n,0)).xyz;float3 P=view_pos(int2(p),g.z);float pixel=2*environment.z*g.z/dimensions.y;
+    // Luminance stop from a 3x3 Gaussian of the variance (one lucky low-variance pixel no longer becomes a speck).
+    float gv=0,gw=0;
+    for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){int2 q=int2(p)+int2(x,y);if(any(q<0)||any(q>=int2(dimensions.xy))||filter_guide[q].w!=id)continue;float k=(x==0?2:1)*(y==0?2:1);gv+=k*source(q,pass).a;gw+=k;}
+    float stop=8*max(0.01,options.y)*sqrt(gv/gw)+1e-4;float l=luminance(center.rgb);
+    float3 sum=0;float total=0,variance=0;int step=int(1u<<(pass-2));
     for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){
         // Never mix surfaces: the light sits 3.5 cm under the ceiling with the same normal.
-        int2 q=int2(p)+int2(x,y)*step;if(any(q<0)||any(q>=int2(dimensions.xy))||object_id[q]!=id)continue;
-        float3 c=source(q,iteration);float3 a=max(diffuse_albedo[p].rgb+specular_albedo[p].rgb,0.05);float3 b=max(diffuse_albedo[q].rgb+specular_albedo[q].rgb,0.05);
-        float norm=pow(saturate(dot(n,normal_roughness[q].xyz)),64);float dw=exp(-abs(z-depth[q])/max(0.005,0.008*z*step));float lum=exp(-abs(luminance(c/b)-luminance(center/a))/max(sigma,1e-5));float kernel=(x==0?6:(abs(x)==1?4:1))*(y==0?6:(abs(y)==1?4:1));float w=kernel*norm*dw*lum;
-        sum+=c/b*a*w;total+=w;
+        int2 q=int2(p)+int2(x,y)*step;if(any(q<0)||any(q>=int2(dimensions.xy)))continue;
+        float4 h=filter_guide[q];if(h.w!=id)continue;float4 c=source(q,pass);
+        // Plane distance in view space: positions are a ray scale times depth.
+        float plane=exp(-abs(dot(nv,view_pos(q,h.z)-P))/(2*pixel*length(float2(x,y))*step+1e-4));
+        float w=(x==0?6:(abs(x)==1?4:1))*(y==0?6:(abs(y)==1?4:1))*pow(saturate(dot(n,oct_decode(h.xy))),64)*plane*exp(-abs(luminance(c.rgb)-l)/stop);
+        sum+=c.rgb*w;total+=w;variance+=w*w*c.a;
     }
-    float3 c=total>1e-6?sum/total:center;
-    if((iteration&1)==1)ping[p]=float4(c,1);else pong[p]=float4(c,1);
+    store(p,pass,total>1e-6?float4(sum/total,variance/(total*total)):center);
 }
 float filmic(float x){return ((x*(0.15*x+0.05)+0.004)/(x*(0.15*x+0.5)+0.06))-0.06666667;}
 float3 tonemap(float3 c){c=max(c*display_settings.x,0);uint mode=modes.y;

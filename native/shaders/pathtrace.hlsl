@@ -3,15 +3,22 @@ uint hash(uint x){x^=x>>16;x*=0x7feb352d;x^=x>>15;x*=0x846ca68b;x^=x>>16;return 
 static uint rng_state,sequence_index,dimension_index,pixel_seed;
 uint permute(uint x,uint seed){x^=x*0x3d20adea;x+=seed;x*=(seed>>16)|1;x^=x*0x05526c56;x^=x*0x53a22864;return x;}
 uint owen(uint x,uint seed){return reversebits(permute(reversebits(x),seed));}
-uint sobol_second(uint i){uint result=0,v=0x80000000;while(i!=0){if((i&1)!=0)result^=v;i>>=1;v^=v>>1;}return result;}
+// Second Sobol dimension, in reversed bit order. Its generator is the Pascal matrix mod 2:
+// bit m is the parity of the index bits k that contain m as a submask, so a 5-step superset
+// transform replaces the 32-step loop over direction numbers (bit-identical results).
+uint superset(uint i){i^=(i>>1)&0x55555555;i^=(i>>2)&0x33333333;i^=(i>>4)&0x0f0f0f0f;i^=(i>>8)&0x00ff00ff;i^=(i>>16)&0x0000ffff;return i;}
+static float pair_second;
 float random(){
-    uint v;
-    if(jitter.z>0.5 && modes.w==0){ // Padded 2D Owen-scrambled Sobol. RR uses independent white noise per NVIDIA's guide.
-        uint dim=dimension_index++,seed=hash(pixel_seed+(dim/2)*0x9e3779b9);
-        uint index=owen(sequence_index,seed);
-        v=owen((dim&1)==0?reversebits(index):sobol_second(index),hash(seed^((dim&1)==0?0x68bc21eb:0x02e5be93)));
-    }else{rng_state=hash(rng_state+0x9e3779b9);v=rng_state;}
-    return (v>>8)*(1.0/16777216.0);
+    if(jitter.z>0.5 && modes.w==0){
+        // Padded 2D Owen-scrambled Sobol. RR uses independent white noise per NVIDIA's guide.
+        // Both values of a dimension pair share one shuffled index, so compute them together.
+        // owen(reversebits(x)) and owen(reversebits(superset(x))) reduce to one reversal each.
+        uint dim=dimension_index++;if((dim&1)!=0)return pair_second;
+        uint seed=hash(pixel_seed+(dim/2)*0x9e3779b9),index=owen(sequence_index,seed);
+        pair_second=(reversebits(permute(superset(index),hash(seed^0x02e5be93)))>>8)*(1.0/16777216.0);
+        return (reversebits(permute(index,hash(seed^0x68bc21eb)))>>8)*(1.0/16777216.0);
+    }
+    rng_state=hash(rng_state+0x9e3779b9);return (rng_state>>8)*(1.0/16777216.0);
 }
 float3 basis(float3 n,float3 h){float3 u=normalize(cross(abs(n.z)<0.999?float3(0,0,1):float3(0,1,0),n));return u*h.x+cross(n,u)*h.y+n*h.z;}
 float3 cosine_sample(float3 n){float r=sqrt(random()),a=2*PI*random();return basis(n,float3(r*cos(a),r*sin(a),sqrt(max(0,1-r*r))));}
@@ -31,11 +38,19 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];h.t=q.CommittedRayT();h.p=o+d*h.t;
     h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.material=a.material;h.emitter=emitter_lookup[q.CommittedPrimitiveIndex()];return true;
 }
+// Shadow test: any blocker ends the search, and no hit data is reconstructed.
+bool occluded(float3 o,float3 d,float limit){
+    RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    while(q.Proceed()){uint m=vertices[q.CandidatePrimitiveIndex()*3].material;if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
+    return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT;
+}
 Material material_at(uint id,float3 p){
     Material m=materials[id];uint pattern=(uint)m.optical.z;float t=0;
     if(pattern==1)t=fmod(abs(floor(p.x*m.secondary.w)+floor(p.z*m.secondary.w)),2);
     if(pattern==2)t=step(0,sin((p.x+p.z)*m.secondary.w*PI));
-    if(pattern==3){float vein=sin((p.x+p.z)*m.secondary.w*2+2*sin(p.y*7+p.z*4)+sin(p.x*9-p.z*3));t=pow(saturate(vein*0.5+0.5),5);}
+    // Marble: soft veins where a turbulent sine crosses zero, at most 75% secondary color.
+    if(pattern==3){float s=m.secondary.w;float vein=sin((p.x+p.z)*s*0.6+3*sin(p.y*3+p.z*2)+1.5*sin(p.x*5-p.z*2)+0.6*sin(p.x*13+p.y*11)+0.3*sin(p.z*27-p.y*21));t=0.75*pow(1-abs(vein),6);}
     m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);return m;
 }
 float3 environment_radiance(float3 d){return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));}
@@ -91,7 +106,7 @@ float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
             float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
-                Hit blocker;if(!intersect(h.p+h.n*0.0003,ld,max(0.0002,len-0.0006),blocker,true,false)){
+                if(!occluded(h.p+h.n*0.0003,ld,max(0.0002,len-0.0006))){
                     float pl=emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }}
