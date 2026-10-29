@@ -1,0 +1,13 @@
+# headless-browser profiles and captures from tools/ test runs
+.cdp-*/
+shot_*.png
+native/target/
+native/vendor/
+native/captures/
+native/settings.json
+native/cornell*.png
+native/cornell*.exr
+
+# Python bytecode and local Claude Code settings
+__pycache__/
+.claude/settings.local.json

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Path-Traced Cornell Box — Interactive GPU Path Tracer</title>
+<style>
+  :root {
+    --bg: #121417;
+    --bg-2: #191c21;
+    --panel: #1e2228;
+    --panel-2: #232830;
+    --line: #2e343d;
+    --text: #d7dde5;
+    --text-dim: #8b95a3;
+    --accent: #e8873f;
+    --accent-2: #4f9dff;
+    --ok: #58c98a;
+    --shadow: 0 8px 24px rgba(0, 0, 0, .45);
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;   /* native popups, file pickers and scrollbars match the theme */
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 13px/1.45 system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ----------------------------------------------------------- top bar -- */
+  #topbar {
+    display: flex; align-items: center; gap: 14px; padding: 8px 14px;
+    background: linear-gradient(#1b1f26, #171a20); border-bottom: 1px solid var(--line);
+    flex: 0 0 auto;
+  }
+  #topbar .logo {
+    width: 22px; height: 22px; border-radius: 5px; flex: 0 0 auto;
+    background: linear-gradient(135deg, #c0403a 0%, #dedede 50%, #3f8f45 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+  }
+  #topbar h1 { font-size: 13px; font-weight: 600; margin: 0; letter-spacing: .2px; }
+  #topbar .sub { color: var(--text-dim); font-size: 11px; }
+  #topbar .spacer { flex: 1 1 auto; }
+  #topbar .badge {
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+  }
+  #topbar .badge b { color: var(--accent); font-weight: 600; }
+
+  /* ------------------------------------------------------------- main -- */
+  #main { flex: 1 1 auto; display: flex; min-height: 0; }
+  #stage { position: relative; flex: 1 1 auto; min-width: 0; background: #0a0c10; }
+  #viewport {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    touch-action: none; cursor: grab; image-rendering: auto;
+  }
+  #viewport:active { cursor: grabbing; }
+
+  #hud {
+    position: absolute; top: 10px; left: 10px; display: grid; gap: 3px;
+    background: rgba(18, 20, 24, .72); border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 8px; padding: 8px 10px; backdrop-filter: blur(7px);
+    font-family: var(--mono); font-size: 11px; pointer-events: none; min-width: 186px;
+  }
+  #hud .stat { display: flex; justify-content: space-between; gap: 12px; }
+  #hud .k { color: var(--text-dim); }
+  #hud .v { color: var(--text); }
+  #hud .stat:nth-child(6) .v { color: var(--accent); }
+
+  #stageFoot {
+    position: absolute; left: 10px; right: 10px; bottom: 8px; display: flex; gap: 12px;
+    align-items: center; font-size: 11px; color: var(--text-dim); pointer-events: none;
+    font-family: var(--mono); flex-wrap: wrap;
+  }
+  #stageFoot .chip {
+    background: rgba(18, 20, 24, .68); border: 1px solid rgba(255, 255, 255, .06);
+    border-radius: 6px; padding: 3px 8px; backdrop-filter: blur(6px);
+  }
+  #gpu { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #overlay {
+    position: absolute; inset: 0; display: none; place-items: center; padding: 24px;
+    background: rgba(10, 12, 16, .9); z-index: 5; text-align: center;
+  }
+  #overlay .fatal {
+    max-width: 640px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px 20px; box-shadow: var(--shadow); line-height: 1.6;
+  }
+  #overlay pre {
+    text-align: left; font-family: var(--mono); font-size: 11px; color: #f0a; overflow: auto;
+    max-height: 40vh; background: #14171b; padding: 10px; border-radius: 6px; border: 1px solid var(--line);
+  }
+
+  /* ---------------------------------------------------------- sidebar -- */
+  #sidebar {
+    flex: 0 0 320px; background: var(--bg-2); border-left: 1px solid var(--line);
+    overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
+    scrollbar-color: #39414c transparent;
+  }
+  #sidebar::-webkit-scrollbar { width: 10px; }
+  #sidebar::-webkit-scrollbar-thumb { background: #39414c; border-radius: 5px; }
+  #panels { padding: 8px 0 26px; }
+
+  .group { border-bottom: 1px solid var(--line); }
+  .group-head {
+    width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+    background: transparent; border: 0; color: var(--text); cursor: pointer;
+    padding: 10px 12px; font: 600 12px/1 inherit; letter-spacing: .4px; text-transform: uppercase;
+  }
+  .group-head:hover { background: #22262d; }
+  .group-head .chev {
+    width: 8px; height: 8px; border-right: 2px solid var(--text-dim); border-bottom: 2px solid var(--text-dim);
+    transform: rotate(-45deg) translate(-1px, -1px); transition: transform .15s ease;
+  }
+  .group.open .group-head .chev { transform: rotate(45deg) translate(1px, 1px); }
+  .group-body { display: none; padding: 2px 12px 14px; }
+  .group.open .group-body { display: block; }
+
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px; margin: 9px 0; }
+  .row label { color: var(--text-dim); font-size: 12px; cursor: pointer; }
+  .row .val { font-family: var(--mono); font-size: 11px; color: var(--accent); min-width: 46px; text-align: right; }
+  /* range rows: label | readout on top, slider full width below */
+  .row-range input[type="range"] { grid-column: 1 / -1; }
+  .row.disabled { opacity: .4; }
+
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; margin: 2px 0 0;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 2px; background: #313945;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px; margin-top: -4.5px;
+    border-radius: 50%; background: var(--accent); border: 1px solid #1a1d22; cursor: ew-resize;
+    box-shadow: 0 0 0 3px rgba(232, 135, 63, .16);
+  }
+  input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: #313945; }
+  input[type="range"]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%; background: var(--accent);
+    border: 1px solid #1a1d22; cursor: ew-resize;
+  }
+  input[type="range"]:disabled::-webkit-slider-thumb { background: #6b7481; box-shadow: none; }
+  input[type="range"]:disabled::-moz-range-thumb { background: #6b7481; }
+
+  select, input[type="file"] {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 8px; font: 12px/1.2 inherit; min-width: 118px;
+  }
+  select:focus-visible, .btn:focus-visible, input:focus-visible, .group-head:focus-visible {
+    outline: 2px solid var(--accent-2); outline-offset: 1px;
+  }
+  input[type="color"] {
+    -webkit-appearance: none; appearance: none; width: 44px; height: 24px; padding: 0;
+    background: transparent; border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 3px; }
+  input[type="color"]::-moz-color-swatch { border: 0; border-radius: 3px; }
+
+  input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none; width: 34px; height: 18px; border-radius: 999px;
+    background: #313945; border: 1px solid var(--line); position: relative; cursor: pointer; margin: 0;
+    transition: background .15s ease;
+  }
+  input[type="checkbox"]::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+    background: #8b95a3; transition: transform .15s ease, background .15s ease;
+  }
+  input[type="checkbox"]:checked { background: rgba(232, 135, 63, .5); }
+  input[type="checkbox"]:checked::after { transform: translateX(16px); background: var(--accent); }
+
+  .btn {
+    width: 100%; margin: 6px 0 0; padding: 8px 10px; cursor: pointer;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 7px;
+    font: 600 12px/1 inherit; letter-spacing: .2px; transition: background .12s ease, border-color .12s ease;
+  }
+  .btn:hover { background: #2b323b; border-color: #48525f; }
+  .btn:active { transform: translateY(1px); }
+  .btn.active { background: rgba(232, 135, 63, .22); border-color: var(--accent); color: #ffd9b8; }
+
+  .info {
+    color: var(--text-dim); font-size: 11px; line-height: 1.55;
+    margin: 10px 0 2px; padding: 8px 9px; background: #1a1e24; border-left: 2px solid #3a4350;
+    border-radius: 0 6px 6px 0;
+  }
+  .group-body > .info:first-child { margin-top: 4px; }
+
+  /* ------------------------------------------------------- responsive -- */
+  @media (max-width: 900px) {
+    /* the viewport gets the room: title only, no hint badges, two-column HUD */
+    #topbar { padding: 6px 10px; gap: 10px; }
+    #topbar .sub, #topbar .badge, #stageFoot .hint { display: none; }
+    #topbar h1 { white-space: nowrap; }
+    #main { flex-direction: column; }
+    #stage { flex: 1 1 60%; min-height: 220px; }
+    #sidebar { flex: 1 1 40%; border-left: 0; border-top: 1px solid var(--line); }
+    #gpu { max-width: calc(100vw - 40px); }
+    #hud {
+      top: 6px; left: 6px; min-width: 0; padding: 5px 7px; font-size: 10px;
+      grid-template-columns: repeat(2, auto); column-gap: 12px; row-gap: 1px;
+    }
+    #hud .stat { gap: 6px; }
+  }
+  /* phones held sideways: no top bar, controls beside the viewport */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 540px) {
+    #topbar { display: none; }
+    #main { flex-direction: row; }
+    #stage { flex: 1 1 auto; min-height: 0; }
+    #sidebar { flex: 0 0 min(300px, 42vw); border-top: 0; border-left: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1>Path-Traced Cornell Box</h1>
+      <div class="sub">WebGL2 GPU path tracer &middot; progressive Monte Carlo accumulation</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="badge">Drag <b>orbit</b> &middot; Wheel <b>zoom</b> &middot; Space <b>pause</b></div>
+    <div class="badge">View mode &amp; tone map in <b>Rendering</b></div>
+  </header>
+
+  <main id="main">
+    <section id="stage">
+      <canvas id="viewport" aria-label="Path traced Cornell box viewport"></canvas>
+      <div id="hud">
+        <div class="stat"><span class="k">Accumulated</span><span class="v">0</span></div>
+        <div class="stat"><span class="k">Resolution</span><span class="v">0x0</span></div>
+        <div class="stat"><span class="k">Samples/frame</span><span class="v">0</span></div>
+        <div class="stat"><span class="k">Frame time</span><span class="v">0 ms</span></div>
+        <div class="stat"><span class="k">FPS</span><span class="v">0</span></div>
+        <div class="stat"><span class="k">Status</span><span class="v">Starting</span></div>
+      </div>
+      <div id="stageFoot">
+        <span class="chip" id="gpu">detecting GPU…</span>
+        <span class="chip hint">Right-drag / Shift-drag = pan &middot; A = auto-rotate &middot; C = reference &middot; D = denoise &middot; 1-8 = view modes</span>
+      </div>
+      <div id="overlay" role="alert"></div>
+    </section>
+
+    <aside id="sidebar">
+      <div id="panels"></div>
+    </aside>
+  </main>
+</div>
+
+<script src="shaders.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

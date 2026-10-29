@@ -1,0 +1,1590 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+use crate::scene::{self, Settings, Vertex};
+use anyhow::{Context, Result, ensure};
+use glam::Mat4;
+use std::{
+    ffi::c_void,
+    mem::{ManuallyDrop, size_of},
+    ptr::null_mut,
+};
+use windows::{
+    Win32::{
+        Foundation::{CloseHandle, HANDLE, HWND},
+        Graphics::{
+            Direct3D::*,
+            Direct3D12::*,
+            Dxgi::{Common::*, *},
+        },
+        System::Threading::*,
+    },
+    core::{Interface, PCSTR},
+};
+
+const TEXTURES: usize = 19;
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Constants {
+    inverse_vp: [f32; 16],
+    current_vp: [f32; 16],
+    previous_vp: [f32; 16],
+    world_view: [f32; 16],
+    eye: [f32; 4],
+    dimensions: [u32; 4],
+    sampling: [u32; 4],
+    light_position_size: [f32; 4],
+    light_color_aspect: [f32; 4],
+    background: [f32; 4],
+    display: [f32; 4],
+    modes: [u32; 4],
+    options: [f32; 4],
+    jitter: [f32; 4],
+    filter: [u32; 4],
+    scene_info: [u32; 4],
+    environment: [f32; 4],
+}
+unsafe extern "C" {
+    fn cornell_ngx_release(ngx: *mut c_void);
+    fn cornell_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
+    fn cornell_ngx_create(
+        ngx: *mut c_void,
+        cmd: *mut c_void,
+        w: u32,
+        h: u32,
+        ow: u32,
+        oh: u32,
+        preset: u32,
+    ) -> u32;
+    fn cornell_ngx_eval(
+        ngx: *mut c_void,
+        cmd: *mut c_void,
+        resources: *const *mut c_void,
+        w: u32,
+        h: u32,
+        jx: f32,
+        jy: f32,
+        reset: i32,
+        dt: f32,
+        view: *const f32,
+        proj: *const f32,
+    ) -> u32;
+    fn cornell_ngx_destroy(ngx: *mut c_void);
+}
+fn ngx_ok(code: u32) -> bool {
+    code & 0xfff00000 != 0xbad00000
+}
+pub struct Texture {
+    pub resource: ID3D12Resource,
+    pub format: DXGI_FORMAT,
+}
+pub struct Gpu {
+    pub device: ID3D12Device5,
+    queue: ID3D12CommandQueue,
+    swap: IDXGISwapChain3,
+    allocator: ID3D12CommandAllocator,
+    pub list: ID3D12GraphicsCommandList4,
+    fence: ID3D12Fence,
+    event: HANDLE,
+    fence_value: u64,
+    heap: ID3D12DescriptorHeap,
+    rtv: ID3D12DescriptorHeap,
+    root: ID3D12RootSignature,
+    trace: ID3D12PipelineState,
+    filter: ID3D12PipelineState,
+    display: ID3D12PipelineState,
+    gui: ID3D12PipelineState,
+    buffers: Vec<ID3D12Resource>,
+    textures: Vec<Texture>,
+    constants: ID3D12Resource,
+    geometry: ID3D12Resource,
+    material_buffer: ID3D12Resource,
+    emitter_buffer: ID3D12Resource,
+    emitter_lookup: ID3D12Resource,
+    cached_vertices: Vec<Vertex>,
+    pub triangle_count: usize,
+    pub emitter_count: usize,
+    blas: Option<ID3D12Resource>,
+    tlas: Option<ID3D12Resource>,
+    atlas: Option<Texture>,
+    atlas_pixels: Vec<u8>,
+    atlas_size: [usize; 2],
+    ngx: *mut c_void,
+    pub rr_status: String,
+    rr_created: bool,
+    rr_failed: bool,
+    pub rr_active: bool,
+    pub width: u32,
+    pub height: u32,
+    pub rw: u32,
+    pub rh: u32,
+    pub samples: u32,
+    pub frame: u32,
+    pub gpu_ms: f64,
+    pub adapter_name: String,
+    previous_vp: Mat4,
+    rr_reset: bool,
+    pub reference_valid: bool,
+    query: ID3D12QueryHeap,
+    timing: ID3D12Resource,
+}
+impl Gpu {
+    pub unsafe fn new(
+        hwnd: HWND,
+        width: u32,
+        height: u32,
+        s: &Settings,
+        debug: bool,
+    ) -> Result<Self> {
+        if debug {
+            let mut d: Option<ID3D12Debug> = None;
+            D3D12GetDebugInterface(&mut d)?;
+            d.unwrap().EnableDebugLayer();
+            if let Ok(q) = DXGIGetDebugInterface1::<IDXGIInfoQueue>(0) {
+                q.SetBreakOnSeverity(
+                    DXGI_DEBUG_ALL,
+                    DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR,
+                    false,
+                )?;
+                q.SetBreakOnSeverity(
+                    DXGI_DEBUG_ALL,
+                    DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION,
+                    false,
+                )?;
+            }
+        }
+        let factory: IDXGIFactory6 = CreateDXGIFactory2(if debug {
+            DXGI_CREATE_FACTORY_DEBUG
+        } else {
+            DXGI_CREATE_FACTORY_FLAGS(0)
+        })?;
+        if debug && let Ok(q) = DXGIGetDebugInterface1::<IDXGIInfoQueue>(0) {
+            q.SetBreakOnSeverity(
+                DXGI_DEBUG_ALL,
+                DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR,
+                false,
+            )?;
+            q.SetBreakOnSeverity(
+                DXGI_DEBUG_ALL,
+                DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION,
+                false,
+            )?;
+        }
+        let mut selected = None;
+        for i in 0..32 {
+            let Ok(adapter) = factory.EnumAdapterByGpuPreference::<IDXGIAdapter1>(
+                i,
+                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+            ) else {
+                break;
+            };
+            let mut device = None;
+            if D3D12CreateDevice::<_, ID3D12Device5>(&adapter, D3D_FEATURE_LEVEL_12_1, &mut device)
+                .is_err()
+            {
+                continue;
+            }
+            let dev = device.unwrap();
+            let mut opt = D3D12_FEATURE_DATA_D3D12_OPTIONS5::default();
+            dev.CheckFeatureSupport(
+                D3D12_FEATURE_D3D12_OPTIONS5,
+                &mut opt as *mut _ as _,
+                size_of_val(&opt) as u32,
+            )?;
+            if opt.RaytracingTier.0 < D3D12_RAYTRACING_TIER_1_1.0 {
+                continue;
+            }
+            let desc = adapter.GetDesc1()?;
+            let end = desc.Description.iter().position(|v| *v == 0).unwrap_or(128);
+            selected = Some((dev, String::from_utf16_lossy(&desc.Description[..end])));
+            break;
+        }
+        let (device,adapter_name)=selected.context("No D3D12 adapter with DXR tier 1.1. Update the GPU driver and use a ray-tracing-capable GPU.")?;
+        let queue: ID3D12CommandQueue = device.CreateCommandQueue(&D3D12_COMMAND_QUEUE_DESC {
+            Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
+            ..Default::default()
+        })?;
+        let desc = DXGI_SWAP_CHAIN_DESC1 {
+            Width: width,
+            Height: height,
+            Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+            SampleDesc: DXGI_SAMPLE_DESC {
+                Count: 1,
+                Quality: 0,
+            },
+            BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+            BufferCount: 2,
+            SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
+            ..Default::default()
+        };
+        let swap: IDXGISwapChain3 = factory
+            .CreateSwapChainForHwnd(&queue, hwnd, &desc, None, None)?
+            .cast()?;
+        factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+        let allocator = device.CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
+        let list: ID3D12GraphicsCommandList4 =
+            device.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, &allocator, None)?;
+        list.Close()?;
+        let fence = device.CreateFence(0, D3D12_FENCE_FLAG_NONE)?;
+        let event = CreateEventW(None, false, false, None)?;
+        let heap = device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
+            Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            NumDescriptors: 64,
+            Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+            NodeMask: 0,
+        })?;
+        let rtv = device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
+            Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+            NumDescriptors: 2,
+            ..Default::default()
+        })?;
+        let ranges = [
+            D3D12_DESCRIPTOR_RANGE {
+                RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+                NumDescriptors: TEXTURES as u32,
+                BaseShaderRegister: 0,
+                RegisterSpace: 0,
+                OffsetInDescriptorsFromTableStart: 0,
+            },
+            D3D12_DESCRIPTOR_RANGE {
+                RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+                NumDescriptors: 1,
+                BaseShaderRegister: 2,
+                RegisterSpace: 0,
+                OffsetInDescriptorsFromTableStart: 0,
+            },
+        ];
+        let params = [
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_CBV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 0,
+                        RegisterSpace: 0,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_SRV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 0,
+                        RegisterSpace: 0,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_SRV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 1,
+                        RegisterSpace: 0,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    DescriptorTable: D3D12_ROOT_DESCRIPTOR_TABLE {
+                        NumDescriptorRanges: 1,
+                        pDescriptorRanges: &ranges[0],
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    DescriptorTable: D3D12_ROOT_DESCRIPTOR_TABLE {
+                        NumDescriptorRanges: 1,
+                        pDescriptorRanges: &ranges[1],
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_PIXEL,
+            },
+            root_srv(3),
+            root_srv(4),
+            root_srv(5),
+        ];
+        let sampler = D3D12_STATIC_SAMPLER_DESC {
+            Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+            AddressU: D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+            AddressV: D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+            AddressW: D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+            MaxLOD: f32::MAX,
+            ShaderRegister: 0,
+            ShaderVisibility: D3D12_SHADER_VISIBILITY_PIXEL,
+            ComparisonFunc: D3D12_COMPARISON_FUNC_ALWAYS,
+            ..Default::default()
+        };
+        let rd = D3D12_ROOT_SIGNATURE_DESC {
+            NumParameters: params.len() as _,
+            pParameters: params.as_ptr(),
+            NumStaticSamplers: 1,
+            pStaticSamplers: &sampler,
+            Flags: D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
+        };
+        let mut blob = None;
+        let mut errors = None;
+        D3D12SerializeRootSignature(
+            &rd,
+            D3D_ROOT_SIGNATURE_VERSION_1,
+            &mut blob,
+            Some(&mut errors),
+        )?;
+        let blob = blob.unwrap();
+        let root: ID3D12RootSignature = device.CreateRootSignature(
+            0,
+            std::slice::from_raw_parts(blob.GetBufferPointer() as _, blob.GetBufferSize()),
+        )?;
+        let compute = |code: &[u8]| -> Result<ID3D12PipelineState> {
+            let mut d = D3D12_COMPUTE_PIPELINE_STATE_DESC {
+                pRootSignature: ManuallyDrop::new(Some(root.clone())),
+                CS: bytecode(code),
+                ..Default::default()
+            };
+            let p = device.CreateComputePipelineState(&d);
+            ManuallyDrop::drop(&mut d.pRootSignature);
+            Ok(p?)
+        };
+        let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
+        let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
+        let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
+        let gui = create_gui_pipeline(&device, &root)?;
+        let constants = buffer(
+            &device,
+            256 * 32,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+        )?;
+        let geometry = buffer(
+            &device,
+            256,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+        )?;
+        let mut query = None;
+        device.CreateQueryHeap(
+            &D3D12_QUERY_HEAP_DESC {
+                Type: D3D12_QUERY_HEAP_TYPE_TIMESTAMP,
+                Count: 2,
+                NodeMask: 0,
+            },
+            &mut query,
+        )?;
+        let query = query.unwrap();
+        let timing = buffer(
+            &device,
+            16,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        let mut ngx = null_mut();
+        let code = cornell_ngx_init(device.as_raw(), &mut ngx);
+        let rr_status = if ngx_ok(code) {
+            "DLSS Ray Reconstruction available".into()
+        } else {
+            format!("NGX unavailable (0x{code:08x}); using native denoiser")
+        };
+        eprintln!("GPU: {adapter_name}; {rr_status}");
+        let mut gpu = Self {
+            device,
+            queue,
+            swap,
+            allocator,
+            list,
+            fence,
+            event,
+            fence_value: 0,
+            heap,
+            rtv,
+            root,
+            trace,
+            filter,
+            display,
+            gui,
+            buffers: vec![],
+            textures: vec![],
+            constants,
+            material_buffer: geometry.clone(),
+            emitter_buffer: geometry.clone(),
+            emitter_lookup: geometry.clone(),
+            cached_vertices: vec![],
+            triangle_count: 0,
+            emitter_count: 0,
+            geometry,
+            blas: None,
+            tlas: None,
+            atlas: None,
+            atlas_pixels: vec![],
+            atlas_size: [0, 0],
+            ngx,
+            rr_status,
+            rr_created: false,
+            rr_failed: false,
+            rr_active: false,
+            width,
+            height,
+            rw: 0,
+            rh: 0,
+            samples: 0,
+            frame: 0,
+            gpu_ms: 0.,
+            adapter_name,
+            previous_vp: Mat4::IDENTITY,
+            rr_reset: true,
+            reference_valid: false,
+            query,
+            timing,
+        };
+        gpu.resize(width, height, s)?;
+        gpu.rebuild_scene(s)?;
+        Ok(gpu)
+    }
+    pub unsafe fn begin(&self) -> Result<()> {
+        self.allocator.Reset()?;
+        self.list.Reset(&self.allocator, None)?;
+        Ok(())
+    }
+    pub unsafe fn submit(&mut self) -> Result<()> {
+        self.list.Close()?;
+        self.queue.ExecuteCommandLists(&[Some(self.list.cast()?)]);
+        self.fence_value += 1;
+        self.queue.Signal(&self.fence, self.fence_value)?;
+        if self.fence.GetCompletedValue() < self.fence_value {
+            self.fence
+                .SetEventOnCompletion(self.fence_value, self.event)?;
+            ensure!(
+                WaitForSingleObject(self.event, 30_000)
+                    == windows::Win32::Foundation::WAIT_OBJECT_0,
+                "GPU fence timeout; device removed: {:?}",
+                self.device.GetDeviceRemovedReason()
+            );
+        }
+        Ok(())
+    }
+    pub fn reset(&mut self, reset_history: bool) {
+        self.samples = 0;
+        if reset_history {
+            self.rr_reset = true;
+        }
+    }
+    pub unsafe fn reconfigure_rr(&mut self) -> Result<()> {
+        self.wait_idle()?;
+        cornell_ngx_release(self.ngx);
+        self.rr_created = false;
+        self.rr_failed = false;
+        self.reset(true);
+        Ok(())
+    }
+    unsafe fn wait_idle(&mut self) -> Result<()> {
+        // Present queues work after the command-list fence. Include it before resizing or shutdown.
+        self.fence_value += 1;
+        self.queue.Signal(&self.fence, self.fence_value)?;
+        self.fence
+            .SetEventOnCompletion(self.fence_value, self.event)?;
+        ensure!(
+            WaitForSingleObject(self.event, 30_000) == windows::Win32::Foundation::WAIT_OBJECT_0,
+            "GPU idle timeout"
+        );
+        Ok(())
+    }
+    pub unsafe fn resize(&mut self, w: u32, h: u32, s: &Settings) -> Result<()> {
+        ensure!(
+            w > 0 && h > 0 && w <= 8192 && h <= 8192,
+            "Invalid viewport size"
+        );
+        // The previous submit has completed. Reset bindings before releasing swap-chain resources.
+        self.wait_idle()?;
+        self.begin()?;
+        self.list.Close()?;
+        cornell_ngx_release(self.ngx);
+        self.buffers.clear();
+        let resized =
+            self.swap
+                .ResizeBuffers(2, w, h, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_SWAP_CHAIN_FLAG(0));
+        if let Err(e) = resized {
+            if let Ok(q) = DXGIGetDebugInterface1::<IDXGIInfoQueue>(0) {
+                for i in 0..q.GetNumStoredMessages(DXGI_DEBUG_ALL) {
+                    let mut len = 0;
+                    let _ = q.GetMessage(DXGI_DEBUG_ALL, i, None, &mut len);
+                    let mut bytes = vec![0u64; len.div_ceil(8)];
+                    let p = bytes.as_mut_ptr() as *mut DXGI_INFO_QUEUE_MESSAGE;
+                    if q.GetMessage(DXGI_DEBUG_ALL, i, Some(p), &mut len).is_ok() {
+                        eprintln!(
+                            "DXGI: {}",
+                            String::from_utf8_lossy(std::slice::from_raw_parts(
+                                (*p).pDescription as _,
+                                (*p).DescriptionByteLength
+                            ))
+                        );
+                    }
+                }
+            }
+            return Err(e.into());
+        }
+        self.width = w;
+        self.height = h;
+        self.rw = ((w as f32 * s.scale).round() as u32).max(1);
+        self.rh = ((h as f32 * s.scale).round() as u32).max(1);
+        let step = self
+            .device
+            .GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
+            as usize;
+        let start = self.rtv.GetCPUDescriptorHandleForHeapStart();
+        for i in 0..2 {
+            let b: ID3D12Resource = self.swap.GetBuffer(i)?;
+            self.device.CreateRenderTargetView(
+                &b,
+                None,
+                D3D12_CPU_DESCRIPTOR_HANDLE {
+                    ptr: start.ptr + i as usize * step,
+                },
+            );
+            self.buffers.push(b);
+        }
+        self.textures.clear();
+        for i in 0..TEXTURES {
+            let format = match i {
+                5 | 7 | 17 => DXGI_FORMAT_R32_FLOAT,
+                6 => DXGI_FORMAT_R32G32_FLOAT,
+                10 => DXGI_FORMAT_R8G8B8A8_UNORM,
+                _ => DXGI_FORMAT_R32G32B32A32_FLOAT,
+            };
+            let (tw, th) = if [10, 13, 14, 18].contains(&i) {
+                (w, h)
+            } else {
+                (self.rw, self.rh)
+            };
+            let t = texture(
+                &self.device,
+                tw,
+                th,
+                format,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            )?;
+            let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
+                Format: format,
+                ViewDimension: D3D12_UAV_DIMENSION_TEXTURE2D,
+                Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
+                    Texture2D: D3D12_TEX2D_UAV::default(),
+                },
+            };
+            self.device
+                .CreateUnorderedAccessView(&t.resource, None, Some(&desc), self.cpu(i));
+            self.textures.push(t);
+        }
+        self.rr_created = false;
+        self.rr_failed = false;
+        self.rr_active = false;
+        self.reference_valid = false;
+        self.reset(true);
+        Ok(())
+    }
+    fn cpu(&self, index: usize) -> D3D12_CPU_DESCRIPTOR_HANDLE {
+        unsafe {
+            D3D12_CPU_DESCRIPTOR_HANDLE {
+                ptr: self.heap.GetCPUDescriptorHandleForHeapStart().ptr
+                    + index
+                        * self.device.GetDescriptorHandleIncrementSize(
+                            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                        ) as usize,
+            }
+        }
+    }
+    fn gpu(&self, index: usize) -> D3D12_GPU_DESCRIPTOR_HANDLE {
+        unsafe {
+            D3D12_GPU_DESCRIPTOR_HANDLE {
+                ptr: self.heap.GetGPUDescriptorHandleForHeapStart().ptr
+                    + index as u64
+                        * self.device.GetDescriptorHandleIncrementSize(
+                            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                        ) as u64,
+            }
+        }
+    }
+    pub unsafe fn rebuild_scene(&mut self, s: &Settings) -> Result<()> {
+        let vertices = scene::geometry(s);
+        self.geometry = upload(&self.device, bytemuck::cast_slice(&vertices))?;
+        let geometry = D3D12_RAYTRACING_GEOMETRY_DESC {
+            Type: D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES,
+            Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+            Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
+                Triangles: D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC {
+                    VertexFormat: DXGI_FORMAT_R32G32B32_FLOAT,
+                    VertexCount: vertices.len() as u32,
+                    VertexBuffer: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                        StartAddress: self.geometry.GetGPUVirtualAddress(),
+                        StrideInBytes: size_of::<Vertex>() as u64,
+                    },
+                    ..Default::default()
+                },
+            },
+        };
+        let inputs = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
+            Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
+            Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
+            NumDescs: 1,
+            DescsLayout: D3D12_ELEMENTS_LAYOUT_ARRAY,
+            Anonymous: D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_0 {
+                pGeometryDescs: &geometry,
+            },
+        };
+        let mut info = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO::default();
+        self.device
+            .GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &mut info);
+        let blas = buffer(
+            &self.device,
+            info.ResultDataMaxSizeInBytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        )?;
+        let scratch = buffer(
+            &self.device,
+            info.ScratchDataSizeInBytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        // Explicit 64-byte DXR instance descriptor, including packed 24/8 bitfields.
+        let mut instance = [0u8; 64];
+        let transform: [f32; 12] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
+        instance[..48].copy_from_slice(bytemuck::cast_slice(&transform));
+        instance[48..52].copy_from_slice(&0xff000000u32.to_le_bytes());
+        instance[52..56].copy_from_slice(
+            &((D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32) << 24).to_le_bytes(),
+        );
+        instance[56..64].copy_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
+        let instances = upload(&self.device, &instance)?;
+        let ti = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
+            Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
+            Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
+            NumDescs: 1,
+            DescsLayout: D3D12_ELEMENTS_LAYOUT_ARRAY,
+            Anonymous: D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_0 {
+                InstanceDescs: instances.GetGPUVirtualAddress(),
+            },
+        };
+        self.device
+            .GetRaytracingAccelerationStructurePrebuildInfo(&ti, &mut info);
+        let tlas = buffer(
+            &self.device,
+            info.ResultDataMaxSizeInBytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        )?;
+        let ts = buffer(
+            &self.device,
+            info.ScratchDataSizeInBytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        self.begin()?;
+        self.list.BuildRaytracingAccelerationStructure(
+            &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
+                DestAccelerationStructureData: blas.GetGPUVirtualAddress(),
+                Inputs: inputs,
+                ScratchAccelerationStructureData: scratch.GetGPUVirtualAddress(),
+                ..Default::default()
+            },
+            None,
+        );
+        uav(&self.list, Some(&blas));
+        self.list.BuildRaytracingAccelerationStructure(
+            &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
+                DestAccelerationStructureData: tlas.GetGPUVirtualAddress(),
+                Inputs: ti,
+                ScratchAccelerationStructureData: ts.GetGPUVirtualAddress(),
+                ..Default::default()
+            },
+            None,
+        );
+        uav(&self.list, Some(&tlas));
+        self.submit()?;
+        self.blas = Some(blas);
+        self.tlas = Some(tlas);
+        self.triangle_count = vertices.len() / 3;
+        self.cached_vertices = vertices;
+        self.update_materials(s)?;
+        self.reset(true);
+        Ok(())
+    }
+    pub unsafe fn update_materials(&mut self, s: &Settings) -> Result<()> {
+        let materials = crate::lighting::materials(s);
+        let (emitters, lookup) = crate::lighting::emitter_table(&self.cached_vertices, &materials);
+        self.emitter_count = emitters.len();
+        self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
+        self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&emitters))?;
+        self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
+        self.reset(true);
+        Ok(())
+    }
+    unsafe fn bind(&self, offset: u64) {
+        self.list.SetDescriptorHeaps(&[Some(self.heap.clone())]);
+        self.list.SetComputeRootSignature(&self.root);
+        self.list
+            .SetComputeRootConstantBufferView(0, self.constants.GetGPUVirtualAddress() + offset);
+        self.list.SetComputeRootShaderResourceView(
+            1,
+            self.tlas.as_ref().unwrap().GetGPUVirtualAddress(),
+        );
+        self.list
+            .SetComputeRootShaderResourceView(2, self.geometry.GetGPUVirtualAddress());
+        self.list.SetComputeRootDescriptorTable(3, self.gpu(0));
+        self.list
+            .SetComputeRootShaderResourceView(5, self.material_buffer.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootShaderResourceView(6, self.emitter_buffer.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootShaderResourceView(7, self.emitter_lookup.GetGPUVirtualAddress());
+    }
+    pub unsafe fn render(
+        &mut self,
+        s: &Settings,
+        draw: bool,
+        dt: f32,
+        primitives: &[egui::ClippedPrimitive],
+        delta: &egui::TexturesDelta,
+        pixels_per_point: f32,
+    ) -> Result<()> {
+        self.begin()?;
+        let mut keep = Vec::new();
+        self.update_atlas(delta, &mut keep)?;
+        let (view, proj, eye) = s.camera(self.width as f32 / self.height as f32);
+        let vp = proj * view;
+        let reset = self.rr_reset;
+        self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed;
+        if !s.rr && !self.ngx.is_null() {
+            self.rr_status = "DLSS RR ready (disabled)".into();
+        }
+        if self.rr_active && self.rr_created {
+            self.rr_status = "DLSS Ray Reconstruction active".into();
+        }
+        if self.rr_active && !self.rr_created {
+            let code = cornell_ngx_create(
+                self.ngx,
+                self.list.as_raw(),
+                self.rw,
+                self.rh,
+                self.width,
+                self.height,
+                s.rr_preset,
+            );
+            if ngx_ok(code) {
+                self.rr_created = true;
+                self.rr_status = "DLSS Ray Reconstruction active".into();
+            } else {
+                self.rr_active = false;
+                self.rr_failed = true;
+                self.rr_status =
+                    format!("RR creation failed: 0x{code:08x}; native denoiser active");
+            }
+        }
+        let jitter = if self.rr_active {
+            [
+                halton(self.frame % 64 + 1, 2) - 0.5,
+                halton(self.frame % 64 + 1, 3) - 0.5,
+            ]
+        } else {
+            [0., 0.]
+        };
+        let n = if draw {
+            s.spp.min(s.max_samples.saturating_sub(self.samples))
+        } else {
+            0
+        };
+        let lc = s.light_color();
+        let mut c = Constants {
+            inverse_vp: vp.inverse().to_cols_array(),
+            current_vp: vp.to_cols_array(),
+            previous_vp: if reset { vp } else { self.previous_vp }.to_cols_array(),
+            world_view: view.to_cols_array(),
+            eye: [eye.x, eye.y, eye.z, 1.],
+            dimensions: [self.rw, self.rh, self.width, self.height],
+            sampling: [self.samples, n, s.bounces, self.frame],
+            light_position_size: [
+                s.light_position[0],
+                s.light_position[1],
+                s.light_position[2],
+                s.light_size,
+            ],
+            light_color_aspect: [lc[0], lc[1], lc[2], s.light_aspect],
+            background: [s.background[0], s.background[1], s.background[2], 0.],
+            display: [s.exposure, s.gamma, s.direct, s.indirect],
+            modes: [s.view, s.tonemap, s.denoise as u32, self.rr_active as u32],
+            options: [
+                s.firefly,
+                s.denoise_strength,
+                s.compare as u32 as f32,
+                s.split,
+            ],
+            jitter: [
+                jitter[0],
+                jitter[1],
+                s.sobol as u32 as f32,
+                s.glass_shadow as u32 as f32,
+            ],
+            filter: [
+                0,
+                s.temporal as u32,
+                reset as u32,
+                self.reference_valid as u32,
+            ],
+            scene_info: [self.emitter_count as u32, s.objects.len() as u32, 0, 0],
+            environment: [s.sky, 0., 0., 0.],
+        };
+        write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
+        self.list
+            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+        if n > 0 {
+            self.bind(0);
+            self.list.SetPipelineState(&self.trace);
+            self.list
+                .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
+            uav(&self.list, None);
+            if self.rr_active {
+                let inputs = [0, 2, 3, 4, 5, 6, 7];
+                for i in inputs {
+                    transition(
+                        &self.list,
+                        &self.textures[i].resource,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    );
+                }
+                let resources: Vec<_> = self.textures.iter().map(|t| t.resource.as_raw()).collect();
+                let code = cornell_ngx_eval(
+                    self.ngx,
+                    self.list.as_raw(),
+                    resources.as_ptr(),
+                    self.rw,
+                    self.rh,
+                    jitter[0],
+                    jitter[1],
+                    (reset || !s.temporal) as i32,
+                    dt * 1000.,
+                    view.to_cols_array().as_ptr(),
+                    proj.to_cols_array().as_ptr(),
+                );
+                for i in inputs {
+                    transition(
+                        &self.list,
+                        &self.textures[i].resource,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                    );
+                }
+                uav(&self.list, None);
+                if !ngx_ok(code) {
+                    self.rr_active = false;
+                    self.rr_failed = true;
+                    self.rr_status = format!("RR evaluation failed: 0x{code:08x}");
+                    eprintln!("{}", self.rr_status);
+                }
+            }
+            self.previous_vp = vp;
+            self.rr_reset = false;
+        }
+        if !self.rr_active && s.denoise {
+            for i in 0..5 {
+                c.filter[0] = i;
+                let offset = (i as u64 + 1) * 1024;
+                write_buffer(&self.constants, offset, bytemuck::bytes_of(&c))?;
+                self.bind(offset);
+                self.list.SetPipelineState(&self.filter);
+                self.list
+                    .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
+                uav(&self.list, None);
+            }
+            if n > 0 {
+                for (from, to) in [(8, 15), (2, 16), (5, 17)] {
+                    copy_texture(
+                        &self.list,
+                        &self.textures[from].resource,
+                        &self.textures[to].resource,
+                    );
+                }
+            }
+        }
+        c.modes[3] = self.rr_active as u32;
+        c.filter[0] = 0;
+        write_buffer(&self.constants, 6144, bytemuck::bytes_of(&c))?;
+        self.bind(6144);
+        self.list.SetPipelineState(&self.display);
+        self.list
+            .Dispatch(self.width.div_ceil(8), self.height.div_ceil(8), 1);
+        uav(&self.list, None);
+        self.list
+            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+        self.list.ResolveQueryData(
+            &self.query,
+            D3D12_QUERY_TYPE_TIMESTAMP,
+            0,
+            2,
+            &self.timing,
+            0,
+        );
+        let index = self.swap.GetCurrentBackBufferIndex() as usize;
+        let back = &self.buffers[index];
+        transition(
+            &self.list,
+            &self.textures[10].resource,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+        );
+        transition(
+            &self.list,
+            back,
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        );
+        self.list.CopyResource(back, &self.textures[10].resource);
+        transition(
+            &self.list,
+            &self.textures[10].resource,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        transition(
+            &self.list,
+            back,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+        );
+        let handle = D3D12_CPU_DESCRIPTOR_HANDLE {
+            ptr: self.rtv.GetCPUDescriptorHandleForHeapStart().ptr
+                + index
+                    * self
+                        .device
+                        .GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
+                        as usize,
+        };
+        self.list.OMSetRenderTargets(1, Some(&handle), false, None);
+        self.draw_gui(primitives, pixels_per_point, &mut keep)?;
+        transition(
+            &self.list,
+            back,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_PRESENT,
+        );
+        self.submit()?;
+        self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
+        let mut data = null_mut();
+        self.timing
+            .Map(0, Some(&D3D12_RANGE { Begin: 0, End: 16 }), Some(&mut data))?;
+        let times = std::slice::from_raw_parts(data as *const u64, 2);
+        let frequency = self.queue.GetTimestampFrequency()?;
+        self.gpu_ms = (times[1] - times[0]) as f64 / frequency as f64 * 1000.;
+        self.timing.Unmap(0, None);
+        self.samples += n;
+        if n > 0 {
+            self.frame = self.frame.wrapping_add(1);
+        }
+        Ok(())
+    }
+    unsafe fn update_atlas(
+        &mut self,
+        delta: &egui::TexturesDelta,
+        keep: &mut Vec<ID3D12Resource>,
+    ) -> Result<()> {
+        for (id, change) in &delta.set {
+            ensure!(
+                *id == egui::TextureId::Managed(0),
+                "Only the egui font atlas is supported"
+            );
+            let size = change.image.size();
+            let pixels: Vec<egui::Color32> = match &change.image {
+                egui::ImageData::Color(i) => i.pixels.clone(),
+                egui::ImageData::Font(i) => i.srgba_pixels(None).collect(),
+            };
+            if let Some(pos) = change.pos {
+                for y in 0..size[1] {
+                    let start = ((pos[1] + y) * self.atlas_size[0] + pos[0]) * 4;
+                    for x in 0..size[0] {
+                        self.atlas_pixels[start + x * 4..start + x * 4 + 4]
+                            .copy_from_slice(&pixels[y * size[0] + x].to_array());
+                    }
+                }
+            } else {
+                self.atlas_size = size;
+                self.atlas_pixels = pixels.iter().flat_map(|p| p.to_array()).collect();
+            }
+            let t = texture(
+                &self.device,
+                self.atlas_size[0] as _,
+                self.atlas_size[1] as _,
+                DXGI_FORMAT_R8G8B8A8_UNORM,
+                D3D12_RESOURCE_FLAG_NONE,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+            )?;
+            let (layout, bytes) = footprint(&self.device, &t.resource);
+            let staging = buffer(
+                &self.device,
+                bytes,
+                D3D12_HEAP_TYPE_UPLOAD,
+                D3D12_RESOURCE_FLAG_NONE,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+            )?;
+            for y in 0..self.atlas_size[1] {
+                let row = &self.atlas_pixels
+                    [y * self.atlas_size[0] * 4..(y + 1) * self.atlas_size[0] * 4];
+                write_buffer(&staging, y as u64 * layout.Footprint.RowPitch as u64, row)?;
+            }
+            let mut dst = location(&t.resource);
+            let mut src = D3D12_TEXTURE_COPY_LOCATION {
+                pResource: ManuallyDrop::new(Some(staging.clone())),
+                Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+                Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                    PlacedFootprint: layout,
+                },
+            };
+            self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+            ManuallyDrop::drop(&mut src.pResource);
+            ManuallyDrop::drop(&mut dst.pResource);
+            transition(
+                &self.list,
+                &t.resource,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+            );
+            let srv = D3D12_SHADER_RESOURCE_VIEW_DESC {
+                Format: t.format,
+                ViewDimension: D3D12_SRV_DIMENSION_TEXTURE2D,
+                Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
+                    Texture2D: D3D12_TEX2D_SRV {
+                        MipLevels: 1,
+                        ..Default::default()
+                    },
+                },
+            };
+            self.device
+                .CreateShaderResourceView(&t.resource, Some(&srv), self.cpu(32));
+            if let Some(old) = self.atlas.replace(t) {
+                keep.push(old.resource);
+            }
+            keep.push(staging);
+        }
+        Ok(())
+    }
+    unsafe fn draw_gui(
+        &self,
+        primitives: &[egui::ClippedPrimitive],
+        ppp: f32,
+        keep: &mut Vec<ID3D12Resource>,
+    ) -> Result<()> {
+        if self.atlas.is_none() {
+            return Ok(());
+        }
+        #[repr(C)]
+        #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+        struct GuiVertex {
+            position: [f32; 2],
+            uv: [f32; 2],
+            color: [u8; 4],
+        }
+        self.list.SetDescriptorHeaps(&[Some(self.heap.clone())]);
+        self.list.SetGraphicsRootSignature(&self.root);
+        self.list
+            .SetGraphicsRootConstantBufferView(0, self.constants.GetGPUVirtualAddress());
+        self.list.SetGraphicsRootDescriptorTable(4, self.gpu(32));
+        self.list.SetPipelineState(&self.gui);
+        self.list
+            .IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        self.list.RSSetViewports(&[D3D12_VIEWPORT {
+            Width: self.width as f32,
+            Height: self.height as f32,
+            MaxDepth: 1.,
+            ..Default::default()
+        }]);
+        for primitive in primitives {
+            if let egui::epaint::Primitive::Mesh(mesh) = &primitive.primitive {
+                if mesh.indices.is_empty() {
+                    continue;
+                }
+                let vs: Vec<_> = mesh
+                    .vertices
+                    .iter()
+                    .map(|v| GuiVertex {
+                        position: [v.pos.x * ppp, v.pos.y * ppp],
+                        uv: [v.uv.x, v.uv.y],
+                        color: v.color.to_array(),
+                    })
+                    .collect();
+                let vb = upload(&self.device, bytemuck::cast_slice(&vs))?;
+                let ib = upload(&self.device, bytemuck::cast_slice(&mesh.indices))?;
+                self.list.IASetVertexBuffers(
+                    0,
+                    Some(&[D3D12_VERTEX_BUFFER_VIEW {
+                        BufferLocation: vb.GetGPUVirtualAddress(),
+                        SizeInBytes: (vs.len() * size_of::<GuiVertex>()) as _,
+                        StrideInBytes: size_of::<GuiVertex>() as _,
+                    }]),
+                );
+                self.list.IASetIndexBuffer(Some(&D3D12_INDEX_BUFFER_VIEW {
+                    BufferLocation: ib.GetGPUVirtualAddress(),
+                    SizeInBytes: (mesh.indices.len() * 4) as _,
+                    Format: DXGI_FORMAT_R32_UINT,
+                }));
+                let r = primitive.clip_rect;
+                let left = (r.min.x * ppp).clamp(0., self.width as f32) as i32;
+                let top = (r.min.y * ppp).clamp(0., self.height as f32) as i32;
+                let right = (r.max.x * ppp).clamp(left as f32, self.width as f32) as i32;
+                let bottom = (r.max.y * ppp).clamp(top as f32, self.height as f32) as i32;
+                self.list
+                    .RSSetScissorRects(&[windows::Win32::Foundation::RECT {
+                        left,
+                        top,
+                        right,
+                        bottom,
+                    }]);
+                self.list
+                    .DrawIndexedInstanced(mesh.indices.len() as _, 1, 0, 0, 0);
+                keep.push(vb);
+                keep.push(ib);
+            }
+        }
+        Ok(())
+    }
+    pub unsafe fn capture_reference(&mut self) -> Result<()> {
+        self.begin()?;
+        copy_texture(
+            &self.list,
+            &self.textures[18].resource,
+            &self.textures[13].resource,
+        );
+        self.submit()?;
+        self.reference_valid = true;
+        Ok(())
+    }
+    pub unsafe fn capture(
+        &mut self,
+        path: &std::path::Path,
+        hdr: bool,
+        include_ui: bool,
+    ) -> Result<()> {
+        let index = if hdr { 18 } else { 10 };
+        let resource = if include_ui {
+            self.buffers[1 - self.swap.GetCurrentBackBufferIndex() as usize].clone()
+        } else {
+            self.textures[index].resource.clone()
+        };
+        let state = if include_ui {
+            D3D12_RESOURCE_STATE_PRESENT
+        } else {
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+        };
+        let (layout, bytes) = footprint(&self.device, &resource);
+        let staging = buffer(
+            &self.device,
+            bytes,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        self.begin()?;
+        transition(
+            &self.list,
+            &resource,
+            state,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+        );
+        let mut src = location(&resource);
+        let mut dst = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(Some(staging.clone())),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            state,
+        );
+        self.submit()?;
+        let mut p = null_mut();
+        staging.Map(0, None, Some(&mut p))?;
+        let row_size = self.width as usize * if hdr { 16 } else { 4 };
+        let mut packed = Vec::with_capacity(row_size * self.height as usize);
+        for y in 0..self.height as usize {
+            packed.extend_from_slice(std::slice::from_raw_parts(
+                (p as *const u8).add(y * layout.Footprint.RowPitch as usize),
+                row_size,
+            ));
+        }
+        staging.Unmap(0, None);
+        if hdr {
+            let floats: Vec<f32> = packed
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|b| f32::from_le_bytes(*b))
+                .collect();
+            let rgb: Vec<f32> = floats
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .flat_map(|c| [c[0], c[1], c[2]])
+                .collect();
+            image::Rgb32FImage::from_raw(self.width, self.height, rgb)
+                .unwrap()
+                .save(path)?;
+        } else {
+            image::save_buffer(
+                path,
+                &packed,
+                self.width,
+                self.height,
+                image::ColorType::Rgba8,
+            )?;
+        }
+        Ok(())
+    }
+    pub unsafe fn debug_messages(&self) -> Vec<String> {
+        let mut result = vec![];
+        if let Ok(q) = self.device.cast::<ID3D12InfoQueue>() {
+            for i in 0..q.GetNumStoredMessagesAllowedByRetrievalFilter() {
+                let mut len = 0;
+                let _ = q.GetMessage(i, None, &mut len);
+                let mut bytes = vec![0u64; len.div_ceil(8)];
+                let p = bytes.as_mut_ptr() as *mut D3D12_MESSAGE;
+                if q.GetMessage(i, Some(p), &mut len).is_ok() {
+                    let msg = &*p;
+                    if msg.Severity.0 <= D3D12_MESSAGE_SEVERITY_WARNING.0 {
+                        result.push(
+                            String::from_utf8_lossy(std::slice::from_raw_parts(
+                                msg.pDescription,
+                                msg.DescriptionByteLength.saturating_sub(1),
+                            ))
+                            .into(),
+                        );
+                    }
+                }
+            }
+            q.ClearStoredMessages();
+        }
+        result
+    }
+}
+impl Drop for Gpu {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self.wait_idle();
+            cornell_ngx_destroy(self.ngx);
+            let _ = CloseHandle(self.event);
+        }
+    }
+}
+fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
+    D3D12_SHADER_BYTECODE {
+        pShaderBytecode: code.as_ptr() as _,
+        BytecodeLength: code.len(),
+    }
+}
+unsafe fn create_gui_pipeline(
+    device: &ID3D12Device5,
+    root: &ID3D12RootSignature,
+) -> Result<ID3D12PipelineState> {
+    let input = [
+        D3D12_INPUT_ELEMENT_DESC {
+            SemanticName: PCSTR(c"POSITION".as_ptr() as _),
+            Format: DXGI_FORMAT_R32G32_FLOAT,
+            InputSlotClass: D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            ..Default::default()
+        },
+        D3D12_INPUT_ELEMENT_DESC {
+            SemanticName: PCSTR(c"TEXCOORD".as_ptr() as _),
+            Format: DXGI_FORMAT_R32G32_FLOAT,
+            AlignedByteOffset: 8,
+            InputSlotClass: D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            ..Default::default()
+        },
+        D3D12_INPUT_ELEMENT_DESC {
+            SemanticName: PCSTR(c"COLOR".as_ptr() as _),
+            Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+            AlignedByteOffset: 16,
+            InputSlotClass: D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            ..Default::default()
+        },
+    ];
+    let blend = D3D12_RENDER_TARGET_BLEND_DESC {
+        BlendEnable: true.into(),
+        SrcBlend: D3D12_BLEND_ONE,
+        DestBlend: D3D12_BLEND_INV_SRC_ALPHA,
+        BlendOp: D3D12_BLEND_OP_ADD,
+        SrcBlendAlpha: D3D12_BLEND_ONE,
+        DestBlendAlpha: D3D12_BLEND_INV_SRC_ALPHA,
+        BlendOpAlpha: D3D12_BLEND_OP_ADD,
+        LogicOp: D3D12_LOGIC_OP_NOOP,
+        RenderTargetWriteMask: D3D12_COLOR_WRITE_ENABLE_ALL.0 as u8,
+        ..Default::default()
+    };
+    let mut d = D3D12_GRAPHICS_PIPELINE_STATE_DESC {
+        pRootSignature: ManuallyDrop::new(Some(root.clone())),
+        VS: bytecode(include_bytes!(concat!(env!("OUT_DIR"), "/vs_main.dxil"))),
+        PS: bytecode(include_bytes!(concat!(env!("OUT_DIR"), "/ps_main.dxil"))),
+        BlendState: D3D12_BLEND_DESC {
+            RenderTarget: [blend; 8],
+            ..Default::default()
+        },
+        SampleMask: u32::MAX,
+        RasterizerState: D3D12_RASTERIZER_DESC {
+            FillMode: D3D12_FILL_MODE_SOLID,
+            CullMode: D3D12_CULL_MODE_NONE,
+            DepthClipEnable: true.into(),
+            ..Default::default()
+        },
+        DepthStencilState: D3D12_DEPTH_STENCIL_DESC {
+            DepthEnable: false.into(),
+            DepthFunc: D3D12_COMPARISON_FUNC_ALWAYS,
+            ..Default::default()
+        },
+        InputLayout: D3D12_INPUT_LAYOUT_DESC {
+            pInputElementDescs: input.as_ptr(),
+            NumElements: input.len() as _,
+        },
+        PrimitiveTopologyType: D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+        NumRenderTargets: 1,
+        RTVFormats: [
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            DXGI_FORMAT_UNKNOWN,
+            DXGI_FORMAT_UNKNOWN,
+            DXGI_FORMAT_UNKNOWN,
+            DXGI_FORMAT_UNKNOWN,
+            DXGI_FORMAT_UNKNOWN,
+            DXGI_FORMAT_UNKNOWN,
+            DXGI_FORMAT_UNKNOWN,
+        ],
+        SampleDesc: DXGI_SAMPLE_DESC {
+            Count: 1,
+            Quality: 0,
+        },
+        ..Default::default()
+    };
+    let result = device.CreateGraphicsPipelineState(&d);
+    ManuallyDrop::drop(&mut d.pRootSignature);
+    Ok(result?)
+}
+unsafe fn buffer(
+    device: &ID3D12Device5,
+    size: u64,
+    heap: D3D12_HEAP_TYPE,
+    flags: D3D12_RESOURCE_FLAGS,
+    state: D3D12_RESOURCE_STATES,
+) -> Result<ID3D12Resource> {
+    let desc = D3D12_RESOURCE_DESC {
+        Dimension: D3D12_RESOURCE_DIMENSION_BUFFER,
+        Width: size.max(256).next_multiple_of(256),
+        Height: 1,
+        DepthOrArraySize: 1,
+        MipLevels: 1,
+        SampleDesc: DXGI_SAMPLE_DESC {
+            Count: 1,
+            Quality: 0,
+        },
+        Layout: D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+        Flags: flags,
+        ..Default::default()
+    };
+    let mut r = None;
+    device.CreateCommittedResource(
+        &D3D12_HEAP_PROPERTIES {
+            Type: heap,
+            ..Default::default()
+        },
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        state,
+        None,
+        &mut r,
+    )?;
+    Ok(r.unwrap())
+}
+unsafe fn texture(
+    device: &ID3D12Device5,
+    w: u32,
+    h: u32,
+    format: DXGI_FORMAT,
+    flags: D3D12_RESOURCE_FLAGS,
+    state: D3D12_RESOURCE_STATES,
+) -> Result<Texture> {
+    let desc = D3D12_RESOURCE_DESC {
+        Dimension: D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+        Width: w as u64,
+        Height: h,
+        DepthOrArraySize: 1,
+        MipLevels: 1,
+        Format: format,
+        SampleDesc: DXGI_SAMPLE_DESC {
+            Count: 1,
+            Quality: 0,
+        },
+        Flags: flags,
+        ..Default::default()
+    };
+    let mut r = None;
+    device.CreateCommittedResource(
+        &D3D12_HEAP_PROPERTIES {
+            Type: D3D12_HEAP_TYPE_DEFAULT,
+            ..Default::default()
+        },
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        state,
+        None,
+        &mut r,
+    )?;
+    Ok(Texture {
+        resource: r.unwrap(),
+        format,
+    })
+}
+unsafe fn upload(device: &ID3D12Device5, bytes: &[u8]) -> Result<ID3D12Resource> {
+    let r = buffer(
+        device,
+        bytes.len() as u64,
+        D3D12_HEAP_TYPE_UPLOAD,
+        D3D12_RESOURCE_FLAG_NONE,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+    )?;
+    write_buffer(&r, 0, bytes)?;
+    Ok(r)
+}
+unsafe fn write_buffer(r: &ID3D12Resource, offset: u64, bytes: &[u8]) -> Result<()> {
+    let mut p = null_mut();
+    r.Map(0, Some(&D3D12_RANGE::default()), Some(&mut p))?;
+    std::ptr::copy_nonoverlapping(
+        bytes.as_ptr(),
+        (p as *mut u8).add(offset as usize),
+        bytes.len(),
+    );
+    r.Unmap(0, None);
+    Ok(())
+}
+unsafe fn transition(
+    cmd: &ID3D12GraphicsCommandList4,
+    r: &ID3D12Resource,
+    before: D3D12_RESOURCE_STATES,
+    after: D3D12_RESOURCE_STATES,
+) {
+    let mut b = D3D12_RESOURCE_BARRIER {
+        Type: D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+        Anonymous: D3D12_RESOURCE_BARRIER_0 {
+            Transition: ManuallyDrop::new(D3D12_RESOURCE_TRANSITION_BARRIER {
+                pResource: ManuallyDrop::new(Some(r.clone())),
+                Subresource: D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                StateBefore: before,
+                StateAfter: after,
+            }),
+        },
+        ..Default::default()
+    };
+    cmd.ResourceBarrier(std::slice::from_ref(&b));
+    ManuallyDrop::drop(&mut (*b.Anonymous.Transition).pResource);
+}
+unsafe fn uav(cmd: &ID3D12GraphicsCommandList4, r: Option<&ID3D12Resource>) {
+    let mut b = D3D12_RESOURCE_BARRIER {
+        Type: D3D12_RESOURCE_BARRIER_TYPE_UAV,
+        Anonymous: D3D12_RESOURCE_BARRIER_0 {
+            UAV: ManuallyDrop::new(D3D12_RESOURCE_UAV_BARRIER {
+                pResource: ManuallyDrop::new(r.cloned()),
+            }),
+        },
+        ..Default::default()
+    };
+    cmd.ResourceBarrier(std::slice::from_ref(&b));
+    ManuallyDrop::drop(&mut (*b.Anonymous.UAV).pResource);
+}
+unsafe fn copy_texture(
+    cmd: &ID3D12GraphicsCommandList4,
+    from: &ID3D12Resource,
+    to: &ID3D12Resource,
+) {
+    transition(
+        cmd,
+        from,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_COPY_SOURCE,
+    );
+    transition(
+        cmd,
+        to,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_COPY_DEST,
+    );
+    cmd.CopyResource(to, from);
+    transition(
+        cmd,
+        from,
+        D3D12_RESOURCE_STATE_COPY_SOURCE,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+    );
+    transition(
+        cmd,
+        to,
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+    );
+}
+unsafe fn location(r: &ID3D12Resource) -> D3D12_TEXTURE_COPY_LOCATION {
+    D3D12_TEXTURE_COPY_LOCATION {
+        pResource: ManuallyDrop::new(Some(r.clone())),
+        Type: D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+        Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+            SubresourceIndex: 0,
+        },
+    }
+}
+unsafe fn footprint(
+    device: &ID3D12Device5,
+    r: &ID3D12Resource,
+) -> (D3D12_PLACED_SUBRESOURCE_FOOTPRINT, u64) {
+    let mut layout = D3D12_PLACED_SUBRESOURCE_FOOTPRINT::default();
+    let mut bytes = 0;
+    device.GetCopyableFootprints(
+        &r.GetDesc(),
+        0,
+        1,
+        0,
+        Some(&mut layout),
+        None,
+        None,
+        Some(&mut bytes),
+    );
+    (layout, bytes)
+}
+fn halton(mut index: u32, base: u32) -> f32 {
+    let (mut f, mut result) = (1., 0.);
+    while index > 0 {
+        f /= base as f32;
+        result += f * (index % base) as f32;
+        index /= base;
+    }
+    result
+}
+
+fn root_srv(register: u32) -> D3D12_ROOT_PARAMETER {
+    D3D12_ROOT_PARAMETER {
+        ParameterType: D3D12_ROOT_PARAMETER_TYPE_SRV,
+        Anonymous: D3D12_ROOT_PARAMETER_0 {
+            Descriptor: D3D12_ROOT_DESCRIPTOR {
+                ShaderRegister: register,
+                RegisterSpace: 0,
+            },
+        },
+        ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+    }
+}
