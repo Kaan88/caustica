@@ -79,14 +79,16 @@ void store(uint2 p,uint pass,float4 v){if(pass==6)v.rgb*=albedo_at(int2(p));if((
     store(p,pass,total>1e-6?float4(sum/total,variance/(total*total)):center);
 }
 float filmic(float x){return ((x*(0.15*x+0.05)+0.004)/(x*(0.15*x+0.5)+0.06))-0.06666667;}
-float3 tonemap(float3 c){c=max(c*display_settings.x,0);uint mode=modes.y;
+// The tone curves on exposed scene light; the result is display light, 1 = white.
+float3 tone_curve(float3 c,uint mode){
     if(mode==1)c=c/(1+c);
     if(mode==2)c=c*(1+c/16)/(1+c);
     if(mode==3)c=saturate(c*(2.51*c+0.03)/(c*(2.43*c+0.59)+0.14));
     if(mode==4)c=float3(filmic(c.r*2),filmic(c.g*2),filmic(c.b*2))/filmic(11.2);
     if(mode==5){c=saturate(c*(2.51*c+0.03)/(c*(2.43*c+0.59)+0.14));c=smoothstep(0,1,c);}
-    return pow(saturate(c),1/max(0.1,display_settings.y));
+    return saturate(c);
 }
+float3 tonemap(float3 c){return pow(tone_curve(max(c*display_settings.x,0),modes.y),1/max(0.1,display_settings.y));}
 // ST.2084 (PQ) encode/decode in nits, for the BT.2390 roll-off below.
 float pq(float nits){float y=pow(clamp(nits,0,10000)/10000,0.1593017578125);return pow((0.8359375+18.8515625*y)/(1+18.6875*y),78.84375);}
 float pq_inverse(float e){float p=pow(saturate(e),1/78.84375);return 10000*pow(max(p-0.8359375,0)/(18.8515625-18.6875*p),1/0.1593017578125);}
@@ -94,6 +96,14 @@ float pq_inverse(float e){float p=pow(saturate(e),1/78.84375);return 10000*pow(m
 // BT.2390 knee and rolled off into the panel peak. Applied to the brightest channel, so hue is kept.
 // Returns scRGB (1.0 = 80 nits).
 float3 hdr_map(float3 c){
+    // A tone map other than Linear keeps its SDR look: below half of white the display light is
+    // exactly the SDR one at paper white. Above that knee the highlights expand into the panel's
+    // headroom r = peak/white with g(u) = u/(1-u+u/R), slope-continuous at the knee, reaching r at 1.
+    if(modes.y!=0){
+        float3 t=pow(tone_curve(max(c*display_settings.x,0),modes.y),2.2/max(0.1,display_settings.y));
+        float r=max(hdr.z/hdr.y,1),R=(r-0.5)/0.5;float3 u=max(t-0.5,0)/0.5;
+        return (min(t,0.5)+0.5*u/(1-u+u/R))*hdr.y/80;
+    }
     c=max(c*display_settings.x,0)*hdr.y;float m=max(c.r,max(c.g,c.b));if(m<=0)return 0;
     float peak=pq(hdr.z),knee=1.5*peak-0.5,e=pq(m);
     if(e>knee){float t=(e-knee)/(1-knee),t2=t*t,t3=t2*t;e=(2*t3-3*t2+1)*knee+(t3-2*t2+t)*(1-knee)+(-2*t3+3*t2)*peak;}

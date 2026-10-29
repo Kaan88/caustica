@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1 and 2 are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–3 are done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -69,9 +69,34 @@ Goal: on an HDR monitor with Windows HDR on, show real HDR, using Windows' own c
   - Windows can turn HDR on without an HDR monitor on some setups, and the WARP adapter can't present HDR.
   - Make the transform testable headless by rendering to an RGBA16F target and checking known values: an 80-nit gray maps to 1.0, and the peak is clamped to `MaxLuminance`/80.
 
-### 3. UI phase 1 (from ui-plan.md section 8)
+### 3. UI phase 1 (from ui-plan.md section 8) — done 2026-10-30
 
 Regroup and relabel only. Include the DLSS preset combo and the HDR status line from items 1–2.
+
+### 3b. Blender-style transform gizmos (owner request, 2026-10-30)
+
+Clicking an object (in the viewport or the outliner) shows transform handles on it, as in Blender. This replaces the plain drag handles of ui-plan.md phase 2 and lands together with that phase's undo stack.
+
+- **Gizmos**, drawn at the object's pivot with a constant screen size:
+  - **Move:** X / Y / Z arrows (red, green, blue) and the three plane squares (XY, XZ, YZ) for two-axis moves; a center circle moves in the view plane.
+  - **Rotate:** three axis rings plus a white view-aligned outer ring (trackball-free, like Blender's default).
+  - **Scale:** axis lines ending in cubes, plus the center circle for uniform scale.
+  - Hovered handles highlight; the active axis draws as an infinite line while dragging.
+- **Blender keys** as well as the handles:
+  - G (grab/move), R (rotate), S (scale) start a modal transform from the mouse position.
+  - X / Y / Z then constrain to an axis, Shift+X/Y/Z to the plane excluding it, pressing the axis again toggles global ↔ local.
+  - Typing a number sets the exact value (G X 0.5 Enter), Ctrl snaps (grid 0.1 units, 15°, 0.1×), Shift gives fine control.
+  - Left click or Enter confirms; right click or Esc cancels and restores the original transform.
+  - A header shows the live values ("Move X 0.52 units"), like Blender's header text.
+  - W / E / R-style tool switching is also offered as top-bar buttons: Select, Move, Rotate, Scale. Orientation: Global / Local.
+- **Also for lights:** area lights and the main light get move and rotate gizmos and a scale gizmo that edits their width / depth (light quads become drawn and pickable).
+- **Mapping to `Settings`:** move edits `position[x, z]` and `elevation` (y); rotate edits `rotation` (yaw) and `tilt` (pitch, roll); scale edits `size` (uniform), `scale_xz` (X, Z) and `stretch` (Y). Values clamp to `validate()` ranges. Grounded objects keep resting on the floor unless Y is moved explicitly.
+- **Implementation:**
+  - Draw with the egui painter on a background layer, projecting through `Settings::camera` as the self-test pick check does. Hit-test handles in screen space before orbit/pick in `window_event`.
+  - Axis drags: project the axis onto the screen and use the mouse delta along it; plane drags: intersect the mouse ray with the plane; rotation: the angle around the projected pivot.
+  - Every drag frame changes `geometry_key` and rebuilds the BLAS. Measure on chess and bunny; if it hitches, update every other frame or move objects by TLAS instance transforms (core track 4).
+  - Undo: push one snapshot per completed transform (ui-plan.md 7.7).
+  - Self-test: scripted G/R/S transforms with axis constraints and typed values, asserting the resulting fields, plus a cancel that restores them.
 
 ### 4. Scenes step 1 (from scene-research.md section 5)
 

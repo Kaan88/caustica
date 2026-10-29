@@ -37,12 +37,13 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
 - **NVIDIA DLSS Ray Reconstruction:** NGX feature `RayReconstruction`, created/evaluated through the official DLSSD helpers. It consumes fresh noisy HDR samples, diffuse/specular albedo, world normals plus packed roughness, linear view depth, current-to-previous pixel motion, primary-surface specular hit distance and camera matrices. RR receives neither progressively accumulated color nor the native denoiser's output. Jitter uses a 64-phase Halton sequence, with deterministic guide surfaces for each frame. Camera motion preserves neural history; geometry/material/light edits reset it.
 - **Quality mode and upscalers:** Native (100%), Quality (67%), Balanced (58%), Performance (50%) and Ultra Performance (33%), plus a custom render scale.
   - With **Ray Reconstruction** on, RR denoises and upscales in one step. Models: NVIDIA default, Transformer D, Transformer E and RR2/F (default).
+  - With RR off at 100%, Quality mode offers **Native** (progressive accumulation, the unbiased path) or the selected temporal upscaler as anti-aliasing: **DLAA**, **FSR Native AA** or **XeSS Native AA**.
   - With RR off and a mode below 100%, the native denoiser runs at render resolution and an **upscaler** brings it to the window: **NVIDIA DLSS Super Resolution** (default), **AMD FSR** (FidelityFX API; FSR 3.1, or FSR 4 on supported AMD GPUs), **Intel XeSS** (runs on any recent DX12 GPU), or the spatial **bicubic** (Catmull-Rom, clamped to stop ringing) and **bilinear** filters.
   - The three temporal upscalers get fresh jittered samples every frame (Halton, 64 phases), device depth and render-resolution motion vectors. The native denoiser's history and the upscaler then do the accumulation, as in a real-time renderer, so detail resolves above the render resolution. Motionless pixels keep a longer denoiser history, so a still image keeps getting cleaner. An unavailable upscaler falls back to bicubic and says so in the panel.
   - DLSS Super Resolution has its own **preset** choice: NVIDIA default (K for DLAA/Quality/Balanced, M for Performance, L for Ultra Performance), or J, K, L or M forced for every mode.
   - Changing the model, preset, quality mode or upscaler recreates the feature with completed GPU work.
 - **Native denoising (SVGF-style):** raw samples are integrated over time in albedo-demodulated space, then filtered by five à-trous passes guided by object id, normal, plane distance and a Gaussian-prefiltered luminance variance. On a camera move, the previous integration is reprojected bilinearly; each tap is checked by object id, normal and depth. While the camera is still, that history stays frozen and fades out over 256 fresh samples, so samples are never counted twice. Mirror-like pixels keep at most 2 samples of history. The history never feeds the unbiased progressive accumulation. Native rendering offers padded 2D Owen-scrambled Sobol sampling or independent random sampling. RR deliberately uses independent random path samples, following NVIDIA's noise guidance.
-- **HDR displays:** with Windows HDR on, the app outputs real HDR (an FP16 scRGB swapchain) and uses Windows' own values: the panel peak from Windows HDR Calibration and the SDR content brightness as paper white. Highlights roll off into the panel peak (BT.2390); everything below the knee is shown at its true brightness. Output can be Auto, SDR or forced HDR, and peak and paper white can be overridden. The controls are drawn at the SDR brightness so they match the rest of the desktop. **HDR PNG** saves what the HDR screen shows as a 16-bit PQ / BT.2020 PNG tagged for HDR viewers. PNG and EXR captures are unchanged.
+- **HDR displays:** with Windows HDR on, the app outputs real HDR (an FP16 scRGB swapchain) and uses Windows' own values: the panel peak from Windows HDR Calibration and the SDR content brightness as paper white. The tone map applies in HDR too: midtones look exactly as in SDR at paper white, and the curve's highlights expand into the panel's extra range. Linear shows true scene brightness with a BT.2390 roll-off near the peak. Output can be Auto, SDR or forced HDR, and peak and paper white can be overridden. The controls are drawn at the SDR brightness so they match the rest of the desktop. **HDR PNG** saves what the HDR screen shows as a 16-bit PQ / BT.2020 PNG tagged for HDR viewers. PNG and EXR captures are unchanged.
 - **Output:** eight views (beauty, normals, diffuse albedo, depth, direct, indirect, specular, convergence), six tone maps, exposure/gamma, direct/indirect relighting and a frozen linear-HDR A/B reference.
 - **Native controls:** egui rendered directly into the D3D12 swapchain, 24 scene presets, randomization, camera controls, validated JSON save/load, GPU timestamp timing, pause/convergence and resize support. A separate **Scene objects** window lists, searches, adds, duplicates, deletes, hides and focuses objects and edits their transform and material; click an object in the viewport to select it. The Lighting section edits the main light and up to 32 extra area lights. Material and light edits update the sampling tables without rebuilding the acceleration structures.
 - **Presets:** 0–8 are the Cornell-box studies (classic, reflective spheres, sphere and box, mirror + glass, mirror, glass, warm, dramatic, emissive spheres). 9–23 are open studios: material matrix, weekend sphere field, Whitted checkerboard, Utah teapot studio, Stanford bunny studio, glass laboratory, RGB shadow study, sphere pyramid, mirror corridor, knot gallery, column courtyard, chess still life, neon sculpture, orbital sculpture, and an empty stage to build on. Switching between Cornell-box presets keeps your camera; any other switch uses the preset's own view. Randomize picks any preset except the empty stage: inside the Cornell box it reshapes and recolors the blocks, elsewhere it keeps the layout and recolors diffuse and glass objects.
@@ -50,23 +51,33 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
 
 ## Controls
 
+The window has a **top bar** (Menu, scene picker grouped into Cornell box / Studios / Build your own with ◀ ▶, Randomize, view, Pause, Restart, Frame, Hide panel), a **side panel** with four tabs and a **status bar** (state, samples and progress, GPU time, the denoiser and upscaler in words, render and output resolution, HDR).
+
+- **Scene:** an outliner (Stage, Camera, Main light, area lights, objects with visibility toggles) with add buttons, and an inspector for the selection.
+- **Render:** DLSS Ray Reconstruction, RR model, quality mode, upscaler and DLSS preset, native denoiser, sampling.
+- **Look:** view, exposure in EV, tone map, display output and HDR levels, A/B compare.
+- **Export:** PNG, HDR EXR, HDR PNG, high-resolution render, scene file.
+
+Rarely used rows sit under **More**; Menu → *Show advanced settings* shows them all inline. Labels name what a control does and show units; hover a label for a one-line explanation. Short confirmations (saved files, key toggles, errors) appear as toasts at the bottom right.
+
 | Input | Action |
 |---|---|
-| Left click | Select the object under the cursor |
+| Left click | Select the object under the cursor (opens it in the Scene tab) |
 | Left drag | Orbit |
 | Right drag / Shift-drag | Pan |
 | Wheel | Dolly |
 | F | Frame all objects |
-| Delete | Delete the selected object |
+| Delete | Delete the selected object or area light |
+| Escape | Deselect (the app closes only from the window) |
 | Space | Pause/resume |
-| R | Reset accumulation |
+| R | Restart accumulation |
 | A | Auto orbit |
-| D | Toggle native denoiser (RR has a separate toggle) |
-| C | Capture A/B reference |
+| D | Toggle the native denoiser |
+| C | Freeze the A/B reference |
 | 1–8 | Select view |
 | F12 | Save `cornell.png` |
-| Tab | Hide/show controls |
-| Escape | Close |
+| Tab | Hide the panel, then everything, then show all again |
+| Ctrl +/− | UI size |
 
 Save/load uses `settings.json` in the working directory. PNG/EXR buttons write `cornell.png` / `cornell.exr`; high-resolution export writes `cornell-high-res.png`. These are native settings; the browser JSON schema is separate. All material colors are linear RGB. Lighting temperature is normalized to unit luminance, then multiplied by the gel and intensity.
 
@@ -93,7 +104,7 @@ From `native/`:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
 ```
 
-Other switches: `--spp N`, `--samples N`, `--no-vsync`, `--debug`, `--rr`, `--capture-ui`, `--self-test`, `--help`. `--preset` or `--settings` (give only one) is applied before every other switch, so the others always override it, in any order. `--headless` uses a hidden Win32 window and a real hardware D3D12 device; it requires `--frames N`. `--capture-ui` includes the controls in PNG captures. `--debug` requires Windows Graphics Tools/debug layers and fails verification on D3D12 warnings/errors.
+Other switches: `--spp N`, `--samples N`, `--no-vsync`, `--debug`, `--rr`, `--capture-ui`, `--self-test`, `--help`. `--preset` or `--settings` (give only one) is applied before every other switch, so the others always override it, in any order. `--headless` uses a hidden Win32 window and a real hardware D3D12 device; it requires `--frames N`. `--capture-ui` includes the controls in PNG captures; `--ui-tab scene|render|look|export`, `--ui-advanced` and `--ui-select stage|camera|main-light|light:N|object:N` set up what they show. `--debug` requires Windows Graphics Tools/debug layers and fails verification on D3D12 warnings/errors.
 
 `--capture-sequence directory` captures the last 32 frames of a finite run for temporal image analysis. `--orbit-test` moves the camera by 0.25° per frame after a 64-frame warmup. The image-based RR regression renders a noise-free scene, emission-only walls and black emission-only blocks, so paths end at the first hit, to isolate reconstruction shimmer from path-tracing noise:
 
@@ -136,7 +147,7 @@ The previous filter fed its own blurred output back as history, so it got worse 
 
 The RR bridge converts ray-sampling offsets to NGX image displacements with opposite signs on both axes. Specular hit distances come from a stable primary reflection ray rather than a randomly selected BSDF lobe; this prevents false reflection-motion changes on stationary surfaces.
 
-The 190-frame integration self-test covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
+The 198-frame integration self-test covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export, and draws every tab and inspector with the advanced rows shown. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
 
 ## Implementation map
 
@@ -148,7 +159,8 @@ The 190-frame integration self-test covers all 24 presets including the empty st
 | `src/geometry.rs` | Cached shape meshes, scene assembly, framing, focus and viewport picking |
 | `src/lighting.rs` | Packed GPU materials and the power-weighted emissive-triangle table |
 | `src/display.rs` | Windows display query (HDR state, calibrated luminance, SDR white level), HDR transform reference and HDR PNG writer |
-| `src/editor.rs` | Scene objects window and area-light editor |
+| `src/ui.rs` | Top bar, side panel tabs, status bar, toasts, theme; UI state kept out of `Settings` |
+| `src/editor.rs` | Object, area-light and material inspectors |
 | `src/teapot_data.rs` | Utah teapot patches, generated by `tools/build_teapot_data.py` |
 | `src/gpu.rs` | Device/capabilities, swapchain, root signature, PSOs, BLAS/TLAS, material and light buffers, resources/barriers/fences, guide buffers, timestamps and readbacks |
 | `shaders/pathtrace.hlsl` | DXR transport, light sampling, material and pattern evaluation, guide generation and accumulation |
@@ -167,7 +179,7 @@ All frame submissions are fenced before upload buffers or descriptors can be reu
 - RR albedo guides use a material/Fresnel estimate; glass guides describe the primary glass surface. Neural reconstruction can leave artifacts in difficult glossy/refractive scenes, especially during disocclusion or at aggressive render scales.
 - Direct/indirect sliders are exact AOV recomposition for raw native output. On filtered/RR output they apply the accumulated AOV ratio to reconstructed beauty; that operation is an approximation. Diagnostic AOVs remain progressive raw estimates.
 - Memory scales with pixel count. Guides/history use FP32, and large output targets can allocate several GB. There is one frame in flight and no frame generation, Reflex, ReSTIR, texture importer, or mesh importer.
-- High-resolution export currently runs synchronously and restarts interactive accumulation. The GUI is a movable overlay; Tab gives a clean viewport. A/B references are invalidated by resize.
+- High-resolution export currently runs synchronously and restarts interactive accumulation. The side panel covers the right of the image (the render still fills the window); Tab gives a clean viewport. A/B references are invalidated by resize.
 
 NVIDIA integration reference: [official DLSS SDK and integration guides](https://github.com/NVIDIA/DLSS). D3D12 bindings: [Microsoft windows-rs](https://github.com/microsoft/windows-rs).
 

@@ -19,7 +19,7 @@ Paths here are relative to `native/` unless noted.
   - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap.
 - **Personal project, never published:** license terms don't limit assets or SDK use. The ordered plan is `docs/roadmap.md`:
-  - Near term: DLSS presets J/K/L/M, native HDR from Windows settings, UI phase 1, scene files, then quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
+  - Near term: DLSS presets, native HDR and UI phase 1 are done (2026-10-30); next are scene files, then quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.
 - **Git:** the repo root is `cornell/` (WebGL app plus `native/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 190 scripted frames; implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 198 scripted frames; implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -72,13 +72,14 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 
 | File | Key places |
 |---|---|
-| `src/main.rs` | `App` state. `App::new` is the CLI parser, including `--set key=json` (l.191). `redraw()` (l.283) runs each frame: self-test script, egui, save/load, dirty keys, render, self-test asserts, actions, export. `ui()` (l.644) is the main panel; it syncs `self.preset` from `scene_name`. `window_event()` (l.771) handles input. |
+| `src/main.rs` | `App` state. `App::new` is the CLI parser (`--set key=json`, `--ui-*`). `redraw()` runs each frame: self-test script, HDR/monitor sync, egui (`ui()` lives in `ui.rs`), save/load, dirty keys, render, self-test asserts, actions, export. `window_event()` handles input and the single-key toggles (each one toasts). |
 | `src/scene.rs` | `Settings`, `Material`, `Object`, `AreaLight`, `Shape` (11) and `Pattern` (4). `PRESETS` holds 24 names. `randomize()` (l.318). `preset()` (l.352) builds 0–8 inline and sends 9+ to `presets::apply`; it keeps the camera only when moving between Cornell presets 0–8. `validate()` (l.456) bounds every field. `camera()` returns `look_at_rh` and `perspective_rh` with near 0.01 and far 500. `light_color()` converts Kelvin to linear RGB at unit luminance, times tint and intensity. |
 | `src/presets.rs` | 12-entry material library (`material(i)`), `studio()` base stage, `apply()` for presets 9–23, `description()`. |
 | `src/geometry.rs` | Unit meshes cached in a `LazyLock`. `object_geometry()` applies scale (size·0.35), YXZ Euler rotation and floor grounding (floor at y = −1). `geometry()` builds one triangle soup. Also frame, focus and CPU pick (Möller–Trumbore over every object, every click). |
 | `src/lighting.rs` | `PackedMaterial` and `Emitter` (64 B each), `materials()` ordering, `emitter_table()` (power-weighted CDF plus a per-triangle lookup, 1-based, 0 = not an emitter). |
 | `src/display.rs` | `Monitor::query(hwnd)`: the DXGI output holding most of the window, `GetDesc1` (HDR on, peak/full-frame/min nits) and the SDR white level via `DisplayConfigGetDeviceInfo`; `current()` = `IDXGIFactory1::IsCurrent`. Also `hdr_map` (CPU copy of the shader transform, for tests) and `write_hdr_png` (16-bit PQ/BT.2020 with a cICP chunk). |
-| `src/editor.rs` | Object window (list, add, duplicate, delete, focus, transform, material), area-light editor, `material_ui`. |
+| `src/ui.rs` | UI plan phase 1 (2026-10-30). `UiState` (tab, advanced, panel_hidden, selection, toasts, export size/samples): never in `Settings`. `impl App { fn ui }` draws top bar, status bar, right `SidePanel` with Scene / Render / Look / Export tabs, toasts. Helpers `row` (2-column grid row, label carries the tooltip), `more` (inline when advanced, else a "More" header), `theme`. `UiState::delete_selected`, `toast`, `error`. |
+| `src/editor.rs` | Inspectors used by the Scene tab: `object_ui`, `light_ui`, `material_ui`, `shape_combo`, `new_object`. Ranges match `validate()`. |
 | `src/gpu.rs` | Everything D3D12. Highlights: `new()`, `resize()` (l.496, allocates the 19 UAV textures), `rebuild_scene()` (l.611), `update_materials()`, `render()` (l.749), `capture()`, `capture_reference()`, egui atlas and draw. |
 | `src/teapot_data.rs` | Generated by `tools/build_teapot_data.py` from `assets/TeapotGeometry.source.js`. Do not hand-edit. |
 | `shaders/common.hlsli` | `cbuffer Frame`, which **must mirror `Constants` in gpu.rs field for field**. Also the resource bindings. |
@@ -322,13 +323,33 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **This machine:** Dell S3422DWG, Windows HDR on, 530 nits peak and full frame, SDR white 480 nits (slider at max). With white that close to the peak, the roll-off starts around 110 nits.
 - **Swapchain:** `Gpu::set_hdr` flips `hdr_active` and calls `resize`, which uses `swap_format()` (RGBA16F or RGBA8) and sets G10/P709 or G22/P709.
   - **Color-space support depends on the current buffer format**, so check after `ResizeBuffers` (`color_space_ok`). Checking on the 8-bit swapchain always says no; if the check fails, it falls back to SDR.
-- **Transform** (`post.hlsl` `hdr_map`): scene × exposure × paper white → BT.2390 EETF on the max channel in PQ space (knee = 1.5·PQ(peak) − 0.5) → min(peak) → /80. It keeps hue; the curve reaches the full peak only at 10,000 nits. Debug views and the A/B line use `sdr_in_hdr` (gamma-decoded × white).
+- **Transform** (`post.hlsl` `hdr_map`), by tone map:
+  - **Linear (0):** scene × exposure × paper white → BT.2390 EETF on the max channel in PQ space (knee = 1.5·PQ(peak) − 0.5) → min(peak) → /80. It keeps hue; the curve reaches the full peak only at 10,000 nits.
+  - **Other tone maps (owner feedback: they had no effect in HDR):** t = `tone_curve` (the SDR curve, display light) ^ (2.2 / gamma). Below t = 0.5 the output is exactly t × paper white, the SDR brightness; above, u = (t − 0.5)/0.5 expands as 0.5 + 0.5·u/(1 − u + u/R), R = (r − 0.5)/0.5, r = peak/white: slope-continuous, reaching the peak at t = 1.
+  - A first try, r·T(x/r), pushed midtones into the ACES toe (half as bright), and t/(1 − t + t/r) with no knee lifted ACES midtones by 27%.
+  - Debug views and the A/B line use `sdr_in_hdr` (gamma-decoded × white).
+  - `display::hdr_map` mirrors all of it (with `tone_curve`); unit test `hdr_tone_maps_keep_the_sdr_midtones_and_fill_the_headroom`.
   - `output_image` (10) stays SDR-tonemapped, so PNG, the sequence and high-res captures are unchanged.
   - The constants gain `hdr` = [on, white, peak, 0]; `eye.w` = white/80 tells `gui.hlsl` to linearize egui's premultiplied sRGB and scale it to paper white. There are two GUI PSOs (RGBA8 / RGBA16F).
 - **Tests:** unit test `hdr_transform_keeps_midtones_and_respects_the_peak` (gray 0.4 at 200 nits → 1.0; clamp at peak/80; monotonic; hue kept) and `png_crc_matches_the_spec`.
   - Self-test 186–189: forced HDR with 1000/200; at 187 it reads back 18 and 26 and compares every pixel with `display::hdr_map` (worst relative error ~1e-3, the RGBA16F precision); 188 SDR; 189 Auto.
   - On an HDR monitor, Auto means the whole self-test runs in HDR.
   - The PQ PNG was decoded and matches linear EXR × white in BT.2020 to 0.1 nit.
+
+## UI (phase 1 of docs/ui-plan.md, roadmap item 3, 2026-10-30)
+
+- Layout: `TopBottomPanel` top bar and status bar, `SidePanel::right` (370 pt default, 320–560). Panel fill is 250/255 alpha over the render, which still fills the window (lens shift is phase 3).
+- **Fixed slider width (130 pt)** inside `row`. Sizing sliders from `available_width` made the panel grow to its maximum on some tabs.
+- Picking selects `Selection::Object`, switches to the Scene tab and shows the panel. Escape deselects (it no longer quits). Delete removes the selected object or area light. Tab cycles all → top bar only → nothing.
+- Every single-key toggle and every save/load result is a toast; `self.status` is gone.
+- **Render tab (reworked after owner feedback: the first version's "AI / Built-in / Off" split and "Upscaler: not needed at 100%" read wrong):** one Reconstruction section in the old menu's terms. "DLSS Ray Reconstruction" checkbox (disabled with `rr_status` when `Gpu::rr_available()` is false), RR model, Quality mode, Upscaler (disabled while RR is on), DLSS preset, "Native denoiser (D)", Render scale (advanced or off-list).
+  - Quality mode entries come from `quality_modes`: with RR, DLAA (100%); without, Native (100%), plus DLAA / FSR Native AA / XeSS Native AA (100%) for a temporal upscaler, then 67 / 58 / 50 / 33%.
+  - **`Settings.native_aa`** (default false): at 100% `prepare_upscaler` runs the temporal upscaler as anti-aliasing. Off by default so `--no-rr` at 100% stays the progressive path that unbiased references rely on. It is forced off for high-res export (DLAA restarts every frame) and is in the reconfigure trigger list. Self-test 196 checks that DLAA starts.
+- Exposure is shown in EV (log2), written back only on change.
+- egui's default fonts lack `→` and `●`: the glyph unit test caught both. The status dot is painted.
+- CLI for captures: `--ui-tab`, `--ui-advanced`, `--ui-select`.
+- Self-test: 178 opens the Render tab for the slider-clamp guard; 190–195 draw the object, light, main light, camera, Look and Export views with advanced rows, then delete the added light through `delete_selected`.
+- Not done (later phases): undo, viewport handles and hover, scene browser with thumbnails, Quality bundles, per-pass GPU timing, persisted UI prefs, file pickers, async high-res export.
 
 ## Review findings: fixed and merged (2026-10-29)
 

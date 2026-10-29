@@ -626,6 +626,10 @@ impl Gpu {
         self.sr_created = None;
         self.sr_failed.clear();
     }
+    /// NGX loaded and reports Ray Reconstruction (caps bit 0).
+    pub fn rr_available(&self) -> bool {
+        !self.ngx.is_null() && unsafe { cornell_ngx_caps(self.ngx) } & 1 != 0
+    }
     pub fn upscaler_available(&self, kind: Upscaler) -> bool {
         match kind {
             Upscaler::Dlss => !self.ngx.is_null() && unsafe { cornell_ngx_caps(self.ngx) } & 2 != 0,
@@ -637,7 +641,8 @@ impl Gpu {
     /// Creates the selected temporal upscaler if needed. Returns it when it can run this frame.
     unsafe fn prepare_upscaler(&mut self, s: &Settings) -> Option<Upscaler> {
         let kind = s.upscaler;
-        if self.rr_active || self.rw >= self.width {
+        // At 100% only DLAA / Native AA (a temporal upscaler, when asked for) runs.
+        if self.rr_active || (self.rw >= self.width && !(s.native_aa && kind.temporal())) {
             self.upscale_status.clear();
             return None;
         }

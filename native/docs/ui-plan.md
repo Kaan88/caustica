@@ -506,7 +506,9 @@ Thumbnail source: a `tools/thumbnails.ps1` that runs `cornell-rtx.exe --headless
 
 ## 8. Phased roadmap
 
-### Phase 1: Regroup and relabel (1 day, shippable)
+### Phase 1: Regroup and relabel (1 day, shippable) — done 2026-10-30
+
+Built as `src/ui.rs` plus inspectors in `editor.rs`, not the multi-file `src/ui/` folder of section 7.1. The modified-row dots of 3.3 and the persisted UI prefs of 7.6 are left for later phases.
 
 Scope, `main.rs` `ui()` and `editor.rs` only, no `gpu.rs`/`scene.rs` changes:
 - Replace the floating window with top bar + right `SidePanel` with Scene / Render / Look / Export tabs; status bar with state, samples/cap progress bar, GPU ms, denoiser in words, render→output resolution.
@@ -524,7 +526,7 @@ Risks: low. Long one-line UI code makes the move tedious but mechanical. Merge c
 
 - Undo/redo stack (Ctrl+Z / Ctrl+Y) and Ctrl+D, H, Del, F / double-click focus, Home reset camera, PageUp/PageDown scenes, middle-drag pan, F1 shortcuts sheet.
 - Selection outline and hover outline (projected AABB hull, throttled CPU hover pick).
-- Drag handles for move / height / yaw / size; Alt-drag duplicate; light quads drawn and pickable with move handles.
+- Drag handles for move / height / yaw / size; Alt-drag duplicate; light quads drawn and pickable with move handles. **Superseded by roadmap item 3b: full Blender-style move / rotate / scale gizmos and G / R / S modal keys.**
 - Right-click context menu (viewport and outliner).
 - Picking no longer force-opens anything; it selects and switches the panel to Scene.
 Risks: medium. Handle vs orbit input conflicts in `window_event`; BLAS rebuild cost while dragging on heavy scenes (measure chess/bunny; throttle if needed); self-test frame 138 pick check must still pass.

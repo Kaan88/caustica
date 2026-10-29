@@ -8,10 +8,11 @@ mod lighting;
 mod presets;
 mod scene;
 mod teapot_data;
+mod ui;
 use anyhow::{Context, Result, bail};
 use gpu::Gpu;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use scene::{Material, PRESETS, Settings};
+use scene::{PRESETS, Settings};
 use std::{
     path::PathBuf,
     sync::Arc,
@@ -50,7 +51,6 @@ struct App {
     drag: Option<MouseButton>,
     drag_distance: f32,
     shift: bool,
-    status: String,
     preset: usize,
     frames: Option<u32>,
     rendered: u32,
@@ -71,13 +71,9 @@ struct App {
     material_key: Vec<u8>,
     /// Settings the dirty keys were last computed from.
     checked: Option<Settings>,
-    selected_object: usize,
-    add_shape: scene::Shape,
-    object_search: String,
-    show_objects: bool,
     actions: Actions,
-    export_scale: u32,
-    export_samples: u32,
+    /// Interface state (tab, selection, toasts); never part of `Settings`.
+    ui: ui::UiState,
     hwnd: Option<windows::Win32::Foundation::HWND>,
     /// The monitor under the window, re-read when it moves or Windows changes the display setup.
     monitor: Option<display::Monitor>,
@@ -160,6 +156,7 @@ impl App {
         let mut debug = false;
         let mut hidden = false;
         let mut capture_ui = false;
+        let mut interface = ui::UiState::default();
         let mut self_test = false;
         let mut selected_preset = 0;
         let mut size = [1440, 900];
@@ -240,16 +237,46 @@ impl App {
                 "--debug" => debug = true,
                 "--headless" => hidden = true,
                 "--capture-ui" => capture_ui = true,
+                // For UI captures: open a tab, show the advanced rows.
+                "--ui-tab" => {
+                    interface.tab = match args.next().context("--ui-tab needs a name")?.as_str() {
+                        "scene" => ui::Tab::Scene,
+                        "render" => ui::Tab::Render,
+                        "look" => ui::Tab::Look,
+                        "export" => ui::Tab::Export,
+                        other => {
+                            bail!("--ui-tab: unknown tab {other} (scene, render, look, export)")
+                        }
+                    }
+                }
+                "--ui-advanced" => interface.advanced = true,
+                "--ui-select" => {
+                    let what = args.next().context(
+                        "--ui-select needs stage, camera, main-light, light:N or object:N",
+                    )?;
+                    let index =
+                        |prefix: &str| what.strip_prefix(prefix).and_then(|n| n.parse().ok());
+                    interface.selection = match what.as_str() {
+                        "stage" => ui::Selection::Stage,
+                        "camera" => ui::Selection::Camera,
+                        "main-light" => ui::Selection::MainLight,
+                        _ => match (index("light:"), index("object:")) {
+                            (Some(i), _) => ui::Selection::Light(i),
+                            (_, Some(i)) => ui::Selection::Object(i),
+                            _ => bail!("--ui-select: unknown item {what}"),
+                        },
+                    };
+                }
                 "--self-test" => {
                     self_test = true;
                     hidden = true;
                     debug = true;
-                    frames = Some(190);
+                    frames = Some(198);
                 }
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --capture-sequence dir --orbit-test --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --orbit-test --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -267,7 +294,7 @@ impl App {
         anyhow::ensure!(frames != Some(0), "--frames must be positive");
         anyhow::ensure!(!hidden || frames.is_some(), "--headless requires --frames");
         let egui = egui::Context::default();
-        egui.set_visuals(egui::Visuals::dark());
+        ui::theme(&egui);
         Ok(Self {
             window: None,
             gpu: None,
@@ -277,10 +304,6 @@ impl App {
             geom_key: geometry_key(&s),
             material_key: material_key(&s),
             checked: None,
-            selected_object: 0,
-            add_shape: scene::Shape::Sphere,
-            object_search: String::new(),
-            show_objects: true,
             settings: s,
             paused: false,
             show_ui: !hidden || capture_ui || self_test,
@@ -289,7 +312,6 @@ impl App {
             drag: None,
             drag_distance: 0.,
             shift: false,
-            status: String::new(),
             preset: selected_preset,
             frames,
             rendered: 0,
@@ -305,8 +327,7 @@ impl App {
             size,
             failed: None,
             actions: Actions::default(),
-            export_scale: 2,
-            export_samples: 128,
+            ui: interface,
             hwnd: None,
             monitor: None,
             display_dirty: true,
@@ -397,8 +418,8 @@ impl App {
                 167 => self.settings.rr_preset = 4,
                 168 => self.settings.rr_preset = 6,
                 170 => {
-                    self.export_scale = 1;
-                    self.export_samples = 16;
+                    self.ui.export_scale = 1;
+                    self.ui.export_samples = 16;
                     self.actions.high_res = true;
                 }
                 // Every upscaler on the native path at half resolution, then back to RR.
@@ -408,8 +429,11 @@ impl App {
                     self.settings.upscaler = scene::Upscaler::ALL[(self.rendered - 172) as usize];
                 }
                 177 => self.settings.rr = true,
-                // Valid, but above the sample-limit slider's range (the panel is open).
-                178 => self.settings.max_samples = 100_000,
+                // A loaded value must survive drawing its slider (the Render tab is open).
+                178 => {
+                    self.ui.tab = ui::Tab::Render;
+                    self.settings.max_samples = 100_000;
+                }
                 // Every DLSS Super Resolution preset recreates the feature, then back to RR.
                 180..=184 => {
                     self.settings.rr = false;
@@ -433,6 +457,36 @@ impl App {
                     self.settings.hdr_mode = 0;
                     self.settings.hdr_peak = 0.;
                     self.settings.hdr_white = 0.;
+                }
+                // Draw every inspector and tab once, with the advanced rows, under the debug layer.
+                190 => {
+                    self.ui.advanced = true;
+                    self.ui.tab = ui::Tab::Scene;
+                    self.ui.selection = ui::Selection::Object(0);
+                }
+                191 => {
+                    self.settings.lights.push(scene::AreaLight::default());
+                    self.ui.selection = ui::Selection::Light(self.settings.lights.len() - 1);
+                }
+                192 => self.ui.selection = ui::Selection::MainLight,
+                193 => self.ui.selection = ui::Selection::Camera,
+                194 => self.ui.tab = ui::Tab::Look,
+                // DLAA: DLSS Super Resolution at 100% as anti-aliasing, then back to RR.
+                196 => {
+                    self.settings.rr = false;
+                    self.settings.scale = 1.;
+                    self.settings.upscaler = scene::Upscaler::Dlss;
+                    self.settings.native_aa = true;
+                }
+                197 => {
+                    self.settings.native_aa = false;
+                    self.settings.rr = true;
+                }
+                195 => {
+                    self.ui.tab = ui::Tab::Export;
+                    self.ui.selection = ui::Selection::Light(self.settings.lights.len() - 1);
+                    let removed = self.ui.delete_selected(&mut self.settings);
+                    anyhow::ensure!(removed.is_some(), "Deleting the selected light failed");
                 }
                 _ => {}
             }
@@ -465,8 +519,8 @@ impl App {
                 .map_err(anyhow::Error::from)
                 .and_then(|j| std::fs::write("settings.json", j).map_err(Into::into))
             {
-                Ok(()) => self.status = "Saved settings.json".into(),
-                Err(e) => self.status = e.to_string(),
+                Ok(()) => self.ui.toast("Saved settings.json"),
+                Err(e) => self.ui.error(format!("Save failed: {e}")),
             }
         }
         if self.actions.load {
@@ -480,9 +534,9 @@ impl App {
                 }) {
                 Ok(s) => {
                     self.settings = s;
-                    self.status = "Loaded settings.json".into();
+                    self.ui.toast("Loaded settings.json");
                 }
-                Err(e) => self.status = format!("Load rejected: {e}"),
+                Err(e) => self.ui.error(format!("Load rejected: {e}")),
             }
         }
         let g = self.gpu.as_mut().unwrap();
@@ -566,7 +620,7 @@ impl App {
             if key != self.last_key {
                 let mut old: serde_json::Value = serde_json::from_str(&self.last_key)?;
                 let mut new: serde_json::Value = serde_json::from_str(&key)?;
-                if ["rr_preset", "rr", "upscaler", "dlss_preset"]
+                if ["rr_preset", "rr", "upscaler", "dlss_preset", "native_aa"]
                     .iter()
                     .any(|k| old[k] != new[k])
                 {
@@ -637,7 +691,14 @@ impl App {
                     let (linear, out) = unsafe { (g.read_floats(18)?, g.read_floats(26)?) };
                     let (mut worst, mut brightest) = (0f32, 0f32);
                     for (l, h) in linear.as_chunks::<4>().0.iter().zip(out.as_chunks::<4>().0) {
-                        let want = display::hdr_map([l[0], l[1], l[2]], s.exposure, 200., 1000.);
+                        let want = display::hdr_map(
+                            [l[0], l[1], l[2]],
+                            s.exposure,
+                            s.gamma,
+                            s.tonemap,
+                            200.,
+                            1000.,
+                        );
                         for i in 0..3 {
                             worst = worst.max((h[i] - want[i]).abs() / (want[i].abs() + 0.01));
                             brightest = brightest.max(h[i]);
@@ -650,6 +711,12 @@ impl App {
                     );
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
+                196 => anyhow::ensure!(
+                    !g.upscaler_available(scene::Upscaler::Dlss)
+                        || g.upscale_status.contains("active"),
+                    "DLAA did not start: {}",
+                    g.upscale_status
+                ),
                 180..=184 => {
                     let label = scene::DLSS_PRESETS[(self.rendered - 180) as usize].1;
                     anyhow::ensure!(
@@ -706,14 +773,14 @@ impl App {
             unsafe {
                 g.capture(std::path::Path::new("cornell.png"), false, false)?;
             }
-            self.status = "Saved cornell.png".into();
+            self.ui.toast("Saved cornell.png");
         }
         if self.actions.exr {
             self.actions.exr = false;
             unsafe {
                 g.capture(std::path::Path::new("cornell.exr"), true, false)?;
             }
-            self.status = "Saved linear HDR cornell.exr".into();
+            self.ui.toast("Saved linear HDR cornell.exr");
         }
         if self.actions.hdr_png {
             self.actions.hdr_png = false;
@@ -725,21 +792,23 @@ impl App {
                     g.width,
                     g.height,
                 )?;
-                self.status = "Saved cornell-hdr.png (PQ / BT.2020)".into();
+                self.ui.toast("Saved cornell-hdr.png (PQ / BT.2020)");
             } else {
-                self.status = "HDR PNG needs HDR output".into();
+                self.ui.error("HDR PNG needs HDR output");
             }
         }
         if self.actions.high_res {
             self.actions.high_res = false;
             let mut export = s.clone();
             export.scale = 1.;
-            export.max_samples = self.export_samples;
+            // Progressive at full resolution: DLAA would restart every frame.
+            export.native_aa = false;
+            export.max_samples = self.ui.export_samples;
             export.vsync = false;
             export.rotate = false;
             export.compare = false;
             let (w, h) = (g.width, g.height);
-            let factor = (self.export_scale as f32).min(4096. / w.max(h) as f32);
+            let factor = (self.ui.export_scale as f32).min(4096. / w.max(h) as f32);
             let ew = ((w as f32 * factor).round() as u32).max(1);
             let eh = ((h as f32 * factor).round() as u32).max(1);
             unsafe {
@@ -757,10 +826,11 @@ impl App {
                 g.capture(std::path::Path::new("cornell-high-res.png"), false, false)?;
                 g.resize(w, h, s)?;
             }
-            self.status = format!(
+            let text = format!(
                 "Saved cornell-high-res.png · {ew}×{eh} · {} spp",
-                self.export_samples
+                self.ui.export_samples
             );
+            self.ui.toast(text);
         }
         if self.debug {
             let messages = unsafe { g.debug_messages() };
@@ -856,140 +926,6 @@ impl App {
             event_loop.exit();
         }
     }
-    fn ui(&mut self, ctx: &egui::Context) {
-        // Loaded and randomized settings carry their preset by name.
-        let known = PRESETS.iter().position(|n| *n == self.settings.scene_name);
-        if let Some(i) = known {
-            self.preset = i;
-        }
-        let g = self.gpu.as_ref().unwrap();
-        let hdr_line = {
-            let info = self
-                .monitor
-                .as_ref()
-                .map(|m| m.info.clone())
-                .unwrap_or_default();
-            let name = if info.name.is_empty() {
-                "Display".to_string()
-            } else {
-                info.name.clone()
-            };
-            let windows = if info.hdr {
-                "Windows HDR on"
-            } else {
-                "Windows HDR off"
-            };
-            let mut line = if g.hdr_active {
-                format!(
-                    "{name}: {windows} · HDR output, {:.0} nits peak, paper white {:.0} nits",
-                    g.hdr_levels[1], g.hdr_levels[0]
-                )
-            } else {
-                format!("{name}: {windows} · SDR output")
-            };
-            if info.peak_nits > 0. {
-                line += &format!(
-                    "
-Panel: {:.0} nits peak, {:.0} full frame, SDR white {:.0} nits",
-                    info.peak_nits, info.full_frame_nits, info.sdr_white_nits
-                );
-            }
-            if !self.hdr_note.is_empty() {
-                line += &format!(
-                    "
-{}",
-                    self.hdr_note
-                );
-            }
-            line
-        };
-        egui::Window::new("CORNELL / RTX LAB").default_pos([16.,16.]).default_width(330.).vscroll(true).max_height(ctx.screen_rect().height()-32.).show(ctx,|ui|{
-            ui.label(egui::RichText::new("RUST  /  DIRECT3D 12  /  DXR 1.1").small().color(egui::Color32::from_rgb(93,194,211)));
-            ui.label(&g.adapter_name);
-            ui.label(format!("{} objects · {} triangles · {} emissive triangles",self.settings.objects.len(),g.triangle_count,g.emitter_count));
-            ui.horizontal(|ui|{ui.monospace(format!("{} spp  ·  {:.2} ms GPU",g.samples,g.gpu_ms));if g.samples>=self.settings.max_samples{ui.label("Converged");}});
-            ui.label(egui::RichText::new(&g.rr_status).small());ui.separator();
-            ui.horizontal(|ui|{if ui.button(if self.paused{"▶ Resume"}else{"⏸ Pause"}).clicked(){self.paused= !self.paused;}
-if ui.button("Reset [R]").clicked(){self.actions.reset=true;}
-if ui.button("A/B [C]").clicked(){self.actions.reference=true;}});
-            egui::ComboBox::from_label("Scene preset").selected_text(self.settings.scene_name.clone()).show_ui(ui,|ui|{for (i,p) in PRESETS.iter().enumerate(){if ui.selectable_value(&mut self.preset,i,*p).changed(){self.settings.preset(i);}}});
-            ui.label(egui::RichText::new(if known.is_some(){presets::description(self.preset)}else{"Custom scene from a settings file."}).small());
-            ui.horizontal(|ui|{if ui.button("◀").clicked(){self.preset=(self.preset+PRESETS.len()-1)%PRESETS.len();self.settings.preset(self.preset);}
-if ui.button("▶").clicked(){self.preset=(self.preset+1)%PRESETS.len();self.settings.preset(self.preset);}
-if ui.button("Frame scene [F]").clicked(){self.actions.frame_scene=true;}ui.checkbox(&mut self.show_objects,"Objects");});
-            ui.horizontal(|ui|{if ui.button("Randomize").clicked(){let seed=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos()|1;self.settings.randomize(seed);}
-if ui.button("Reset all").clicked(){self.settings=Settings::default();self.preset=0;}});
-            let s=&mut self.settings;
-            egui::CollapsingHeader::new("Reconstruction & rendering").default_open(true).show(ui,|ui|{
-                ui.checkbox(&mut s.rr,"DLSS Ray Reconstruction").on_hover_text("Uses NVIDIA's neural ray denoiser and upscaler. Native à-trous is the fallback.");
-                let model=match s.rr_preset {4=>"Transformer D",5=>"Transformer E",6=>"RR2 / F",_=>"NVIDIA default"};
-                egui::ComboBox::from_label("RR model").selected_text(model).show_ui(ui,|ui|{for (id,label) in [(0,"NVIDIA default"),(4,"Transformer D"),(5,"Transformer E"),(6,"RR2 / F")]{ui.selectable_value(&mut s.rr_preset,id,label);}});
-                egui::ComboBox::from_label("Quality mode").selected_text(if s.scale>=0.99{"Native (100%)"}else if s.scale>=0.62{"Quality (67%)"}else if s.scale>=0.54{"Balanced (58%)"}else if s.scale>=0.42{"Performance (50%)"}else{"Ultra performance (33%)"}).show_ui(ui,|ui|{for (scale,label) in [(1.,"Native (100%)"),(2./3.,"Quality (67%)"),(0.58,"Balanced (58%)"),(0.5,"Performance (50%)"),(1./3.,"Ultra performance (33%)")]{ui.selectable_value(&mut s.scale,scale,label);}});
-                // Without RR, a render scale below 1 needs an upscaler; temporal ones resolve detail from jittered frames.
-                ui.add_enabled_ui(!g.rr_active,|ui|{egui::ComboBox::from_label("Upscaler").selected_text(s.upscaler.label()).show_ui(ui,|ui|{for u in scene::Upscaler::ALL{let label=if g.upscaler_available(u){u.label().to_string()}else{format!("{} (unavailable)",u.label())};ui.selectable_value(&mut s.upscaler,u,label);}});}).response.on_hover_text("Used when Ray Reconstruction is off and the quality mode renders below 100%. RR does its own upscaling.");
-                if s.upscaler==scene::Upscaler::Dlss&&!g.rr_active{let label=scene::DLSS_PRESETS.iter().find(|(id,_)|*id==s.dlss_preset).map_or("NVIDIA default",|(_,l)|*l);egui::ComboBox::from_label("DLSS preset").selected_text(label).show_ui(ui,|ui|{for (id,label) in scene::DLSS_PRESETS{ui.selectable_value(&mut s.dlss_preset,id,label);}}).response.on_hover_text("Default lets NVIDIA pick: K for DLAA, Quality and Balanced; M for Performance; L for Ultra Performance.");}
-                if !g.upscale_status.is_empty(){ui.label(egui::RichText::new(&g.upscale_status).small());}
-                ui.checkbox(&mut s.temporal,"Reuse temporal history");ui.checkbox(&mut s.denoise,"Native à-trous denoiser [D]");
-                ui.add(crate::slider(&mut s.denoise_strength,0. ..=1.).text("Denoise strength"));
-                ui.add(crate::slider(&mut s.scale,0.25..=1.).text("Render scale"));
-                ui.label(format!("Render {} × {} · output {} × {}",g.rw,g.rh,g.width,g.height));
-                ui.add(crate::slider(&mut s.spp,1..=16).text("Samples / frame"));ui.add(crate::slider(&mut s.bounces,1..=32).text("Bounces"));ui.add(crate::slider(&mut s.max_samples,16..=65536).logarithmic(true).text("Sample limit"));
-                ui.checkbox(&mut s.sobol,"Owen-scrambled Sobol (native)").on_hover_text("DLSS RR uses independent white noise as recommended by NVIDIA. This controls the native progressive path.");ui.add(crate::slider(&mut s.firefly,0. ..=50.).text("Firefly clamp (0 = off)"));ui.checkbox(&mut s.vsync,"VSync");
-            });
-            egui::CollapsingHeader::new("Stage & surfaces").show(ui,|ui|{
-                ui.checkbox(&mut s.cornell_room,"Cornell enclosure");ui.add(crate::slider(&mut s.floor_extent,0.5..=40.).text("Floor extent"));ui.add(crate::slider(&mut s.sky,0. ..=4.).text("Sky illumination"));
-                color(ui,"Left wall",&mut s.left);color(ui,"Right wall",&mut s.right);color(ui,"Room / floor",&mut s.base);color(ui,"Background",&mut s.background);ui.collapsing("Wall material",|ui|material_ui(ui,&mut s.walls));ui.collapsing("Floor material",|ui|material_ui(ui,&mut s.floor));
-            });
-            egui::CollapsingHeader::new("Lighting").show(ui,|ui|{
-                ui.checkbox(&mut s.light_on,"Main area light");ui.checkbox(&mut s.light_visible,"Main light visible to camera");ui.add(crate::slider(&mut s.light_intensity,0. ..=100.).text("Intensity"));ui.add(crate::slider(&mut s.light_size,0.05..=20.).text("Size"));ui.add(crate::slider(&mut s.light_aspect,0.25..=4.).text("Aspect"));ui.add(crate::slider(&mut s.light_temperature,1000. ..=12000.).text("Kelvin"));color(ui,"Gel",&mut s.light_tint);
-                for (i,label) in ["X","Y","Z"].iter().enumerate(){ui.add(crate::slider(&mut s.light_position[i],if i==1{-5. ..=20.}else{-20. ..=20.}).text(*label));}
-                editor::lights(ui,s);
-                ui.checkbox(&mut s.glass_shadow,"Glass casts shadows");ui.add(crate::slider(&mut s.direct,0. ..=4.).text("Direct intensity"));ui.add(crate::slider(&mut s.indirect,0. ..=4.).text("Indirect intensity"));
-            });
-            egui::CollapsingHeader::new("Camera").show(ui,|ui|{
-                ui.checkbox(&mut s.rotate,"Auto orbit [A]");ui.add(crate::slider(&mut s.rotate_speed,-30. ..=30.).text("Degrees / second"));ui.add(crate::slider(&mut s.fov,10. ..=100.).text("Field of view"));ui.add(crate::slider(&mut s.distance,0.5..=200.).logarithmic(true).text("Distance"));
-                if ui.button("Reset camera").clicked(){let mut d=Settings::default();d.preset(self.preset);s.yaw=d.yaw;s.pitch=d.pitch;s.distance=d.distance;s.target=d.target;s.fov=d.fov;}
-                ui.label("Drag: orbit · Right / Shift-drag: pan\nWheel: dolly · Tab: hide controls");
-            });
-            egui::CollapsingHeader::new("Display & export").default_open(true).show(ui,|ui|{
-                let views=["Beauty","Normals","Albedo","Depth","Direct","Indirect","Specular","Convergence"];
-                egui::ComboBox::from_label("View [1–8]").selected_text(views[s.view as usize]).show_ui(ui,|ui|{for(i,n)in views.iter().enumerate(){ui.selectable_value(&mut s.view,i as u32,*n);}});
-                let outputs=["Auto (follow Windows)","SDR","HDR (forced)"];
-                egui::ComboBox::from_label("Output").selected_text(outputs[s.hdr_mode as usize]).show_ui(ui,|ui|{for(i,n)in outputs.iter().enumerate(){ui.selectable_value(&mut s.hdr_mode,i as u32,*n);}}).response.on_hover_text("Auto shows real HDR when Windows HDR is on for this monitor, using Windows' calibration and SDR content brightness.");
-                ui.label(egui::RichText::new(&hdr_line).small());
-                if g.hdr_active{
-                    let mut windows_peak=s.hdr_peak==0.;if ui.checkbox(&mut windows_peak,"Peak brightness from Windows").changed(){s.hdr_peak=if windows_peak{0.}else{g.hdr_levels[1].clamp(80.,10000.)};}
-                    if !windows_peak{ui.add(crate::slider(&mut s.hdr_peak,80. ..=4000.).logarithmic(true).text("Peak nits"));}
-                    let mut windows_white=s.hdr_white==0.;if ui.checkbox(&mut windows_white,"Paper white from Windows").changed(){s.hdr_white=if windows_white{0.}else{g.hdr_levels[0].clamp(40.,1000.)};}
-                    if !windows_white{ui.add(crate::slider(&mut s.hdr_white,40. ..=1000.).logarithmic(true).text("Paper white nits"));}
-                    ui.label(egui::RichText::new("The screen uses an HDR roll-off into the panel peak; the tone map and gamma below shape the PNG and the SDR view.").small());
-                }
-                let maps=["Linear","Reinhard","Reinhard white","ACES","Uncharted 2","High contrast"];
-                egui::ComboBox::from_label("Tone map").selected_text(maps[s.tonemap as usize]).show_ui(ui,|ui|{for(i,n)in maps.iter().enumerate(){ui.selectable_value(&mut s.tonemap,i as u32,*n);}});
-                ui.add(crate::slider(&mut s.exposure,0. ..=10.).text("Exposure"));ui.add(crate::slider(&mut s.gamma,0.1..=4.).text("Gamma"));
-                ui.checkbox(&mut s.compare,"A/B reference");if s.compare{ui.add(crate::slider(&mut s.split,0. ..=1.).text("Split"));}
-                ui.horizontal(|ui|{if ui.button("PNG").clicked(){self.actions.png=true;}
-if ui.button("HDR EXR").clicked(){self.actions.exr=true;}
-if g.hdr_active&&ui.button("HDR PNG").on_hover_text("What the HDR screen shows: 16-bit PNG, PQ / BT.2020").clicked(){self.actions.hdr_png=true;}
-if ui.button("Save settings").clicked(){self.actions.save=true;}
-if ui.button("Load").clicked(){self.actions.load=true;}});
-                ui.label(egui::RichText::new("For true high-resolution renders use --width / --height / --scale 1 --frames N --capture file.png").small());
-                ui.horizontal(|ui|{ui.add(crate::slider(&mut self.export_scale,1..=4).text("Export scale"));});
-                ui.add(crate::slider(&mut self.export_samples,16..=2048).logarithmic(true).text("Export samples"));
-                if ui.button("Render high-resolution PNG").clicked(){self.actions.high_res=true;}
-            });
-            if !self.status.is_empty(){ui.label(&self.status);}
-        });
-        editor::objects(
-            ctx,
-            &mut self.settings,
-            &mut self.selected_object,
-            &mut self.add_shape,
-            &mut self.object_search,
-            &mut self.show_objects,
-            g.width as f32 / g.height as f32,
-        );
-    }
 }
 /// A slider that only clamps what the user drags. egui's default clamps the stored value
 /// whenever the slider is drawn, which would silently rewrite valid values loaded from a file
@@ -999,15 +935,6 @@ fn slider<'a, N: egui::emath::Numeric>(
     range: std::ops::RangeInclusive<N>,
 ) -> egui::Slider<'a> {
     egui::Slider::new(value, range).clamping(egui::SliderClamping::Edits)
-}
-fn color(ui: &mut egui::Ui, label: &str, c: &mut [f32; 3]) {
-    ui.horizontal(|ui| {
-        ui.color_edit_button_rgb(c);
-        ui.label(label);
-    });
-}
-fn material_ui(ui: &mut egui::Ui, m: &mut Material) {
-    editor::material_ui(ui, m)
 }
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -1087,8 +1014,10 @@ impl ApplicationHandler for App {
                             [g.width, g.height],
                         )
                     {
-                        self.selected_object = index;
-                        self.show_objects = true;
+                        self.ui.selection = ui::Selection::Object(index);
+                        self.ui.tab = ui::Tab::Scene;
+                        self.ui.panel_hidden = false;
+                        self.show_ui = true;
                     }
                     self.drag = None;
                 } else if !consumed {
@@ -1138,34 +1067,87 @@ impl ApplicationHandler for App {
             {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     match code {
-                        KeyCode::Escape => event_loop.exit(),
-                        KeyCode::Tab => self.show_ui = !self.show_ui,
-                        KeyCode::Space => self.paused = !self.paused,
-                        KeyCode::KeyR => self.actions.reset = true,
-                        KeyCode::KeyF => self.actions.frame_scene = true,
-                        KeyCode::Delete => {
-                            // Only with the object list open, so the deletion is visible.
-                            if self.show_objects
-                                && self.selected_object < self.settings.objects.len()
-                            {
-                                self.settings.objects.remove(self.selected_object);
-                                self.selected_object = self
-                                    .selected_object
-                                    .min(self.settings.objects.len().saturating_sub(1));
+                        // Escape deselects; closing the window is the only way to quit.
+                        KeyCode::Escape => self.ui.selection = ui::Selection::None,
+                        // Tab: all → top bar only → nothing (screenshot mode) → all.
+                        KeyCode::Tab => {
+                            if !self.show_ui {
+                                self.show_ui = true;
+                                self.ui.panel_hidden = false;
+                            } else if !self.ui.panel_hidden {
+                                self.ui.panel_hidden = true;
+                            } else {
+                                self.show_ui = false;
                             }
                         }
-                        KeyCode::KeyA => self.settings.rotate = !self.settings.rotate,
-                        KeyCode::KeyD => self.settings.denoise = !self.settings.denoise,
-                        KeyCode::KeyC => self.actions.reference = true,
+                        KeyCode::Space => {
+                            self.paused = !self.paused;
+                            self.ui
+                                .toast(if self.paused { "Paused" } else { "Resumed" });
+                        }
+                        KeyCode::KeyR => {
+                            self.actions.reset = true;
+                            self.ui.toast("Restarted");
+                        }
+                        KeyCode::KeyF => self.actions.frame_scene = true,
+                        KeyCode::Delete => {
+                            if let Some(name) = self.ui.delete_selected(&mut self.settings) {
+                                self.ui.toast(format!("Deleted {name}"));
+                            }
+                        }
+                        KeyCode::KeyA => {
+                            self.settings.rotate = !self.settings.rotate;
+                            let on = self.settings.rotate;
+                            self.ui.toast(if on {
+                                "Auto orbit on"
+                            } else {
+                                "Auto orbit off"
+                            });
+                        }
+                        KeyCode::KeyD => {
+                            self.settings.denoise = !self.settings.denoise;
+                            let text = match (self.settings.denoise, self.settings.rr) {
+                                (true, false) => "Native denoiser on",
+                                (false, false) => "Native denoiser off (raw samples)",
+                                (true, true) => {
+                                    "Native denoiser on (used when Ray Reconstruction is off)"
+                                }
+                                (false, true) => {
+                                    "Native denoiser off (used when Ray Reconstruction is off)"
+                                }
+                            };
+                            self.ui.toast(text);
+                        }
+                        KeyCode::KeyC => {
+                            self.actions.reference = true;
+                            self.ui
+                                .toast("Reference frozen: turn on Show split in the Look tab");
+                        }
                         KeyCode::F12 => self.actions.png = true,
-                        KeyCode::Digit1 => self.settings.view = 0,
-                        KeyCode::Digit2 => self.settings.view = 1,
-                        KeyCode::Digit3 => self.settings.view = 2,
-                        KeyCode::Digit4 => self.settings.view = 3,
-                        KeyCode::Digit5 => self.settings.view = 4,
-                        KeyCode::Digit6 => self.settings.view = 5,
-                        KeyCode::Digit7 => self.settings.view = 6,
-                        KeyCode::Digit8 => self.settings.view = 7,
+                        KeyCode::Digit1
+                        | KeyCode::Digit2
+                        | KeyCode::Digit3
+                        | KeyCode::Digit4
+                        | KeyCode::Digit5
+                        | KeyCode::Digit6
+                        | KeyCode::Digit7
+                        | KeyCode::Digit8 => {
+                            let view = [
+                                KeyCode::Digit1,
+                                KeyCode::Digit2,
+                                KeyCode::Digit3,
+                                KeyCode::Digit4,
+                                KeyCode::Digit5,
+                                KeyCode::Digit6,
+                                KeyCode::Digit7,
+                                KeyCode::Digit8,
+                            ]
+                            .iter()
+                            .position(|k| *k == code)
+                            .unwrap_or(0) as u32;
+                            self.settings.view = view;
+                            self.ui.toast(format!("View: {}", ui::view_name(view)));
+                        }
                         _ => {}
                     }
                 }
@@ -1224,6 +1206,7 @@ mod tests {
         for (file, source) in [
             ("main.rs", include_str!("main.rs")),
             ("editor.rs", include_str!("editor.rs")),
+            ("ui.rs", include_str!("ui.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
         ] {

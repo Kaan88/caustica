@@ -147,8 +147,43 @@ unsafe fn white_level(gdi_name: &[u16]) -> Option<(f32, String)> {
     None
 }
 
+/// CPU copy of `tone_curve` in post.hlsl.
+fn tone_curve(c: f32, mode: u32) -> f32 {
+    let aces = |c: f32| (c * (2.51 * c + 0.03) / (c * (2.43 * c + 0.59) + 0.14)).clamp(0., 1.);
+    let filmic =
+        |x: f32| ((x * (0.15 * x + 0.05) + 0.004) / (x * (0.15 * x + 0.5) + 0.06)) - 0.066_666_67;
+    let v = match mode {
+        1 => c / (1. + c),
+        2 => c * (1. + c / 16.) / (1. + c),
+        3 => aces(c),
+        4 => filmic(c * 2.) / filmic(11.2),
+        5 => {
+            let a = aces(c);
+            a * a * (3. - 2. * a)
+        }
+        _ => c,
+    };
+    v.clamp(0., 1.)
+}
 /// CPU copy of `hdr_map` in post.hlsl, for tests: scene-linear RGB → scRGB (1.0 = 80 nits).
-pub fn hdr_map(c: [f32; 3], exposure: f32, white: f32, peak: f32) -> [f32; 3] {
+/// Tone map 0 (Linear) uses the BT.2390 roll-off; the others keep their SDR curve and expand
+/// only the highlights into the headroom peak / white.
+pub fn hdr_map(
+    c: [f32; 3],
+    exposure: f32,
+    gamma: f32,
+    tonemap: u32,
+    white: f32,
+    peak: f32,
+) -> [f32; 3] {
+    if tonemap != 0 {
+        let big_r = ((peak / white).max(1.) - 0.5) / 0.5;
+        return c.map(|v| {
+            let t = tone_curve((v * exposure).max(0.), tonemap).powf(2.2 / gamma.max(0.1));
+            let u = (t - 0.5).max(0.) / 0.5;
+            (t.min(0.5) + 0.5 * u / (1. - u + u / big_r)) * white / 80.
+        });
+    }
     fn pq(nits: f32) -> f32 {
         let y = (nits.clamp(0., 10000.) / 10000.).powf(0.159_301_76);
         ((0.835_937_5 + 18.851_563 * y) / (1. + 18.6875 * y)).powf(78.84375)
@@ -225,7 +260,30 @@ fn crc32(bytes: &[u8]) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::hdr_map;
+    use super::{hdr_map, tone_curve};
+    #[test]
+    fn hdr_tone_maps_keep_the_sdr_midtones_and_fill_the_headroom() {
+        for mode in 1..6 {
+            // Midtones: same display light as SDR at paper white (gamma 2.2 cancels).
+            let mid = hdr_map([0.18; 3], 1., 2.2, mode, 200., 1000.)[0];
+            let sdr = tone_curve(0.18, mode) * 200. / 80.;
+            assert!(
+                (mid - sdr).abs() / sdr < 1e-4,
+                "mode {mode}: {mid} vs {sdr}"
+            );
+            // Highlights go above paper white but never past the peak, monotonically.
+            let mut last = 0.;
+            for i in 0..2000 {
+                let v = hdr_map([i as f32 * 0.05; 3], 1., 2.2, mode, 200., 1000.)[0];
+                assert!(v >= last - 1e-5 && v <= 12.5 + 1e-3, "mode {mode}: {v}");
+                last = v;
+            }
+            assert!(
+                last > 200. / 80. * 1.5,
+                "mode {mode} stays at paper white: {last}"
+            );
+        }
+    }
     #[test]
     fn png_crc_matches_the_spec() {
         // CRC of the IEND chunk type, as in every PNG.
@@ -234,10 +292,10 @@ mod tests {
     #[test]
     fn hdr_transform_keeps_midtones_and_respects_the_peak() {
         // Paper white 200 nits: scene 0.4 is 80 nits, which scRGB writes as 1.0.
-        let gray = hdr_map([0.4; 3], 1., 200., 1000.);
+        let gray = hdr_map([0.4; 3], 1., 2.2, 0, 200., 1000.);
         assert!(gray.iter().all(|v| (v - 1.).abs() < 1e-3), "{gray:?}");
         // Far above the panel: clamped to peak / 80.
-        let light = hdr_map([1000.; 3], 1., 200., 1000.);
+        let light = hdr_map([1000.; 3], 1., 2.2, 0, 200., 1000.);
         assert!(
             light.iter().all(|v| *v <= 12.5 + 1e-3 && *v > 12.),
             "{light:?}"
@@ -245,11 +303,11 @@ mod tests {
         // Monotonic, and hue kept (channel ratios unchanged).
         let mut last = 0.;
         for i in 1..400 {
-            let v = hdr_map([i as f32 * 0.05; 3], 1., 200., 1000.)[0];
+            let v = hdr_map([i as f32 * 0.05; 3], 1., 2.2, 0, 200., 1000.)[0];
             assert!(v >= last - 1e-5);
             last = v;
         }
-        let tinted = hdr_map([20., 10., 5.], 1., 200., 1000.);
+        let tinted = hdr_map([20., 10., 5.], 1., 2.2, 0, 200., 1000.);
         assert!(
             (tinted[0] / tinted[1] - 2.).abs() < 1e-3 && (tinted[1] / tinted[2] - 2.).abs() < 1e-3
         );
