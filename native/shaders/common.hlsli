@@ -14,8 +14,8 @@ cbuffer Frame:register(b0) {
     uint4 modes; // view,tonemap,denoise,RR active
     float4 options; // firefly,denoise strength,compare,split
     float4 jitter; // x,y,sobol,glass shadows
-    uint4 filter_settings; // iteration,temporal,reset,reference valid
-    uint4 scene_info; // emissive triangle count, object count, reserved
+    uint4 filter_settings; // iteration (0 = temporal integration, 1–5 = à-trous),temporal,no history,reference valid
+    uint4 scene_info; // emissive triangle count, object count, Sobol sequence base, reserved
     float4 environment; // sky intensity
 };
 StructuredBuffer<Material> materials:register(t3);
@@ -44,6 +44,9 @@ RWTexture2D<float4> history:register(u15);
 RWTexture2D<float4> history_normal:register(u16);
 RWTexture2D<float> history_depth:register(u17);
 RWTexture2D<float4> linear_output:register(u18);
+RWTexture2D<float> object_id:register(u19); // first-hit material id + 1, 0 = miss
+RWTexture2D<float> history_id:register(u20);
+RWTexture2D<float4> integrated:register(u21); // temporally integrated raw color, a = effective samples
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}
 static const float PI=3.14159265359;
 

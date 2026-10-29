@@ -14,7 +14,7 @@ Paths here are relative to `native/` unless noted.
   - A small C++ bridge (`bridge/ngx.cpp`) to NVIDIA NGX for DLSS Ray Reconstruction.
 - The DLSS SDK is 310.9.16, pinned to commit `9981c63…`. `tools/setup.ps1` sparse-clones it into `vendor/dlss`.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap.
-- **Git:** the repo root is `cornell/` (WebGL app plus `native/`), with a private GitHub remote. Commit and push only when the user asks.
+- **Git:** the repo root is `cornell/` (WebGL app plus `native/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
 - The native settings JSON is not compatible with the browser's.
 
 ### Machine (2026-10-29)
@@ -82,7 +82,10 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 1. Upload `Constants` to offset 0, then `trace` dispatch (8×8 groups, render resolution).
 2. Then one of:
    - **If RR is active:** transition inputs 0, 2–7 to SRV, call `NGX_D3D12_EVALUATE_DLSSD_EXT` into texture 14, transition back.
-   - **Otherwise, if denoise is on:** 5 `filter` passes, constants at offset 1024·(i+1). Then copy ping→history (8→15), normal (2→16) and depth (5→17), only when samples were traced.
+   - **Otherwise, if denoise is on** (branch `review-findings`):
+     - Pass 0 integrates samples over time into texture 21. It is skipped while paused once integrated.
+     - When samples were traced, copy 21→15, 2→16, 5→17 and 19→20.
+     - Then 5 à-trous passes. Constants sit at offset 512·(i+1).
 3. `display` (constants at offset 6144) writes `output_image` (10, RGBA8) and `linear_output` (18).
 4. Copy 10 to the backbuffer, draw egui, Present.
 5. **One frame in flight.** `submit()` blocks on the fence every frame, so per-frame upload buffers in `keep` survive until it signals. CPU writes into the shared upload CB are safe only because of that.
@@ -141,7 +144,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 0 | CBV b0 |
 | 1 | SRV t0 TLAS |
 | 2 | SRV t1 vertices |
-| 3 | Table: UAV u0–u18 (heap slots 0–18) |
+| 3 | Table: UAV u0–u21 (heap slots 0–21) |
 | 4 | Table: SRV t2, egui atlas (heap slot 32, pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
@@ -173,6 +176,9 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
 | 16 | history normal | |
 | 17 | history depth | R32F |
 | 18 | linear_output (HDR beauty, used for EXR) | **output resolution** |
+| 19 | object_id (first-hit material id + 1, 0 = miss) | R32F |
+| 20 | history object id | R32F |
+| 21 | integrated (temporal raw color; a = effective samples) | |
 
 ## Rendering behaviour worth remembering
 
@@ -191,14 +197,15 @@ There is one static linear-clamp sampler s0. The heap holds 64 descriptors.
 - **Sampling:**
   - Native mode uses padded 2D Owen-scrambled Sobol. RR mode always uses white noise (NVIDIA's guidance).
   - There is no blue-noise mask, unlike the WebGL version.
-  - The sequence index is `samples + sample_id`, with a per-pixel scramble fixed for the life of the app.
+  - The sequence index is `scene_info.z + samples + sample_id`. The base moves to a new 8192-aligned block on every reset, and the per-pixel scramble is fixed.
 - **Native filter** (`post.hlsl`):
-  - B3 5×5 à-trous over 5 passes, with weights from normal (pow 64), depth and luminance (σ from M2). Albedo demodulation uses diffuse + specular albedo.
-  - Temporal blend in pass 0 only:
+  - Pass 0 integrates raw samples over time:
     - Nearest-pixel reprojection through `motion`.
-    - Accepts a history pixel when normal dot > 0.95 and depth is within max(2.5 cm, 3%).
-    - Clamps history to ±3σ.
-    - History weight runs from 0.85 (rough) to 0.1 (glossy) and fades out by 256 spp.
+    - Accepts a history pixel when the object id matches, normal dot > 0.95, and depth is within max(2.5 cm, 3%).
+    - History weight runs from 0.85 (rough) to 0.1 (glossy) and fades out by 256 spp. There is no clamp.
+  - Passes 1–5 are B3 5×5 à-trous:
+    - Weights come from object id (hard stop), normal (pow 64), depth, and luminance. The luminance σ uses the M2 variance divided by the effective sample count.
+    - Albedo demodulation uses diffuse + specular albedo.
   - At render scale < 1 without RR, display upscales by nearest neighbour.
 - **RR (`bridge/ngx.cpp`):**
   - Settings: DLUnified denoise mode, packed roughness, linear depth, IsHDR and MVLowRes flags, MV scale 1.
@@ -237,27 +244,70 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 **Rendering at 1440×900** (DLAA RR, 4 spp, debug exe): 3.7–6.6 ms GPU per frame. The slowest are mirror corridor (17) at 6.6 ms, neon (21) at 5.3 ms and emissive spheres (8) at 5.1 ms.
 
+**Git.** The project is a git repo (root `cornell/`), with a private GitHub remote. Commit only when the user asks.
+
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
 
-## Open review findings
+## Review findings: paused mid-way (2026-10-29)
 
-These come from reading the code; check each before fixing it. They are listed in priority order.
+Work is on git branch `review-findings`; `main` is the verified state from before it.
+The user asked to pause here to set up the repo.
 
-1. **Light ghosting during camera motion (likely, not reproduced).**
-   - The native temporal check uses only normal and depth (`post.hlsl:15`).
-   - The WebGL version had the same flaw: the light quad is 3.5 cm below the ceiling and faces the same way, so its glow ghosted onto the ceiling while moving.
-   - The WebGL fix stored the first-hit object id and rejected history on a mismatch.
-2. **Fixed per-pixel Sobol pattern (likely).** After each camera move, the sequence restarts at index 0 with the same per-pixel scramble, so the noise pattern stays fixed on screen while the image moves. The WebGL version offset the sequence base on every move (`seqBase`).
-3. **Pan uses yaw only** (`main.rs:823`), so panning at steep pitch is not screen-aligned. The WebGL version was fixed to pan along screen axes.
-4. **Missing glyphs.** The egui default font lacks "Ⅱ" and "→": the Pause button and the "rw × rh → w × h" label show boxes.
-5. **Delete key** deletes the selected object even when the object window is closed.
-6. **Windows stay off-screen after a resize.** egui windows keep their position when the window shrinks, so the Scene objects window can end up partly off-screen. This is visible in the self-test capture after the 800×600 resize.
-7. **Performance, cheap wins:**
-   - Shadow rays use closest-hit search over non-opaque geometry. They could accept the first hit when there is no glass and no hidden-light filtering.
-   - egui uploads a new committed buffer per mesh per frame.
-   - All three dirty keys are reserialized every frame, and `material_key` is computed twice.
-8. **Undefined swapchain read.** `--capture-ui` reads a FLIP_DISCARD backbuffer after Present. Its contents are formally undefined, but it works on this driver.
-9. **Courtyard marble (19).** The world-space marble pattern reads as large black blotches on the columns. Tune `pattern_scale` or the marble function if anyone cares.
+The branch state passes fmt, Clippy, the 5 unit tests and the 180-frame self-test. **It is not yet visually reviewed beyond the Classic preset.**
+
+### Done on the branch
+
+1. **Object id per pixel.**
+   - `object_id` (u19) = first-hit material id + 1; `history_id` (u20) is its copy.
+   - The à-trous filter skips taps from a different id.
+   - Temporal reuse rejects history with a different id.
+   - This keeps the dark gap beside the light: the light quad sits 3.5 cm under the ceiling with the same normal, so normal and depth checks alone could not separate them.
+2. **Sobol decorrelation.**
+   - Every `Gpu::reset` takes a new 8192-aligned sequence base (`scene_info.z`).
+   - A moving camera no longer reuses the previous frame's sample points.
+3. **Native temporal redesigned, SVGF-style.** This was the real cause of the light-gap smear: history used to store the *final filtered* image, which was blurred again every frame.
+   - Filter pass 0 now integrates **raw** samples into `integrated` (u21; a = effective sample count). History (15) is a copy of that.
+   - Passes 1–5 run à-trous over the integrated color, with variance divided by the effective count.
+   - The ±3σ history clamp was dropped. Any non-camera edit resets history, and glossy surfaces keep at most 10% history.
+   - `history_valid` and `integrated_valid` flags in `Gpu` replace `rr_reset` for the native path.
+   - While paused, pass 0 is skipped, so the integrated image stays put.
+   - Filter constants now use a 512-byte stride (offsets 512…3072); display stays at 6144.
+   - `TEXTURES` = 22.
+
+### Measured with `tools/motion_error.py`
+
+Setup: Classic preset, 800×600, 2 spp per frame, last frame of a 124-frame orbit, compared with a 16,384-spp reference. Errors are ×1000.
+
+| Build | Temporal RMSE | Blurred | Light band |
+|---|---|---|---|
+| Before | 20.65 | 16.94 | 36.9 |
+| + object id | 21.23 | 16.68 | 34.1 |
+| + Sobol base | 20.88 | 16.46 | 33.5 |
+| + raw-sample integration | **13.19** | **7.37** | **14.6** |
+
+For comparison, the spatial filter alone scores 22.08 / 17.47 / 38.1, and raw samples score 48.0 / 11.6 / 21.2.
+
+### Still to do
+
+- **Check the new temporal pass:**
+  - The light's far edge still loses part of its dark gap and looks stair-stepped. Try bilinear 4-tap reprojection with per-tap validation, as in the WebGL version.
+  - Possibly raise the 0.85 history weight for diffuse surfaces.
+  - Check that a static camera still converges without bias at high spp.
+  - Check pausing mid-orbit, toggling denoise while paused, other presets, and RR on/off switching.
+- **Fireflies survive the native filter** (white specks at 2 spp). Not started.
+- **Remaining findings, not started:**
+  - Pan uses yaw only (`main.rs:823`); pan along screen axes instead.
+  - Glyphs "Ⅱ" and "→" are missing from egui's font (Pause button, resolution label). Use ASCII or verified glyphs.
+  - The Delete key works even when the Scene objects window is closed.
+  - Performance:
+    - Shadow rays could use `RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH` and skip hit reconstruction.
+    - egui could use one upload buffer per frame instead of one per mesh.
+    - Skip the dirty-key serialization when `Settings` is unchanged, and stop computing `material_key` twice.
+    - Measure each before and after.
+  - `--capture-ui` reads a FLIP_DISCARD backbuffer after Present. Copy it before Present instead.
+  - The courtyard marble pattern reads as black blotches. Cosmetic; tune the marble function or `pattern_scale`.
+- **Not a bug:** windows ending up off-screen after a resize. egui constrains windows to its screen rect, and that only happened because the self-test resizes the swapchain without resizing the hidden window.
+- When finished, update README "Native denoising", rebuild release, run `tools/verify.ps1`, and merge the branch.
 
 ## Measurement conventions (carried over from the WebGL work)
 

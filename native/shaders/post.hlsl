@@ -1,19 +1,36 @@
 #include "common.hlsli"
-float3 source(uint2 p,uint iteration){if(iteration==0)return accumulation[p].rgb;if((iteration&1)==1)return ping[p].rgb;return pong[p].rgb;}
+// Iteration 0 integrates the unfiltered samples over time (rgb = color, a = effective
+// sample count). Iterations 1–5 are à-trous passes: integrated -> ping -> pong -> ... -> ping.
+// History holds integrated color, never filtered output, so features are not re-blurred every frame.
+float3 source(uint2 p,uint iteration){if(iteration==1)return integrated[p].rgb;if((iteration&1)==0)return ping[p].rgb;return pong[p].rgb;}
+void integrate(uint2 p){
+    float3 n=normal_roughness[p].xyz;float z=depth[p];float count=max(1,sampling.x+sampling.y);
+    float3 c=accumulation[p].rgb;float effective=count;
+    if(filter_settings.y!=0 && filter_settings.z==0 && count<256){
+        int2 q=int2(round(float2(p)+motion[p]));
+        if(all(q>=0)&&all(q<int2(dimensions.xy)) && history_id[q]==object_id[p] && dot(n,history_normal[q].xyz)>0.95 && abs(z-history_depth[q])<max(0.025,z*0.03)){
+            // Glossy surfaces keep little history: their reflections move with the view.
+            float4 h=history[q];float w=lerp(0.85,0.1,1-normal_roughness[p].w)*saturate(1-count/256);
+            c=lerp(c,h.rgb,w);effective=1/((1-w)*(1-w)/count+w*w/max(h.a,1));
+        }
+    }
+    integrated[p]=float4(c,effective);
+}
 [numthreads(8,8,1)]void filter(uint3 tid:SV_DispatchThreadID){
-    uint2 p=tid.xy;if(any(p>=dimensions.xy))return;uint iteration=filter_settings.x;float3 n=normal_roughness[p].xyz;float z=depth[p];float3 center=source(p,iteration);float count=max(1,sampling.x+sampling.y);
-    float var=accumulation[p].a/max(1,count-1)/count;float sigma=max(sqrt(var),max(0.02,abs(luminance(center))*0.08/sqrt(count)))*max(0.01,options.y)*6;
-    float3 sum=0;float total=0;int step=int(1u<<iteration);
+    uint2 p=tid.xy;if(any(p>=dimensions.xy))return;uint iteration=filter_settings.x;
+    if(iteration==0){integrate(p);return;}
+    float3 n=normal_roughness[p].xyz;float z=depth[p];float id=object_id[p];float3 center=source(p,iteration);float count=max(1,sampling.x+sampling.y);float effective=max(1,integrated[p].a);
+    float var=accumulation[p].a/max(1,count-1)/effective;float sigma=max(sqrt(var),max(0.02,abs(luminance(center))*0.08/sqrt(effective)))*max(0.01,options.y)*6;
+    float3 sum=0;float total=0;int step=int(1u<<(iteration-1));
     for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){
-        int2 q=int2(p)+int2(x,y)*step;if(any(q<0)||any(q>=int2(dimensions.xy)))continue;
+        // Never mix surfaces: the light sits 3.5 cm under the ceiling with the same normal.
+        int2 q=int2(p)+int2(x,y)*step;if(any(q<0)||any(q>=int2(dimensions.xy))||object_id[q]!=id)continue;
         float3 c=source(q,iteration);float3 a=max(diffuse_albedo[p].rgb+specular_albedo[p].rgb,0.05);float3 b=max(diffuse_albedo[q].rgb+specular_albedo[q].rgb,0.05);
         float norm=pow(saturate(dot(n,normal_roughness[q].xyz)),64);float dw=exp(-abs(z-depth[q])/max(0.005,0.008*z*step));float lum=exp(-abs(luminance(c/b)-luminance(center/a))/max(sigma,1e-5));float kernel=(x==0?6:(abs(x)==1?4:1))*(y==0?6:(abs(y)==1?4:1));float w=kernel*norm*dw*lum;
         sum+=c/b*a*w;total+=w;
     }
     float3 c=total>1e-6?sum/total:center;
-    if(iteration==0 && filter_settings.y!=0 && filter_settings.z==0 && count<256){
-        int2 q=int2(round(float2(p)+motion[p]));if(all(q>=0)&&all(q<int2(dimensions.xy))){float nd=dot(n,history_normal[q].xyz);float dz=abs(z-history_depth[q]);if(nd>0.95 && dz<max(0.025,z*0.03)){float3 h=history[q].rgb;float max_history=lerp(0.85,0.1,1-normal_roughness[p].w);float w=max_history*saturate(1-count/256);h=clamp(h,max(0,c-3*sigma),c+3*sigma);c=lerp(c,h,w);}}}
-    if((iteration&1)==0)ping[p]=float4(c,1);else pong[p]=float4(c,1);
+    if((iteration&1)==1)ping[p]=float4(c,1);else pong[p]=float4(c,1);
 }
 float filmic(float x){return ((x*(0.15*x+0.05)+0.004)/(x*(0.15*x+0.5)+0.06))-0.06666667;}
 float3 tonemap(float3 c){c=max(c*display_settings.x,0);uint mode=modes.y;

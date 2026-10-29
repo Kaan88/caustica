@@ -20,7 +20,7 @@ use windows::{
     core::{Interface, PCSTR},
 };
 
-const TEXTURES: usize = 19;
+const TEXTURES: usize = 22;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Constants {
@@ -122,6 +122,12 @@ pub struct Gpu {
     pub adapter_name: String,
     previous_vp: Mat4,
     rr_reset: bool,
+    restarts: u32,
+    sequence_base: u32,
+    /// History textures (15–17, 20) hold the previous traced frame of a native-filtered run.
+    history_valid: bool,
+    /// Texture 21 holds the temporal integration of the current accumulation.
+    integrated_valid: bool,
     pub reference_valid: bool,
     query: ID3D12QueryHeap,
     timing: ID3D12Resource,
@@ -437,6 +443,10 @@ impl Gpu {
             adapter_name,
             previous_vp: Mat4::IDENTITY,
             rr_reset: true,
+            restarts: 0,
+            sequence_base: 0,
+            history_valid: false,
+            integrated_valid: false,
             reference_valid: false,
             query,
             timing,
@@ -469,8 +479,13 @@ impl Gpu {
     }
     pub fn reset(&mut self, reset_history: bool) {
         self.samples = 0;
+        // Each restart takes a fresh, 8192-aligned Sobol block, so a moving camera
+        // never reuses the previous frame's sample points.
+        self.restarts = self.restarts.wrapping_add(1);
+        self.sequence_base = self.restarts.wrapping_mul(0x9E37_79B1) & !8191;
         if reset_history {
             self.rr_reset = true;
+            self.history_valid = false;
         }
     }
     pub unsafe fn reconfigure_rr(&mut self) -> Result<()> {
@@ -550,7 +565,7 @@ impl Gpu {
         self.textures.clear();
         for i in 0..TEXTURES {
             let format = match i {
-                5 | 7 | 17 => DXGI_FORMAT_R32_FLOAT,
+                5 | 7 | 17 | 19 | 20 => DXGI_FORMAT_R32_FLOAT,
                 6 => DXGI_FORMAT_R32G32_FLOAT,
                 10 => DXGI_FORMAT_R8G8B8A8_UNORM,
                 _ => DXGI_FORMAT_R32G32B32A32_FLOAT,
@@ -583,6 +598,7 @@ impl Gpu {
         self.rr_failed = false;
         self.rr_active = false;
         self.reference_valid = false;
+        self.integrated_valid = false;
         self.reset(true);
         Ok(())
     }
@@ -838,7 +854,12 @@ impl Gpu {
                 reset as u32,
                 self.reference_valid as u32,
             ],
-            scene_info: [self.emitter_count as u32, s.objects.len() as u32, 0, 0],
+            scene_info: [
+                self.emitter_count as u32,
+                s.objects.len() as u32,
+                self.sequence_base,
+                0,
+            ],
             environment: [s.sky, 0., 0., 0.],
         };
         write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
@@ -894,25 +915,33 @@ impl Gpu {
             self.rr_reset = false;
         }
         if !self.rr_active && s.denoise {
-            for i in 0..5 {
+            // Pass 0 integrates new samples over time; while paused it keeps the last result.
+            let integrate = n > 0 || !self.integrated_valid;
+            for i in (if integrate { 0 } else { 1 })..6 {
                 c.filter[0] = i;
-                let offset = (i as u64 + 1) * 1024;
+                c.filter[2] = (n == 0 || !self.history_valid) as u32;
+                let offset = (i as u64 + 1) * 512;
                 write_buffer(&self.constants, offset, bytemuck::bytes_of(&c))?;
                 self.bind(offset);
                 self.list.SetPipelineState(&self.filter);
                 self.list
                     .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
                 uav(&self.list, None);
-            }
-            if n > 0 {
-                for (from, to) in [(8, 15), (2, 16), (5, 17)] {
-                    copy_texture(
-                        &self.list,
-                        &self.textures[from].resource,
-                        &self.textures[to].resource,
-                    );
+                if i == 0 && n > 0 {
+                    for (from, to) in [(21, 15), (2, 16), (5, 17), (19, 20)] {
+                        copy_texture(
+                            &self.list,
+                            &self.textures[from].resource,
+                            &self.textures[to].resource,
+                        );
+                    }
+                    self.history_valid = true;
                 }
             }
+            self.integrated_valid = true;
+        } else if n > 0 {
+            self.history_valid = false;
+            self.integrated_valid = false;
         }
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
