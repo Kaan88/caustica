@@ -197,7 +197,7 @@
     "mesh": "models/ToyCar.glb#2"
    }
   ],
-  "hdri": "hdri/rural_asphalt_road_2k.hdr",
+  "hdri": "hdri/rural_asphalt_road_4k.hdr",
   "hdri_strength": 1.0,
   "hdri_rotation": 90,
   "hdri_visible": true

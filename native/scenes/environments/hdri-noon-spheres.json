@@ -237,7 +237,7 @@
     "portal": -1
    }
   ],
-  "hdri": "hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr",
+  "hdri": "hdri/kloofendal_48d_partly_cloudy_puresky_8k.hdr",
   "hdri_strength": 1.0,
   "hdri_rotation": 40,
   "hdri_visible": true

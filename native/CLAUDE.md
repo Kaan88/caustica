@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 270 scripted frames (`SCENES_FROM`), then one frame per scene file (426 with the built-in, generated, mesh and environment packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 270 scripted frames (`SCENES_FROM`), then one frame per scene file (430 with the built-in, generated, mesh and environment packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -325,7 +325,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - Checked: at 50% (Performance), M renders identical to Default (NVIDIA picks M there), while J/K/L differ, so the hint reaches NGX.
   - SDK 310.9.16 has no RR presets beyond D/E/F.
 - **egui scissor:** `draw_gui` skips meshes whose clipped scissor is empty. Off-screen windows after a self-test resize produced D3D12 warnings that failed the self-test, on `main` too.
-- **Sliders:** all go through `crate::slider` (`SliderClamping::Edits`). egui's default clamps the stored value whenever a slider is drawn, which silently rewrote valid loaded values (found by the UI-plan agent). Self-test frames 178–179 guard this.
+- **Sliders:** all go through `crate::slider` (`SliderClamping::Edits`; since 2026-10-30 a `Slider` wrapper with double-click reset, see "Owner requests (item 6)"). egui's default clamps the stored value whenever a slider is drawn, which silently rewrote valid loaded values (found by the UI-plan agent). Self-test frames 178–179 guard this.
 
 ## Native HDR (roadmap item 2, 2026-10-30)
 
@@ -413,7 +413,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - New shape **Tetrahedron** (last in `Shape::ALL`; the mesh cache is indexed by enum order): base at y = −1, apex at +1, base circumradius √2.
 - Menger level 2 merges filled cells into runs along x (fits under 256). The Sierpinski child centre is c + corner·scale/2. The sphereflake uses Haines' 6 + 3 directions, rotated per parent.
 - Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 15 families plus 3 each for forest and crowd; `GENERATED` table).
-- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 156 (426 frames).
+- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 160 (430 frames).
 - `tools/scene_sheet.py --pack generated` renders the pack. All 90 were checked; day cities and warm suns were dimmed, framing tightened.
 
 ## Scenes buildable today (roadmap 5e, 2026-10-30)
@@ -443,6 +443,16 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Procedural meshes** (`procedural.rs`): `mesh: "gen:<kind>/<seed>[#part]"` builds in `mesh::read` and caches like a file (`resolve` leaves `gen:` paths alone). Kinds: `mandelbulb` (surface nets over the distance estimator, 240³ release / 80³ debug, sampled on all cores; power 5–9 and a phase twist per seed), `terrain` (384² fBm heightfield, ridged half the time, island falloff; parts sand / grass / rock / snow by height and slope, rock below normal.y 0.62), `menger` (voxels with exposed faces only; level 4 when seed % 3 == 0 in release, else 3), `tree` (recursive branching: 6-sided frusta, double-sided leaf cards; parts bark / leaves). The generator families `mandelbulb`, `terrain` (plus a sea box: stretch 0.065 puts it at height 0), `deep-menger` and `tree` (1–7 trees, summer or autumn) use them.
 - **Perf of the opaque split** (2026-10-30, 1440×900, 300 frames, median of 3 alternating runs vs the core1 snapshot): Classic −7% RR / −8% native, bunny −7 / −8%, mirror corridor −3 / −3%, chess −7 / −4%, neon −3 / −4%.
 
+## Owner requests (item 6, 2026-10-30)
+
+- **Slider double-click reset:** `crate::slider` returns `Slider`, a wrapper around `egui::Slider::from_get_set` (as `Slider::new` builds it, plus `.integer()` for integral types) that forwards `suffix`, `logarithmic`, `smallest_positive`, `fixed_decimals`, `custom_formatter` and `custom_parser`. Its `Widget::ui` checks `slider_double_clicked` (hovered or pressed + `pointer.button_double_clicked`: a slider senses drags, so egui never reports it as double-clicked) and then writes the reference value.
+  - The reference comes from `reset_source(live, reference)` registrations (address range of a live struct → same offset in a reference of the same type; `reset_value` picks the innermost range). `App::ui` registers the settings against `reset_baseline` (a clone taken whenever `scene_name` changes: the scene as loaded, preset, generated or randomized), each object and light against the baseline's same index (or the type default), and `UiState` against `ui_defaults`, and clears them after the frame. The exposure row (a local EV value) resets by hand. Hover text "Double-click to reset" on every slider.
+  - Unit test `double_clicking_a_slider_resets_it` drives a real egui `Context` with pointer events: a rail click moves the value, a double-click resets it.
+- **Light outlines:** `Settings::light_outline` and `AreaLight::outline` (default false; display only: removed from `transport_key`, per light too). `gizmo::draw_lights` skips lights whose outline is off unless selected; `pick_from_probe` only tests drawn outlines (hidden ones are picked in the Scene tab). "Show outline" rows sit under each light's "On". Self-test 266–268 asserts they default off, then draws all of them.
+- **HDRIs:** radiance is bilinear (`env_bilinear`, wrap in u, clamp in v); the sampling pdf stays per texel, and MIS still agrees (studio and noon checks rerun: means 0.4486 / 0.4486 / 0.4485 and 0.5969 / 0.5970 / 0.5945, as before). The map is RGBA16F (`f32_to_half`, unit test `half_floats_round_trip`), divided by `env_scale` = max(1, peak / 60000) so suns past 65504 survive; strength and `inv_norm` are multiplied back in the constants. `MAX_WIDTH` 8192.
+  - 21 Poly Haven maps were rendered as backgrounds at 1440×900 and checked at 1:1; satara_night (sensor noise) and moonless_golf (motion blur) were dropped, 19 kept (4k; 8k for kloofendal, venice_sunset and the_sky_is_on_fire). The old 2k files are gone. Before/after on venice_sunset: the 2k nearest-texel skyline was visibly blocky, 8k bilinear is smooth.
+  - `scenes/environments` gained night on the Bund, teapot in the hallway, snow day and gold dragon at dusk (9 scenes).
+
 ## Instancing (core track 4, 2026-10-30)
 
 - **Layout:** `Gpu::rebuild_scene` builds (1) the static BLAS from `geometry::static_geometry` (floor, room, main light, area lights; world space, split into non-opaque / opaque ranges as before, `opaque_offset` in `environment.w`), only when its vertices change; (2) one BLAS per distinct mesh key (`geometry::object_source`: `shape:<Kind>` or the `mesh` string), object-space, in `meshes`; (3) a TLAS of the static instance (InstanceID 0) and one instance per visible object (`geometry::object_transform`, DXR 3×4 row-major).
@@ -461,11 +471,11 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Settings:** `hdri` (path, ≤ 1024, relative to `scenes/` like meshes), `hdri_strength` (0–1000), `hdri_rotation` (±360°), `hdri_visible` (camera rays see it; off, bounce-0 misses return `background`). All transport fields. Stage section of the Scene tab: Load… (rfd, .hdr / .exr), Clear, strength, rotation, "Seen by camera".
 - `environment.rs`: `load` (image crate, `hdr` and `exr` features; non-finite → 0) → `build(w, h, rgb)`: halves maps wider than 4096, then per row a conditional CDF of luminance, and a marginal CDF over rows weighted by sin θ of the row centre, in the extra last row. `inv_norm` = w·h / (2π² Σ lum·sinθ_row). A black map is an error.
 - **GPU:** `Gpu::set_environment` uploads both through `upload_texture` (staging per footprint row) into textures that live across resizes (`env_views` at heap slots 30, 31, re-created in `resize`). Constants gain `environment_map` = [strength, rotation rad, flags (bit 0 loaded, bit 1 visible), inv_norm]. `environment_loaded()` for tests. `main.rs` reloads when `Settings::hdri` differs from `hdri_loaded`; a failure clears it with an error toast.
-- **Shader:** nearest texel lookup (so the pdf matches the radiance exactly), u = φ/2π + 0.5 with φ = atan2(x, −z) − rotation, v = θ/π. `sample_env` binary-searches the marginal then the row, reusing each remainder for the position inside the texel; pdf = lum·inv_norm·sinθ_row / sinθ. NEE picks the HDRI with `p_env` = 0.5 when emissive triangles exist (1 otherwise); triangle NEE pdfs and BSDF-hit weights carry (1 − p_env). Misses after a non-delta bounce get the MIS weight against `p_env·env_pdf`. The light-sampling modes (`mis_mode`) work as for triangles. Without an HDRI nothing changes (renders match the previous build to 2e-7).
+- **Shader:** sampling and the pdf work per texel; radiance is bilinear since item 6 (`env_bilinear`), u = φ/2π + 0.5 with φ = atan2(x, −z) − rotation, v = θ/π. `sample_env` binary-searches the marginal then the row, reusing each remainder for the position inside the texel; pdf = lum·inv_norm·sinθ_row / sinθ. NEE picks the HDRI with `p_env` = 0.5 when emissive triangles exist (1 otherwise); triangle NEE pdfs and BSDF-hit weights carry (1 − p_env). Misses after a non-delta bounce get the MIS weight against `p_env·env_pdf`. The light-sampling modes (`mis_mode`) work as for triangles. Without an HDRI nothing changes (renders match the previous build to 2e-7).
 - **Checked:** spheres under the noon sky (a sun a few texels wide) and the photo studio, 2048–4096 spp, MIS vs NEE-only vs BSDF-only: means agree to 0.02% on the studio; on the noon sky NEE-only matches MIS to 0.27% per 20×20 block while BSDF-only is the expected firefly field. Unit tests: the pdf integrates to 1; big maps halve; black maps fail.
-- **Assets:** `tools/fetch_assets.ps1` also fetches 5 Poly Haven 2k HDRIs (CC0, SHA-256 pinned) into `scenes/hdri/` (gitignored): studio_small_09, brown_photostudio_02, kloofendal_48d_partly_cloudy_puresky, venice_sunset, rural_asphalt_road. `scenes/environments` (5 scenes, `ENV_SCENES` in build_scenes.py; they start with no lights, since the studio's hidden rim light still casts shadows).
+- **Assets:** `tools/fetch_assets.ps1` also fetches Poly Haven HDRIs (CC0, SHA-256 pinned) into `scenes/hdri/` (gitignored): 19 at 4k / 8k since item 6 (the first five were 2k). `scenes/environments` (9 scenes, `ENV_SCENES` in build_scenes.py; they start with no lights, since the studio's hidden rim light still casts shadows).
 - Self-test 260–265: a generated 64×32 .hdr with a sun (written with the image crate), asserted loaded; hidden from the camera; mis modes 1 and 2; cleared and asserted unloaded. Scene files start at 270.
-- Not done: the sun is not split out as a separate light (its shape is the map's texels), no ground projection / shadow catcher, no MIS compensation, maps are RGBA32F (4k = 128 MB).
+- Not done: the sun is not split out as a separate light (its shape is the map's texels), no ground projection / shadow catcher, no MIS compensation. (Maps are RGBA16F since item 6.)
 
 ## Toys (roadmap 5d, 2026-10-30)
 
@@ -521,7 +531,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 ## Tooling (roadmap 5a, 2026-10-30)
 
 - `tools/perf_history.py` appends to `captures/perf-history.csv` (date, commit, `+` if src/shaders/bridge are dirty, preset, mode, means) and plots the PNG with matplotlib. First row, commit 3c4c8a4+ (GPU ms, RR / native): Classic 3.81 / 3.13, bunny 3.96 / 3.90, mirror corridor 5.98 / 5.71, neon 4.52 / 4.27.
-- **Build snapshots:** `tools/snapshot_build.ps1 -Name N -Notes T` copies exe + DLLs + scene packs (not thumbnails) into `builds/<date>-N/` with NOTES.md (gitignored). The owner asked for one per major item, so they can compare builds later. The exe finds `scenes/` next to itself.
+- **Build snapshots:** `tools/snapshot_build.ps1 -Name N -Notes T` copies exe + DLLs + scene packs (not thumbnails) into `builds/<date>-N/` with NOTES.md (gitignored). `scenes/models` and `scenes/hdri` are hard-linked, not copied (about 800 MB of pinned downloads). The owner asked for one per major item, so they can compare builds later. The exe finds `scenes/` next to itself.
 
 ## Review findings: fixed and merged (2026-10-29)
 

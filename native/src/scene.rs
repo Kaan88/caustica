@@ -148,6 +148,9 @@ pub struct AreaLight {
     pub intensity: f32,
     pub enabled: bool,
     pub visible: bool,
+    /// Draw the light's rectangle over the viewport (for grabbing it); the selected light
+    /// always shows it. Display only.
+    pub outline: bool,
 }
 impl Default for AreaLight {
     fn default() -> Self {
@@ -160,6 +163,7 @@ impl Default for AreaLight {
             intensity: 12.,
             enabled: true,
             visible: true,
+            outline: false,
         }
     }
 }
@@ -233,6 +237,8 @@ pub struct Settings {
     pub floor: Material,
     pub light_on: bool,
     pub light_visible: bool,
+    /// Draw the main light's rectangle over the viewport (see `AreaLight::outline`).
+    pub light_outline: bool,
     pub light_intensity: f32,
     pub light_size: f32,
     pub light_aspect: f32,
@@ -351,6 +357,7 @@ impl Default for Settings {
             floor: wall,
             light_on: true,
             light_visible: true,
+            light_outline: false,
             light_intensity: 12.,
             light_size: 0.75,
             light_aspect: 1.,

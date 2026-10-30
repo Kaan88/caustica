@@ -702,6 +702,9 @@ pub fn draw_lights(
     selected: Selection,
 ) {
     for (sel, quad) in light_quads(s) {
+        if sel != selected && !outline_on(s, sel) {
+            continue;
+        }
         let pts: Vec<_> = quad.iter().filter_map(|p| view.project(*p)).collect();
         if pts.len() != 4 {
             continue;
@@ -720,6 +723,14 @@ pub fn draw_lights(
             .collect();
         line.push(line[0]);
         painter.add(egui::Shape::line(line, egui::Stroke::new(width, color)));
+    }
+}
+/// The light's outline is switched on (`light_outline` / `AreaLight::outline`).
+fn outline_on(s: &Settings, sel: Selection) -> bool {
+    match sel {
+        Selection::MainLight => s.light_outline,
+        Selection::Light(i) => s.lights.get(i).is_some_and(|l| l.outline),
+        _ => false,
     }
 }
 /// Quads of the lights that are on (off lights leave no geometry, so nothing to see or click).
@@ -779,7 +790,11 @@ pub fn pick_from_probe(
     // Ray distance of the GPU hit, from its view depth.
     let along = d.dot(view.forward()).max(1e-4);
     let mut best = hit.map(|h| (h, if id > 0 { depth / along } else { f32::INFINITY }));
-    for (sel, q) in light_quads(s) {
+    // Only rectangles that are drawn can be clicked; hidden ones are picked in the Scene tab.
+    for (sel, q) in light_quads(s)
+        .into_iter()
+        .filter(|(sel, _)| outline_on(s, *sel))
+    {
         let n = (q[1] - q[0]).cross(q[3] - q[0]).normalize_or_zero();
         let denom = d.dot(n);
         if denom.abs() < 1e-6 {

@@ -207,6 +207,9 @@ pub struct Gpu {
     env: Texture,
     env_cdf: Texture,
     env_inv_norm: f32,
+    /// The map is stored as RGBA16F divided by this (≥ 1), so a sun brighter than half-float's
+    /// 65504 keeps its value; strength and the pdf normalization are multiplied back.
+    env_scale: f32,
     /// Frames presented, for the grain's per-frame noise.
     present_count: u32,
     /// Look tools (roadmap 5b): zebras, scopes (read back into `scopes` each frame) and a
@@ -595,6 +598,7 @@ impl Gpu {
             env,
             env_cdf,
             env_inv_norm: 0.,
+            env_scale: 1.,
             present_count: 0,
             zebras: false,
             scopes_on: false,
@@ -958,13 +962,27 @@ impl Gpu {
             return Ok(());
         };
         let (w, h) = (env.width as u32, env.height as u32);
-        let texels = env_texture(&self.device, w, h, DXGI_FORMAT_R32G32B32A32_FLOAT)?;
+        // Half floats: an 8k map is 256 MB instead of 512 MB.
+        let peak = env
+            .texels
+            .iter()
+            .flat_map(|t| t[..3].iter().copied())
+            .fold(0f32, f32::max);
+        let scale = (peak / 60000.).max(1.);
+        let halves: Vec<u16> = env
+            .texels
+            .iter()
+            .flat_map(|t| [t[0] / scale, t[1] / scale, t[2] / scale, 1.])
+            .map(f32_to_half)
+            .collect();
+        let texels = env_texture(&self.device, w, h, DXGI_FORMAT_R16G16B16A16_FLOAT)?;
         let cdf = env_texture(&self.device, w, h + 1, DXGI_FORMAT_R32_FLOAT)?;
-        self.upload_texture(&texels, bytemuck::cast_slice(&env.texels), w as usize * 16)?;
+        self.upload_texture(&texels, bytemuck::cast_slice(&halves), w as usize * 8)?;
         self.upload_texture(&cdf, bytemuck::cast_slice(&env.cdf), w as usize * 4)?;
         self.env = texels;
         self.env_cdf = cdf;
         self.env_inv_norm = env.inv_norm;
+        self.env_scale = scale;
         self.env_views();
         Ok(())
     }
@@ -1831,14 +1849,14 @@ impl Gpu {
                 (self.present_count % 4096) as f32,
             ],
             environment_map: [
-                s.hdri_strength,
+                s.hdri_strength * self.env_scale,
                 s.hdri_rotation.to_radians(),
                 if self.env_inv_norm > 0. {
                     1. + if s.hdri_visible { 2. } else { 0. }
                 } else {
                     0.
                 },
-                self.env_inv_norm,
+                self.env_inv_norm * self.env_scale,
             ],
         };
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
@@ -2646,6 +2664,40 @@ impl Drop for Gpu {
         }
     }
 }
+/// Round-to-nearest-even f32 → IEEE half; values past 65504 become infinity.
+fn f32_to_half(v: f32) -> u16 {
+    let bits = v.to_bits();
+    let sign = ((bits >> 16) & 0x8000) as u16;
+    let exponent = ((bits >> 23) & 0xff) as i32 - 127 + 15;
+    let mantissa = bits & 0x7f_ffff;
+    if v.is_nan() {
+        return sign | 0x7e00;
+    }
+    if exponent >= 31 {
+        return sign | 0x7c00;
+    }
+    if exponent <= 0 {
+        if exponent < -10 {
+            return sign;
+        }
+        // Subnormal: shift the implicit bit in, then round.
+        let m = mantissa | 0x80_0000;
+        let shift = (14 - exponent) as u32;
+        let half = 1 << (shift - 1);
+        let rounded = (m + half - 1 + ((m >> shift) & 1)) >> shift;
+        return sign | rounded as u16;
+    }
+    let rounded = mantissa + 0xfff + ((mantissa >> 13) & 1);
+    let (exponent, mantissa) = if rounded & 0x80_0000 != 0 {
+        (exponent + 1, 0)
+    } else {
+        (exponent, rounded >> 13)
+    };
+    if exponent >= 31 {
+        return sign | 0x7c00;
+    }
+    sign | ((exponent as u16) << 10) | mantissa as u16
+}
 fn half_to_f32(h: u16) -> f32 {
     let (sign, exponent, mantissa) = ((h >> 15) as u32, ((h >> 10) & 31) as i32, (h & 1023) as f32);
     let magnitude = match exponent {
@@ -3056,5 +3108,19 @@ fn root_srv(register: u32) -> D3D12_ROOT_PARAMETER {
             },
         },
         ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn half_floats_round_trip() {
+        for v in [0., 1., 0.1, 0.333_333, 1e-5, 6.1e-5, 1000.5, 65504., -2.5] {
+            let back = half_to_f32(f32_to_half(v));
+            assert!((back - v).abs() <= v.abs() * 1e-3 + 1e-7, "{v} → {back}");
+        }
+        assert_eq!(f32_to_half(1.), 0x3c00);
+        assert_eq!(f32_to_half(1e6), 0x7c00, "past the range is infinity");
+        assert_eq!(f32_to_half(65520.), 0x7c00, "rounds up past 65504");
     }
 }

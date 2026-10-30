@@ -91,6 +91,10 @@ struct App {
     actions: Actions,
     /// Interface state (tab, selection, toasts); never part of `Settings`.
     ui: ui::UiState,
+    /// What double-clicking a slider resets to: the scene as loaded (taken again whenever
+    /// `scene_name` changes) and a default `UiState`.
+    reset_baseline: Settings,
+    ui_defaults: Box<ui::UiState>,
     hwnd: Option<windows::Win32::Foundation::HWND>,
     /// The monitor under the window, re-read when it moves or Windows changes the display setup.
     monitor: Option<display::Monitor>,
@@ -158,13 +162,16 @@ fn transport_key(s: &Settings) -> String {
         "lut_strength",
         "temporal",
         "scene_name",
+        "light_outline",
     ] {
         j.as_object_mut().unwrap().remove(k);
     }
     for key in ["objects", "lights"] {
         if let Some(items) = j.get_mut(key).and_then(|v| v.as_array_mut()) {
             for item in items {
-                item.as_object_mut().unwrap().remove("name");
+                let item = item.as_object_mut().unwrap();
+                item.remove("name");
+                item.remove("outline");
             }
         }
     }
@@ -431,6 +438,8 @@ impl App {
             geom_key: geometry_key(&s),
             material_key: material_key(&s),
             checked: None,
+            reset_baseline: s.clone(),
+            ui_defaults: Box::default(),
             settings: s,
             paused: false,
             show_ui: !hidden || capture_ui || self_test,
@@ -905,6 +914,27 @@ impl App {
                     !self.gpu.as_ref().unwrap().environment_loaded(),
                     "HDRI still loaded"
                 ),
+                // Light outlines are off by default; switched on they draw (under the debug
+                // layer) for the main light and every area light, then go off again.
+                266 => {
+                    anyhow::ensure!(
+                        !self.settings.light_outline
+                            && self.settings.lights.iter().all(|l| !l.outline),
+                        "Light outlines should be off by default"
+                    );
+                    self.settings.lights.push(scene::AreaLight::default());
+                    self.settings.light_outline = true;
+                    self.settings
+                        .lights
+                        .iter_mut()
+                        .for_each(|l| l.outline = true);
+                    self.ui.selection = ui::Selection::None;
+                    self.show_ui = true;
+                }
+                268 => {
+                    self.settings.light_outline = false;
+                    self.settings.lights.pop();
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1703,11 +1733,125 @@ impl App {
 /// A slider that only clamps what the user drags. egui's default clamps the stored value
 /// whenever the slider is drawn, which would silently rewrite valid values loaded from a file
 /// or `--set` that lie outside the slider's convenient range (and restart the render).
+///
+/// Double-clicking it resets the value from a registered reference struct (`reset_source`):
+/// the field at the same offset in the scene as loaded, or in a default `UiState`.
 fn slider<'a, N: egui::emath::Numeric>(
     value: &'a mut N,
     range: std::ops::RangeInclusive<N>,
-) -> egui::Slider<'a> {
-    egui::Slider::new(value, range).clamping(egui::SliderClamping::Edits)
+) -> Slider<'a> {
+    let target = value as *mut N;
+    let reset: Box<dyn FnOnce() -> bool + 'a> = Box::new(move || {
+        // SAFETY: `target` comes from `value`, borrowed for 'a, and the slider (which also
+        // writes through it) has finished by the time this runs.
+        match unsafe { reset_value::<N>(target as *const N) } {
+            Some(v) => {
+                unsafe { *target = v };
+                true
+            }
+            None => false,
+        }
+    });
+    let range = range.start().to_f64()..=range.end().to_f64();
+    let inner = egui::Slider::from_get_set(range, move |v: Option<f64>| {
+        // SAFETY: as above; egui calls this only while the slider is being shown.
+        unsafe {
+            if let Some(v) = v {
+                *target = N::from_f64(v);
+            }
+            (*target).to_f64()
+        }
+    })
+    .clamping(egui::SliderClamping::Edits);
+    Slider {
+        inner: if N::INTEGRAL { inner.integer() } else { inner },
+        reset,
+    }
+}
+/// `egui::Slider` plus a double-click reset (see `slider`).
+pub struct Slider<'a> {
+    inner: egui::Slider<'a>,
+    reset: Box<dyn FnOnce() -> bool + 'a>,
+}
+impl<'a> Slider<'a> {
+    pub fn suffix(mut self, s: impl ToString) -> Self {
+        self.inner = self.inner.suffix(s);
+        self
+    }
+    pub fn logarithmic(mut self, on: bool) -> Self {
+        self.inner = self.inner.logarithmic(on);
+        self
+    }
+    pub fn smallest_positive(mut self, v: f64) -> Self {
+        self.inner = self.inner.smallest_positive(v);
+        self
+    }
+    pub fn fixed_decimals(mut self, n: usize) -> Self {
+        self.inner = self.inner.fixed_decimals(n);
+        self
+    }
+    pub fn custom_formatter(
+        mut self,
+        f: impl 'a + Fn(f64, std::ops::RangeInclusive<usize>) -> String,
+    ) -> Self {
+        self.inner = self.inner.custom_formatter(f);
+        self
+    }
+    pub fn custom_parser(mut self, f: impl 'a + Fn(&str) -> Option<f64>) -> Self {
+        self.inner = self.inner.custom_parser(f);
+        self
+    }
+}
+impl egui::Widget for Slider<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let mut response = ui.add(self.inner);
+        if slider_double_clicked(ui, &response) && (self.reset)() {
+            response.mark_changed();
+        }
+        response.on_hover_text_at_pointer("Double-click to reset")
+    }
+}
+/// A slider senses drags, so egui never reports it as double-clicked: read the pointer.
+pub fn slider_double_clicked(ui: &egui::Ui, response: &egui::Response) -> bool {
+    (response.hovered() || response.is_pointer_button_down_on())
+        && ui.input(|i| {
+            i.pointer
+                .button_double_clicked(egui::PointerButton::Primary)
+        })
+}
+thread_local! {
+    /// (live address, size, reference address) for the current frame's UI.
+    static RESET_SOURCES: std::cell::RefCell<Vec<(usize, usize, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+/// Makes sliders on fields of `live` reset to the same field of `reference` (same type, so
+/// the same layout). `reference` must stay alive and unmoved until `clear_reset_sources`.
+pub fn reset_source<T>(live: &T, reference: &T) {
+    RESET_SOURCES.with_borrow_mut(|v| {
+        v.push((
+            live as *const T as usize,
+            size_of::<T>(),
+            reference as *const T as usize,
+        ))
+    });
+}
+pub fn clear_reset_sources() {
+    RESET_SOURCES.with_borrow_mut(Vec::clear);
+}
+/// The reference value for a numeric field, from the innermost registered source holding it.
+///
+/// # Safety
+/// Every registered reference must still be alive, as `reset_source` requires.
+unsafe fn reset_value<N: Copy>(field: *const N) -> Option<N> {
+    let at = field as usize;
+    RESET_SOURCES.with_borrow(|sources| {
+        sources
+            .iter()
+            .filter(|(start, size, _)| at >= *start && at + size_of::<N>() <= start + size)
+            .min_by_key(|(_, size, _)| *size)
+            .map(|(start, _, reference)| unsafe {
+                std::ptr::read_unaligned((reference + (at - start)) as *const N)
+            })
+    })
 }
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -2149,6 +2293,56 @@ fn run() -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    /// A double-click on a slider (driven through egui's real input) resets the field to the
+    /// registered reference; a single click on the rail still sets it.
+    #[test]
+    fn double_clicking_a_slider_resets_it() {
+        struct Fields {
+            a: f32,
+            _b: u32,
+        }
+        let reference = Fields { a: 0.25, _b: 7 };
+        let mut live = Fields { a: 0.9, _b: 3 };
+        let ctx = egui::Context::default();
+        let mut rect = egui::Rect::NOTHING;
+        let mut values = vec![];
+        for frame in 0..8 {
+            let mut input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(400., 200.),
+                )),
+                time: Some(frame as f64 * 0.05),
+                ..Default::default()
+            };
+            let at = rect.left_center() + egui::vec2(30., 0.);
+            let click = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: Default::default(),
+            };
+            match frame {
+                1 => input.events.push(egui::Event::PointerMoved(at)),
+                2 | 4 => input.events.push(click(true)),
+                3 | 5 => input.events.push(click(false)),
+                _ => {}
+            }
+            let _ = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    crate::reset_source(&live, &reference);
+                    rect = ui.add(crate::slider(&mut live.a, 0. ..=1.)).rect;
+                    crate::clear_reset_sources();
+                });
+            });
+            values.push(live.a);
+        }
+        assert!(
+            values.iter().any(|v| *v != 0.9 && *v != 0.25),
+            "a click on the rail moves the value: {values:?}"
+        );
+        assert_eq!(live.a, 0.25, "the double-click resets it: {values:?}");
+    }
     /// Every non-ASCII character in a UI string must exist in egui's default fonts,
     /// otherwise it renders as an empty box.
     #[test]

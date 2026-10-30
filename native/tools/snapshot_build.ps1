@@ -18,7 +18,18 @@ if (Test-Path (Join-Path $release "ffmpeg.exe")) { Copy-Item (Join-Path $release
 $scenes = Join-Path $root "scenes"
 if (Test-Path $scenes) {
     Get-ChildItem $scenes -Directory | Where-Object { $_.Name -ne "thumbnails" } | ForEach-Object {
-        Copy-Item $_.FullName (Join-Path $dest "scenes\$($_.Name)") -Recurse -Force
+        $target = Join-Path $dest "scenes\$($_.Name)"
+        if ($_.Name -in @("models", "hdri")) {
+            # Downloaded assets (hundreds of MB) are hard-linked, not copied: same files, no extra
+            # disk per snapshot. They never change in place (fetch_assets.ps1 pins each by hash).
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Get-ChildItem $_.FullName -File | ForEach-Object {
+                $link = Join-Path $target $_.Name
+                if (-not (Test-Path $link)) { New-Item -ItemType HardLink -Path $link -Target $_.FullName | Out-Null }
+            }
+        } else {
+            Copy-Item $_.FullName $target -Recurse -Force
+        }
     }
 }
 $commit = (git -C $root rev-parse --short HEAD).Trim()

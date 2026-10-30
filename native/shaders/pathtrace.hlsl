@@ -96,8 +96,19 @@ float3 sample_env(out float pdf){
     pdf=luminance(env_map[uint2(x,y)].rgb)*environment_map.w*sin(PI*(y+0.5)/size.y)/max(sin(theta),1e-6);
     return d;
 }
+// Radiance is filtered bilinearly (nearest texels looked blocky as a background); sampling keeps
+// the per-texel pdf. Still unbiased: MIS weights only need the pdf the samples were drawn from.
+float3 env_bilinear(float3 d){
+    uint2 size=env_size();float theta=acos(clamp(d.y,-1,1));float phi=atan2(d.x,-d.z)-environment_map.y;
+    float2 uv=float2(frac(phi/(2*PI)+0.5),theta/PI)*size-0.5;int2 i=(int2)floor(uv);float2 f=uv-i;
+    int2 n=(int2)size;
+    #define ENV(o) env_map[uint2(((i.x+o.x)%n.x+n.x)%n.x,clamp(i.y+o.y,0,n.y-1))].rgb
+    float3 c=lerp(lerp(ENV(int2(0,0)),ENV(int2(1,0)),f.x),lerp(ENV(int2(0,1)),ENV(int2(1,1)),f.x),f.y);
+    #undef ENV
+    return c;
+}
 float3 environment_radiance(float3 d){
-    if(hdri_on()){float s,r;return env_map[env_texel(d,s,r)].rgb*environment_map.x;}
+    if(hdri_on())return env_bilinear(d)*environment_map.x;
     return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));
 }
 float3 fresnel(float c,float3 f0){return f0+(1-f0)*pow(1-saturate(c),5);}

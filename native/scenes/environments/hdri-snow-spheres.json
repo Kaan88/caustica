@@ -1,0 +1,202 @@
+{
+ "format": 1,
+ "title": "Snow day",
+ "description": "Pearl, copper and ice spheres in a snowy park under a flat winter sky.",
+ "tags": [
+  "hdri",
+  "outdoor",
+  "overcast",
+  "material"
+ ],
+ "credits": "Snowy park 01: Poly Haven (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.9,
+    0.92,
+    0.95
+   ],
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 16,
+  "yaw": 0,
+  "pitch": 8,
+  "distance": 6,
+  "target": [
+   0,
+   -0.4,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Pearl",
+    "shape": "sphere",
+    "position": [
+     -1.4,
+     0
+    ],
+    "size": 1.2,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.9,
+      0.86
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.6,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Copper",
+    "shape": "sphere",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.2,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.64,
+      0.54
+     ],
+     "roughness": 0.2,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ice",
+    "shape": "sphere",
+    "position": [
+     1.4,
+     0
+    ],
+    "size": 1.2,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.95,
+      1.0
+     ],
+     "roughness": 0.1,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1.0,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "hdri": "hdri/snowy_park_01_4k.hdr",
+  "hdri_strength": 1.0,
+  "hdri_rotation": 0.0,
+  "hdri_visible": true
+ }
+}

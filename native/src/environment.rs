@@ -9,7 +9,7 @@ use anyhow::{Context, Result, ensure};
 use std::f32::consts::PI;
 
 /// Largest width kept; larger maps are box-filtered down by halves.
-const MAX_WIDTH: usize = 4096;
+const MAX_WIDTH: usize = 8192;
 
 pub struct EnvMap {
     pub width: usize,
@@ -41,12 +41,21 @@ pub fn load(path: &str) -> Result<EnvMap> {
     build(w, h, texels)
 }
 
-pub fn build(mut w: usize, mut h: usize, mut rgb: Vec<[f32; 3]>) -> Result<EnvMap> {
+pub fn build(w: usize, h: usize, rgb: Vec<[f32; 3]>) -> Result<EnvMap> {
+    build_capped(w, h, rgb, MAX_WIDTH)
+}
+/// `build` with a width cap (tests use a small one).
+fn build_capped(
+    mut w: usize,
+    mut h: usize,
+    mut rgb: Vec<[f32; 3]>,
+    max_width: usize,
+) -> Result<EnvMap> {
     ensure!(
         w >= 2 && h >= 1 && rgb.len() == w * h,
         "Bad environment size {w}×{h}"
     );
-    while w > MAX_WIDTH && h >= 2 {
+    while w > max_width && h >= 2 {
         let (nw, nh) = (w / 2, h / 2);
         rgb = (0..nw * nh)
             .map(|i| {
@@ -135,8 +144,8 @@ mod tests {
     }
     #[test]
     fn big_maps_are_halved_and_black_maps_fail() {
-        let env = build(8192, 4096, vec![[1.; 3]; 8192 * 4096]).unwrap();
-        assert_eq!((env.width, env.height), (4096, 2048));
+        let env = build_capped(256, 128, vec![[1.; 3]; 256 * 128], 64).unwrap();
+        assert_eq!((env.width, env.height), (64, 32));
         assert!(build(4, 2, vec![[0.; 3]; 8]).is_err());
     }
 }

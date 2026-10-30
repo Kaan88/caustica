@@ -107,7 +107,7 @@
     "mesh": "models/DragonAttenuation.glb#0"
    }
   ],
-  "hdri": "hdri/venice_sunset_2k.hdr",
+  "hdri": "hdri/venice_sunset_8k.hdr",
   "hdri_strength": 1.0,
   "hdri_rotation": 0,
   "hdri_visible": true

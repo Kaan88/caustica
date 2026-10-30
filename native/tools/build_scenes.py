@@ -1332,7 +1332,7 @@ POLYHAVEN = "Poly Haven (CC0)"
 
 
 def env_scene(slug, title, description, tags, credits, hdri, settings, strength=1.0, rotation=0.0, visible=True):
-    settings = {**settings, "hdri": f"hdri/{hdri}_2k.hdr", "hdri_strength": strength, "hdri_rotation": rotation,
+    settings = {**settings, "hdri": f"hdri/{hdri}.hdr", "hdri_strength": strength, "hdri_rotation": rotation,
                 "hdri_visible": visible, "light_on": False, "lights": [], "sky": 0.0}
     ENV_SCENES.append((slug, {"format": 1, "title": title, "description": description, "tags": ["hdri", *tags],
                               "credits": credits, "settings": settings}))
@@ -1340,7 +1340,7 @@ def env_scene(slug, title, description, tags, credits, hdri, settings, strength=
 
 env_scene("hdri-noon-spheres", "Spheres at noon",
           "Diffuse, gold, glass and rough blue spheres under a partly cloudy noon sky. The sun is a few texels of the map: importance sampling finds it.",
-          ["material", "outdoor"], "Kloofendal 48d partly cloudy (pure sky): " + POLYHAVEN, "kloofendal_48d_partly_cloudy_puresky",
+          ["material", "outdoor"], "Kloofendal 48d partly cloudy (pure sky): " + POLYHAVEN, "kloofendal_48d_partly_cloudy_puresky_8k",
           studio(objects=[obj("Diffuse", "sphere", -2.4, 0, 1.4, M((0.8, 0.8, 0.8), 0.9)),
                           obj("Gold", "sphere", -0.8, 0, 1.4, M((1.0, 0.77, 0.34), 0.2, metal=1.0)),
                           obj("Glass", "sphere", 0.8, 0, 1.4, M((1, 1, 1), 0.0, trans=1.0)),
@@ -1348,28 +1348,55 @@ env_scene("hdri-noon-spheres", "Spheres at noon",
                  floor=M((0.5, 0.5, 0.5), 0.6), bounces=16, **camera(0, 10, 8, (0, -0.4, 0))), rotation=40)
 env_scene("hdri-sunset-dragon", "Dragon at sunset",
           "The Khronos glass dragon on a dark mirror floor, against a Venetian sunset.",
-          ["glass", "outdoor", "gltf"], "Dragon Attenuation: " + KHRONOS + ". Venice sunset: " + POLYHAVEN, "venice_sunset",
+          ["glass", "outdoor", "gltf"], "Dragon Attenuation: " + KHRONOS + ". Venice sunset: " + POLYHAVEN, "venice_sunset_8k",
           studio(objects=[mesh("DragonAttenuation.glb", 0, 0, 4, M((0.95, 0.75, 0.45), 0.0, trans=1.0), part=0)],
                  floor=M((0.02, 0.02, 0.025), 0.08, refl=0.6), bounces=20, **camera(150, 6, 5.5, (0, -0.3, 0))), rotation=0)
 env_scene("hdri-studio-chess", "Studio chess",
           "The ASWF chess set lit only by a photo studio HDRI, which the camera does not see.",
-          ["chess", "studio", "gltf"], "A Beautiful Game: " + KHRONOS + ". Brown photo studio 02: " + POLYHAVEN, "brown_photostudio_02",
+          ["chess", "studio", "gltf"], "A Beautiful Game: " + KHRONOS + ". Brown photo studio 02: " + POLYHAVEN, "brown_photostudio_02_4k",
           studio(objects=whole("ABeautifulGame.glb", 0, 0, 5), base=[0.05, 0.05, 0.05], background=[0.03, 0.03, 0.035],
                  floor=M((0.05, 0.05, 0.05), 0.4, refl=0.2), bounces=16, exposure=1.3, **camera(25, 30, 5.5, (0, -0.8, 0))),
           visible=False)
 env_scene("hdri-toy-car-road", "Toy car on the road",
           "The Khronos toy car on its cloth, by a country road at midday.",
-          ["vehicle", "outdoor", "gltf"], "Toy Car: " + KHRONOS + ". Rural asphalt road: " + POLYHAVEN, "rural_asphalt_road",
+          ["vehicle", "outdoor", "gltf"], "Toy Car: " + KHRONOS + ". Rural asphalt road: " + POLYHAVEN, "rural_asphalt_road_4k",
           studio(objects=whole("ToyCar.glb", 0, 0, 4), floor=M((0.12, 0.12, 0.12), 0.8), floor_extent=40.0, bounces=12,
                  **camera(-35, 10, 4.8, (0, -0.4, 0))), rotation=90)
 env_scene("hdri-product-shot", "Product shot",
           "Spot, Suzanne and a teapot on a white sweep, lit by a small studio HDRI that the camera does not see.",
-          ["studio", "material"], "Spot, Suzanne: common-3d-test-models. Studio small 09: " + POLYHAVEN, "studio_small_09",
+          ["studio", "material"], "Spot, Suzanne: common-3d-test-models. Studio small 09: " + POLYHAVEN, "studio_small_09_4k",
           studio(objects=[mesh("spot.obj", -1.4, 0, 1.6, lacquer((0.9, 0.85, 0.1)), rotation=210),
                           mesh("suzanne.obj", 1.3, -0.2, 1.3, M((0.95, 0.95, 0.95), 0.2, metal=1.0), rotation=-20),
                           obj("Teapot", "teapot", 0, 0.8, 1.2, M((0.1, 0.3, 0.75), 0.15, refl=0.4))],
                  base=[0.9, 0.9, 0.9], background=[0.92, 0.92, 0.93], floor=M((0.9, 0.9, 0.9), 0.5),
                  bounces=12, **camera(0, 14, 4.4, (0, -0.5, 0))), visible=False)
+
+env_scene("hdri-night-bund", "Night on the Bund",
+          "Chrome and glass spheres on a wet-looking dark floor, lit only by Shanghai's skyline at night.",
+          ["night", "urban", "material"], "Shanghai Bund: " + POLYHAVEN, "shanghai_bund_4k",
+          studio(objects=[obj("Chrome", "sphere", -1.2, 0, 1.6, M((0.95, 0.95, 0.95), 0.03, metal=1.0)),
+                          obj("Glass", "sphere", 1.2, 0, 1.6, M((1, 1, 1), 0.0, trans=1.0))],
+                 floor=M((0.03, 0.03, 0.035), 0.25, refl=0.3), bounces=16, exposure=0.7, **camera(0, 6, 6, (0, -0.3, 0))))
+env_scene("hdri-living-room-teapot", "Teapot in the hallway",
+          "A glazed teapot and a bowl of fruit on a plinth, lit by a hallway's window and wall lamps.",
+          ["interior", "material"], "Lebombo: " + POLYHAVEN, "lebombo_4k",
+          studio(objects=[obj("Plinth", "box", 0, 0, 1.8, M((0.85, 0.84, 0.8), 0.6), stretch=0.55),
+                          obj("Teapot", "teapot", -0.3, 0, 1.1, M((0.1, 0.35, 0.3), 0.12, refl=0.5), elevation=0.693),
+                          obj("Orange", "sphere", 0.55, 0.2, 0.45, M((0.9, 0.35, 0.05), 0.5), elevation=0.693),
+                          obj("Lime", "sphere", 0.45, -0.25, 0.4, M((0.3, 0.6, 0.08), 0.5), elevation=0.693)],
+                 floor=M((0.35, 0.25, 0.18), 0.45), floor_extent=1.4, bounces=12, **camera(35, 14, 3.6, (0, -0.1, 0))), rotation=120)
+env_scene("hdri-snow-spheres", "Snow day",
+          "Pearl, copper and ice spheres in a snowy park under a flat winter sky.",
+          ["outdoor", "overcast", "material"], "Snowy park 01: " + POLYHAVEN, "snowy_park_01_4k",
+          studio(objects=[obj("Pearl", "sphere", -1.4, 0, 1.2, M((0.92, 0.9, 0.86), 0.25, refl=0.6)),
+                          obj("Copper", "sphere", 0, 0, 1.2, M((0.95, 0.64, 0.54), 0.2, metal=1.0)),
+                          obj("Ice", "sphere", 1.4, 0, 1.2, M((0.85, 0.95, 1.0), 0.1, trans=1.0, ior=1.31))],
+                 floor=M((0.9, 0.92, 0.95), 0.8), bounces=16, **camera(0, 8, 6, (0, -0.4, 0))))
+env_scene("hdri-fire-sky-dragon", "Gold dragon at dusk",
+          "The XYZ RGB dragon in gold on a mirror floor under a burning sunset sky (8k).",
+          ["outdoor", "sunset", "metal", "scan"], "XYZ RGB dragon: " + STANFORD + ". The sky is on fire: " + POLYHAVEN, "the_sky_is_on_fire_8k",
+          studio(objects=[mesh("xyzrgb_dragon.obj", 0, 0, 3, M((1.0, 0.77, 0.34), 0.15, metal=1.0), rotation=-40)],
+                 floor=M((0.05, 0.05, 0.06), 0.05, refl=0.7), bounces=16, **camera(160, 6, 5, (0, -0.4, 0))))
 
 
 def write_environments():

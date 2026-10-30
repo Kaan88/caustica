@@ -290,6 +290,14 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
             row(ui, "On", "Switch this light on or off.", |ui| {
                 ui.checkbox(&mut l.enabled, "");
             });
+            row(
+                ui,
+                "Show outline",
+                "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.",
+                |ui| {
+                    ui.checkbox(&mut l.outline, "");
+                },
+            );
             row(ui, "Intensity", "Brightness multiplier.", |ui| {
                 ui.add(
                     crate::slider(&mut l.intensity, 0. ..=2000.)

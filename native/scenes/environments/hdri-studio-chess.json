@@ -743,7 +743,7 @@
    0.035
   ],
   "exposure": 1.3,
-  "hdri": "hdri/brown_photostudio_02_2k.hdr",
+  "hdri": "hdri/brown_photostudio_02_4k.hdr",
   "hdri_strength": 1.0,
   "hdri_rotation": 0.0,
   "hdri_visible": false

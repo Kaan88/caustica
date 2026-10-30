@@ -531,6 +531,28 @@ fn hdr_line(app: &App) -> String {
 
 impl App {
     pub fn ui(&mut self, ctx: &egui::Context) {
+        // Double-click resets: the scene as it was when it got its name (loaded, preset,
+        // generated or randomized), each object and light by index, and default UI values.
+        if self.reset_baseline.scene_name != self.settings.scene_name {
+            self.reset_baseline = self.settings.clone();
+        }
+        static OBJECT: std::sync::LazyLock<scene::Object> =
+            std::sync::LazyLock::new(Default::default);
+        static LIGHT: std::sync::LazyLock<scene::AreaLight> =
+            std::sync::LazyLock::new(Default::default);
+        crate::clear_reset_sources();
+        crate::reset_source(&self.settings, &self.reset_baseline);
+        for (i, o) in self.settings.objects.iter().enumerate() {
+            crate::reset_source(o, self.reset_baseline.objects.get(i).unwrap_or(&OBJECT));
+        }
+        for (i, l) in self.settings.lights.iter().enumerate() {
+            crate::reset_source(l, self.reset_baseline.lights.get(i).unwrap_or(&LIGHT));
+        }
+        crate::reset_source(&self.ui, &*self.ui_defaults);
+        self.draw_ui(ctx);
+        crate::clear_reset_sources();
+    }
+    fn draw_ui(&mut self, ctx: &egui::Context) {
         // Loaded and randomized settings carry their preset by name.
         let known = PRESETS.iter().position(|n| *n == self.settings.scene_name);
         if let Some(i) = known {
@@ -2221,14 +2243,15 @@ impl App {
                     } else {
                         -6.
                     };
-                    if ui
-                        .add(
-                            crate::slider(&mut ev, -6. ..=3.32)
-                                .suffix(" EV")
-                                .fixed_decimals(1),
-                        )
-                        .changed()
-                    {
+                    let r = ui.add(
+                        crate::slider(&mut ev, -6. ..=3.32)
+                            .suffix(" EV")
+                            .fixed_decimals(1),
+                    );
+                    // EV is a local, so the double-click reset is done here.
+                    if crate::slider_double_clicked(ui, &r) {
+                        s.exposure = self.reset_baseline.exposure;
+                    } else if r.changed() {
                         s.exposure = 2f32.powf(ev).clamp(0., 10.);
                     }
                 },
@@ -2716,6 +2739,14 @@ fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
             "The ceiling light of the Cornell box, or the studio key light.",
             |ui| {
                 ui.checkbox(&mut s.light_on, "");
+            },
+        );
+        row(
+            ui,
+            "Show outline",
+            "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.",
+            |ui| {
+                ui.checkbox(&mut s.light_outline, "");
             },
         );
         row(ui, "Intensity", "Brightness multiplier.", |ui| {
