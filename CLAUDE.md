@@ -1,18 +1,18 @@
-# Cornell RTX (native): working notes for Claude
+# Cornell RTX (native): working notes for this coding agent (CodeArataAgent)
 
-Reference for future sessions. Written 2026-10-29 after a full read of the source plus a build and render check.
+Reference for future sessions with this agent. Written 2026-10-29 after a full read of the source plus a build and render check; rewritten 2026-10-31 to describe how this agent works (its shell is PowerShell and it has no Claude Code subagents), not Claude Code.
 `README.md` is the user-facing doc.
 Paths here are relative to the repo root unless noted.
 
-## Delegation (owner rule, mandatory)
+## How this agent works (replaces the old Claude Code delegation rule)
 
-The owner wants routine work on cheaper models. This rule is the owner's explicit request for subagents, so it overrides the default of not spawning them.
+This agent runs as a single model in one loop; the old rule's `Explore` / `verifier` / `reviewer` subagents (haiku, sonnet) do not exist on this runtime, and the owner asked to ignore that delegation rule. Everything runs in this session, inline:
 
-- **Searches** across more than one file: the `Explore` agent with model `haiku`.
-- **Runs:** builds, `cargo fmt/test/clippy`, `--self-test`, benchmarks, `tools/*.py` and `tools/verify.ps1` go to the `verifier` agent (haiku, `.claude/agents/verifier.md`). Long runs go in the background, so design work continues meanwhile.
-- **Reviews:** every review of a finished change before a commit goes to the `reviewer` agent (sonnet, `.claude/agents/reviewer.md`). Check each finding before acting on it.
-- **Main session:** design, shaders, GPU and engine code, perf analysis and fixes stay here.
-- **Exception:** a single quick command with short output (one grep, `git status`) runs inline.
+- **Searches** across files: the `grep` and `glob` tools, then `read`; no Explore agent.
+- **Runs:** builds, `cargo fmt/test/clippy`, `--self-test`, benchmarks, `tools/*.py` and `tools/verify.ps1` run through the `pwsh` tool. Long runs go in the background with the tool's run-in-background flag (collect later with job output, stop with job kill), so design work continues meanwhile.
+- **Reviews:** review a finished change in this session before a commit; check each finding before acting on it.
+- **Main-session work unchanged:** design, shaders, GPU and engine code, perf analysis and fixes.
+- A separate subagent is only used when the person explicitly asks for one; routine work never spawns one.
 
 ## What it is
 
@@ -35,7 +35,7 @@ The owner wants routine work on cheaper models. This rule is the owner's explici
 - **Git:** the repo root is `cornell/` (native app at the root, the original WebGL app in `webgl/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
 - The native settings JSON is not compatible with the browser's.
 
-### Machine (2026-10-29)
+### Machine (recorded 2026-10-29; toolchain re-checked 2026-10-31: rustc 1.99.1, Python 3.13.15, unchanged)
 
 - Hardware and drivers: RTX 4070 Ti SUPER 16 GB, driver 616.64, Windows 11.
 - Toolchain: Rust 1.99.1 MSVC, DXC from Windows SDK 10.0.26100, Python 3.13 with numpy and Pillow (for `tools/rr_stability.py`).
@@ -75,7 +75,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - Thresholds: edge temporal std < 0.02 and mean frame difference < 0.0015.
   - Last result, 2026-10-29: 0.0071 and 0.00017. The 2026-10-26 run is kept as `captures/rr-stability/regression/metrics-2026-10-26.json`.
 - `--set key=json` overrides one top-level setting after `--preset` or `--settings`. Unknown keys are rejected. Example: `--set direct=0 --set indirect=1`.
-- Python on Windows needs Windows paths. Use `cygpath -w` when calling it from the Bash tool.
+- Shell notes for this runtime: commands run through the `pwsh` tool (PowerShell, not Bash; there is no Bash tool and no `cygpath`). Every call is a fresh process, so pass the tool's working-directory field instead of `cd`, use native Windows paths (`C:\…`), read environment variables as `$env:NAME`, and remember that output can be sandboxed or truncated — long output is saved to a file whose path is reported.
 
 ## Source map
 
