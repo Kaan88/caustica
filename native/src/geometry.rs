@@ -80,6 +80,44 @@ fn lowest_y(o: &Object, scale: Vec3, r: Mat4) -> f32 {
     cache.insert(key, y);
     y
 }
+/// The eight corners of an object's local bounding box, in the world (selection outlines).
+/// The local box is cached per mesh; a part of a file gets its own, tighter box.
+pub fn object_corners(o: &Object) -> [Vec3; 8] {
+    static CACHE: LazyLock<std::sync::Mutex<std::collections::HashMap<usize, (Vec3, Vec3)>>> =
+        LazyLock::new(Default::default);
+    let (_, source) = object_source(o);
+    let key = source.as_ptr() as usize;
+    let cached = CACHE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&key)
+        .copied();
+    let (lo, hi) = cached.unwrap_or_else(|| {
+        let b = source.iter().fold(
+            (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+            |(lo, hi), (p, _)| (lo.min(*p), hi.max(*p)),
+        );
+        let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if cache.len() > 4096 {
+            cache.clear();
+        }
+        cache.insert(key, b);
+        b
+    });
+    let (scale, r) = scale_rotation(o);
+    let (center, _) = object_frame(o);
+    let m = Mat4::from_translation(center) * r * Mat4::from_scale(scale);
+    std::array::from_fn(|i| {
+        let pick = |bit: usize, axis: usize| {
+            if i >> bit & 1 == 1 {
+                hi[axis]
+            } else {
+                lo[axis]
+            }
+        };
+        m.transform_point3(Vec3::new(pick(0, 0), pick(1, 1), pick(2, 2)))
+    })
+}
 /// Object-to-world transform of an object's instance, as a DXR 3×4 row-major matrix.
 pub fn object_transform(o: &Object) -> [f32; 12] {
     let (scale, r) = scale_rotation(o);

@@ -241,7 +241,7 @@ Order is from scene-research.md section 5, unchanged:
    - Not done: box mapping has hard seams on curved shapes (a blended triplanar would need three lookups); a texture set on a mesh is box-mapped too (no option to use the mesh's UVs); built-in shapes have no UVs.
    - Not done: maps are uncompressed RGBA8 (a 4k map is 85 MB with mips; BC7 would be a quarter); sRGB maps are mip-filtered in sRGB; the ray-cone widening for rough bounces is a heuristic (0.5·α or 0.5 per bounce), not the lobe's real spread; the alpha test samples LOD 0.
    - Not done: the material editor picks a file (no folder picker, no previews); downloading sets from inside the app belongs to the asset browser (item 6); texture painting and the lightmap baker (feature tracks) can build on the UVs now.
-6. UI phases 2–5.
+6. UI phases 2–5. — in progress. Phase 2 done 2026-10-30: right-click menus (viewport and outliner), Ctrl+D / Shift+D duplicate, H / Alt+H hide, Home, Page Up / Down, F frames the selection, double-click frames, middle-drag pan, an F1 shortcut sheet, selection and hover outlines (projected boxes, hover from the GPU id probe). Not done in phase 2: Alt-drag duplicate (Shift+D instead), outlines for lights, silhouette outlines (phase 5). Phases 3–5 (preset registry, favorites / recent, Ctrl+S / Ctrl+O, Quality bundles and capabilities, per-pass GPU timing, non-blocking high-res stills, show in folder, draggable A/B split, lens shift, UI size and persisted prefs) are next.
 
 ### Known issues (not scheduled)
 

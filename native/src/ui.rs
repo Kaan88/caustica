@@ -164,6 +164,14 @@ pub struct UiState {
     pub tool: gizmo::Tool,
     pub local: bool,
     pub hover: Option<gizmo::Handle>,
+    /// The object under the pointer (from the GPU object-id probe), outlined faintly.
+    pub hovered: Option<usize>,
+    /// The right-click menu's position in the viewport, while it is open.
+    pub context_menu: Option<egui::Pos2>,
+    /// The keyboard and mouse sheet (F1).
+    pub show_shortcuts: bool,
+    /// A command chosen in an outliner menu, run once the panel is drawn.
+    pub pending: Option<Command>,
     pub transform: Option<gizmo::Transform>,
     pub header: String,
     /// Snapshots for Ctrl+Z / Ctrl+Y, taken before each edit that the UI makes.
@@ -222,6 +230,10 @@ impl Default for UiState {
             tool: gizmo::Tool::Move,
             local: false,
             hover: None,
+            hovered: None,
+            context_menu: None,
+            show_shortcuts: false,
+            pending: None,
             transform: None,
             header: String::new(),
             undo: Vec::new(),
@@ -271,6 +283,74 @@ impl UiState {
         };
         self.undo.push(std::mem::replace(s, next));
         true
+    }
+    /// Duplicates the selected object or area light next to it and selects the copy; returns
+    /// the copy's name.
+    pub fn duplicate_selected(&mut self, s: &mut Settings) -> Option<String> {
+        let copy_name = |n: &str| format!("{} copy", n.chars().take(110).collect::<String>());
+        match self.selection {
+            Selection::Object(i) if i < s.objects.len() && s.objects.len() < scene::MAX_OBJECTS => {
+                self.checkpoint(s);
+                let mut o = s.objects[i].clone();
+                o.name = copy_name(&o.name);
+                // A pair is two-way: a copy starts unpaired.
+                o.portal = -1;
+                o.position[0] += 0.25;
+                o.position[1] += 0.15;
+                let name = o.name.clone();
+                s.objects.push(o);
+                self.selection = Selection::Object(s.objects.len() - 1);
+                Some(name)
+            }
+            Selection::Light(i) if i < s.lights.len() && s.lights.len() < scene::MAX_LIGHTS => {
+                self.checkpoint(s);
+                let mut l = s.lights[i].clone();
+                l.name = copy_name(&l.name);
+                l.position[0] += 0.25;
+                let name = l.name.clone();
+                s.lights.push(l);
+                self.selection = Selection::Light(s.lights.len() - 1);
+                Some(name)
+            }
+            _ => None,
+        }
+    }
+    /// Hides or shows the selected object or area light (camera visibility); returns a toast.
+    pub fn toggle_hidden_selected(&mut self, s: &mut Settings) -> Option<String> {
+        let ok = matches!(self.selection, Selection::Object(i) if i < s.objects.len())
+            || matches!(self.selection, Selection::Light(i) if i < s.lights.len());
+        if !ok {
+            return None;
+        }
+        self.checkpoint(s);
+        let (name, visible) = match self.selection {
+            Selection::Object(i) => {
+                let o = &mut s.objects[i];
+                o.visible = !o.visible;
+                (o.name.clone(), o.visible)
+            }
+            Selection::Light(i) => {
+                let l = &mut s.lights[i];
+                l.visible = !l.visible;
+                (l.name.clone(), l.visible)
+            }
+            _ => unreachable!(),
+        };
+        Some(format!(
+            "{} {name}",
+            if visible { "Shown:" } else { "Hidden:" }
+        ))
+    }
+    /// Shows every hidden object; returns how many.
+    pub fn show_all(&mut self, s: &mut Settings) -> usize {
+        let hidden = s.objects.iter().filter(|o| !o.visible).count();
+        if hidden > 0 {
+            self.checkpoint(s);
+            for o in &mut s.objects {
+                o.visible = true;
+            }
+        }
+        hidden
     }
     /// Deletes the selected object or area light; returns its name.
     pub fn delete_selected(&mut self, s: &mut Settings) -> Option<String> {
@@ -577,7 +657,170 @@ impl App {
         self.video_window(ctx);
         self.tool_windows(ctx);
         self.overlay(ctx);
+        self.context_menu(ctx);
+        self.shortcuts_window(ctx);
         self.toasts(ctx);
+    }
+    /// ◀ ▶, Page Up / Page Down: the scene files while one is loaded, else the presets.
+    pub fn step_scene(&mut self, delta: isize) {
+        match self.scene_entry() {
+            Some(i) => {
+                let n = self.ui.scenes.len() as isize;
+                self.load_scene_file((i as isize + delta).rem_euclid(n) as usize);
+            }
+            None => {
+                let n = PRESETS.len() as isize;
+                self.preset = (self.preset as isize + delta).rem_euclid(n) as usize;
+                self.settings.preset(self.preset);
+            }
+        }
+    }
+    /// Home: the camera as the scene was loaded.
+    pub fn reset_camera(&mut self) {
+        let b = &self.reset_baseline;
+        let s = &mut self.settings;
+        (s.yaw, s.pitch, s.distance, s.target, s.fov) =
+            (b.yaw, b.pitch, b.distance, b.target, b.fov);
+        self.ui.toast("Camera reset");
+    }
+    /// F: frames the selected object, or the whole scene when none is selected.
+    pub fn frame_selection(&mut self) {
+        let aspect = self
+            .gpu
+            .as_ref()
+            .map_or(1.6, |g| g.width as f32 / g.height as f32);
+        match self.ui.selection {
+            Selection::Object(i) if i < self.settings.objects.len() => {
+                self.settings.focus_object(i, aspect);
+                self.ui
+                    .toast(format!("Framed {}", self.settings.objects[i].name));
+            }
+            _ => {
+                self.settings.frame_objects(aspect);
+                self.ui.toast("Framed the scene");
+            }
+        }
+    }
+    /// Runs a context-menu or shortcut command on the selection.
+    pub fn run_command(&mut self, c: Command) {
+        let s = &mut self.settings;
+        match c {
+            Command::Duplicate => {
+                if let Some(name) = self.ui.duplicate_selected(s) {
+                    self.ui.toast(format!("Duplicated: {name}"));
+                }
+            }
+            Command::Hide => {
+                if let Some(text) = self.ui.toggle_hidden_selected(s) {
+                    self.ui.toast(text);
+                }
+            }
+            Command::ShowAll => {
+                let n = self.ui.show_all(s);
+                self.ui.toast(format!("Showed {n} hidden objects"));
+            }
+            Command::Delete => {
+                if let Some(name) = self.ui.delete_selected(s) {
+                    self.ui.toast(format!("Deleted {name}"));
+                }
+            }
+            Command::Frame => self.frame_selection(),
+            Command::FrameScene => {
+                self.ui.selection = Selection::None;
+                self.frame_selection();
+            }
+            Command::ResetCamera => self.reset_camera(),
+            Command::Move | Command::Rotate | Command::Scale => {
+                let mode = match c {
+                    Command::Move => gizmo::Mode::Move,
+                    Command::Rotate => gizmo::Mode::Rotate,
+                    _ => gizmo::Mode::Scale,
+                };
+                if !self.start_transform(mode, None) {
+                    self.ui.toast("The main light only moves and scales");
+                }
+            }
+        }
+    }
+    /// The viewport's right-click menu, kept open at its position until a click elsewhere.
+    fn context_menu(&mut self, ctx: &egui::Context) {
+        if let Some(c) = self.ui.pending.take() {
+            self.run_command(c);
+        }
+        let Some(at) = self.ui.context_menu else {
+            return;
+        };
+        let selected = matches!(
+            self.ui.selection,
+            Selection::Object(_) | Selection::Light(_)
+        );
+        let mut chosen = None;
+        let r = egui::Area::new(egui::Id::new("viewport menu"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at)
+            .show(ctx, |ui| {
+                egui::Frame::menu(ui.style()).show(ui, |ui| {
+                    ui.set_min_width(170.);
+                    let name = match self.ui.selection {
+                        Selection::Object(i) => {
+                            self.settings.objects.get(i).map(|o| o.name.clone())
+                        }
+                        Selection::Light(i) => self.settings.lights.get(i).map(|l| l.name.clone()),
+                        _ => None,
+                    };
+                    if let Some(name) = name {
+                        ui.label(egui::RichText::new(name).small().weak());
+                    }
+                    chosen = context_items(ui, selected);
+                    ui.separator();
+                    if ui.button("Frame the scene").clicked() {
+                        chosen = Some(Command::FrameScene);
+                    }
+                    if ui.button("Reset the camera (Home)").clicked() {
+                        chosen = Some(Command::ResetCamera);
+                    }
+                    if ui.button("Show all hidden (Alt+H)").clicked() {
+                        chosen = Some(Command::ShowAll);
+                    }
+                });
+            })
+            .response;
+        if let Some(c) = chosen {
+            self.ui.context_menu = None;
+            self.run_command(c);
+        } else if ctx.input(|i| i.pointer.any_pressed()) && !r.contains_pointer()
+            || ctx.input(|i| i.key_pressed(egui::Key::Escape))
+        {
+            self.ui.context_menu = None;
+        }
+    }
+    /// F1: every shortcut in one place.
+    fn shortcuts_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.ui.show_shortcuts;
+        egui::Window::new("Keyboard and mouse")
+            .open(&mut open)
+            .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
+            .resizable(false)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                // Three groups side by side, so the sheet fits a laptop screen.
+                ui.horizontal_top(|ui| {
+                    for (group, keys) in SHORTCUTS {
+                        ui.vertical(|ui| {
+                            section(ui, group);
+                            grid(group).show(ui, |ui| {
+                                for (k, what) in *keys {
+                                    ui.label(egui::RichText::new(*k).strong());
+                                    ui.label(*what);
+                                    ui.end_row();
+                                }
+                            });
+                        });
+                        ui.add_space(12.);
+                    }
+                });
+            });
+        self.ui.show_shortcuts = open;
     }
     /// The loaded scene file's entry, if the current scene came from one.
     fn scene_entry(&self) -> Option<usize> {
@@ -1308,6 +1551,35 @@ impl App {
             egui::Id::new("gizmo"),
         ));
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, self.ui.selection);
+        // Selection and hover outlines: the projected box of the object.
+        if self.settings.perspective() {
+            if let Some(i) = self.ui.hovered
+                && self.ui.selection != Selection::Object(i)
+                && self.ui.transform.is_none()
+                && let Some(o) = self.settings.objects.get(i)
+            {
+                let stroke = egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(90));
+                gizmo::draw_box_outline(
+                    &painter,
+                    ppp,
+                    &view,
+                    &crate::geometry::object_corners(o),
+                    stroke,
+                );
+            }
+            if let Selection::Object(i) = self.ui.selection
+                && let Some(o) = self.settings.objects.get(i)
+            {
+                let stroke = egui::Stroke::new(1.5_f32, ACCENT);
+                gizmo::draw_box_outline(
+                    &painter,
+                    ppp,
+                    &view,
+                    &crate::geometry::object_corners(o),
+                    stroke,
+                );
+            }
+        }
         self.ui.hover = None;
         if let Some(t) = &self.ui.transform {
             if let Some(f) = gizmo::frame(&t.original, t.target) {
@@ -1533,17 +1805,8 @@ impl App {
                     );
                 });
                 ui.separator();
-                let count = PRESETS.len();
-                // ◀ ▶ step through the scene files while one is loaded, else the presets.
-                let file = self.scene_entry();
-                if ui.button("◀").on_hover_text("Previous scene").clicked() {
-                    match file {
-                        Some(i) => self.load_scene_file((i + self.ui.scenes.len() - 1) % self.ui.scenes.len()),
-                        None => {
-                            self.preset = (self.preset + count - 1) % count;
-                            self.settings.preset(self.preset);
-                        }
-                    }
+                if ui.button("◀").on_hover_text("Previous scene (Page Up)").clicked() {
+                    self.step_scene(-1);
                 }
                 let current = if known {
                     PRESETS[self.preset].to_string()
@@ -1574,14 +1837,8 @@ impl App {
                     })
                     .response
                     .on_hover_text("Pick a scene. Picking the current one again restores it.");
-                if ui.button("▶").on_hover_text("Next scene").clicked() {
-                    match file {
-                        Some(i) => self.load_scene_file((i + 1) % self.ui.scenes.len()),
-                        None => {
-                            self.preset = (self.preset + 1) % count;
-                            self.settings.preset(self.preset);
-                        }
-                    }
+                if ui.button("▶").on_hover_text("Next scene (Page Down)").clicked() {
+                    self.step_scene(1);
                 }
                 if ui
                     .selectable_label(self.ui.show_scenes, format!("Scenes ({})", self.ui.scenes.len()))
@@ -1894,6 +2151,14 @@ impl App {
                         if r.double_clicked() {
                             state.selection = Selection::Object(i);
                         }
+                        if r.secondary_clicked() {
+                            state.selection = Selection::Object(i);
+                        }
+                        r.context_menu(|ui| {
+                            if let Some(c) = context_items(ui, true) {
+                                state.pending = Some(c);
+                            }
+                        });
                     });
                 }
             });
@@ -1998,17 +2263,11 @@ impl App {
                     if ui
                         .add_enabled(
                             s.objects.len() < scene::MAX_OBJECTS,
-                            egui::Button::new("Duplicate"),
+                            egui::Button::new("Duplicate (Ctrl+D)"),
                         )
                         .clicked()
                     {
-                        state.checkpoint(s);
-                        let mut o = s.objects[i].clone();
-                        o.name = format!("{} copy", o.name.chars().take(110).collect::<String>());
-                        o.position[0] += 0.25;
-                        o.position[1] += 0.15;
-                        s.objects.push(o);
-                        state.selection = Selection::Object(s.objects.len() - 1);
+                        state.duplicate_selected(s);
                     }
                     if ui.button("Delete (Del)").clicked()
                         && let Some(name) = state.delete_selected(s)
@@ -2805,3 +3064,86 @@ fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
         });
     });
 }
+
+/// Viewport and outliner commands on the selection.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Command {
+    Duplicate,
+    Hide,
+    ShowAll,
+    Delete,
+    Frame,
+    FrameScene,
+    ResetCamera,
+    Move,
+    Rotate,
+    Scale,
+}
+/// The selection's entries of a context menu; returns the one clicked.
+fn context_items(ui: &mut egui::Ui, selected: bool) -> Option<Command> {
+    let mut chosen = None;
+    let items = [
+        ("Frame (F)", Command::Frame),
+        ("Move (G)", Command::Move),
+        ("Rotate (R)", Command::Rotate),
+        ("Scale (S)", Command::Scale),
+        ("Duplicate (Ctrl+D)", Command::Duplicate),
+        ("Hide / show (H)", Command::Hide),
+        ("Delete (Del)", Command::Delete),
+    ];
+    for (label, c) in items {
+        if ui.add_enabled(selected, egui::Button::new(label)).clicked() {
+            chosen = Some(c);
+            ui.close_menu();
+        }
+    }
+    chosen
+}
+const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
+    (
+        "Camera",
+        &[
+            ("Left drag", "Orbit"),
+            ("Right / middle drag", "Pan (or Shift+drag)"),
+            ("Wheel", "Zoom"),
+            ("F", "Frame the selection, or the scene"),
+            ("Double-click", "Frame what is under the pointer"),
+            ("Home", "Reset the camera to the scene's"),
+            ("Ctrl+click", "Focus the lens there"),
+            ("A", "Auto orbit"),
+            ("`", "Walk mode (WASD, Esc to leave)"),
+        ],
+    ),
+    (
+        "Selection",
+        &[
+            ("Click", "Select (empty space deselects)"),
+            ("Right-click", "Menu"),
+            (
+                "G / R / S",
+                "Move / rotate / scale (then X Y Z, a value, Enter)",
+            ),
+            ("Ctrl+D", "Duplicate"),
+            ("Shift+D", "Duplicate and move"),
+            ("H / Alt+H", "Hide or show / show all"),
+            ("Del", "Delete"),
+            ("Esc", "Deselect"),
+            ("Ctrl+Z / Ctrl+Y", "Undo / redo"),
+        ],
+    ),
+    (
+        "Render and view",
+        &[
+            ("Space", "Pause"),
+            ("R", "Restart (nothing selected)"),
+            ("D", "Native denoiser"),
+            ("1 – 8", "Debug views"),
+            ("C", "Freeze an A/B reference"),
+            ("L", "Light painting"),
+            ("F12", "Save cornell.png"),
+            ("Page Up / Page Down", "Previous / next scene"),
+            ("Tab", "Cycle panels, top bar only, nothing"),
+            ("F1", "This sheet"),
+        ],
+    ),
+];

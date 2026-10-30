@@ -76,16 +76,23 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 
 | Input | Action |
 |---|---|
-| Left click | Select the object or light under the cursor (opens it in the Scene tab); empty space deselects |
+| Left click | Select the object or light under the cursor (opens it in the Scene tab); empty space deselects. The selection is outlined, and so (faintly) is the object under the pointer |
+| Double-click | Frame the object under the cursor |
+| Right click | Select what is under the cursor and open a menu: frame, move, rotate, scale, duplicate, hide, delete, frame the scene, reset the camera, show all hidden (outliner rows have the same menu) |
 | Drag a gizmo handle | Move along an arrow or plane, rotate on a ring, scale on an axis or (center) evenly |
 | G / R / S | Move / rotate / scale the selection with the mouse, as in Blender: then X / Y / Z for an axis (again: local axis, again: free), Shift+X/Y/Z for a plane, type a value, Ctrl snaps, Shift is fine control; click or Enter confirms, right click or Esc cancels |
 | Ctrl+Z / Ctrl+Y | Undo / redo (Ctrl+Shift+Z also redoes) |
 | Left drag | Orbit |
-| Right drag / Shift-drag | Pan |
+| Right or middle drag / Shift-drag | Pan |
 | Wheel | Dolly |
-| F | Frame all objects |
+| F | Frame the selected object, or all objects when nothing is selected |
+| Home | Reset the camera to the scene's own |
+| Page Up / Page Down | Previous / next scene |
+| Ctrl+D / Shift+D | Duplicate the selection / duplicate it and move the copy |
+| H / Alt+H | Hide or show the selection / show all hidden objects |
+| F1 | Sheet of every shortcut |
 | Delete | Delete the selected object or area light |
-| Escape | Deselect (the app closes only from the window) |
+| Escape | Close the menu, else deselect (the app closes only from the window) |
 | Space | Pause/resume |
 | R | Restart accumulation (with an object or light selected, R rotates) |
 | A | Auto orbit |

@@ -694,6 +694,58 @@ fn clip_project(view: &View, from: Vec3, p: Vec3) -> Option<Vec2> {
     None
 }
 /// Outlines of the main light and the area lights, so hidden lights can be found and picked.
+/// The outline of a box's projection: the convex hull of its projected corners. Nothing when a
+/// corner is behind the camera.
+pub fn draw_box_outline(
+    painter: &egui::Painter,
+    ppp: f32,
+    view: &View,
+    corners: &[Vec3; 8],
+    stroke: egui::Stroke,
+) {
+    let mut points = Vec::with_capacity(8);
+    for c in corners {
+        match view.project(*c) {
+            Some(p) => points.push(p / ppp),
+            None => return,
+        }
+    }
+    let hull = convex_hull(points);
+    if hull.len() >= 3 {
+        painter.add(egui::Shape::closed_line(
+            hull.iter().map(|p| egui::pos2(p.x, p.y)).collect(),
+            stroke,
+        ));
+    }
+}
+/// Andrew's monotone chain; counter-clockwise, no repeated first point.
+fn convex_hull(mut p: Vec<Vec2>) -> Vec<Vec2> {
+    p.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+    p.dedup();
+    if p.len() < 3 {
+        return p;
+    }
+    let cross = |o: Vec2, a: Vec2, b: Vec2| (a - o).perp_dot(b - o);
+    let mut hull: Vec<Vec2> = Vec::with_capacity(p.len() * 2);
+    for pass in 0..2 {
+        let start = hull.len();
+        let points: Box<dyn Iterator<Item = &Vec2>> = if pass == 0 {
+            Box::new(p.iter())
+        } else {
+            Box::new(p.iter().rev())
+        };
+        for &q in points {
+            while hull.len() >= start + 2
+                && cross(hull[hull.len() - 2], hull[hull.len() - 1], q) <= 0.
+            {
+                hull.pop();
+            }
+            hull.push(q);
+        }
+        hull.pop();
+    }
+    hull
+}
 pub fn draw_lights(
     painter: &egui::Painter,
     ppp: f32,
@@ -841,6 +893,15 @@ pub fn pick(s: &Settings, pixel: [f32; 2], size: [u32; 2]) -> Option<Selection> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_hull_drops_inner_points() {
+        let square = [(0., 0.), (2., 0.), (2., 2.), (0., 2.), (1., 1.), (2., 1.)]
+            .map(|(x, y)| Vec2::new(x, y))
+            .to_vec();
+        let hull = convex_hull(square);
+        assert_eq!(hull.len(), 4, "{hull:?}");
+        assert!(!hull.contains(&Vec2::new(1., 1.)));
+    }
     fn setup() -> (Settings, View) {
         let s = Settings::default();
         let v = View::new(&s, [1280, 720]);

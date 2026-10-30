@@ -522,7 +522,9 @@ Scope, `main.rs` `ui()` and `editor.rs` only, no `gpu.rs`/`scene.rs` changes:
 - Theme constants, Body/Small sizes.
 Risks: low. Long one-line UI code makes the move tedious but mechanical. Merge conflicts with the main session's Quality work in `ui()`: agree that phase 1 leaves a stub `render_tab::quality(ui, s, caps)` the main session fills, or land phase 1 after the upscaler UI lands. Verify with `cargo test` (glyph test), `--self-test`, `--capture-ui` at 800×600 and 1440×900, and 150% DPI.
 
-### Phase 2: Viewport interaction and undo (2–3 days)
+### Phase 2: Viewport interaction and undo (2–3 days) — done 2026-10-30
+
+Undo / redo, gizmos and G / R / S came with roadmap item 3b; the rest with the phase 2 batch (CLAUDE.md "Viewport interaction"). Not done: Alt-drag duplicate (Shift+D instead), hover outlines for lights, silhouette outlines (phase 5).
 
 - Undo/redo stack (Ctrl+Z / Ctrl+Y) and Ctrl+D, H, Del, F / double-click focus, Home reset camera, PageUp/PageDown scenes, middle-drag pan, F1 shortcuts sheet.
 - Selection outline and hover outline (projected AABB hull, throttled CPU hover pick).

@@ -72,6 +72,11 @@ struct App {
     drag_distance: f32,
     shift: bool,
     ctrl: bool,
+    alt: bool,
+    /// The last left click (time, position), for double-clicks.
+    last_click: Option<(Instant, [f64; 2])>,
+    /// A double-click: frame what the pending pick finds.
+    frame_pick: bool,
     preset: usize,
     frames: Option<u32>,
     rendered: u32,
@@ -139,7 +144,7 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 279;
+const SCENES_FROM: u32 = 281;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -488,6 +493,9 @@ impl App {
             drag_distance: 0.,
             shift: false,
             ctrl: false,
+            alt: false,
+            last_click: None,
+            frame_pick: false,
             preset: selected_preset,
             frames,
             rendered: 0,
@@ -1056,6 +1064,50 @@ impl App {
                         "Cancelling did not end the export"
                     );
                 }
+                // Viewport commands (UI phase 2): duplicate, hide, show all, delete, the camera
+                // reset and scene stepping; the menu, outlines and shortcut sheet get drawn.
+                279 => {
+                    let n = self.settings.objects.len();
+                    anyhow::ensure!(n > 0, "No object to duplicate");
+                    self.ui.selection = ui::Selection::Object(0);
+                    self.run_command(ui::Command::Duplicate);
+                    anyhow::ensure!(
+                        self.settings.objects.len() == n + 1
+                            && self.ui.selection == ui::Selection::Object(n),
+                        "Duplicate did not add and select a copy"
+                    );
+                    self.run_command(ui::Command::Hide);
+                    anyhow::ensure!(!self.settings.objects[n].visible, "Hide did not hide");
+                    self.run_command(ui::Command::ShowAll);
+                    anyhow::ensure!(
+                        self.settings.objects.iter().all(|o| o.visible),
+                        "Show all left objects hidden"
+                    );
+                    self.run_command(ui::Command::Delete);
+                    anyhow::ensure!(self.settings.objects.len() == n, "Delete did not delete");
+                    self.ui.selection = ui::Selection::Object(0);
+                    self.ui.hovered = Some(n.min(1).min(n - 1));
+                    self.ui.context_menu = Some(egui::pos2(200., 200.));
+                    self.ui.show_shortcuts = true;
+                    self.settings.yaw += 30.;
+                    self.reset_camera();
+                    anyhow::ensure!(
+                        self.settings.yaw == self.reset_baseline.yaw,
+                        "Home did not reset the camera"
+                    );
+                }
+                280 => {
+                    let name = self.settings.scene_name.clone();
+                    self.step_scene(1);
+                    self.step_scene(-1);
+                    anyhow::ensure!(
+                        self.settings.scene_name == name,
+                        "Scene stepping did not come back: {name}, then {}",
+                        self.settings.scene_name
+                    );
+                    self.ui.show_shortcuts = false;
+                    self.ui.context_menu = None;
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1338,10 +1390,18 @@ impl App {
         g.zebras = self.ui.zebras && self.export.is_none();
         g.scopes_on = self.ui.show_scopes && self.export.is_none();
         let probe_at = self.pick_point.unwrap_or(self.cursor);
+        // Hovering the viewport reads the object id under the pointer for its outline.
+        let hovering = self.drag.is_none()
+            && self.ui.transform.is_none()
+            && self.ui.context_menu.is_none()
+            && self.show_ui
+            && s.perspective()
+            && !self.egui.is_pointer_over_area();
         g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area())
             || self.focus_pending
-            || self.pick_point.is_some())
-        .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
+            || self.pick_point.is_some()
+            || hovering)
+            .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
         if s.lut_path != self.lut_loaded && self.export.is_none() {
             self.lut_loaded = s.lut_path.clone();
             let result = if s.lut_path.is_empty() {
@@ -1438,7 +1498,19 @@ impl App {
                 )?;
             }
         }
-        if let (Some(point), Some(p)) = (self.pick_point.take(), g.probe_result) {
+        self.ui.hovered = None;
+        if hovering
+            && self.export.is_none()
+            && let Some(p) = g.probe_result
+        {
+            // Object ids are material + 1, and objects are materials 5 onwards.
+            self.ui.hovered = (p.id as usize)
+                .checked_sub(6)
+                .filter(|i| *i < self.settings.objects.len());
+        }
+        let point = self.pick_point.take();
+        let frame_pick = std::mem::take(&mut self.frame_pick);
+        if let (Some(point), Some(p)) = (point, g.probe_result) {
             let pixel = [point[0] as f32, point[1] as f32];
             match gizmo::pick_from_probe(&self.settings, pixel, [g.width, g.height], p.id, p.depth)
             {
@@ -1447,7 +1519,15 @@ impl App {
                     self.ui.tab = ui::Tab::Scene;
                     self.ui.panel_hidden = false;
                     self.show_ui = true;
+                    if frame_pick && let ui::Selection::Object(i) = sel {
+                        self.settings
+                            .focus_object(i, g.width as f32 / g.height as f32);
+                        self.ui
+                            .toast(format!("Framed {}", self.settings.objects[i].name));
+                    }
                 }
+                // A right-click on empty space keeps the selection for its menu.
+                None if self.ui.context_menu.is_some() => {}
                 None => self.ui.selection = ui::Selection::None,
             }
         }
@@ -2194,6 +2274,7 @@ impl ApplicationHandler for App {
             WindowEvent::ModifiersChanged(m) => {
                 self.shift = m.state().shift_key();
                 self.ctrl = m.state().control_key();
+                self.alt = m.state().alt_key();
                 if self.ui.transform.is_some() {
                     self.update_transform();
                 }
@@ -2207,12 +2288,32 @@ impl ApplicationHandler for App {
                         && self.drag_distance < 3.
                         && self.settings.perspective()
                         && !self.egui.is_pointer_over_area()
-                        && let Some(g) = &self.gpu
                     {
                         // A click selects what is under the pointer, read from the GPU's
                         // object-id buffer next frame; empty space deselects, as in Blender.
-                        let _ = g;
+                        // A second click close by soon after also frames it.
+                        let now = Instant::now();
+                        self.frame_pick = self.last_click.is_some_and(|(at, p)| {
+                            now - at < Duration::from_millis(400)
+                                && (p[0] - self.cursor[0]).abs() + (p[1] - self.cursor[1]).abs()
+                                    < 6.
+                        });
+                        self.last_click = (!self.frame_pick).then_some((now, self.cursor));
                         self.pick_point = Some(self.cursor);
+                    } else if self.drag == Some(MouseButton::Right)
+                        && self.drag_distance < 3.
+                        && !self.egui.is_pointer_over_area()
+                    {
+                        // A right click selects what is under the pointer (when the camera
+                        // allows picking) and opens the menu there.
+                        if self.settings.perspective() {
+                            self.pick_point = Some(self.cursor);
+                        }
+                        let ppp = self.egui.pixels_per_point() as f64;
+                        self.ui.context_menu = Some(egui::pos2(
+                            (self.cursor[0] / ppp) as f32,
+                            (self.cursor[1] / ppp) as f32,
+                        ));
                     }
                     self.drag = None;
                 } else if transforming == Some(false) {
@@ -2253,7 +2354,7 @@ impl ApplicationHandler for App {
                 } else if let Some(button) = self.drag {
                     self.drag_distance += dx.abs() + dy.abs();
                     let s = &mut self.settings;
-                    if button == MouseButton::Right || self.shift {
+                    if matches!(button, MouseButton::Right | MouseButton::Middle) || self.shift {
                         // Pan along the camera's screen axes, so the scene follows the
                         // cursor at any pitch.
                         let scale = s.distance * 0.001;
@@ -2331,6 +2432,26 @@ impl ApplicationHandler for App {
                             };
                             self.ui.toast(text);
                         }
+                        KeyCode::KeyD if self.ctrl && selected => {
+                            self.run_command(ui::Command::Duplicate);
+                        }
+                        // Blender's Shift+D: duplicate, then move the copy (only when a copy was
+                        // made: the main light has none, and the object list can be full).
+                        KeyCode::KeyD if self.shift && selected && over_view => {
+                            let before = self.ui.selection;
+                            self.run_command(ui::Command::Duplicate);
+                            if self.ui.selection != before {
+                                self.run_command(ui::Command::Move);
+                            }
+                        }
+                        // Ctrl+D or Shift+D with nothing to copy: not the denoiser (D).
+                        KeyCode::KeyD if self.ctrl || self.shift => {}
+                        KeyCode::KeyH if self.alt => self.run_command(ui::Command::ShowAll),
+                        KeyCode::KeyH if selected => self.run_command(ui::Command::Hide),
+                        KeyCode::Home => self.reset_camera(),
+                        KeyCode::PageUp => self.step_scene(-1),
+                        KeyCode::PageDown => self.step_scene(1),
+                        KeyCode::F1 => self.ui.show_shortcuts = !self.ui.show_shortcuts,
                         // Blender's modal transforms, when an object or light is selected.
                         KeyCode::KeyG | KeyCode::KeyS | KeyCode::KeyR
                             if selected && over_view && !self.ctrl =>
@@ -2345,7 +2466,11 @@ impl ApplicationHandler for App {
                             }
                         }
                         // Escape deselects; closing the window is the only way to quit.
-                        KeyCode::Escape => self.ui.selection = ui::Selection::None,
+                        KeyCode::Escape => {
+                            if self.ui.context_menu.take().is_none() {
+                                self.ui.selection = ui::Selection::None;
+                            }
+                        }
                         // Tab: all → top bar only → nothing (screenshot mode) → all.
                         KeyCode::Tab => {
                             if !self.show_ui {
@@ -2366,7 +2491,7 @@ impl ApplicationHandler for App {
                             self.actions.reset = true;
                             self.ui.toast("Restarted");
                         }
-                        KeyCode::KeyF => self.actions.frame_scene = true,
+                        KeyCode::KeyF => self.frame_selection(),
                         KeyCode::KeyL => self.toggle_painting(),
                         KeyCode::Backquote => self.toggle_walk(),
                         KeyCode::Delete => {

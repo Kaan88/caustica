@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 279 scripted frames (`SCENES_FROM`), then one frame per scene file (443 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 281 scripted frames (`SCENES_FROM`), then one frame per scene file (445 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -369,7 +369,17 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - egui's default fonts lack `→` and `●`: the glyph unit test caught both. The status dot is painted.
 - CLI for captures: `--ui-tab`, `--ui-advanced`, `--ui-select`.
 - Self-test: 178 opens the Render tab for the slider-clamp guard; 190–195 draw the object, light, main light, camera, Look and Export views with advanced rows, then delete the added light through `delete_selected`.
-- Not done (later phases): undo, viewport handles and hover, scene browser with thumbnails, Quality bundles, per-pass GPU timing, persisted UI prefs, file pickers, async high-res export.
+- Not done (later phases): Quality bundles, per-pass GPU timing, persisted UI prefs, async high-res export (undo, handles, hover, the scene browser, thumbnails and file pickers came with 3b, item 4, core 2 and phase 2 below).
+
+## Viewport interaction (UI phase 2, 2026-10-30)
+
+- **Commands** (`ui::Command`, `App::run_command`): Duplicate (`UiState::duplicate_selected`: objects and area lights, offset copy named `… copy`, portal unpaired, selected), Hide (`toggle_hidden_selected`: camera visibility), ShowAll, Delete, Frame (`frame_selection`: `focus_object` for an object, else `frame_objects`), FrameScene, ResetCamera (`reset_camera`: yaw / pitch / distance / target / fov from `reset_baseline`, the scene as loaded), Move / Rotate / Scale (modal transforms). Each edit checkpoints for undo.
+- **Keys** (`window_event`): Ctrl+D, Shift+D (duplicate, then a modal move), H, Alt+H (`App::alt`), Home, Page Up / Down (`step_scene`, shared with ◀ ▶), F1 (`shortcuts_window`, three groups side by side from `SHORTCUTS`), F frames the selection. The Ctrl / Shift D arms come before plain D (denoiser). Esc closes the menu before it deselects.
+- **Mouse:** middle drag pans. Double-click: a left click within 400 ms and 6 px of the last (`last_click`) sets `frame_pick`, and the pick result frames that object. A short right click (< 3 px of drag, not over egui) picks under the pointer and sets `UiState::context_menu` (logical position); `App::context_menu` draws it as a foreground `Area` until an item, a press outside or Esc. A right click on empty space keeps the selection. Outliner rows open the same entries through egui's `context_menu`, queued in `UiState::pending` and run by `context_menu` in the same frame.
+- **Outlines:** `geometry::object_corners` (the mesh's local AABB, cached by mesh pointer, through the object transform) → `gizmo::draw_box_outline` (convex hull of the projected corners; nothing when a corner is behind the camera). The selection is drawn in the accent colour, the hovered object in faint white. Hover comes from the GPU probe: while the pointer is over the viewport (no drag, transform or menu, perspective camera) `g.probe` is set every frame and `ui.hovered` = probe id − 6 when that is an object (ids are material + 1; objects are materials 5…).
+- **Tests:** unit test `the_hull_drops_inner_points`; self-test 279–280 runs duplicate (count and selection), hide, show all, delete, Home (yaw back to the baseline) and Page Down + Page Up (same scene name), drawing the menu, hover outline and sheet. Scene files start at 281.
+- Shift+D moves only when a copy was made (the main light has none); Ctrl / Shift+D never reach the denoiser key. The menu closes on a press outside its area (`contains_pointer`, so its own buttons still click).
+- Not done: Alt-drag duplicate (Shift+D covers it); an outline disappears while any box corner is behind the camera (close-up walls); hover and outlines for lights (they have their own outlines) and for non-perspective cameras; outlines are boxes, not the silhouette (GPU outline from the id buffer is phase 5); the probe readback runs every hovered frame (one texel).
 
 ## Gizmos (roadmap item 3b, 2026-10-30)
 
@@ -461,7 +471,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Dialog** (`video_ui.rs`, Export tab → *Export video…*, which takes pitch and distance from the camera): format (HDR10 disabled without HDR output, videos without ffmpeg), CRF or ProRes profile, file with *Browse…* (rfd), size presets (window, 720p … 8K, square, vertical) plus width × height, fps 24–60 (keeps the length), length in seconds ↔ frames, samples per frame, time limit per frame, orbit angle / elevation / distance / easing, *Use the current camera*.
 - **ffmpeg details:** the scale filter is followed by `setparams` with the same colour tags, because filtered frames carry their own properties, which win over `-color_primaries` / `-color_trc` (without it the SDR files read `bt709/unknown/unknown`). Checked with `--turntable-format h264|h265|hdr10|prores`: H.264 High and HEVC Main tagged bt709, HDR10 HEVC Main 10 bt2020nc / bt2020 / smpte2084, ProRes HQ yuv422p10le; a decoded H.264 frame matches the PNG of the same frame to 1.8 / 255 on average (a BT.601 matrix would shift hues).
 - **CLI:** `--turntable-format`, `--ui-video` (opens the dialog for captures).
-- **Tests:** `video::tests` (orbit, even sizes, ffmpeg arguments). Self-test 273–278: the dialog starts a 3-frame 201×121 EXR export (276 checks the frames' size and that the output is back to the window's), then a 640×360 PNG export at 4096 spp is running at 277 and cancelled; 278 checks it ended. Scene files start at 279.
+- **Tests:** `video::tests` (orbit, even sizes, ffmpeg arguments). Self-test 273–278: the dialog starts a 3-frame 201×121 EXR export (276 checks the frames' size and that the output is back to the window's), then a 640×360 PNG export at 4096 spp is running at 277 and cancelled; 278 checks it ended. Scene files started at 279 then (281 since UI phase 2).
 
 ## Asset browser (item 6, 2026-10-30)
 
