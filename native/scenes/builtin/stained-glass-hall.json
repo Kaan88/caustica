@@ -128,7 +128,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pier 2",
@@ -171,7 +172,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pier 3",
@@ -214,7 +216,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pier 4",
@@ -257,7 +260,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pier 5",
@@ -300,7 +304,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.1.1",
@@ -343,7 +348,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.1.2",
@@ -386,7 +392,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.1.3",
@@ -429,7 +436,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.2.1",
@@ -472,7 +480,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.2.2",
@@ -515,7 +524,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.2.3",
@@ -558,7 +568,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.3.1",
@@ -601,7 +612,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.3.2",
@@ -644,7 +656,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.3.3",
@@ -687,7 +700,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.4.1",
@@ -730,7 +744,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.4.2",
@@ -773,7 +788,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 1.4.3",
@@ -816,7 +832,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Sill 1",
@@ -859,7 +876,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Head 1",
@@ -902,7 +920,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.1.1",
@@ -945,7 +964,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.1.2",
@@ -988,7 +1008,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.1.3",
@@ -1031,7 +1052,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.2.1",
@@ -1074,7 +1096,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.2.2",
@@ -1117,7 +1140,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.2.3",
@@ -1160,7 +1184,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.3.1",
@@ -1203,7 +1228,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.3.2",
@@ -1246,7 +1272,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.3.3",
@@ -1289,7 +1316,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.4.1",
@@ -1332,7 +1360,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.4.2",
@@ -1375,7 +1404,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 2.4.3",
@@ -1418,7 +1448,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Sill 2",
@@ -1461,7 +1492,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Head 2",
@@ -1504,7 +1536,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.1.1",
@@ -1547,7 +1580,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.1.2",
@@ -1590,7 +1624,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.1.3",
@@ -1633,7 +1668,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.2.1",
@@ -1676,7 +1712,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.2.2",
@@ -1719,7 +1756,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.2.3",
@@ -1762,7 +1800,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.3.1",
@@ -1805,7 +1844,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.3.2",
@@ -1848,7 +1888,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.3.3",
@@ -1891,7 +1932,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.4.1",
@@ -1934,7 +1976,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.4.2",
@@ -1977,7 +2020,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 3.4.3",
@@ -2020,7 +2064,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Sill 3",
@@ -2063,7 +2108,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Head 3",
@@ -2106,7 +2152,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.1.1",
@@ -2149,7 +2196,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.1.2",
@@ -2192,7 +2240,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.1.3",
@@ -2235,7 +2284,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.2.1",
@@ -2278,7 +2328,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.2.2",
@@ -2321,7 +2372,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.2.3",
@@ -2364,7 +2416,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.3.1",
@@ -2407,7 +2460,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.3.2",
@@ -2450,7 +2504,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.3.3",
@@ -2493,7 +2548,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.4.1",
@@ -2536,7 +2592,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.4.2",
@@ -2579,7 +2636,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Pane 4.4.3",
@@ -2622,7 +2680,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Sill 4",
@@ -2665,7 +2724,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Head 4",
@@ -2708,7 +2768,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Low wall",
@@ -2751,7 +2812,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Bench 1",
@@ -2794,7 +2856,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Bench 2",
@@ -2837,7 +2900,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Bench 3",
@@ -2880,7 +2944,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

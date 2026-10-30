@@ -226,7 +226,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Post 2",
@@ -269,7 +270,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Post 3",
@@ -312,7 +314,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Post 4",
@@ -355,7 +358,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Post 5",
@@ -398,7 +402,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

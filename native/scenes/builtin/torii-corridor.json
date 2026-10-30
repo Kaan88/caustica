@@ -131,7 +131,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 1 pillar",
@@ -174,7 +175,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 1 beam",
@@ -217,7 +219,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 1 tie",
@@ -260,7 +263,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 2 pillar",
@@ -303,7 +307,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 2 pillar",
@@ -346,7 +351,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 2 beam",
@@ -389,7 +395,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 2 tie",
@@ -432,7 +439,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 3 pillar",
@@ -475,7 +483,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 3 pillar",
@@ -518,7 +527,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 3 beam",
@@ -561,7 +571,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 3 tie",
@@ -604,7 +615,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 4 pillar",
@@ -647,7 +659,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 4 pillar",
@@ -690,7 +703,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 4 beam",
@@ -733,7 +747,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 4 tie",
@@ -776,7 +791,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 5 pillar",
@@ -819,7 +835,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 5 pillar",
@@ -862,7 +879,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 5 beam",
@@ -905,7 +923,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 5 tie",
@@ -948,7 +967,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 6 pillar",
@@ -991,7 +1011,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 6 pillar",
@@ -1034,7 +1055,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 6 beam",
@@ -1077,7 +1099,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 6 tie",
@@ -1120,7 +1143,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 7 pillar",
@@ -1163,7 +1187,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 7 pillar",
@@ -1206,7 +1231,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 7 beam",
@@ -1249,7 +1275,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 7 tie",
@@ -1292,7 +1319,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 8 pillar",
@@ -1335,7 +1363,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 8 pillar",
@@ -1378,7 +1407,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 8 beam",
@@ -1421,7 +1451,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 8 tie",
@@ -1464,7 +1495,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 9 pillar",
@@ -1507,7 +1539,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 9 pillar",
@@ -1550,7 +1583,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 9 beam",
@@ -1593,7 +1627,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 9 tie",
@@ -1636,7 +1671,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 10 pillar",
@@ -1679,7 +1715,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 10 pillar",
@@ -1722,7 +1759,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 10 beam",
@@ -1765,7 +1803,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 10 tie",
@@ -1808,7 +1847,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 11 pillar",
@@ -1851,7 +1891,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 11 pillar",
@@ -1894,7 +1935,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 11 beam",
@@ -1937,7 +1979,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 11 tie",
@@ -1980,7 +2023,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 12 pillar",
@@ -2023,7 +2067,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 12 pillar",
@@ -2066,7 +2111,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 12 beam",
@@ -2109,7 +2155,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gate 12 tie",
@@ -2152,7 +2199,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

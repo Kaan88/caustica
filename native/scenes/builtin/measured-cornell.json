@@ -51,7 +51,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Short block",
@@ -94,7 +95,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ],
   "left": [

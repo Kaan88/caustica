@@ -1,0 +1,687 @@
+{
+ "format": 1,
+ "title": "Fluorescent light",
+ "description": "After Dan Flavin: coloured fluorescent tubes in a white room; the colours bleed across the walls and mix where they meet.",
+ "tags": [
+  "art",
+  "emissive",
+  "color"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 6.0,
+  "sky": 0.0,
+  "base": [
+   0.8,
+   0.8,
+   0.78
+  ],
+  "floor": {
+   "color": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 12,
+  "yaw": -20,
+  "pitch": 4,
+  "distance": 4.5,
+  "target": [
+   -0.6,
+   0.4,
+   -1.2
+  ],
+  "fov": 60,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -3.1
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     12.0,
+     0.2857
+    ],
+    "elevation": 0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.86,
+      0.86,
+      0.84
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     -4.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": 0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.86,
+      0.86,
+      0.84
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     4.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": 0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.86,
+      0.86,
+      0.84
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     12.0,
+     9.1429
+    ],
+    "elevation": 2.3,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.86,
+      0.86,
+      0.84
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner tube 1",
+    "shape": "cylinder",
+    "position": [
+     -3.85,
+     -2.85
+    ],
+    "size": 1.0,
+    "stretch": 3.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.45
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner tube 2",
+    "shape": "cylinder",
+    "position": [
+     -3.76,
+     -2.85
+    ],
+    "size": 1.0,
+    "stretch": 3.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      1.0,
+      0.3
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner tube 3",
+    "shape": "cylinder",
+    "position": [
+     -3.67,
+     -2.85
+    ],
+    "size": 1.0,
+    "stretch": 3.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.6,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner tube 4",
+    "shape": "cylinder",
+    "position": [
+     -3.58,
+     -2.85
+    ],
+    "size": 1.0,
+    "stretch": 3.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.35,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Barrier tube 1",
+    "shape": "cylinder",
+    "position": [
+     0.5,
+     -2.9
+    ],
+    "size": 1.0,
+    "stretch": 7.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.2,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.45
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Barrier tube 2",
+    "shape": "cylinder",
+    "position": [
+     0.5,
+     -2.9
+    ],
+    "size": 1.0,
+    "stretch": 7.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.32,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      1.0,
+      0.3
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Barrier tube 3",
+    "shape": "cylinder",
+    "position": [
+     0.5,
+     -2.9
+    ],
+    "size": 1.0,
+    "stretch": 7.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.44,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.6,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Barrier tube 4",
+    "shape": "cylinder",
+    "position": [
+     0.5,
+     -2.9
+    ],
+    "size": 1.0,
+    "stretch": 7.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.56,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.35,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Barrier tube 5",
+    "shape": "cylinder",
+    "position": [
+     0.5,
+     -2.9
+    ],
+    "size": 1.0,
+    "stretch": 7.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.68,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.45
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Barrier tube 6",
+    "shape": "cylinder",
+    "position": [
+     0.5,
+     -2.9
+    ],
+    "size": 1.0,
+    "stretch": 7.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.035,
+     0.035
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      1.0,
+      0.3
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.0
+ }
+}

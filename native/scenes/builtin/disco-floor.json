@@ -105,7 +105,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 1",
@@ -148,7 +149,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 2",
@@ -191,7 +193,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 3",
@@ -234,7 +237,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 4",
@@ -277,7 +281,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 5",
@@ -320,7 +325,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 6",
@@ -363,7 +369,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Dancer 7",
@@ -406,7 +413,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

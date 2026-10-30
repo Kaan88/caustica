@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b and 5a–5d are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) is done (2026-10-30); the medium term is next.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -192,7 +192,9 @@ As built: light painting (L), portals (any object pairs with another; two-sided)
   - Edits come in as `key=json` and go through the same path as `--set`, so `validate()` guards them.
   - Off by default. It binds to the LAN with a random token shown in the UI as a QR code.
 
-#### 5e. Scenes buildable today (as scene files)
+#### 5e. Scenes buildable today (as scene files) — done 2026-10-30
+
+As built: `kusama-infinity-room`, `flavin-fluorescent`, `turrell-ganzfeld`, plus two portal scenes, `infinite-corridor` and `bigger-on-the-inside` (47 built-in scenes). The Veach toggle is a render setting, *Light sampling* (MIS / NEE only / BSDF only), shown on the existing `veach-mis` scene. Seed of the day is the top bar's *Today* button.
 
 - **Kusama, *Infinity Mirror Room*:** a mirror cube with a few hundred tiny emissive spheres, within the 256-object cap.
 - **Dan Flavin installations:** emissive colored cylinders in a white room; pure color bleeding.

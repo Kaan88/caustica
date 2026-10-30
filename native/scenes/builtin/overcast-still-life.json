@@ -106,7 +106,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Copper sphere",
@@ -149,7 +150,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Jade knot",
@@ -192,7 +194,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Rubber cylinder",
@@ -235,7 +238,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Marble cube",
@@ -278,7 +282,8 @@
      ],
      "pattern_scale": 5,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (302 with the built-in pack); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (307 with the built-in pack); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -394,6 +394,16 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - Cards are painted at a fixed 160×100 (egui's `ImageButton` padding made the grid uneven). The selected scene shows a 256×160 preview, licence badge, tags, attribution and credits.
   - Self-test 203 loads a generated texture as entry 0's thumbnail and opens the window with it selected, so the scene-file frames draw the textured UI under the debug layer.
 - Not done: relative asset paths (nothing references assets yet).
+
+## Scenes buildable today (roadmap 5e, 2026-10-30)
+
+- `Settings.mis_mode` (0 MIS, 1 NEE only, 2 BSDF only) → `scene_info.w` bits 4–5. In the trace, mode 1 gives BSDF-found emission weight 0 (unless it came after a delta bounce) and NEE divides by `pl` alone; mode 2 skips NEE. Checked on veach-mis: the classic three images.
+- `ui::seed_of_the_day()` (days since epoch × golden ratio) feeds `randomize` from the top bar's *Today* button.
+- New generator scenes in `tools/build_scenes.py` use `room_shell()` (walls / ceiling / front as thin boxes) and `obj(portal=…)`:
+  - `kusama-infinity-room`: 250 objects, emission 1.6, exposure 0.8; it blew out at emission 9.
+  - `flavin-fluorescent` and `turrell-ganzfeld`: rounded seams are 1.6-scale cylinders in every corner and along the edges.
+  - `infinite-corridor`: the end portals are paired, the near one rotated 180°.
+  - `bigger-on-the-inside`: the box door is paired with the hall doorway at x = 30, which **must be rotated 180°** or the view leads back out of the hall.
 
 ## Toys (roadmap 5d, 2026-10-30)
 

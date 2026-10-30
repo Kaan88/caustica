@@ -1,0 +1,870 @@
+{
+ "format": 1,
+ "title": "Ganzfeld",
+ "description": "After James Turrell: a room with rounded seams washed in one colour of hidden light, so depth and edges dissolve.",
+ "tags": [
+  "art",
+  "lighting",
+  "color"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 4.0,
+  "sky": 0.0,
+  "base": [
+   0.95,
+   0.95,
+   0.95
+  ],
+  "floor": {
+   "color": [
+    0.95,
+    0.95,
+    0.95
+   ],
+   "roughness": 1.0,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Hidden cove light",
+    "position": [
+     0,
+     2.45,
+     1.8
+    ],
+    "rotation": [
+     73.191,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     4.5,
+     0.5
+    ],
+    "color": [
+     0.55,
+     0.3,
+     1.0
+    ],
+    "intensity": 4,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Floor glow",
+    "position": [
+     0,
+     -0.85,
+     -2.6
+    ],
+    "rotation": [
+     137.626,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     4.5,
+     0.3
+    ],
+    "color": [
+     0.85,
+     0.35,
+     0.9
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 16,
+  "yaw": 0,
+  "pitch": 4,
+  "distance": 1.0,
+  "target": [
+   0,
+   0.6,
+   0.8
+  ],
+  "fov": 70,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -3.1
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     0.2857
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Front wall",
+    "shape": "box",
+    "position": [
+     0,
+     3.1
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     0.2857
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     -3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     9.1429
+    ],
+    "elevation": 2.7,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner cove",
+    "shape": "cylinder",
+    "position": [
+     -3.0,
+     -3.0
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner cove",
+    "shape": "cylinder",
+    "position": [
+     -3.0,
+     3.0
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner cove",
+    "shape": "cylinder",
+    "position": [
+     3.0,
+     -3.0
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Corner cove",
+    "shape": "cylinder",
+    "position": [
+     3.0,
+     3.0
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     -3.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": -1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -3.0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": -1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     3.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": -1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     0,
+     3.0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": -1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     -3.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 2.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -3.0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 2.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     3.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 2.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Edge cove",
+    "shape": "cylinder",
+    "position": [
+     0,
+     3.0
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     1.6,
+     1.6
+    ],
+    "elevation": 2.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.0
+ }
+}

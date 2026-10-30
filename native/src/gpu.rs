@@ -1435,7 +1435,10 @@ impl Gpu {
         } else {
             2
         };
-        let flags = jittered as u32 | ((self.rr_active || sr.is_some()) as u32) << 1 | spatial << 2;
+        let flags = jittered as u32
+            | ((self.rr_active || sr.is_some()) as u32) << 1
+            | spatial << 2
+            | s.mis_mode.min(2) << 4;
         let n = if draw {
             s.spp.min(s.max_samples.saturating_sub(self.samples))
         } else {

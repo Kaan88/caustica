@@ -106,7 +106,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 2",
@@ -149,7 +150,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 3",
@@ -192,7 +194,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 4",
@@ -235,7 +238,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 5",
@@ -278,7 +282,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 6",
@@ -321,7 +326,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 7",
@@ -364,7 +370,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 8",
@@ -407,7 +414,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 9",
@@ -450,7 +458,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 10",
@@ -493,7 +502,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 11",
@@ -536,7 +546,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 12",
@@ -579,7 +590,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 13",
@@ -622,7 +634,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 14",
@@ -665,7 +678,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 15",
@@ -708,7 +722,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 16",
@@ -751,7 +766,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 17",
@@ -794,7 +810,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 18",
@@ -837,7 +854,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 19",
@@ -880,7 +898,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 20",
@@ -923,7 +942,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 21",
@@ -966,7 +986,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 22",
@@ -1009,7 +1030,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 23",
@@ -1052,7 +1074,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 24",
@@ -1095,7 +1118,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 25",
@@ -1138,7 +1162,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 26",
@@ -1181,7 +1206,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 27",
@@ -1224,7 +1250,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 28",
@@ -1267,7 +1294,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 29",
@@ -1310,7 +1338,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 30",
@@ -1353,7 +1382,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 31",
@@ -1396,7 +1426,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 32",
@@ -1439,7 +1470,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 33",
@@ -1482,7 +1514,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 34",
@@ -1525,7 +1558,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 35",
@@ -1568,7 +1602,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 36",
@@ -1611,7 +1646,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 37",
@@ -1654,7 +1690,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 38",
@@ -1697,7 +1734,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 39",
@@ -1740,7 +1778,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 40",
@@ -1783,7 +1822,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 41",
@@ -1826,7 +1866,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 42",
@@ -1869,7 +1910,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 43",
@@ -1912,7 +1954,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 44",
@@ -1955,7 +1998,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 45",
@@ -1998,7 +2042,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 46",
@@ -2041,7 +2086,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 47",
@@ -2084,7 +2130,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 48",
@@ -2127,7 +2174,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 49",
@@ -2170,7 +2218,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 50",
@@ -2213,7 +2262,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 51",
@@ -2256,7 +2306,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 52",
@@ -2299,7 +2350,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 53",
@@ -2342,7 +2394,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 54",
@@ -2385,7 +2438,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 55",
@@ -2428,7 +2482,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 56",
@@ -2471,7 +2526,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 57",
@@ -2514,7 +2570,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 58",
@@ -2557,7 +2614,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 59",
@@ -2600,7 +2658,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 60",
@@ -2643,7 +2702,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 61",
@@ -2686,7 +2746,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 62",
@@ -2729,7 +2790,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 63",
@@ -2772,7 +2834,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 64",
@@ -2815,7 +2878,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 65",
@@ -2858,7 +2922,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 66",
@@ -2901,7 +2966,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 67",
@@ -2944,7 +3010,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 68",
@@ -2987,7 +3054,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 69",
@@ -3030,7 +3098,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 70",
@@ -3073,7 +3142,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 71",
@@ -3116,7 +3186,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 72",
@@ -3159,7 +3230,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 73",
@@ -3202,7 +3274,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 74",
@@ -3245,7 +3318,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 75",
@@ -3288,7 +3362,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 76",
@@ -3331,7 +3406,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 77",
@@ -3374,7 +3450,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 78",
@@ -3417,7 +3494,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 79",
@@ -3460,7 +3538,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 80",
@@ -3503,7 +3582,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 81",
@@ -3546,7 +3626,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 82",
@@ -3589,7 +3670,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 83",
@@ -3632,7 +3714,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 84",
@@ -3675,7 +3758,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 85",
@@ -3718,7 +3802,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 86",
@@ -3761,7 +3846,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 87",
@@ -3804,7 +3890,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 88",
@@ -3847,7 +3934,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 89",
@@ -3890,7 +3978,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 90",
@@ -3933,7 +4022,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 91",
@@ -3976,7 +4066,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 92",
@@ -4019,7 +4110,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 93",
@@ -4062,7 +4154,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 94",
@@ -4105,7 +4198,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 95",
@@ -4148,7 +4242,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 96",
@@ -4191,7 +4286,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 97",
@@ -4234,7 +4330,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 98",
@@ -4277,7 +4374,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 99",
@@ -4320,7 +4418,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 100",
@@ -4363,7 +4462,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 101",
@@ -4406,7 +4506,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 102",
@@ -4449,7 +4550,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 103",
@@ -4492,7 +4594,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 104",
@@ -4535,7 +4638,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 105",
@@ -4578,7 +4682,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 106",
@@ -4621,7 +4726,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 107",
@@ -4664,7 +4770,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 108",
@@ -4707,7 +4814,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 109",
@@ -4750,7 +4858,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 110",
@@ -4793,7 +4902,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 111",
@@ -4836,7 +4946,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 112",
@@ -4879,7 +4990,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 113",
@@ -4922,7 +5034,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 114",
@@ -4965,7 +5078,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 115",
@@ -5008,7 +5122,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 116",
@@ -5051,7 +5166,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 117",
@@ -5094,7 +5210,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 118",
@@ -5137,7 +5254,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 119",
@@ -5180,7 +5298,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 120",
@@ -5223,7 +5342,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 121",
@@ -5266,7 +5386,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 122",
@@ -5309,7 +5430,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 123",
@@ -5352,7 +5474,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 124",
@@ -5395,7 +5518,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 125",
@@ -5438,7 +5562,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 126",
@@ -5481,7 +5606,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 127",
@@ -5524,7 +5650,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 128",
@@ -5567,7 +5694,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 129",
@@ -5610,7 +5738,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 130",
@@ -5653,7 +5782,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 131",
@@ -5696,7 +5826,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 132",
@@ -5739,7 +5870,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 133",
@@ -5782,7 +5914,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 134",
@@ -5825,7 +5958,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 135",
@@ -5868,7 +6002,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 136",
@@ -5911,7 +6046,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 137",
@@ -5954,7 +6090,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 138",
@@ -5997,7 +6134,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 139",
@@ -6040,7 +6178,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 140",
@@ -6083,7 +6222,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 141",
@@ -6126,7 +6266,8 @@
      ],
      "pattern_scale": 16.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 142",
@@ -6169,7 +6310,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 143",
@@ -6212,7 +6354,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 144",
@@ -6255,7 +6398,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 145",
@@ -6298,7 +6442,8 @@
      ],
      "pattern_scale": 20.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Tower 146",
@@ -6341,7 +6486,8 @@
      ],
      "pattern_scale": 24.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

@@ -52,7 +52,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Gold sphere",
@@ -95,7 +96,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Marble pawn",
@@ -138,7 +140,8 @@
      ],
      "pattern_scale": 5,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ],
   "bounces": 16

@@ -105,7 +105,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 2",
@@ -148,7 +149,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 3",
@@ -191,7 +193,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 4",
@@ -234,7 +237,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 5",
@@ -277,7 +281,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 6",
@@ -320,7 +325,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 7",
@@ -363,7 +369,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 8",
@@ -406,7 +413,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 9",
@@ -449,7 +457,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 10",
@@ -492,7 +501,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 11",
@@ -535,7 +545,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 12",
@@ -578,7 +589,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 13",
@@ -621,7 +633,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Nucleon 14",
@@ -664,7 +677,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Orbit 1",
@@ -707,7 +721,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Electron 1",
@@ -750,7 +765,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Orbit 2",
@@ -793,7 +809,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Electron 2",
@@ -836,7 +853,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Orbit 3",
@@ -879,7 +897,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Electron 3",
@@ -922,7 +941,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    }
   ]
  }

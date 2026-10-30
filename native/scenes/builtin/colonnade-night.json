@@ -106,7 +106,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 1L",
@@ -149,7 +150,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 1R",
@@ -192,7 +194,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 1R",
@@ -235,7 +238,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 1L",
@@ -278,7 +282,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 1L",
@@ -321,7 +326,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 1R",
@@ -364,7 +370,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 1R",
@@ -407,7 +414,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 2L",
@@ -450,7 +458,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 2L",
@@ -493,7 +502,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 2R",
@@ -536,7 +546,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 2R",
@@ -579,7 +590,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 3L",
@@ -622,7 +634,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 3L",
@@ -665,7 +678,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 3R",
@@ -708,7 +722,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 3R",
@@ -751,7 +766,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 3L",
@@ -794,7 +810,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 3L",
@@ -837,7 +854,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 3R",
@@ -880,7 +898,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 3R",
@@ -923,7 +942,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 4L",
@@ -966,7 +986,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 4L",
@@ -1009,7 +1030,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 4R",
@@ -1052,7 +1074,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 4R",
@@ -1095,7 +1118,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 5L",
@@ -1138,7 +1162,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 5L",
@@ -1181,7 +1206,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 5R",
@@ -1224,7 +1250,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 5R",
@@ -1267,7 +1294,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 5L",
@@ -1310,7 +1338,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 5L",
@@ -1353,7 +1382,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 5R",
@@ -1396,7 +1426,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 5R",
@@ -1439,7 +1470,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 6L",
@@ -1482,7 +1514,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 6L",
@@ -1525,7 +1558,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 6R",
@@ -1568,7 +1602,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 6R",
@@ -1611,7 +1646,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 7L",
@@ -1654,7 +1690,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 7L",
@@ -1697,7 +1734,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Column 7R",
@@ -1740,7 +1778,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Capital 7R",
@@ -1783,7 +1822,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 7L",
@@ -1826,7 +1866,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 7L",
@@ -1869,7 +1910,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Brazier stand 7R",
@@ -1912,7 +1954,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Fire 7R",
@@ -1955,7 +1998,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": true
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Architrave L",
@@ -1998,7 +2042,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    },
    {
     "name": "Architrave R",
@@ -2041,7 +2086,8 @@
      ],
      "pattern_scale": 3.0,
      "unlit": false
-    }
+    },
+    "portal": -1
    }
   ]
  }

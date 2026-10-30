@@ -1,0 +1,862 @@
+{
+ "format": 1,
+ "title": "Infinite corridor",
+ "description": "A short corridor whose two ends are paired portals: it repeats forever in both directions.",
+ "tags": [
+  "portal",
+  "architecture",
+  "impossible"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 5.0,
+  "sky": 0.0,
+  "base": [
+   0.35,
+   0.3,
+   0.26
+  ],
+  "floor": {
+   "color": [
+    0.35,
+    0.3,
+    0.26
+   ],
+   "roughness": 0.25,
+   "metallic": 0.0,
+   "reflectivity": 0.1,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 12,
+  "yaw": 0,
+  "pitch": 2,
+  "distance": 0.6,
+  "target": [
+   0,
+   0.2,
+   2.4
+  ],
+  "fov": 70,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Wall",
+    "shape": "box",
+    "position": [
+     -1.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     11.4286
+    ],
+    "elevation": 0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.72,
+      0.68
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Wall",
+    "shape": "box",
+    "position": [
+     1.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     11.4286
+    ],
+    "elevation": 0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.72,
+      0.68
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.4286,
+     11.4286
+    ],
+    "elevation": 1.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.72,
+      0.68
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling lamp 1",
+    "shape": "box",
+    "position": [
+     0,
+     -3.0
+    ],
+    "size": 0.8571,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     0.5
+    ],
+    "elevation": 1.78,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.85,
+      0.65
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 1L",
+    "shape": "cylinder",
+    "position": [
+     -0.85,
+     -3.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 1R",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     -3.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling lamp 2",
+    "shape": "box",
+    "position": [
+     0,
+     -1.0
+    ],
+    "size": 0.8571,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     0.5
+    ],
+    "elevation": 1.78,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.85,
+      0.65
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 2L",
+    "shape": "cylinder",
+    "position": [
+     -0.85,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 2R",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling lamp 3",
+    "shape": "box",
+    "position": [
+     0,
+     1.0
+    ],
+    "size": 0.8571,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     0.5
+    ],
+    "elevation": 1.78,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.85,
+      0.65
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 3L",
+    "shape": "cylinder",
+    "position": [
+     -0.85,
+     1.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 3R",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     1.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling lamp 4",
+    "shape": "box",
+    "position": [
+     0,
+     3.0
+    ],
+    "size": 0.8571,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     0.5
+    ],
+    "elevation": 1.78,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.85,
+      0.65
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 4L",
+    "shape": "cylinder",
+    "position": [
+     -0.85,
+     3.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 4R",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     3.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.18,
+     0.18
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Red sphere",
+    "shape": "sphere",
+    "position": [
+     0.3,
+     -1.5
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.12,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Portal far",
+    "shape": "box",
+    "position": [
+     0,
+     -4.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.8571,
+     0.0714
+    ],
+    "elevation": 0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": 17
+   },
+   {
+    "name": "Portal near",
+    "shape": "box",
+    "position": [
+     0,
+     4.0
+    ],
+    "size": 1.0,
+    "stretch": 4.0,
+    "rotation": -180,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.8571,
+     0.0714
+    ],
+    "elevation": 0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": 16
+   }
+  ]
+ }
+}

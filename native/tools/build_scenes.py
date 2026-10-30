@@ -64,7 +64,7 @@ def kelvin(k):
 
 # ---------------------------------------------------------------- objects and lights
 def obj(name, shape, x, z, size, material, *, stretch=1.0, rotation=0.0, tilt=(0, 0),
-        scale=(1, 1), elevation=0.0, grounded=True, visible=True):
+        scale=(1, 1), elevation=0.0, grounded=True, visible=True, portal=-1):
     # validate() bounds stretch (0.05..10) and scale (0.01..20) separately from size (0.05..30);
     # move any excess into size, which keeps the world dimensions (0.35 * size * factor).
     sx, sz = scale
@@ -77,7 +77,7 @@ def obj(name, shape, x, z, size, material, *, stretch=1.0, rotation=0.0, tilt=(0
             "size": round(size, 4), "stretch": round(stretch, 4), "rotation": round(rotation, 3),
             "tilt": [round(tilt[0], 3), round(tilt[1], 3)], "scale_xz": [round(scale[0], 4), round(scale[1], 4)],
             "elevation": round(elevation, 4), "grounded": grounded, "visible": visible,
-            "material": material}
+            "material": material, "portal": portal}
 
 
 def float_at(name, shape, x, y, z, size, material, **kw):
@@ -1000,6 +1000,149 @@ scene("pipe-organ", "Pipe organ",
       studio(objects=pipe_organ(), sky=0.03, base=[0.3, 0.2, 0.12], light_position=[-2.0, 5.0, 4.0], light_size=3.0, light_intensity=12.0,
              light_temperature=3800.0, lights=[light("Cool fill", (3.0, 2.0, 4.0), (2, 2), (0.5, 0.65, 1.0), 6, target=(0, 1, 0))],
              **camera(0, 4, 10, (0, 1.4, 0), 45)))
+
+
+# ================================================================ roadmap 5e: art rooms and portals
+def room_shell(width, depth, height, material, floor_y=-1.0, ceiling=True, front=True):
+    """Walls (and ceiling, front) as thin boxes around the open stage floor."""
+    o = []
+    t = 0.2
+    cy = floor_y + height / 2
+    o.append(float_at("Back wall", "box", 0, cy, -depth / 2 - t / 2, 1, material, stretch=height / 0.7, scale=((width + 2 * t) / 0.7, t / 0.7)))
+    if front:
+        o.append(float_at("Front wall", "box", 0, cy, depth / 2 + t / 2, 1, material, stretch=height / 0.7, scale=((width + 2 * t) / 0.7, t / 0.7)))
+    for side in (-1, 1):
+        o.append(float_at("Side wall", "box", side * (width / 2 + t / 2), cy, 0, 1, material, stretch=height / 0.7, scale=(t / 0.7, depth / 0.7)))
+    if ceiling:
+        o.append(float_at("Ceiling", "box", 0, floor_y + height + t / 2, 0, 1, material, stretch=t / 0.7, scale=((width + 2 * t) / 0.7, (depth + 2 * t) / 0.7)))
+    return o
+
+
+def kusama():
+    random.seed(1965)
+    mirror = M((0.9, 0.9, 0.92), 0.0, metal=1)
+    o = room_shell(4.0, 4.0, 3.0, mirror)
+    colors = [(1.0, 0.2, 0.6), (1.0, 0.7, 0.1), (0.2, 0.6, 1.0), (0.85, 0.9, 1.0)]
+    while len(o) < 250:
+        x, z = random.uniform(-1.8, 1.8), random.uniform(-1.8, 1.8)
+        if abs(x) < 0.45 and z > 0.6:
+            continue  # keep the viewpoint clear
+        y = random.uniform(-0.2, 1.9)
+        o.append(float_at(f"Lantern {len(o)}", "sphere", x, y, z, random.uniform(0.07, 0.12), emitter(random.choice(colors), 1.6)))
+    return o
+
+
+scene("kusama-infinity-room", "Infinity mirror room",
+      "After Yayoi Kusama: a mirrored room full of small glowing lanterns that repeat in every direction.",
+      ["art", "mirror", "emissive", "many lights"],
+      studio(light_on=False, lights=[], sky=0.0, background=[0.0, 0.0, 0.0], base=[0.02, 0.02, 0.025],
+             floor=M((0.02, 0.02, 0.025), 0.02, refl=1.0), floor_extent=3.0, bounces=24, objects=kusama(), exposure=0.8,
+             **camera(0, 4, 0.8, (0, 0.2, 0.6), 75)))
+
+
+def flavin():
+    wall = matte((0.86, 0.86, 0.84), 0.9)
+    o = room_shell(8.0, 6.0, 3.2, wall, ceiling=True, front=False)
+    tubes = [(1.0, 0.08, 0.45), (0.15, 1.0, 0.3), (1.0, 0.6, 0.05), (0.15, 0.35, 1.0)]
+    # A corner piece: vertical tubes in the back-left corner, a horizontal barrier across the back.
+    for i, c in enumerate(tubes):
+        o.append(obj(f"Corner tube {i + 1}", "cylinder", -3.85 + i * 0.09, -2.85, 1, emitter(c, 2.5), scale=(0.035, 0.035), stretch=3.4))
+    for k in range(6):
+        c = tubes[k % 4]
+        o.append(float_at(f"Barrier tube {k + 1}", "cylinder", 0.5, 0.2 + k * 0.12, -2.9, 1, emitter(c, 2.5), scale=(0.035, 0.035), stretch=7.0, tilt=(0, 90)))
+    return o
+
+
+scene("flavin-fluorescent", "Fluorescent light",
+      "After Dan Flavin: coloured fluorescent tubes in a white room; the colours bleed across the walls and mix where they meet.",
+      ["art", "emissive", "color"],
+      studio(light_on=False, lights=[], sky=0.0, background=[0.0, 0.0, 0.0], base=[0.8, 0.8, 0.78],
+             floor=M((0.8, 0.8, 0.78), 0.6, refl=0.05), floor_extent=6.0, bounces=12, objects=flavin(), exposure=1.0,
+             **camera(-20, 4, 4.5, (-0.6, 0.4, -1.2), 60)))
+
+
+def turrell():
+    white = matte((0.95, 0.95, 0.95), 1.0)
+    o = room_shell(6.0, 6.0, 3.6, white)
+    # Rounded seams: cylinders fill every vertical corner, and along the floor and ceiling edges.
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            o.append(obj("Corner cove", "cylinder", sx * 3.0, sz * 3.0, 1, white, scale=(1.6, 1.6), stretch=3.6 / 0.7))
+    for y in (-1.0, 2.6):
+        for side in (-1, 1):
+            o.append(float_at("Edge cove", "cylinder", side * 3.0, y, 0, 1, white, scale=(1.6, 1.6), stretch=6.0 / 0.7, tilt=(90, 0)))
+            o.append(float_at("Edge cove", "cylinder", 0, y, side * 3.0, 1, white, scale=(1.6, 1.6), stretch=6.0 / 0.7, tilt=(0, 90)))
+    return o
+
+
+scene("turrell-ganzfeld", "Ganzfeld",
+      "After James Turrell: a room with rounded seams washed in one colour of hidden light, so depth and edges dissolve.",
+      ["art", "lighting", "color"],
+      studio(light_on=False, sky=0.0, background=[0.0, 0.0, 0.0], base=[0.95, 0.95, 0.95], floor=M((0.95, 0.95, 0.95), 1.0, refl=0.0),
+             floor_extent=4.0, bounces=16, objects=turrell(), exposure=1.0,
+             lights=[light("Hidden cove light", (0, 2.45, 1.8), (4.5, 0.5), (0.55, 0.3, 1.0), 4, target=(0, 1.0, -3.0)),
+                     light("Floor glow", (0, -0.85, -2.6), (4.5, 0.3), (0.85, 0.35, 0.9), 2.5, target=(0, 2.0, 0.0))],
+             **camera(0, 4, 1.0, (0, 0.6, 0.8), 70)))
+
+
+def corridor():
+    wall = matte((0.75, 0.72, 0.68), 0.8)
+    o = []
+    length = 8.0
+    for side in (-1, 1):
+        o.append(float_at("Wall", "box", side * 1.1, 0.4, 0, 1, wall, stretch=2.8 / 0.7, scale=(0.2 / 0.7, length / 0.7)))
+    o.append(float_at("Ceiling", "box", 0, 1.9, 0, 1, wall, stretch=0.2 / 0.7, scale=(2.4 / 0.7, length / 0.7)))
+    for k in range(4):
+        z = -length / 2 + 1 + k * 2
+        o.append(float_at(f"Ceiling lamp {k + 1}", "box", 0, 1.78, z, 1, emitter((1.0, 0.85, 0.65), 6), stretch=0.03 / 0.7, scale=(1.2 / 0.7, 0.3 / 0.7)))
+        o.append(obj(f"Column {k + 1}L", "cylinder", -0.85, z, 1, MARBLE, scale=(0.18, 0.18), stretch=2.8 / 0.7))
+        o.append(obj(f"Column {k + 1}R", "cylinder", 0.85, z, 1, MARBLE, scale=(0.18, 0.18), stretch=2.8 / 0.7))
+    o.append(obj("Red sphere", "sphere", 0.3, -1.5, 0.9, lacquer((0.8, 0.08, 0.05))))
+    # Portals at both ends, paired: walking out of one end walks back in at the other.
+    n = len(o)
+    o.append(float_at("Portal far", "box", 0, 0.4, -length / 2, 1, matte((1, 1, 1)), stretch=2.8 / 0.7, scale=(2.0 / 0.7, 0.05 / 0.7), portal=n + 1))
+    o.append(float_at("Portal near", "box", 0, 0.4, length / 2, 1, matte((1, 1, 1)), stretch=2.8 / 0.7, scale=(2.0 / 0.7, 0.05 / 0.7), rotation=180, portal=n))
+    return o
+
+
+scene("infinite-corridor", "Infinite corridor",
+      "A short corridor whose two ends are paired portals: it repeats forever in both directions.",
+      ["portal", "architecture", "impossible"],
+      studio(light_on=False, lights=[], sky=0.0, background=[0.0, 0.0, 0.0], base=[0.35, 0.3, 0.26], floor=M((0.35, 0.3, 0.26), 0.25, refl=0.1),
+             floor_extent=5.0, bounces=12, objects=corridor(), **camera(0, 2, 0.6, (0, 0.2, 2.4), 70)))
+
+
+def bigger_inside():
+    o = []
+    blue = lacquer((0.05, 0.12, 0.45), 0.35)
+    # The small box, out on the studio floor.
+    o.append(obj("Box", "box", 0, 0, 1, blue, stretch=2.4 / 0.7, scale=(1.2 / 0.7, 1.2 / 0.7)))
+    o.append(float_at("Lamp", "sphere", 0, 1.55, 0, 0.12 / 0.35, emitter((1.0, 1.0, 0.9), 12)))
+    # The big hall, far away behind the studio's horizon.
+    hall = matte((0.82, 0.8, 0.76), 0.7)
+    cx = 30.0
+    for side in (-1, 1):
+        o.append(float_at("Hall wall", "box", cx + side * 6.0, 2.0, 0, 1, hall, stretch=6.0 / 0.7, scale=(0.3 / 0.7, 14.0 / 0.7)))
+    o.append(float_at("Hall back", "box", cx, 2.0, -7.0, 1, hall, stretch=6.0 / 0.7, scale=(12.0 / 0.7, 0.3 / 0.7)))
+    o.append(float_at("Hall ceiling", "box", cx, 5.0, 0, 1, hall, stretch=0.3 / 0.7, scale=(12.0 / 0.7, 14.0 / 0.7)))
+    for i in range(5):
+        o.append(obj(f"Hall column {i + 1}", "cylinder", cx - 4 + i * 2, -3.0, 1, MARBLE, scale=(0.3, 0.3), stretch=6.0 / 0.7))
+        o.append(float_at(f"Hall lamp {i + 1}", "box", cx - 4 + i * 2, 4.8, 0.0, 1, emitter((1.0, 0.85, 0.6), 8), stretch=0.05, scale=(0.8 / 0.7, 6.0 / 0.7)))
+    o.append(obj("Console", "cylinder", cx, 1.0, 1, M((0.6, 0.6, 0.65), 0.2, metal=1), scale=(1.4, 1.4), stretch=1.4))
+    o.append(float_at("Rotor", "cylinder", cx, 1.4, 1.0, 1, M((0.4, 0.9, 1.0), 0.0, trans=1, ior=1.4), scale=(0.3, 0.3), stretch=1.6))
+    # The door on the box's front face and its pair, the doorway at the hall's open front.
+    n = len(o)
+    o.append(float_at("Door", "box", 0, 0.15, 0.62, 1, matte((1, 1, 1)), stretch=2.1 / 0.7, scale=(0.8 / 0.7, 0.02 / 0.7), portal=n + 1))
+    # Turned around: stepping through the box's door walks into the hall, not out of it.
+    o.append(float_at("Hall doorway", "box", cx, 0.15, 6.5, 1, matte((1, 1, 1)), stretch=2.1 / 0.7, scale=(0.8 / 0.7, 0.02 / 0.7), rotation=180, portal=n))
+    return o
+
+
+scene("bigger-on-the-inside", "Bigger on the inside",
+      "A small blue box on the studio floor; its door is a portal into a hall far larger than the box.",
+      ["portal", "impossible"],
+      studio(objects=bigger_inside(), floor_extent=40.0, sky=0.25, base=[0.3, 0.32, 0.35], bounces=12,
+             **camera(10, 6, 5.0, (0, 0.2, 0), 45)))
 
 
 # ---------------------------------------------------------------- checks

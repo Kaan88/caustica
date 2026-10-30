@@ -479,6 +479,14 @@ fn license_badge(ui: &mut egui::Ui, l: &crate::scenes::License) {
             "Licence of this pack: not for commercial use"
         });
 }
+/// Today's date as a seed (YYYYMMDD, UTC), so the same day gives the same scene.
+pub fn seed_of_the_day() -> u32 {
+    let days = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() / 86_400)
+        .unwrap_or(0) as u32;
+    days.wrapping_mul(2_654_435_761) | 1
+}
 fn hdr_line(app: &App) -> String {
     let g = app.gpu.as_ref().unwrap();
     let info = app
@@ -1502,6 +1510,15 @@ impl App {
                         | 1;
                     self.settings.randomize(seed);
                 }
+                if ui
+                    .button("Today")
+                    .on_hover_text("Seed of the day: everyone running this today gets the same random scene")
+                    .clicked()
+                {
+                    self.settings.randomize(seed_of_the_day());
+                    let name = self.settings.scene_name.clone();
+                    self.ui.toast(format!("Seed of the day: {name}"));
+                }
                 ui.separator();
                 let s = &mut self.settings;
                 egui::ComboBox::from_id_salt("top view")
@@ -2073,6 +2090,11 @@ impl App {
                     }
                     if on {
                         ui.add(crate::slider(&mut s.firefly, 0.1..=100.).logarithmic(true).suffix("× max"));
+                    }
+                });
+                row(ui, "Light sampling", "MIS combines light sampling (NEE) and BSDF sampling. The single strategies show what each one is good at: NEE for small lights and rough surfaces, BSDF for large lights and mirrors.", |ui| {
+                    for (i, label) in ["MIS", "NEE only", "BSDF only"].iter().enumerate() {
+                        ui.selectable_value(&mut s.mis_mode, i as u32, *label);
                     }
                 });
                 row(ui, "Glass casts shadows", "Off lets light through glass for shadow rays, a common shortcut.", |ui| {

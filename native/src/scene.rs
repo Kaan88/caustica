@@ -291,6 +291,9 @@ pub struct Settings {
     pub gain: [f32; 3],
     pub lut_path: String,
     pub lut_strength: f32,
+    /// Light sampling (roadmap 5e): 0 MIS (both strategies), 1 light sampling (NEE) only,
+    /// 2 BSDF sampling only. 1 and 2 show what MIS combines, as in Veach's plates.
+    pub mis_mode: u32,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -386,6 +389,7 @@ impl Default for Settings {
             gain: [1.; 3],
             lut_path: String::new(),
             lut_strength: 1.,
+            mis_mode: 0,
         }
     }
 }
@@ -661,6 +665,7 @@ impl Settings {
                 && self.blade_rotation.abs() <= 360.
                 && (0. ..=1.).contains(&self.cat_eye)
                 && self.projection < 5
+                && self.mis_mode < 3
                 && self.tilt.abs() <= 60.,
             "Invalid lens or camera model"
         );

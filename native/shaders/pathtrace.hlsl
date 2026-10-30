@@ -150,16 +150,18 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             }
             float3 emitted=m.color_rough.rgb*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
-            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=previous_pdf/(previous_pdf+emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
+            // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
+            uint mis=(scene_info.w>>4)&3;
+            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             if(((uint)m.lobes.w&1u)!=0)break;
-            if(scene_info.x>0){
+            if(scene_info.x>0 && mis!=2){
             Emitter light=select_emitter(random());float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
             float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
                 if(!occluded(h.p+h.n*0.0003,ld,max(0.0002,len-0.0006))){
-                    float pl=emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                    float pl=emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }}
             float3 next;bool delta=false;float bsdf_pdf=0;
