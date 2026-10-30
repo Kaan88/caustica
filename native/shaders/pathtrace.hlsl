@@ -70,17 +70,49 @@ float3 eval_bsdf(Material m,float3 n,float3 v,float3 l,out float pdf){
 float emitter_pdf(float3 from,float3 at,Emitter light){float3 d=at-from;float dist2=dot(d,d);float3 n=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));float c=abs(dot(n,normalize(d)));return light.edge2_probability.w*dist2/max(1e-8,light.position_area.w*c);}
 Emitter select_emitter(float u){uint lo=0,hi=scene_info.x-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return emitters[lo];}
 float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 p=mul(inverse_vp,float4(ndc,1,1));return normalize(p.xyz/p.w-eye.xyz);}
+// A point in the unit aperture: a disk, or an n-gon (one triangle of the fan, then uniform in it).
+float2 aperture_point(){
+    if(lens.z<2.5){float r=sqrt(random()),a=2*PI*random();return r*float2(cos(a),sin(a));}
+    float n=lens.z,k=floor(random()*n);float a0=lens.w+2*PI*k/n,a1=lens.w+2*PI*(k+1)/n;
+    float u=random(),v=random();if(u+v>1){u=1-u;v=1-v;}
+    return u*float2(cos(a0),sin(a0))+v*float2(cos(a1),sin(a1));
+}
+// Camera rays for every model (roadmap 5c). `lens_sample` adds depth of field; a ray the
+// cat-eye vignette blocks comes back with valid=false and contributes nothing (optical vignetting).
+void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool valid){
+    float3 right=world_view[0].xyz,up=world_view[1].xyz,forward=-world_view[2].xyz;
+    float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float aspect=float(dimensions.x)/dimensions.y;
+    uint model=(uint)camera_model.x;o=eye.xyz;valid=true;
+    if(model==1){o=eye.xyz+(right*ndc.x*aspect+up*ndc.y)*camera_model.w;d=forward;return;}
+    if(model==2){float phi=ndc.x*PI,theta=ndc.y*PI*0.5;d=normalize(right*sin(phi)*cos(theta)+up*sin(theta)+forward*cos(phi)*cos(theta));return;}
+    if(model==3){
+        // Stereographic projection looking straight down: the ground in the middle, the sky around it.
+        float3 fh=normalize(float3(forward.x,0,forward.z)+1e-5),rh=normalize(cross(fh,float3(0,1,0)));
+        float2 q=float2(ndc.x*aspect,ndc.y)*environment.z*2;float s=1+dot(q,q);
+        d=normalize(rh*(2*q.x/s)+fh*(2*q.y/s)-float3(0,1,0)*((1-dot(q,q))/s));return;
+    }
+    d=camera_direction(pixel);
+    if(!lens_sample || lens.x<=0)return;
+    // Focal plane: perpendicular to the view axis, or tilted about the camera's right axis.
+    float3 n=model==4?normalize(forward*cos(camera_model.z)+up*sin(camera_model.z)):forward;
+    float3 focal=eye.xyz+d*(dot(forward*lens.y,n)/max(dot(d,n),1e-4));
+    float2 l=aperture_point();
+    // Cat-eye: the aperture seen off-axis is cut by the lens barrel, a circle shifted toward the edge.
+    if(camera_model.y>0 && length(l-ndc*float2(aspect,1)*camera_model.y*0.7)>1){valid=false;return;}
+    o=eye.xyz+(right*l.x+up*l.y)*lens.x;d=normalize(focal-o);
+}
 [numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy;if(any(p>=dimensions.xy))return;
     pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
-    Hit guide;float3 gd=camera_direction(float2(p)+0.5+jitter.xy);
-    if(intersect(eye.xyz,gd,1e4,guide,false,true)){
+    // Guides come from the pinhole ray through the lens center (RR and the denoiser).
+    Hit guide;float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
+    if(intersect(go,gd,1e4,guide,false,true)){
         Material m=material_at(guide.material,guide.p);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
         diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
         specular_albedo[p]=float4(fresnel(abs(dot(-gd,guide.n)),f0_of(m)),1);
-        depth[p]=-mul(world_view,float4(guide.p,1)).z;
+        depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
         float4 projected=mul(current_vp,float4(guide.p,1));device_depth[p]=projected.z/projected.w;
         float4 prev=mul(previous_vp,float4(guide.p,1)),curr=mul(current_vp,float4(guide.p,1));
         float2 delta=prev.xy/prev.w-curr.xy/curr.w;motion[p]=delta*float2(0.5,-0.5)*dimensions.xy;
@@ -96,8 +128,9 @@ float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2
         sequence_index=scene_info.z+sampling.x+sample_id;dimension_index=0;
         // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
-        float3 direction=camera_direction(float2(p)+0.5+subpixel),origin=eye.xyz,throughput=1,radiance=0,direct=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
-        for(uint bounce=0;bounce<sampling.z;bounce++){
+        float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){float3 e=throughput*environment_radiance(direction);radiance+=e;if(bounce<=1)direct+=e;break;}
             throughput*=exp(-absorption*h.t);

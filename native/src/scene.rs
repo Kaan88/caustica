@@ -265,6 +265,28 @@ pub struct Settings {
     pub compare: bool,
     pub split: f32,
     pub vsync: bool,
+    /// Thin lens (roadmap 5c): aperture radius in scene units (0 = pinhole), focus distance
+    /// along the view axis, blade count (0 = round, 3-12), blade rotation, cat-eye strength.
+    pub aperture: f32,
+    pub focus_distance: f32,
+    pub aperture_blades: u32,
+    pub blade_rotation: f32,
+    pub cat_eye: f32,
+    /// Camera model: 0 perspective, 1 orthographic, 2 360° equirectangular, 3 little planet,
+    /// 4 tilt-shift (perspective with the focal plane tilted by `tilt` degrees).
+    pub projection: u32,
+    pub tilt: f32,
+    /// Film look (display only): halation, grain and its size (0 fine, 1 medium, 2 coarse),
+    /// vignette, lift / gamma / gain per channel, and a .cube LUT.
+    pub halation: f32,
+    pub grain: f32,
+    pub grain_size: u32,
+    pub vignette: f32,
+    pub lift: [f32; 3],
+    pub grade_gamma: [f32; 3],
+    pub gain: [f32; 3],
+    pub lut_path: String,
+    pub lut_strength: f32,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -344,6 +366,22 @@ impl Default for Settings {
             compare: false,
             split: 0.5,
             vsync: true,
+            aperture: 0.,
+            focus_distance: 4.7,
+            aperture_blades: 0,
+            blade_rotation: 0.,
+            cat_eye: 0.,
+            projection: 0,
+            tilt: 0.,
+            halation: 0.,
+            grain: 0.,
+            grain_size: 1,
+            vignette: 0.,
+            lift: [0.; 3],
+            grade_gamma: [1.; 3],
+            gain: [1.; 3],
+            lut_path: String::new(),
+            lut_strength: 1.,
         }
     }
 }
@@ -600,7 +638,7 @@ impl Settings {
         anyhow::ensure!(
             (0.1..=4.).contains(&self.gamma)
                 && (0. ..=10.).contains(&self.exposure)
-                && self.tonemap < 6
+                && self.tonemap < 8
                 && self.view < 12,
             "Invalid display settings"
         );
@@ -611,6 +649,28 @@ impl Settings {
                 && (0. ..=100.).contains(&self.firefly)
                 && (0. ..=1.).contains(&self.split),
             "Invalid filter settings"
+        );
+        anyhow::ensure!(
+            (0. ..=2.).contains(&self.aperture)
+                && (0.05..=500.).contains(&self.focus_distance)
+                && (self.aperture_blades == 0 || (3..=12).contains(&self.aperture_blades))
+                && self.blade_rotation.abs() <= 360.
+                && (0. ..=1.).contains(&self.cat_eye)
+                && self.projection < 5
+                && self.tilt.abs() <= 60.,
+            "Invalid lens or camera model"
+        );
+        anyhow::ensure!(
+            (0. ..=1.).contains(&self.halation)
+                && (0. ..=1.).contains(&self.grain)
+                && self.grain_size < 3
+                && (0. ..=1.).contains(&self.vignette)
+                && self.lift.iter().all(|v| (-0.5..=0.5).contains(v))
+                && self.grade_gamma.iter().all(|v| (0.2..=5.).contains(v))
+                && self.gain.iter().all(|v| (0. ..=4.).contains(v))
+                && (0. ..=1.).contains(&self.lut_strength)
+                && self.lut_path.len() <= 1024,
+            "Invalid film look"
         );
         for c in [
             &self.left,
@@ -674,6 +734,10 @@ impl Settings {
             );
         }
         Ok(())
+    }
+    /// RR, the temporal upscalers and the gizmo assume a perspective camera.
+    pub fn perspective(&self) -> bool {
+        self.projection == 0 || self.projection == 4
     }
     pub fn camera(&self, aspect: f32) -> (Mat4, Mat4, Vec3) {
         let (sy, cy) = self.yaw.to_radians().sin_cos();

@@ -19,6 +19,12 @@ cbuffer Frame:register(b0) {
     float4 environment; // sky intensity, view-space ray scale x, y (tan of half field of view)
     float4 hdr; // scRGB output on (1/0), paper white nits, peak nits
     float4 tools; // zebras on, scopes on, heat-map scale for bounces, for BVH steps per pixel
+    float4 lens; // aperture radius, focus distance, blades (0 round), blade rotation (radians)
+    float4 camera_model; // projection (0 persp, 1 ortho, 2 equirect, 3 little planet, 4 tilt-shift), cat-eye, tilt (radians), ortho half height
+    float4 look; // halation, grain, vignette, LUT size (0 = none)
+    float4 lift; // rgb, w = grain size in pixels
+    float4 grade_gamma; // rgb, w = LUT strength
+    float4 gain; // rgb, w = frame noise seed
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -55,6 +61,7 @@ RWTexture2D<float4> filter_guide:register(u24); // octahedral normal xy, depth, 
 RWTexture2D<float> device_depth:register(u25); // projected depth 0 (near) to 1 (far), for DLSS SR / FSR / XeSS
 RWTexture2D<float4> hdr_output:register(u26); // scRGB (1.0 = 80 nits) for an HDR swapchain, output resolution
 RWTexture2D<float2> trace_stats:register(u27); // this frame: mean bounces per sample, BVH steps (Proceed calls) per pixel
+RWTexture3D<float4> lut:register(u29); // film-look .cube LUT (look.w cubed); 2x2x2 when unused
 RWTexture2D<uint> scopes:register(u28); // 256 x 260 counters: rows 0-3 histogram R,G,B,L; 4-131 waveform; 132-259 vectorscope (128 wide)
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}
 static const float PI=3.14159265359;

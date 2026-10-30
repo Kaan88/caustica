@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b, 5a and 5b are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b and 5a–5c are done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -149,7 +149,9 @@ Each is a new `modes.x` view in `display` or a small compute pass:
   - Persist totals in a small JSON next to the settings: rays traced, GPU hours, renders saved and the highest sample count reached.
   - Add a few achievements, such as the first caustic, the first 65k-spp render or every preset visited.
 
-#### 5c. Camera and look
+#### 5c. Camera and look — done 2026-10-30
+
+As built: thin lens with round or 3–12-blade apertures, blade rotation, cat-eye (blocked lens samples contribute nothing, so corners also darken), Ctrl+click focus with an eased pull; camera models orthographic, 360° equirect, little planet and tilt-shift (non-perspective models switch RR, temporal upscalers, picking and the gizmo off); tone maps AgX (Wrensch's polynomial fit) and **Khronos PBR Neutral instead of Tony McMapface** (Tony needs its 48³ LUT; load it as a .cube through the LUT slot instead); halation, grain (three sizes), vignette, lift / gamma / gain wheels and a .cube LUT loader. Not done: grain matched to named film stocks, and equirect metadata for VR viewers.
 
 - **Thin-lens depth of field** (the native camera is a pinhole today):
   - Aperture and focus-distance settings.

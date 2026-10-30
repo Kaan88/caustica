@@ -88,7 +88,40 @@ float3 tone_curve(float3 c,uint mode){
     if(mode==5){c=saturate(c*(2.51*c+0.03)/(c*(2.43*c+0.59)+0.14));c=smoothstep(0,1,c);}
     return saturate(c);
 }
-float3 tonemap(float3 c){return pow(tone_curve(max(c*display_settings.x,0),modes.y),1/max(0.1,display_settings.y));}
+// Tone maps 6 and 7. AgX: Benjamin Wrensch's polynomial fit of Troy Sobotka's AgX base.
+float3 agx(float3 c){
+    const float3x3 inset=float3x3(0.842479,0.0784336,0.0792237,0.0423282,0.878468,0.0791661,0.0423756,0.0784336,0.879142);
+    const float3x3 outset=float3x3(1.19688,-0.0980209,-0.0990297,-0.0528969,1.15190,-0.0989612,-0.0529716,-0.0980435,1.15107);
+    c=mul(inset,c);c=clamp(log2(max(c,1e-10)),-12.47393,4.026069);c=(c+12.47393)/16.5;
+    float3 x2=c*c,x4=x2*x2;
+    c=15.5*x4*x2-40.14*x4*c+31.96*x4-6.868*x2*c+0.4298*x2+0.1191*c-0.00232;
+    return saturate(pow(max(mul(outset,c),0),2.2));
+}
+// Khronos PBR Neutral: keeps base colours, compresses only highlights.
+float3 pbr_neutral(float3 c){
+    const float start=0.8-0.04,desaturation=0.15;float x=min(c.r,min(c.g,c.b));float offset=x<0.08?x-6.25*x*x:0.04;c-=offset;
+    float peak=max(c.r,max(c.g,c.b));if(peak<start)return c;float d=1-start;float np=1-d*d/(peak+d-start);c*=np/peak;
+    float g=1-1/(desaturation*(peak-np)+1);return lerp(c,np.xxx,g);
+}
+// Film look on display light t (0..1): lift / gamma / gain on the encoded value, then the LUT.
+float3 lut_at(int3 q){int n=(int)look.w;return lut[clamp(q,0,n-1)].rgb;}
+float3 apply_lut(float3 e){
+    float n=look.w;float3 x=saturate(e)*(n-1);int3 b=int3(floor(x));float3 f=x-b;
+    float3 c00=lerp(lut_at(b),lut_at(b+int3(1,0,0)),f.x),c10=lerp(lut_at(b+int3(0,1,0)),lut_at(b+int3(1,1,0)),f.x);
+    float3 c01=lerp(lut_at(b+int3(0,0,1)),lut_at(b+int3(1,0,1)),f.x),c11=lerp(lut_at(b+int3(0,1,1)),lut_at(b+int3(1,1,1)),f.x);
+    return lerp(lerp(c00,c10,f.y),lerp(c01,c11,f.y),f.z);
+}
+float3 film_look(float3 t){
+    float3 e=pow(saturate(t),1/2.2);
+    e=gain.rgb*(e+lift.rgb*(1-e));e=pow(saturate(e),1/max(grade_gamma.rgb,0.05));
+    if(look.w>1)e=lerp(e,apply_lut(e),grade_gamma.w);
+    return pow(saturate(e),2.2);
+}
+float3 tonemap(float3 c){
+    c=max(c*display_settings.x,0);uint mode=modes.y;
+    float3 t=mode==6?agx(c):mode==7?saturate(pbr_neutral(c)):tone_curve(c,mode);
+    return pow(film_look(t),1/max(0.1,display_settings.y));
+}
 // ST.2084 (PQ) encode/decode in nits, for the BT.2390 roll-off below.
 float pq(float nits){float y=pow(clamp(nits,0,10000)/10000,0.1593017578125);return pow((0.8359375+18.8515625*y)/(1+18.6875*y),78.84375);}
 float pq_inverse(float e){float p=pow(saturate(e),1/78.84375);return 10000*pow(max(p-0.8359375,0)/(18.8515625-18.6875*p),1/0.1593017578125);}
@@ -100,7 +133,8 @@ float3 hdr_map(float3 c){
     // exactly the SDR one at paper white. Above that knee the highlights expand into the panel's
     // headroom r = peak/white with g(u) = u/(1-u+u/R), slope-continuous at the knee, reaching r at 1.
     if(modes.y!=0){
-        float3 t=pow(tone_curve(max(c*display_settings.x,0),modes.y),2.2/max(0.1,display_settings.y));
+        float3 x=max(c*display_settings.x,0);
+        float3 t=pow(film_look(modes.y==6?agx(x):modes.y==7?saturate(pbr_neutral(x)):tone_curve(x,modes.y)),2.2/max(0.1,display_settings.y));
         float r=max(hdr.z/hdr.y,1),R=(r-0.5)/0.5;float3 u=max(t-0.5,0)/0.5;
         return (min(t,0.5)+0.5*u/(1-u+u/R))*hdr.y/80;
     }
@@ -151,6 +185,26 @@ void bin_scopes(uint2 op,float3 c){
     float cb=(c.b-l)/1.8556,cr=(c.r-l)/1.5748;
     InterlockedAdd(scopes[uint2(uint(saturate(cb+0.5)*127+0.5),132+uint(saturate(0.5-cr)*127+0.5))],1,dummy);
 }
+// Scene light at an output pixel without the display's other work (for halation taps).
+float3 scene_at(int2 op){
+    op=clamp(op,0,int2(dimensions.zw)-1);
+    if((scene_info.w&2)!=0)return reconstruction[op].rgb;
+    return native_at(int2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)));
+}
+// Halation: red-orange glow from highlights scattering back through film; vignette: cos^4-like falloff.
+float3 lens_and_film(float3 c,uint2 op){
+    if(look.x>0){
+        float r=dimensions.w*0.012;float3 glow=0;
+        for(int i=0;i<12;i++){float a=i*PI/6;for(int k=1;k<=2;k++)glow+=max(scene_at(int2(op)+int2(float2(cos(a),sin(a))*r*k))-1,0);}
+        c+=glow/24*look.x*float3(1.0,0.3,0.12);
+    }
+    if(look.z>0){float2 q=(float2(op)/dimensions.zw-0.5)*float2(float(dimensions.z)/dimensions.w,1);float v=1/(1+dot(q,q)*1.6);c*=lerp(1,v*v,look.z);}
+    return c;
+}
+float film_grain(uint2 op){
+    uint2 cell=op/max(1,(uint)lift.w);uint h=cell.x*1973+cell.y*9277+(uint)gain.w*26699;h^=h>>13;h*=0x5bd1e995;h^=h>>15;
+    return (h&0xffff)/65535.0-0.5;
+}
 [numthreads(8,8,1)]void display(uint3 tid:SV_DispatchThreadID){
     uint2 op=tid.xy;if(any(op>=dimensions.zw))return;uint2 p=min(uint2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)),dimensions.xy-1);
     float3 c=beauty(p,op);linear_output[op]=float4(c,1);
@@ -167,7 +221,9 @@ void bin_scopes(uint2 op,float3 c){
     else if(modes.x==10){float n=max(2,sampling.x+sampling.y);c=heat(log2(1+accumulation[p].a/(n-1))/4);}
     else if(modes.x==11)c=false_color(c);
     float3 h;bool beauty_view=modes.x==0;
-    if(beauty_view){if(options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w)c=reference_image[op].rgb;h=hdr_map(c);c=tonemap(c);if(options.z>0 && abs(float(op.x)/dimensions.z-options.w)<1.0/dimensions.z){c=float3(0.3,0.8,1);h=sdr_in_hdr(c);}}
+    if(beauty_view){if(options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w)c=reference_image[op].rgb;c=lens_and_film(c,op);h=hdr_map(c);c=tonemap(c);
+        // Grain on the displayed value, strongest in the midtones.
+        if(look.y>0){float g=film_grain(op)*look.y*0.18;float l=luminance(saturate(c));float w=4*l*(1-l)+0.15;c=saturate(c+g*w);h*=1+g*w*2;}if(options.z>0 && abs(float(op.x)/dimensions.z-options.w)<1.0/dimensions.z){c=float3(0.3,0.8,1);h=sdr_in_hdr(c);}}
     else h=sdr_in_hdr(c);
     // Zebras: diagonal stripes where the displayed image clips.
     if(tools.x>0 && beauty_view && max(c.r,max(c.g,c.b))>0.97 && ((op.x+op.y)/6)%2==0){c=float3(0.05,0.05,0.05);h=sdr_in_hdr(c);}

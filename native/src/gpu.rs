@@ -26,6 +26,14 @@ pub const SCOPES: [u32; 2] = [256, 260];
 /// Shader-visible heap: UAVs 0..TEXTURES, then one SRV slot per egui texture from 32.
 const HEAP_SIZE: usize = 512;
 const FIRST_GUI_SLOT: usize = 32;
+/// A light-meter / click-to-focus reading at one pixel: linear beauty, diffuse albedo and
+/// linear view depth.
+#[derive(Clone, Copy)]
+pub struct Probe {
+    pub linear: [f32; 4],
+    pub albedo: [f32; 4],
+    pub depth: f32,
+}
 struct GuiTexture {
     texture: Texture,
     slot: usize,
@@ -55,7 +63,16 @@ struct Constants {
     environment: [f32; 4],
     hdr: [f32; 4],
     tools: [f32; 4],
+    lens: [f32; 4],
+    camera_model: [f32; 4],
+    look: [f32; 4],
+    lift: [f32; 4],
+    grade_gamma: [f32; 4],
+    gain: [f32; 4],
 }
+/// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
+const CB_STRIDE: u64 = 1024;
+const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
 unsafe extern "C" {
     fn cornell_ngx_release(ngx: *mut c_void);
     fn cornell_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
@@ -175,6 +192,11 @@ pub struct Gpu {
     pub hdr_active: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
+    /// Film-look LUT (u29, a 3D texture kept across resizes) and its edge length, 0 = none.
+    lut: Texture,
+    lut_size: u32,
+    /// Frames presented, for the grain's per-frame noise.
+    present_count: u32,
     /// Look tools (roadmap 5b): zebras, scopes (read back into `scopes` each frame) and a
     /// light-meter probe at an output pixel (read back into `probe_result`: linear beauty and
     /// diffuse albedo).
@@ -182,7 +204,7 @@ pub struct Gpu {
     pub scopes_on: bool,
     pub scopes: Vec<u32>,
     pub probe: Option<[u32; 2]>,
-    pub probe_result: Option<([f32; 4], [f32; 4])>,
+    pub probe_result: Option<Probe>,
     readback: Option<ID3D12Resource>,
     scope_zero: Option<ID3D12Resource>,
     /// The swapchain accepted the color space for its current format.
@@ -353,7 +375,8 @@ impl Gpu {
         let ranges = [
             D3D12_DESCRIPTOR_RANGE {
                 RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-                NumDescriptors: TEXTURES as u32,
+                // The per-resize textures, then the LUT (u29).
+                NumDescriptors: TEXTURES as u32 + 1,
                 BaseShaderRegister: 0,
                 RegisterSpace: 0,
                 OffsetInDescriptorsFromTableStart: 0,
@@ -462,9 +485,10 @@ impl Gpu {
         );
         let gui = create_gui_pipeline(&device, &root, DXGI_FORMAT_R8G8B8A8_UNORM, vs, ps)?;
         let gui_hdr = create_gui_pipeline(&device, &root, DXGI_FORMAT_R16G16B16A16_FLOAT, vs, ps)?;
+        let lut = texture_3d(&device, 2)?;
         let constants = buffer(
             &device,
-            256 * 32,
+            CB_STRIDE * 9,
             D3D12_HEAP_TYPE_UPLOAD,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -541,6 +565,9 @@ impl Gpu {
             gui_hdr,
             hdr_active: false,
             hdr_levels: [200., 1000.],
+            lut,
+            lut_size: 0,
+            present_count: 0,
             zebras: false,
             scopes_on: false,
             scopes: vec![],
@@ -665,6 +692,10 @@ impl Gpu {
     /// Creates the selected temporal upscaler if needed. Returns it when it can run this frame.
     unsafe fn prepare_upscaler(&mut self, s: &Settings) -> Option<Upscaler> {
         let kind = s.upscaler;
+        if !s.perspective() {
+            self.upscale_status = "Upscaling needs a perspective camera; bicubic".into();
+            return None;
+        }
         // At 100% only DLAA / Native AA (a temporal upscaler, when asked for) runs.
         if self.rr_active || (self.rw >= self.width && !(s.native_aa && kind.temporal())) {
             self.upscale_status.clear();
@@ -812,13 +843,98 @@ impl Gpu {
         let probe_linear = scopes.next_multiple_of(512);
         (scopes, probe_linear, probe_linear + 512)
     }
+    /// Uploads a film-look LUT (`size`³ RGB, red fastest, as in .cube files); `None` clears it.
+    pub unsafe fn set_lut(&mut self, lut: Option<(u32, &[[f32; 3]])>) -> Result<()> {
+        self.wait_idle()?;
+        let Some((size, data)) = lut else {
+            self.lut_size = 0;
+            return Ok(());
+        };
+        ensure!(
+            data.len() == (size * size * size) as usize,
+            "LUT size mismatch"
+        );
+        let t = texture_3d(&self.device, size)?;
+        let (layout, bytes) = footprint(&self.device, &t.resource);
+        let staging = buffer(
+            &self.device,
+            bytes,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+        )?;
+        let row = layout.Footprint.RowPitch as u64;
+        for z in 0..size as u64 {
+            for y in 0..size as u64 {
+                let start = ((z * size as u64 + y) * size as u64) as usize;
+                let texels: Vec<f32> = data[start..start + size as usize]
+                    .iter()
+                    .flat_map(|c| [c[0], c[1], c[2], 1.])
+                    .collect();
+                write_buffer(
+                    &staging,
+                    (z * size as u64 + y) * row,
+                    bytemuck::cast_slice(&texels),
+                )?;
+            }
+        }
+        self.begin()?;
+        transition(
+            &self.list,
+            &t.resource,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        );
+        let mut dst = location(&t.resource);
+        let mut src = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(Some(staging.clone())),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &t.resource,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        self.submit()?;
+        self.lut = t;
+        self.lut_size = size;
+        self.lut_view();
+        Ok(())
+    }
+    /// The LUT's UAV at heap slot 29 (after the per-resize textures).
+    unsafe fn lut_view(&self) {
+        let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
+            Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
+            ViewDimension: D3D12_UAV_DIMENSION_TEXTURE3D,
+            Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
+                Texture3D: D3D12_TEX3D_UAV {
+                    MipSlice: 0,
+                    FirstWSlice: 0,
+                    WSize: u32::MAX,
+                },
+            },
+        };
+        self.device.CreateUnorderedAccessView(
+            &self.lut.resource,
+            None,
+            Some(&desc),
+            self.cpu(TEXTURES),
+        );
+    }
     /// Copies the scope counters and the probe texels into the readback buffer.
     unsafe fn queue_readbacks(&mut self, probe: Option<[u32; 2]>) -> Result<()> {
         let (_, probe_linear, probe_albedo) = self.readback_layout();
         if self.readback.is_none() {
             self.readback = Some(buffer(
                 &self.device,
-                probe_albedo + 512,
+                probe_albedo + 1024,
                 D3D12_HEAP_TYPE_READBACK,
                 D3D12_RESOURCE_FLAG_NONE,
                 D3D12_RESOURCE_STATE_COPY_DEST,
@@ -895,6 +1011,13 @@ impl Gpu {
                 DXGI_FORMAT_R32G32B32A32_FLOAT,
                 256,
             );
+            copy(
+                5,
+                [rx, ry, rx + 1, ry + 1],
+                probe_albedo + 512,
+                DXGI_FORMAT_R32_FLOAT,
+                256,
+            );
         }
         Ok(())
     }
@@ -919,7 +1042,11 @@ impl Gpu {
                 let f = std::slice::from_raw_parts(base.add(offset as usize) as *const f32, 4);
                 [f[0], f[1], f[2], f[3]]
             };
-            self.probe_result = Some((texel(probe_linear), texel(probe_albedo)));
+            self.probe_result = Some(Probe {
+                linear: texel(probe_linear),
+                albedo: texel(probe_albedo),
+                depth: texel(probe_albedo + 512)[0],
+            });
         }
         readback.Unmap(0, None);
         Ok(())
@@ -1062,6 +1189,7 @@ impl Gpu {
                 .CreateUnorderedAccessView(&t.resource, None, Some(&desc), self.cpu(i));
             self.textures.push(t);
         }
+        self.lut_view();
         self.rr_active = false;
         self.reference_valid = false;
         self.integrated_valid = false;
@@ -1243,7 +1371,8 @@ impl Gpu {
         let (view, proj, eye) = s.camera(self.width as f32 / self.height as f32);
         let vp = proj * view;
         let reset = self.rr_reset;
-        self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed;
+        // RR and the temporal upscalers need a perspective camera (motion vectors, guides).
+        self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective();
         if !s.rr && !self.ngx.is_null() {
             self.rr_status = "DLSS RR ready (disabled)".into();
         }
@@ -1357,6 +1486,37 @@ impl Gpu {
                 s.bounces.min(8) as f32,
                 256.,
             ],
+            lens: [
+                s.aperture,
+                s.focus_distance,
+                s.aperture_blades as f32,
+                s.blade_rotation.to_radians(),
+            ],
+            camera_model: [
+                s.projection as f32,
+                s.cat_eye,
+                s.tilt.to_radians(),
+                s.distance * (s.fov.to_radians() * 0.5).tan(),
+            ],
+            look: [s.halation, s.grain, s.vignette, self.lut_size as f32],
+            lift: [
+                s.lift[0],
+                s.lift[1],
+                s.lift[2],
+                [1., 2., 3.][s.grain_size.min(2) as usize],
+            ],
+            grade_gamma: [
+                s.grade_gamma[0],
+                s.grade_gamma[1],
+                s.grade_gamma[2],
+                s.lut_strength,
+            ],
+            gain: [
+                s.gain[0],
+                s.gain[1],
+                s.gain[2],
+                (self.present_count % 4096) as f32,
+            ],
         };
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
         if self.hdr_active {
@@ -1436,7 +1596,7 @@ impl Gpu {
             for i in first..7 {
                 c.filter[0] = i;
                 c.filter[2] = !self.history_valid as u32;
-                let offset = (i as u64 + 1) * 512;
+                let offset = (i as u64 + 1) * CB_STRIDE;
                 write_buffer(&self.constants, offset, bytemuck::bytes_of(&c))?;
                 self.bind(offset);
                 self.list.SetPipelineState(&self.filter);
@@ -1469,11 +1629,11 @@ impl Gpu {
         }
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
-        write_buffer(&self.constants, 6144, bytemuck::bytes_of(&c))?;
+        write_buffer(&self.constants, 8 * CB_STRIDE, bytemuck::bytes_of(&c))?;
         if self.scopes_on {
             self.clear_scopes()?;
         }
-        self.bind(6144);
+        self.bind(8 * CB_STRIDE);
         self.list.SetPipelineState(&self.display);
         self.list
             .Dispatch(self.width.div_ceil(8), self.height.div_ceil(8), 1);
@@ -1579,6 +1739,7 @@ impl Gpu {
         self.submit()?;
         self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
         self.finish_readbacks(probe)?;
+        self.present_count = self.present_count.wrapping_add(1);
         let mut data = null_mut();
         self.timing
             .Map(0, Some(&D3D12_RANGE { Begin: 0, End: 16 }), Some(&mut data))?;
@@ -2123,6 +2284,38 @@ fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
         pShaderBytecode: code.as_ptr() as _,
         BytecodeLength: code.len(),
     }
+}
+/// A cubic RGBA32F UAV texture (the film-look LUT).
+unsafe fn texture_3d(device: &ID3D12Device5, size: u32) -> Result<Texture> {
+    let mut resource: Option<ID3D12Resource> = None;
+    device.CreateCommittedResource(
+        &D3D12_HEAP_PROPERTIES {
+            Type: D3D12_HEAP_TYPE_DEFAULT,
+            ..Default::default()
+        },
+        D3D12_HEAP_FLAG_NONE,
+        &D3D12_RESOURCE_DESC {
+            Dimension: D3D12_RESOURCE_DIMENSION_TEXTURE3D,
+            Width: size as u64,
+            Height: size,
+            DepthOrArraySize: size as u16,
+            MipLevels: 1,
+            Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
+            SampleDesc: DXGI_SAMPLE_DESC {
+                Count: 1,
+                Quality: 0,
+            },
+            Flags: D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            ..Default::default()
+        },
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        None,
+        &mut resource,
+    )?;
+    Ok(Texture {
+        resource: resource.context("3D texture")?,
+        format: DXGI_FORMAT_R32G32B32A32_FLOAT,
+    })
 }
 unsafe fn create_compute_pipeline(
     device: &ID3D12Device5,

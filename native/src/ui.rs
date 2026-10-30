@@ -21,13 +21,22 @@ const VIEWS: [&str; 12] = [
     "Variance (heat)",
     "False colour",
 ];
-const TONE_MAPS: [&str; 6] = [
+const TONE_MAPS: [&str; 8] = [
     "Linear",
     "Reinhard",
     "Reinhard (white point)",
     "ACES filmic",
     "Uncharted 2",
     "High contrast",
+    "AgX",
+    "Khronos PBR Neutral",
+];
+const PROJECTIONS: [&str; 5] = [
+    "Perspective",
+    "Orthographic",
+    "360° panorama",
+    "Little planet",
+    "Tilt-shift",
 ];
 const RESOLUTIONS: [(f32, &str); 5] = [
     (1., "Native (100%)"),
@@ -994,7 +1003,8 @@ impl App {
     fn overlay(&mut self, ctx: &egui::Context) {
         let g = self.gpu.as_ref().unwrap();
         if self.ui.meter
-            && let (Some((linear, albedo)), Some(p)) = (g.probe_result, ctx.pointer_hover_pos())
+            && let (Some(crate::gpu::Probe { linear, albedo, .. }), Some(p)) =
+                (g.probe_result, ctx.pointer_hover_pos())
         {
             // 1.0 in scene light is 80 nits, as in the HDR output. Illuminance assumes a
             // Lambertian surface: E = π L / albedo.
@@ -1051,7 +1061,11 @@ impl App {
             return;
         }
         let mode = self.tool_mode();
-        if self.ui.tool == gizmo::Tool::Select || !gizmo::allows(self.ui.selection, mode) {
+        // The gizmo's projection math assumes a perspective camera.
+        if self.ui.tool == gizmo::Tool::Select
+            || !gizmo::allows(self.ui.selection, mode)
+            || !self.settings.perspective()
+        {
             return;
         }
         let Some(f) = gizmo::frame(&self.settings, self.ui.selection) else {
@@ -1911,6 +1925,73 @@ impl App {
                 });
             });
         });
+        section(ui, "Film");
+        grid("film").show(ui, |ui| {
+            row(
+                ui,
+                "Halation",
+                "Red-orange glow around highlights, as light scatters back through film.",
+                |ui| {
+                    ui.add(crate::slider(&mut s.halation, 0. ..=1.));
+                },
+            );
+            row(
+                ui,
+                "Grain",
+                "Film grain, strongest in the midtones.",
+                |ui| {
+                    ui.add(crate::slider(&mut s.grain, 0. ..=1.));
+                    egui::ComboBox::from_id_salt("grain size")
+                        .selected_text(["Fine", "Medium", "Coarse"][s.grain_size.min(2) as usize])
+                        .width(80.)
+                        .show_ui(ui, |ui| {
+                            for (i, n) in ["Fine", "Medium", "Coarse"].iter().enumerate() {
+                                ui.selectable_value(&mut s.grain_size, i as u32, *n);
+                            }
+                        });
+                },
+            );
+            row(ui, "Vignette", "Darkens toward the corners.", |ui| {
+                ui.add(crate::slider(&mut s.vignette, 0. ..=1.));
+            });
+        });
+        section(ui, "Grade");
+        ui.horizontal(|ui| {
+            crate::look::color_wheel(ui, "Lift", &mut s.lift, 0., 0.15);
+            crate::look::color_wheel(ui, "Gamma", &mut s.grade_gamma, 1., 0.5);
+            crate::look::color_wheel(ui, "Gain", &mut s.gain, 1., 0.5);
+        });
+        note(
+            ui,
+            "Drag a wheel to tint, the slider for the level; double-click resets.",
+        );
+        grid("lut").show(ui, |ui| {
+            row(
+                ui,
+                "LUT",
+                "A .cube 3D LUT applied after the grade, on the display-encoded image.",
+                |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut s.lut_path)
+                            .hint_text("path to .cube")
+                            .desired_width(170.),
+                    );
+                    if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
+                        s.lut_path.clear();
+                    }
+                },
+            );
+            if !s.lut_path.is_empty() {
+                row(
+                    ui,
+                    "LUT strength",
+                    "Blend between the graded image and the LUT result.",
+                    |ui| {
+                        ui.add(crate::slider(&mut s.lut_strength, 0. ..=1.));
+                    },
+                );
+            }
+        });
         section(ui, "Display");
         grid("display").show(ui, |ui| {
             row(ui, "Output", "Auto shows real HDR when Windows HDR is on for this monitor, using Windows' calibration and SDR content brightness.", |ui| {
@@ -2153,7 +2234,57 @@ fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
             },
         );
     });
-    note(ui, "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom");
+    section(ui, "Lens");
+    grid("lens").show(ui, |ui| {
+        row(ui, "Camera model", "Orthographic, panorama and little planet use the native denoiser: RR, the temporal upscalers and the gizmo need a perspective camera.", |ui| {
+            egui::ComboBox::from_id_salt("projection").selected_text(PROJECTIONS[s.projection as usize]).show_ui(ui, |ui| {
+                for (i, n) in PROJECTIONS.iter().enumerate() {
+                    ui.selectable_value(&mut s.projection, i as u32, *n);
+                }
+            });
+        });
+        if s.projection == 4 {
+            row(ui, "Focal-plane tilt", "Tilts the plane of sharp focus about the horizontal axis: the miniature look. Needs an aperture.", |ui| {
+                ui.add(crate::slider(&mut s.tilt, -60. ..=60.).suffix("°"));
+            });
+        }
+        if s.perspective() {
+            row(ui, "Aperture", "Lens radius in scene units. 0 is a pinhole: everything sharp.", |ui| {
+                ui.add(crate::slider(&mut s.aperture, 0. ..=2.).logarithmic(true).smallest_positive(0.001).suffix(" units"));
+            });
+            row(ui, "Focus distance", "Distance of the sharp plane along the view axis. Ctrl+click in the viewport focuses there.", |ui| {
+                ui.add(crate::slider(&mut s.focus_distance, 0.05..=500.).logarithmic(true).suffix(" units"));
+            });
+            row(ui, "Aperture blades", "Shape of the bokeh: round, or a polygon with this many blades.", |ui| {
+                egui::ComboBox::from_id_salt("blades")
+                    .selected_text(if s.aperture_blades == 0 { "Round".to_string() } else { format!("{} blades", s.aperture_blades) })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut s.aperture_blades, 0, "Round");
+                        for n in [3, 5, 6, 7, 8, 9] {
+                            ui.selectable_value(&mut s.aperture_blades, n, format!("{n} blades"));
+                        }
+                    });
+            });
+            if s.aperture_blades > 0 {
+                row(ui, "Blade rotation", "Turns the polygonal aperture.", |ui| {
+                    ui.add(crate::slider(&mut s.blade_rotation, -180. ..=180.).suffix("°"));
+                });
+            }
+            row(ui, "Cat-eye", "Optical vignetting: the lens barrel clips the aperture toward the frame edges, so bokeh turns cat-eye shaped and corners darken.", |ui| {
+                ui.add(crate::slider(&mut s.cat_eye, 0. ..=1.));
+            });
+        }
+    });
+    if !s.perspective() {
+        note(
+            ui,
+            "This camera model renders with the native denoiser; RR, temporal upscalers and the gizmo are off. A 360° panorama exports best at 2:1 (e.g. --width 4096 --height 2048).",
+        );
+    }
+    note(
+        ui,
+        "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom · Ctrl+click: focus",
+    );
     ui.button("Reset camera")
         .on_hover_text("Back to the scene's own view")
         .clicked()

@@ -7,6 +7,7 @@ mod gizmo;
 mod gpu;
 mod hotreload;
 mod lighting;
+mod look;
 mod presets;
 mod scene;
 mod scenes;
@@ -92,9 +93,14 @@ struct App {
     stats: Option<stats::Stats>,
     stats_saved: Instant,
     last_samples: u32,
+    /// The .cube file now on the GPU (compared with `Settings::lut_path` each frame).
+    lut_loaded: String,
+    /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
+    focus_pending: bool,
+    focus_target: Option<f32>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 220;
+const SCENES_FROM: u32 = 240;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -114,6 +120,15 @@ fn transport_key(s: &Settings) -> String {
         "hdr_white",
         "rotate",
         "rotate_speed",
+        "halation",
+        "grain",
+        "grain_size",
+        "vignette",
+        "lift",
+        "grade_gamma",
+        "gain",
+        "lut_path",
+        "lut_strength",
         "temporal",
         "scene_name",
     ] {
@@ -388,6 +403,9 @@ impl App {
             stats: None,
             stats_saved: Instant::now(),
             last_samples: 0,
+            lut_loaded: String::new(),
+            focus_pending: false,
+            focus_target: None,
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -604,6 +622,50 @@ impl App {
                     self.ui.show_scopes = false;
                     self.ui.meter = false;
                     self.ui.show_graph = false;
+                }
+                // Lens and camera models, then the film look and a LUT, then a Ctrl+click focus.
+                216 => {
+                    self.settings.aperture = 0.06;
+                    self.settings.focus_distance = 4.;
+                    self.settings.aperture_blades = 6;
+                    self.settings.cat_eye = 0.5;
+                }
+                217..=220 => self.settings.projection = self.rendered - 216,
+                221 => {
+                    self.settings.projection = 0;
+                    self.settings.aperture = 0.;
+                    self.settings.tonemap = 6;
+                }
+                222 => self.settings.tonemap = 7,
+                223 => {
+                    self.settings.tonemap = 3;
+                    self.settings.halation = 0.6;
+                    self.settings.grain = 0.5;
+                    self.settings.vignette = 0.5;
+                    self.settings.lift = [0.02, 0., -0.02];
+                    self.settings.gain = [1.1, 1., 0.9];
+                    let mut text = String::from("LUT_3D_SIZE 2\n");
+                    for b in 0..2 {
+                        for g in 0..2 {
+                            for r in 0..2 {
+                                text += &format!("{} {} {}\n", 1 - r, 1 - g, 1 - b);
+                            }
+                        }
+                    }
+                    let path = std::env::temp_dir().join("cornell-self-test.cube");
+                    std::fs::write(&path, text)?;
+                    self.settings.lut_path = path.to_string_lossy().into();
+                }
+                225 => {
+                    self.settings.lut_path.clear();
+                    self.settings.halation = 0.;
+                    self.settings.grain = 0.;
+                    self.settings.vignette = 0.;
+                    self.settings.lift = [0.; 3];
+                    self.settings.gain = [1.; 3];
+                    self.settings.aperture = 0.05;
+                    self.cursor = [self.size[0] as f64 * 0.5, self.size[1] as f64 * 0.5];
+                    self.focus_pending = true;
                 }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
@@ -828,8 +890,29 @@ impl App {
         // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
         g.zebras = self.ui.zebras;
         g.scopes_on = self.ui.show_scopes;
-        g.probe = (self.ui.meter && !self.egui.is_pointer_over_area())
+        g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area()) || self.focus_pending)
             .then_some([self.cursor[0].max(0.) as u32, self.cursor[1].max(0.) as u32]);
+        if s.lut_path != self.lut_loaded {
+            self.lut_loaded = s.lut_path.clone();
+            let result = if s.lut_path.is_empty() {
+                unsafe { g.set_lut(None) }
+            } else {
+                std::fs::read_to_string(&s.lut_path)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|text| look::read_cube(&text))
+                    .and_then(|(n, data)| unsafe { g.set_lut(Some((n, &data))) })
+            };
+            match result {
+                Ok(()) if !s.lut_path.is_empty() => {
+                    self.ui.toast(format!("LUT loaded: {}", s.lut_path))
+                }
+                Ok(()) => {}
+                Err(e) => {
+                    unsafe { g.set_lut(None)? };
+                    self.ui.error(format!("LUT {}: {e:#}", s.lut_path));
+                }
+            }
+        }
         unsafe {
             g.render(
                 s,
@@ -839,6 +922,24 @@ impl App {
                 &output.textures_delta,
                 output.pixels_per_point,
             )?;
+        }
+        // Ctrl+click focus: the depth under the click becomes the focus target.
+        if self.focus_pending
+            && let Some(p) = g.probe_result
+        {
+            self.focus_pending = false;
+            if p.depth > 0. && p.depth < 1e3 {
+                self.focus_target = Some(p.depth);
+                self.ui.toast(format!("Focus: {:.2} units", p.depth));
+            }
+        }
+        if let Some(target) = self.focus_target {
+            let f = &mut self.settings.focus_distance;
+            *f += (target - *f) * (1. - (-dt * 10.).exp());
+            if (*f - target).abs() < target * 0.002 {
+                *f = target;
+                self.focus_target = None;
+            }
         }
         // Convergence graph: RMSE against the reference at log-spaced sample counts.
         if self.ui.show_graph
@@ -976,6 +1077,23 @@ impl App {
                     );
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
+                218 => anyhow::ensure!(!g.rr_active, "RR must be off for a panorama camera"),
+                224 => anyhow::ensure!(
+                    self.lut_loaded == s.lut_path && !s.lut_path.is_empty(),
+                    "The test LUT was not loaded"
+                ),
+                239 => {
+                    anyhow::ensure!(
+                        !self.focus_pending && self.focus_target.is_none(),
+                        "Ctrl+click focus did not settle"
+                    );
+                    anyhow::ensure!(
+                        (0.5..20.).contains(&s.focus_distance),
+                        "Focus distance {} is not plausible",
+                        s.focus_distance
+                    );
+                    self.settings.aperture = 0.;
+                }
                 209 => {
                     let [w, h] = gpu::SCOPES.map(|v| v as usize);
                     anyhow::ensure!(g.scopes.len() == w * h, "Scopes were not read back");
@@ -985,7 +1103,12 @@ impl App {
                         "Histogram counts {luma} pixels, not {}",
                         g.width * g.height
                     );
-                    let (linear, albedo) = g.probe_result.context("No light-meter reading")?;
+                    let gpu::Probe {
+                        linear,
+                        albedo,
+                        depth,
+                    } = g.probe_result.context("No light-meter reading")?;
+                    anyhow::ensure!(depth > 0., "Light-meter depth is not positive");
                     anyhow::ensure!(
                         linear.iter().chain(&albedo).all(|v| v.is_finite()),
                         "Light-meter reading is not finite"
@@ -1319,6 +1442,7 @@ impl ApplicationHandler for App {
                         self.finish_transform();
                     } else if self.drag == Some(MouseButton::Left)
                         && self.drag_distance < 3.
+                        && self.settings.perspective()
                         && !self.egui.is_pointer_over_area()
                         && let Some(g) = &self.gpu
                     {
@@ -1346,6 +1470,9 @@ impl ApplicationHandler for App {
                     } else {
                         self.finish_transform();
                     }
+                } else if !consumed && button == MouseButton::Left && self.ctrl {
+                    // Ctrl+click: focus the lens on what is under the pointer.
+                    self.focus_pending = true;
                 } else if !consumed {
                     let mode = self.tool_mode();
                     if button == MouseButton::Left
@@ -1601,6 +1728,7 @@ mod tests {
             ("editor.rs", include_str!("editor.rs")),
             ("ui.rs", include_str!("ui.rs")),
             ("gizmo.rs", include_str!("gizmo.rs")),
+            ("look.rs", include_str!("look.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
         ] {
