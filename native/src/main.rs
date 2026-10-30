@@ -1087,8 +1087,9 @@ impl App {
         }
         if let Some(target) = self.focus_target {
             let f = &mut self.settings.focus_distance;
-            *f += (target - *f) * (1. - (-dt * 10.).exp());
-            if (*f - target).abs() < target * 0.002 {
+            // At least 30% of the way per frame, so slow frames still settle in about ten.
+            *f += (target - *f) * (1. - (-dt * 10.).exp()).max(0.3);
+            if (*f - target).abs() < target * 0.01 {
                 *f = target;
                 self.focus_target = None;
             }
