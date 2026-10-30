@@ -2545,6 +2545,54 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 ui.add(crate::slider(&mut s.sky, 0. ..=4.).suffix("×"));
             },
         );
+        row(
+            ui,
+            "HDRI",
+            "An equirectangular .hdr or .exr that lights the scene instead of the sky light, importance-sampled.",
+            |ui| {
+                let name = std::path::Path::new(&s.hdri)
+                    .file_name()
+                    .map_or("None".into(), |n| n.to_string_lossy().to_string());
+                ui.label(name).on_hover_text(&s.hdri);
+                if ui.small_button("Load…").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("HDRI", &["hdr", "exr"])
+                        .set_directory(
+                            crate::scenes::folder()
+                                .map(|f| f.join("hdri"))
+                                .filter(|f| f.is_dir())
+                                .or_else(crate::scenes::folder)
+                                .unwrap_or_default(),
+                        )
+                        .pick_file()
+                {
+                    s.hdri = crate::mesh::store(&path);
+                }
+                if !s.hdri.is_empty() && ui.small_button("Clear").clicked() {
+                    s.hdri.clear();
+                }
+            },
+        );
+        if !s.hdri.is_empty() {
+            row(ui, "HDRI strength", "Multiplier on the HDRI's light.", |ui| {
+                ui.add(
+                    crate::slider(&mut s.hdri_strength, 0. ..=1000.)
+                        .logarithmic(true)
+                        .suffix("×"),
+                );
+            });
+            row(ui, "HDRI rotation", "Turns the HDRI about the vertical axis.", |ui| {
+                ui.add(crate::slider(&mut s.hdri_rotation, -180. ..=180.).suffix("°"));
+            });
+            row(
+                ui,
+                "Seen by camera",
+                "Off: the camera sees the background colour while the HDRI still lights the scene.",
+                |ui| {
+                    ui.checkbox(&mut s.hdri_visible, "");
+                },
+            );
+        }
         row(ui, "Left wall", "Linear RGB.", |ui| {
             ui.color_edit_button_rgb(&mut s.left);
         });

@@ -14,3 +14,4 @@ native/cornell*.exr
 __pycache__/
 .claude/settings.local.json
 native/scenes/models/
+native/scenes/hdri/

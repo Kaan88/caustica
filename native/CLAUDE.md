@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (405 with the built-in, generated and mesh packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 270 scripted frames (`SCENES_FROM`), then one frame per scene file (420 with the built-in, generated, mesh and environment packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -165,13 +165,13 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 0 | CBV b0 |
 | 1 | SRV t0 TLAS |
 | 2 | SRV t1 vertices |
-| 3 | Table: UAV u0–u29 (heap slots 0–29; u29 is the 3D LUT) |
+| 3 | Table: UAV u0–u31 (heap slots 0–31; u29 is the 3D LUT, u30 / u31 the HDRI and its CDFs) |
 | 4 | Table: SRV t2, the egui texture of each GUI draw (heap slots 32–511, one per texture; pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
 | 7 | Root SRV t5 emitter lookup |
 
-There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–29, egui textures from 32.
+There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–31, egui textures from 32.
 
 **Acceleration structures.** There is one BLAS of the whole triangle soup and one TLAS instance with an identity transform. Both use PREFER_FAST_TRACE. The BLAS has two geometries (see "Mesh import"): hidden lights and glass are **non-opaque**, so their candidates run through the `Proceed()` loop (how hidden lights and glass shadows are skipped); everything else is opaque.
 
@@ -207,6 +207,8 @@ There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAV
 | 26 | hdr_output (scRGB, 1.0 = 80 nits; written only in HDR mode, copied to the HDR backbuffer) | RGBA16F, **output resolution** |
 | 27 | trace_stats: this frame's mean bounces per sample, BVH steps (`Proceed()` calls, all rays) per pixel | RG32F |
 | 28 | scopes: counters, rows 0–3 histogram R,G,B,L; 4–131 luma waveform; 132–259 vectorscope (128 wide) | R32_UINT, **256×260 fixed** |
+| 30 | env_map: HDRI, linear RGB (kept across resizes; 1×1 when none) | RGBA32F, **map size** |
+| 31 | env_cdf: conditional CDF per row, then the marginal CDF in an extra row | R32F, **map width × (height + 1)** |
 
 ## Rendering behaviour worth remembering
 
@@ -393,7 +395,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - `scenes::render_thumbnails(entries)` runs this exe headless per scene on a thread (320×200, 32 frames, `CREATE_NO_WINDOW`, written as `.partial.png` then renamed, stale hashes removed) and reports each result on a channel. The Scenes window starts it for missing thumbnails on first open, never when `hidden`. `update_thumbnails` loads at most 4 PNGs per frame into egui textures. `--make-thumbnails` does the same from the CLI and exits.
   - Cards are painted at a fixed 160×100 (egui's `ImageButton` padding made the grid uneven). The selected scene shows a 256×160 preview, licence badge, tags, attribution and credits.
   - Self-test 203 loads a generated texture as entry 0's thumbnail and opens the window with it selected, so the scene-file frames draw the textured UI under the debug layer.
-- Not done: relative asset paths (nothing references assets yet).
+- Relative asset paths: done with mesh import and HDRIs (paths relative to `scenes/`, see `mesh::resolve`).
 
 ## ffmpeg (2026-10-30, owner allowed pulling the binary)
 
@@ -409,7 +411,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - New shape **Tetrahedron** (last in `Shape::ALL`; the mesh cache is indexed by enum order): base at y = −1, apex at +1, base circumradius √2.
 - Menger level 2 merges filled cells into runs along x (fits under 256). The Sierpinski child centre is c + corner·scale/2. The sphereflake uses Haines' 6 + 3 directions, rotated per parent.
 - Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 15 families; `GENERATED` table).
-- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 145 (405 frames).
+- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 150 (420 frames).
 - `tools/scene_sheet.py --pack generated` renders the pack. All 90 were checked; day cities and warm suns were dimmed, framing tightened.
 
 ## Scenes buildable today (roadmap 5e, 2026-10-30)
@@ -435,9 +437,20 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Parts:** a file is read as one part per material (glTF material index, OBJ `material_id`), all normalised by the file's box. `Object.mesh` = `file#n` picks part n; plain `file` is every part merged (`Imported::whole`, built lazily). `mesh::ground(o)` grounds a part by the whole file, so the parts of one file stay together. Empty parts are kept so indices never shift (terrain bands can be empty). `import_objects` (used by *+ Mesh…*) makes one object per non-empty part, named `<stem> · <material>`.
 - **glTF textures are averaged** (track 5 will sample them): base colour (sRGB → linear) and emissive multiply their factors; the metallic-roughness map's B and G multiply metallic and roughness (unaveraged, chess pieces came out fully metallic). 8-bit RGB/RGBA images only.
 - `--mesh-info files…` prints each file's parts as JSON `Object`s plus triangle counts and exits. `tools/mesh_parts.json` is that output for the test models; `tools/build_scenes.py` reads it for the `scenes/meshes` pack (8 scenes: gold dragon in the Cornell box, jade Buddha, scan gallery, Spot and Suzanne, the ASWF chess set, glass dragon, toy car, duck and lantern).
-- **Test models:** `tools/fetch_models.ps1` downloads 11 models into `scenes/models/` (gitignored), pinned to a commit and SHA-256: 6 OBJ scans from alecjacobson/common-3d-test-models (xyzrgb dragon, happy Buddha, armadillo, Lucy, Spot, Suzanne) and 5 GLBs from KhronosGroup/glTF-Sample-Assets (DragonAttenuation, Duck, Lantern, ABeautifulGame, ToyCar). Lucy is Z-up (tilt −90). Without them the mesh scenes fall back to boxes. The snapshot script copies them with the scenes (about 95 MB).
+- **Test models:** `tools/fetch_assets.ps1` (was fetch_models.ps1) downloads 11 models into `scenes/models/` (gitignored), pinned to a commit and SHA-256: 6 OBJ scans from alecjacobson/common-3d-test-models (xyzrgb dragon, happy Buddha, armadillo, Lucy, Spot, Suzanne) and 5 GLBs from KhronosGroup/glTF-Sample-Assets (DragonAttenuation, Duck, Lantern, ABeautifulGame, ToyCar). Lucy is Z-up (tilt −90). Without them the mesh scenes fall back to boxes. The snapshot script copies them with the scenes (about 95 MB).
 - **Procedural meshes** (`procedural.rs`): `mesh: "gen:<kind>/<seed>[#part]"` builds in `mesh::read` and caches like a file (`resolve` leaves `gen:` paths alone). Kinds: `mandelbulb` (surface nets over the distance estimator, 240³ release / 80³ debug, sampled on all cores; power 5–9 and a phase twist per seed), `terrain` (384² fBm heightfield, ridged half the time, island falloff; parts sand / grass / rock / snow by height and slope, rock below normal.y 0.62), `menger` (voxels with exposed faces only; level 4 when seed % 3 == 0 in release, else 3), `tree` (recursive branching: 6-sided frusta, double-sided leaf cards; parts bark / leaves). The generator families `mandelbulb`, `terrain` (plus a sea box: stretch 0.065 puts it at height 0), `deep-menger` and `tree` (1–7 trees, summer or autumn) use them.
 - **Perf of the opaque split** (2026-10-30, 1440×900, 300 frames, median of 3 alternating runs vs the core1 snapshot): Classic −7% RR / −8% native, bunny −7 / −8%, mirror corridor −3 / −3%, chess −7 / −4%, neon −3 / −4%.
+
+## HDRI environments (core track 3, 2026-10-30)
+
+- **Settings:** `hdri` (path, ≤ 1024, relative to `scenes/` like meshes), `hdri_strength` (0–1000), `hdri_rotation` (±360°), `hdri_visible` (camera rays see it; off, bounce-0 misses return `background`). All transport fields. Stage section of the Scene tab: Load… (rfd, .hdr / .exr), Clear, strength, rotation, "Seen by camera".
+- `environment.rs`: `load` (image crate, `hdr` and `exr` features; non-finite → 0) → `build(w, h, rgb)`: halves maps wider than 4096, then per row a conditional CDF of luminance, and a marginal CDF over rows weighted by sin θ of the row centre, in the extra last row. `inv_norm` = w·h / (2π² Σ lum·sinθ_row). A black map is an error.
+- **GPU:** `Gpu::set_environment` uploads both through `upload_texture` (staging per footprint row) into textures that live across resizes (`env_views` at heap slots 30, 31, re-created in `resize`). Constants gain `environment_map` = [strength, rotation rad, flags (bit 0 loaded, bit 1 visible), inv_norm]. `environment_loaded()` for tests. `main.rs` reloads when `Settings::hdri` differs from `hdri_loaded`; a failure clears it with an error toast.
+- **Shader:** nearest texel lookup (so the pdf matches the radiance exactly), u = φ/2π + 0.5 with φ = atan2(x, −z) − rotation, v = θ/π. `sample_env` binary-searches the marginal then the row, reusing each remainder for the position inside the texel; pdf = lum·inv_norm·sinθ_row / sinθ. NEE picks the HDRI with `p_env` = 0.5 when emissive triangles exist (1 otherwise); triangle NEE pdfs and BSDF-hit weights carry (1 − p_env). Misses after a non-delta bounce get the MIS weight against `p_env·env_pdf`. The light-sampling modes (`mis_mode`) work as for triangles. Without an HDRI nothing changes (renders match the previous build to 2e-7).
+- **Checked:** spheres under the noon sky (a sun a few texels wide) and the photo studio, 2048–4096 spp, MIS vs NEE-only vs BSDF-only: means agree to 0.02% on the studio; on the noon sky NEE-only matches MIS to 0.27% per 20×20 block while BSDF-only is the expected firefly field. Unit tests: the pdf integrates to 1; big maps halve; black maps fail.
+- **Assets:** `tools/fetch_assets.ps1` also fetches 5 Poly Haven 2k HDRIs (CC0, SHA-256 pinned) into `scenes/hdri/` (gitignored): studio_small_09, brown_photostudio_02, kloofendal_48d_partly_cloudy_puresky, venice_sunset, rural_asphalt_road. `scenes/environments` (5 scenes, `ENV_SCENES` in build_scenes.py; they start with no lights, since the studio's hidden rim light still casts shadows).
+- Self-test 260–265: a generated 64×32 .hdr with a sun (written with the image crate), asserted loaded; hidden from the camera; mis modes 1 and 2; cleared and asserted unloaded. Scene files start at 270.
+- Not done: the sun is not split out as a separate light (its shape is the map's texels), no ground projection / shadow catcher, no MIS compensation, maps are RGBA32F (4k = 128 MB).
 
 ## Toys (roadmap 5d, 2026-10-30)
 

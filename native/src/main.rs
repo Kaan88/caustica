@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod display;
 mod editor;
+mod environment;
 mod generators;
 mod geometry;
 mod gizmo;
@@ -103,6 +104,8 @@ struct App {
     last_samples: u32,
     /// The .cube file now on the GPU (compared with `Settings::lut_path` each frame).
     lut_loaded: String,
+    /// The HDRI now on the GPU (compared with `Settings::hdri` each frame).
+    hdri_loaded: String,
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
     focus_target: Option<f32>,
@@ -124,7 +127,7 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 260;
+const SCENES_FROM: u32 = 270;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -463,6 +466,7 @@ impl App {
             stats_saved: Instant::now(),
             last_samples: 0,
             lut_loaded: String::new(),
+            hdri_loaded: String::new(),
             focus_pending: false,
             focus_target: None,
             pick_point: None,
@@ -869,6 +873,38 @@ impl App {
                     "GPU pick selected {:?}",
                     self.ui.selection
                 ),
+                // HDRI: a generated map with a small bright sun, then hidden from the camera,
+                // each light-sampling mode, and cleared again.
+                260 => {
+                    let (w, h) = (64u32, 32u32);
+                    let map = image::Rgb32FImage::from_fn(w, h, |x, y| {
+                        let sun = if (x, y) == (40, 9) { 400. } else { 0. };
+                        image::Rgb([0.3 + sun, 0.35 + y as f32 * 0.01, 0.5])
+                    });
+                    let path = std::env::temp_dir().join("cornell-self-test-sky.hdr");
+                    image::DynamicImage::ImageRgb32F(map).save(&path)?;
+                    self.settings.hdri = path.to_string_lossy().into();
+                    self.settings.hdri_rotation = 30.;
+                }
+                261 => {
+                    anyhow::ensure!(
+                        self.gpu.as_ref().unwrap().environment_loaded(),
+                        "HDRI not loaded"
+                    );
+                    self.settings.hdri_visible = false;
+                }
+                262 => self.settings.mis_mode = 1,
+                263 => self.settings.mis_mode = 2,
+                264 => {
+                    self.settings.mis_mode = 0;
+                    self.settings.hdri.clear();
+                    self.settings.hdri_visible = true;
+                    self.settings.hdri_rotation = 0.;
+                }
+                265 => anyhow::ensure!(
+                    !self.gpu.as_ref().unwrap().environment_loaded(),
+                    "HDRI still loaded"
+                ),
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1165,6 +1201,18 @@ impl App {
                     unsafe { g.set_lut(None)? };
                     self.ui.error(format!("LUT {}: {e:#}", s.lut_path));
                 }
+            }
+        }
+        if s.hdri != self.hdri_loaded {
+            self.hdri_loaded = s.hdri.clone();
+            let result = if s.hdri.is_empty() {
+                unsafe { g.set_environment(None) }
+            } else {
+                environment::load(&s.hdri).and_then(|env| unsafe { g.set_environment(Some(&env)) })
+            };
+            if let Err(e) = result {
+                unsafe { g.set_environment(None)? };
+                self.ui.error(format!("HDRI {}: {e:#}", s.hdri));
             }
         }
         unsafe {

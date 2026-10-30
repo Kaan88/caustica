@@ -57,7 +57,37 @@ Material material_at(uint id,float3 p){
     if(pattern==3){float s=m.secondary.w;float vein=sin((p.x+p.z)*s*0.6+3*sin(p.y*3+p.z*2)+1.5*sin(p.x*5-p.z*2)+0.6*sin(p.x*13+p.y*11)+0.3*sin(p.z*27-p.y*21));t=0.75*pow(1-abs(vein),6);}
     m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);return m;
 }
-float3 environment_radiance(float3 d){return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));}
+// HDRI (environment.rs has the mapping): nearest texel, so the sampling pdf matches exactly.
+bool hdri_on(){return ((uint)environment_map.z&1u)!=0;}
+uint2 env_size(){uint w,h;env_map.GetDimensions(w,h);return uint2(w,h);}
+uint2 env_texel(float3 d,out float sin_theta,out float sin_row){
+    uint2 size=env_size();float theta=acos(clamp(d.y,-1,1));float phi=atan2(d.x,-d.z)-environment_map.y;
+    float u=frac(phi/(2*PI)+0.5);uint2 t=min(uint2(float2(u,theta/PI)*size),size-1);
+    sin_theta=sin(theta);sin_row=sin(PI*(t.y+0.5)/size.y);return t;
+}
+float env_pdf(float3 d){
+    if(!hdri_on())return 0;float s,r;uint2 t=env_texel(d,s,r);
+    return luminance(env_map[t].rgb)*environment_map.w*r/max(s,1e-6);
+}
+// First index whose CDF value exceeds u, among `count` entries of row `row`.
+uint cdf_search(uint row,uint count,float u){uint lo=0,hi=count-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<env_cdf[uint2(mid,row)])hi=mid;else lo=mid+1;}return lo;}
+// A direction from the HDRI's luminance · sinθ, uniform within the chosen texel.
+float3 sample_env(out float pdf){
+    uint2 size=env_size();
+    float uy=random(),ux=random();
+    uint y=cdf_search(size.y,size.y,uy);float y0=y>0?env_cdf[uint2(y-1,size.y)]:0,y1=env_cdf[uint2(y,size.y)];
+    uint x=cdf_search(y,size.x,ux);float x0=x>0?env_cdf[uint2(x-1,y)]:0,x1=env_cdf[uint2(x,y)];
+    // Reuse the remainder of each choice as the position inside the texel.
+    float fy=saturate((uy-y0)/max(y1-y0,1e-9)),fx=saturate((ux-x0)/max(x1-x0,1e-9));
+    float theta=PI*(y+fy)/size.y,phi=2*PI*((x+fx)/size.x-0.5)+environment_map.y;
+    float3 d=float3(sin(theta)*sin(phi),cos(theta),-sin(theta)*cos(phi));
+    pdf=luminance(env_map[uint2(x,y)].rgb)*environment_map.w*sin(PI*(y+0.5)/size.y)/max(sin(theta),1e-6);
+    return d;
+}
+float3 environment_radiance(float3 d){
+    if(hdri_on()){float s,r;return env_map[env_texel(d,s,r)].rgb*environment_map.x;}
+    return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));
+}
 float3 fresnel(float c,float3 f0){return f0+(1-f0)*pow(1-saturate(c),5);}
 float ggx_d(float nh,float a){float d=nh*nh*(a*a-1)+1;return a*a/(PI*d*d);}
 float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
@@ -134,7 +164,15 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         float3 throughput=lens_valid?1:0,radiance=0,direct=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
-            Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){float3 e=throughput*environment_radiance(direction);radiance+=e;if(bounce<=1)direct+=e;break;}
+            uint mis=(scene_info.w>>4)&3;
+            // Light selection: the HDRI and the emissive triangles share NEE half and half.
+            bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
+            float p_env=env_nee?(tri_nee?0.5:1):0;
+            Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){
+                // The camera sees the background colour when the HDRI is hidden from it.
+                float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
+                float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
+                float3 e=throughput*env*weight;radiance+=e;if(bounce<=1)direct+=e;break;}
             throughput*=exp(-absorption*h.t);
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
@@ -153,17 +191,21 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             float3 emitted=m.color_rough.rgb*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
-            uint mis=(scene_info.w>>4)&3;
-            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
+            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             if(((uint)m.lobes.w&1u)!=0)break;
-            if(scene_info.x>0 && mis!=2){
+            if(env_nee && random()<p_env){
+                float pe;float3 ld=sample_env(pe);float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
+                if(nl>0 && pe>0 && !occluded(h.p+h.n*0.0003,ld,1e4)){
+                    float3 e=throughput*f*nl*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                }
+            }else if(tri_nee){
             Emitter light=select_emitter(random());float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
             float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
                 if(!occluded(h.p+h.n*0.0003,ld,max(0.0002,len-0.0006))){
-                    float pl=emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                    float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }}
             float3 next;bool delta=false;float bsdf_pdf=0;

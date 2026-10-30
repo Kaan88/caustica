@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core tracks 1 (generators) and 2 (mesh import) are done (2026-10-30).
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core tracks 1–3 (generators, mesh import, HDRI) are done (2026-10-30).
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -72,6 +72,8 @@ Goal: on an HDR monitor with Windows HDR on, show real HDR, using Windows' own c
 ### 3. UI phase 1 (from ui-plan.md section 8) — done 2026-10-30
 
 Regroup and relabel only. Include the DLSS preset combo and the HDR status line from items 1–2.
+
+Not done from phase 1's list (they belong to ui-plan.md phases 2–5, core track 6): Quality bundles with a `Capabilities` struct, per-pass GPU timing in the status bar, persisted UI prefs (advanced toggle, UI size), modified-row dots, file pickers for settings / LUT / reference EXR (meshes and HDRIs have one), and async high-res export (it blocks the UI today). Done since: undo / redo, viewport handles and hover (3b), the scene browser with thumbnails (4).
 
 ### 3b. Blender-style transform gizmos (owner request, 2026-10-30) — done 2026-10-30
 
@@ -169,7 +171,7 @@ As built: thin lens with round or 3–12-blade apertures, blade rotation, cat-ey
 
 #### 5d. Toys — done 2026-10-30
 
-As built: light painting (L), portals (any object pairs with another; two-sided), walk mode (`), turntable video (ffmpeg when on PATH, else PNG frames), screensaver (/s, /p, /c; `tools/make_screensaver.ps1`), gamepad through gilrs, phone remote. Deviations: the remote is a std-only HTTP server with fetch polling (no axum/websocket), and the HDR 10-bit HEVC video option is not done. Untested here: the ffmpeg path (ffmpeg is not installed on this machine) and the gamepad (no controller attached); the PNG fallback, the remote round trip and the screensaver run were tested.
+As built: light painting (L), portals (any object pairs with another; two-sided), walk mode (`), turntable video (ffmpeg when on PATH, else PNG frames), screensaver (/s, /p, /c; `tools/make_screensaver.ps1`), gamepad through gilrs, phone remote. Deviations: the remote is a std-only HTTP server with fetch polling (no axum/websocket), and the HDR 10-bit HEVC video option is not done. Untested here: the gamepad (no controller attached). The ffmpeg path was tested on 2026-10-30 once `tools/setup.ps1` pinned ffmpeg (an 8-frame turntable to MP4); the PNG fallback, the remote round trip and the screensaver run were tested earlier.
 
 - **Light painting** (long-exposure photography): hold a key, drag a light, and the accumulation keeps every position.
   - An `App` flag, not a `Settings` field, makes light-only edits skip `reset()`. `rebuild_scene` and `update_materials` still run.
@@ -209,12 +211,22 @@ As built: `kusama-infinity-room`, `flavin-fluorescent`, `turrell-ganzfeld`, plus
 Order is from scene-research.md section 5, unchanged:
 1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 90 curated seeds. The mesh-based generators (Mandelbulb, terrain, Menger 3–4, L-system trees) followed mesh import, as `gen:` procedural meshes.
 2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split. — done 2026-10-30: `src/mesh.rs` reads OBJ (tobj, MTL diffuse) and glTF/GLB (node transforms, PBR base colour, roughness, metallic, emissive strength, transmission, IOR) into the same −1..1 box as the built-in shapes. *+ Mesh…* in the Scene tab opens a file picker; `Object.mesh` keeps the path (relative to `scenes/` when inside it). The BLAS has two geometries: lights hidden from the camera and glass first (any-hit loop), everything else flagged opaque. Vertices moved to a DEFAULT-heap buffer. Clicks pick on the GPU (object-id readback), so big meshes cost nothing to click.
-   - Follow-ups done the same day: `tools/fetch_models.ps1` (11 pinned models) and a `scenes/meshes` pack; multi-material files split into one object per material; texture averages as colours; the mesh-based generators; the opaque split measured 3–8% faster.
-   - Still open: texture maps (track 5), one BLAS per mesh so moving a big mesh doesn't rebuild everything, and moving a split file's parts together (track 4 instancing; multi-select from 3b).
-3. HDRI environments with importance sampling.
+   - Follow-ups done the same day: `tools/fetch_assets.ps1` (11 pinned models) and a `scenes/meshes` pack; multi-material files split into one object per material; texture averages as colours; the mesh-based generators; the opaque split measured 3–8% faster.
+   - Still open: texture maps and normal maps (track 5), one BLAS per mesh so moving a big mesh doesn't rebuild everything, and moving a split file's parts together (track 4 instancing; multi-select from 3b).
+   - Importer gaps: glTF clearcoat, sheen, volume attenuation and `KHR_texture_transform` are ignored (the toy car's paint and the dragon's attenuation colour are approximated by hand in the scenes); OBJ reads only the MTL diffuse colour and shininess (no Ke emission, Ks, d / Tr transparency); no up-axis option, so Z-up scans (Lucy) need a −90° tilt; no PLY or STL.
+   - Grounding a mesh scans every vertex of the whole file on each `object_frame` call; not measured on 20M-triangle files.
+3. HDRI environments with importance sampling. — done 2026-10-30: .hdr / .exr equirect maps (`src/environment.rs`), luminance·sinθ CDFs on the GPU, NEE shared with area lights and MIS on misses, strength / rotation / seen-by-camera, 5 Poly Haven HDRIs in `tools/fetch_assets.ps1` and a `scenes/environments` pack. Checked unbiased (MIS, NEE-only and BSDF-only agree).
+   - Not done: a separate sun light for very small suns, ground projection / shadow catcher, MIS compensation, half-float storage.
+   - Decide: lights hidden from the camera still block light and cast shadows (their quads stay in the BLAS for shadow rays). The studio stage's hidden rim light shadowed the HDRI sun, so the environment scenes start with no lights. Either keep it (physical) or make hidden lights invisible to shadow rays too.
 4. Multiple BLAS + TLAS instancing past 256 objects.
 5. Textures.
 6. UI phases 2–5.
+
+### Known issues (not scheduled)
+
+- **Native denoiser:** faint low-frequency blotches on flat walls at very low spp, typical of SVGF (found in the 2026-10-29 review, not started).
+- **Gamepad:** untested, no controller here (5d).
+- **Hidden lights occlude:** see core 3 above.
 
 ### Feature tracks
 

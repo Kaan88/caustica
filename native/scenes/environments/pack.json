@@ -1,0 +1,16 @@
+{
+ "name": "HDRI environments",
+ "version": 1,
+ "license": "Mixed: see each scene's credits",
+ "commercial_use": false,
+ "attribution": "See credits",
+ "source": "tools/fetch_assets.ps1",
+ "description": "Scenes lit by Poly Haven HDRIs. Run tools/fetch_assets.ps1 first; without the HDRIs they fall back to the sky light.",
+ "scenes": [
+  "hdri-noon-spheres.json",
+  "hdri-sunset-dragon.json",
+  "hdri-studio-chess.json",
+  "hdri-toy-car-road.json",
+  "hdri-product-shot.json"
+ ]
+}

@@ -1323,6 +1323,71 @@ mesh_scene("duck-and-lantern", "Duck and lantern",
                   **camera(15, 10, 7.5, (0.3, 0.4, 0))))
 
 
+# ---------------------------------------------------------------- environments pack
+# HDRI-lit scenes (core track 3); the HDRIs come from tools/fetch_assets.ps1 (scenes/hdri).
+ENV_SCENES = []
+POLYHAVEN = "Poly Haven (CC0)"
+
+
+def env_scene(slug, title, description, tags, credits, hdri, settings, strength=1.0, rotation=0.0, visible=True):
+    settings = {**settings, "hdri": f"hdri/{hdri}_2k.hdr", "hdri_strength": strength, "hdri_rotation": rotation,
+                "hdri_visible": visible, "light_on": False, "lights": [], "sky": 0.0}
+    ENV_SCENES.append((slug, {"format": 1, "title": title, "description": description, "tags": ["hdri", *tags],
+                              "credits": credits, "settings": settings}))
+
+
+env_scene("hdri-noon-spheres", "Spheres at noon",
+          "Diffuse, gold, glass and rough blue spheres under a partly cloudy noon sky. The sun is a few texels of the map: importance sampling finds it.",
+          ["material", "outdoor"], "Kloofendal 48d partly cloudy (pure sky): " + POLYHAVEN, "kloofendal_48d_partly_cloudy_puresky",
+          studio(objects=[obj("Diffuse", "sphere", -2.4, 0, 1.4, M((0.8, 0.8, 0.8), 0.9)),
+                          obj("Gold", "sphere", -0.8, 0, 1.4, M((1.0, 0.77, 0.34), 0.2, metal=1.0)),
+                          obj("Glass", "sphere", 0.8, 0, 1.4, M((1, 1, 1), 0.0, trans=1.0)),
+                          obj("Rough", "sphere", 2.4, 0, 1.4, M((0.3, 0.5, 0.9), 0.5, refl=0.3))],
+                 floor=M((0.5, 0.5, 0.5), 0.6), bounces=16, **camera(0, 10, 8, (0, -0.4, 0))), rotation=40)
+env_scene("hdri-sunset-dragon", "Dragon at sunset",
+          "The Khronos glass dragon on a dark mirror floor, against a Venetian sunset.",
+          ["glass", "outdoor", "gltf"], "Dragon Attenuation: " + KHRONOS + ". Venice sunset: " + POLYHAVEN, "venice_sunset",
+          studio(objects=[mesh("DragonAttenuation.glb", 0, 0, 4, M((0.95, 0.75, 0.45), 0.0, trans=1.0), part=0)],
+                 floor=M((0.02, 0.02, 0.025), 0.08, refl=0.6), bounces=20, **camera(150, 6, 5.5, (0, -0.3, 0))), rotation=0)
+env_scene("hdri-studio-chess", "Studio chess",
+          "The ASWF chess set lit only by a photo studio HDRI, which the camera does not see.",
+          ["chess", "studio", "gltf"], "A Beautiful Game: " + KHRONOS + ". Brown photo studio 02: " + POLYHAVEN, "brown_photostudio_02",
+          studio(objects=whole("ABeautifulGame.glb", 0, 0, 5), base=[0.05, 0.05, 0.05], background=[0.03, 0.03, 0.035],
+                 floor=M((0.05, 0.05, 0.05), 0.4, refl=0.2), bounces=16, exposure=1.3, **camera(25, 30, 5.5, (0, -0.8, 0))),
+          visible=False)
+env_scene("hdri-toy-car-road", "Toy car on the road",
+          "The Khronos toy car on its cloth, by a country road at midday.",
+          ["vehicle", "outdoor", "gltf"], "Toy Car: " + KHRONOS + ". Rural asphalt road: " + POLYHAVEN, "rural_asphalt_road",
+          studio(objects=whole("ToyCar.glb", 0, 0, 4), floor=M((0.12, 0.12, 0.12), 0.8), floor_extent=40.0, bounces=12,
+                 **camera(-35, 10, 4.8, (0, -0.4, 0))), rotation=90)
+env_scene("hdri-product-shot", "Product shot",
+          "Spot, Suzanne and a teapot on a white sweep, lit by a small studio HDRI that the camera does not see.",
+          ["studio", "material"], "Spot, Suzanne: common-3d-test-models. Studio small 09: " + POLYHAVEN, "studio_small_09",
+          studio(objects=[mesh("spot.obj", -1.4, 0, 1.6, lacquer((0.9, 0.85, 0.1)), rotation=210),
+                          mesh("suzanne.obj", 1.3, -0.2, 1.3, M((0.95, 0.95, 0.95), 0.2, metal=1.0), rotation=-20),
+                          obj("Teapot", "teapot", 0, 0.8, 1.2, M((0.1, 0.3, 0.75), 0.15, refl=0.4))],
+                 base=[0.9, 0.9, 0.9], background=[0.92, 0.92, 0.93], floor=M((0.9, 0.9, 0.9), 0.5),
+                 bounces=12, **camera(0, 14, 4.4, (0, -0.5, 0))), visible=False)
+
+
+def write_environments():
+    problems = [p for slug, data in ENV_SCENES for p in check(slug, data["settings"])]
+    if problems:
+        raise SystemExit("; ".join(problems))
+    out = OUT.parent / "environments"
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.json"):
+        old.unlink()
+    for slug, data in ENV_SCENES:
+        (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    pack = {"name": "HDRI environments", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
+            "attribution": "See credits", "source": "tools/fetch_assets.ps1",
+            "description": "Scenes lit by Poly Haven HDRIs. Run tools/fetch_assets.ps1 first; without the HDRIs they fall back to the sky light.",
+            "scenes": [f"{slug}.json" for slug, _ in ENV_SCENES]}
+    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
+    print(f"wrote {len(ENV_SCENES)} environment scenes to {out}")
+
+
 def write_meshes():
     problems = [p for slug, data in MESH_SCENES for p in check(slug, data["settings"])]
     if problems:
@@ -1335,7 +1400,7 @@ def write_meshes():
         (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     pack = {"name": "Mesh scenes", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
             "attribution": "See credits", "source": "tools/fetch_models.ps1",
-            "description": "Scanned and glTF models. Run tools/fetch_models.ps1 first; without the models each object falls back to a box.",
+            "description": "Scanned and glTF models. Run tools/fetch_assets.ps1 first; without the models each object falls back to a box.",
             "scenes": [f"{slug}.json" for slug, _ in MESH_SCENES]}
     (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {len(MESH_SCENES)} mesh scenes to {out}")
@@ -1359,6 +1424,7 @@ def main():
     print(f"wrote {len(SCENES)} scenes to {OUT}")
     write_generated()
     write_meshes()
+    write_environments()
 
 
 if __name__ == "__main__":

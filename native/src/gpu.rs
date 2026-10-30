@@ -71,6 +71,7 @@ struct Constants {
     lift: [f32; 4],
     grade_gamma: [f32; 4],
     gain: [f32; 4],
+    environment_map: [f32; 4],
 }
 /// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
 const CB_STRIDE: u64 = 1024;
@@ -201,6 +202,11 @@ pub struct Gpu {
     /// Film-look LUT (u29, a 3D texture kept across resizes) and its edge length, 0 = none.
     lut: Texture,
     lut_size: u32,
+    /// HDRI environment (u30, RGBA32F) and its sampling CDFs (u31, R32F, one more row than the
+    /// map); 1×1 placeholders when none is loaded. `env_inv_norm` 0 = none (see environment.rs).
+    env: Texture,
+    env_cdf: Texture,
+    env_inv_norm: f32,
     /// Frames presented, for the grain's per-frame noise.
     present_count: u32,
     /// Look tools (roadmap 5b): zebras, scopes (read back into `scopes` each frame) and a
@@ -381,8 +387,8 @@ impl Gpu {
         let ranges = [
             D3D12_DESCRIPTOR_RANGE {
                 RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-                // The per-resize textures, then the LUT (u29).
-                NumDescriptors: TEXTURES as u32 + 1,
+                // The per-resize textures, the LUT (u29), the environment and its CDFs (u30, u31).
+                NumDescriptors: TEXTURES as u32 + 3,
                 BaseShaderRegister: 0,
                 RegisterSpace: 0,
                 OffsetInDescriptorsFromTableStart: 0,
@@ -492,6 +498,8 @@ impl Gpu {
         let gui = create_gui_pipeline(&device, &root, DXGI_FORMAT_R8G8B8A8_UNORM, vs, ps)?;
         let gui_hdr = create_gui_pipeline(&device, &root, DXGI_FORMAT_R16G16B16A16_FLOAT, vs, ps)?;
         let lut = texture_3d(&device, 2)?;
+        let env = env_texture(&device, 1, 1, DXGI_FORMAT_R32G32B32A32_FLOAT)?;
+        let env_cdf = env_texture(&device, 1, 2, DXGI_FORMAT_R32_FLOAT)?;
         let constants = buffer(
             &device,
             CB_STRIDE * 9,
@@ -575,6 +583,9 @@ impl Gpu {
             painting: false,
             lut,
             lut_size: 0,
+            env,
+            env_cdf,
+            env_inv_norm: 0.,
             present_count: 0,
             zebras: false,
             scopes_on: false,
@@ -920,6 +931,85 @@ impl Gpu {
         self.lut_view();
         Ok(())
     }
+    pub fn environment_loaded(&self) -> bool {
+        self.env_inv_norm > 0.
+    }
+    /// Uploads an HDRI and its sampling tables (environment.rs); `None` clears it.
+    pub unsafe fn set_environment(
+        &mut self,
+        env: Option<&crate::environment::EnvMap>,
+    ) -> Result<()> {
+        self.wait_idle()?;
+        let Some(env) = env else {
+            self.env_inv_norm = 0.;
+            return Ok(());
+        };
+        let (w, h) = (env.width as u32, env.height as u32);
+        let texels = env_texture(&self.device, w, h, DXGI_FORMAT_R32G32B32A32_FLOAT)?;
+        let cdf = env_texture(&self.device, w, h + 1, DXGI_FORMAT_R32_FLOAT)?;
+        self.upload_texture(&texels, bytemuck::cast_slice(&env.texels), w as usize * 16)?;
+        self.upload_texture(&cdf, bytemuck::cast_slice(&env.cdf), w as usize * 4)?;
+        self.env = texels;
+        self.env_cdf = cdf;
+        self.env_inv_norm = env.inv_norm;
+        self.env_views();
+        Ok(())
+    }
+    /// Copies tightly packed rows (`row_bytes` each) into a UAV texture, through a staging
+    /// buffer laid out by the copy footprint.
+    unsafe fn upload_texture(&mut self, t: &Texture, data: &[u8], row_bytes: usize) -> Result<()> {
+        let (layout, bytes) = footprint(&self.device, &t.resource);
+        let staging = buffer(
+            &self.device,
+            bytes,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+        )?;
+        let pitch = layout.Footprint.RowPitch as u64;
+        for (y, row) in data.chunks_exact(row_bytes).enumerate() {
+            write_buffer(&staging, y as u64 * pitch, row)?;
+        }
+        self.begin()?;
+        transition(
+            &self.list,
+            &t.resource,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        );
+        let mut dst = location(&t.resource);
+        let mut src = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(Some(staging.clone())),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &t.resource,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        self.submit()
+    }
+    /// UAVs of the environment (heap slot 30) and its CDFs (31).
+    unsafe fn env_views(&self) {
+        for (t, slot) in [(&self.env, TEXTURES + 1), (&self.env_cdf, TEXTURES + 2)] {
+            let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
+                Format: t.format,
+                ViewDimension: D3D12_UAV_DIMENSION_TEXTURE2D,
+                Anonymous: D3D12_UNORDERED_ACCESS_VIEW_DESC_0 {
+                    Texture2D: D3D12_TEX2D_UAV::default(),
+                },
+            };
+            self.device
+                .CreateUnorderedAccessView(&t.resource, None, Some(&desc), self.cpu(slot));
+        }
+    }
     /// The LUT's UAV at heap slot 29 (after the per-resize textures).
     unsafe fn lut_view(&self) {
         let desc = D3D12_UNORDERED_ACCESS_VIEW_DESC {
@@ -1210,6 +1300,7 @@ impl Gpu {
             self.textures.push(t);
         }
         self.lut_view();
+        self.env_views();
         self.rr_active = false;
         self.reference_valid = false;
         self.integrated_valid = false;
@@ -1598,6 +1689,16 @@ impl Gpu {
                 s.gain[1],
                 s.gain[2],
                 (self.present_count % 4096) as f32,
+            ],
+            environment_map: [
+                s.hdri_strength,
+                s.hdri_rotation.to_radians(),
+                if self.env_inv_norm > 0. {
+                    1. + if s.hdri_visible { 2. } else { 0. }
+                } else {
+                    0.
+                },
+                self.env_inv_norm,
             ],
         };
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
@@ -2419,6 +2520,22 @@ fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
         pShaderBytecode: code.as_ptr() as _,
         BytecodeLength: code.len(),
     }
+}
+/// A UAV texture that lives across resizes (the environment and its CDFs).
+unsafe fn env_texture(
+    device: &ID3D12Device5,
+    w: u32,
+    h: u32,
+    format: DXGI_FORMAT,
+) -> Result<Texture> {
+    texture(
+        device,
+        w,
+        h,
+        format,
+        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+    )
 }
 /// A cubic RGBA32F UAV texture (the film-look LUT).
 unsafe fn texture_3d(device: &ID3D12Device5, size: u32) -> Result<Texture> {

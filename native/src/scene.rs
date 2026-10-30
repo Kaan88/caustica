@@ -301,6 +301,15 @@ pub struct Settings {
     /// Light sampling (roadmap 5e): 0 MIS (both strategies), 1 light sampling (NEE) only,
     /// 2 BSDF sampling only. 1 and 2 show what MIS combines, as in Veach's plates.
     pub mis_mode: u32,
+    /// An equirectangular HDRI (.hdr or .exr) lighting the scene instead of the sky gradient
+    /// (roadmap core track 3). Relative paths are relative to the scenes folder; empty = none.
+    pub hdri: String,
+    /// Multiplier on the HDRI's radiance.
+    pub hdri_strength: f32,
+    /// Turn about the vertical axis, degrees.
+    pub hdri_rotation: f32,
+    /// Camera rays see the HDRI; off, they see the background colour (it still lights).
+    pub hdri_visible: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -397,6 +406,10 @@ impl Default for Settings {
             lut_path: String::new(),
             lut_strength: 1.,
             mis_mode: 0,
+            hdri: String::new(),
+            hdri_strength: 1.,
+            hdri_rotation: 0.,
+            hdri_visible: true,
         }
     }
 }
@@ -687,6 +700,12 @@ impl Settings {
                 && (0. ..=1.).contains(&self.lut_strength)
                 && self.lut_path.len() <= 1024,
             "Invalid film look"
+        );
+        anyhow::ensure!(
+            self.hdri.len() <= 1024
+                && (0. ..=1000.).contains(&self.hdri_strength)
+                && (-360. ..=360.).contains(&self.hdri_rotation),
+            "Invalid HDRI"
         );
         for c in [
             &self.left,

@@ -25,6 +25,7 @@ cbuffer Frame:register(b0) {
     float4 lift; // rgb, w = grain size in pixels
     float4 grade_gamma; // rgb, w = LUT strength
     float4 gain; // rgb, w = frame noise seed
+    float4 environment_map; // HDRI strength, rotation (radians), flags (bit 0 loaded, bit 1 seen by the camera), pdf normalization (environment.rs)
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -62,6 +63,8 @@ RWTexture2D<float> device_depth:register(u25); // projected depth 0 (near) to 1 
 RWTexture2D<float4> hdr_output:register(u26); // scRGB (1.0 = 80 nits) for an HDR swapchain, output resolution
 RWTexture2D<float2> trace_stats:register(u27); // this frame: mean bounces per sample, BVH steps (Proceed calls) per pixel
 RWTexture3D<float4> lut:register(u29); // film-look .cube LUT (look.w cubed); 2x2x2 when unused
+RWTexture2D<float4> env_map:register(u30); // equirectangular HDRI, linear RGB (1x1 when unused)
+RWTexture2D<float> env_cdf:register(u31); // per-row conditional CDFs, then the marginal CDF over rows in an extra last row
 RWTexture2D<uint> scopes:register(u28); // 256 x 260 counters: rows 0-3 histogram R,G,B,L; 4-131 waveform; 132-259 vectorscope (128 wide)
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}
 static const float PI=3.14159265359;

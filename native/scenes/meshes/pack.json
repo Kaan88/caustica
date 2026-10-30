@@ -5,7 +5,7 @@
  "commercial_use": false,
  "attribution": "See credits",
  "source": "tools/fetch_models.ps1",
- "description": "Scanned and glTF models. Run tools/fetch_models.ps1 first; without the models each object falls back to a box.",
+ "description": "Scanned and glTF models. Run tools/fetch_assets.ps1 first; without the models each object falls back to a box.",
  "scenes": [
   "stanford-dragon-gold.json",
   "happy-buddha-jade.json",
