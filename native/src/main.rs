@@ -9,6 +9,7 @@ mod hotreload;
 mod lighting;
 mod look;
 mod presets;
+mod remote;
 mod saver;
 mod scene;
 mod scenes;
@@ -111,6 +112,11 @@ struct App {
     saver: Option<saver::Saver>,
     /// `--turntable PATH`: render the video in a headless run, then exit.
     turntable_cli: Option<video::Turntable>,
+    /// Phone remote (off by default) and when its page state was last refreshed.
+    remote: Option<remote::Remote>,
+    remote_synced: Instant,
+    /// Gamepad input (interactive runs only).
+    gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 260;
@@ -454,6 +460,9 @@ impl App {
             keys_down: Default::default(),
             saver: screensaver.then(saver::Saver::new),
             turntable_cli,
+            remote: None,
+            remote_synced: Instant::now(),
+            gamepad: None,
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -772,6 +781,43 @@ impl App {
                     };
                     anyhow::ensure!(made, "Turntable output missing: {text}");
                 }
+                // Phone remote on this machine only: an edit through HTTP reaches the settings.
+                254 => {
+                    let r = remote::start(false)?;
+                    let port: u16 = r
+                        .url
+                        .split(':')
+                        .nth(2)
+                        .and_then(|p| p.split('/').next())
+                        .context("remote port")?
+                        .parse()?;
+                    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))?;
+                    use std::io::Write;
+                    stream.write_all(
+                        format!(
+                            "POST /set?t={}&k=exposure HTTP/1.1\r\nContent-Length: 3\r\n\r\n2.5",
+                            r.token
+                        )
+                        .as_bytes(),
+                    )?;
+                    let mut reply = String::new();
+                    use std::io::Read;
+                    stream.read_to_string(&mut reply)?;
+                    anyhow::ensure!(
+                        reply.starts_with("HTTP/1.1 204"),
+                        "Remote refused the edit: {reply}"
+                    );
+                    self.remote = Some(r);
+                }
+                256 => {
+                    anyhow::ensure!(
+                        self.settings.exposure == 2.5,
+                        "Remote edit not applied ({})",
+                        self.settings.exposure
+                    );
+                    self.remote = None;
+                    self.settings.exposure = 1.;
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -921,6 +967,8 @@ impl App {
                 &self.geom_key,
             );
         }
+        self.remote_and_gamepad(dt);
+        let g = self.gpu.as_mut().unwrap();
         g.painting = self.painting;
         let s = &self.settings.clone();
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
@@ -1582,6 +1630,7 @@ impl ApplicationHandler for App {
             }
             if !self.hidden {
                 self.stats = Some(stats::Stats::load());
+                self.gamepad = gilrs::Gilrs::new().ok();
             }
             let input = egui_winit::State::new(
                 self.egui.clone(),
@@ -1994,6 +2043,7 @@ mod tests {
             ("look.rs", include_str!("look.rs")),
             ("walk.rs", include_str!("walk.rs")),
             ("video.rs", include_str!("video.rs")),
+            ("remote.rs", include_str!("remote.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
         ] {

@@ -137,6 +137,8 @@ pub struct UiState {
     pub meter: bool,
     pub show_graph: bool,
     pub show_stats: bool,
+    pub show_remote: bool,
+    remote_qr: Option<egui::TextureHandle>,
     scope_images: Option<(egui::TextureHandle, egui::TextureHandle)>,
     /// Convergence graph: reference image (width, height, RGBA), points (samples, RMSE x1000).
     pub reference: Option<(u32, u32, Vec<f32>)>,
@@ -187,6 +189,8 @@ impl Default for UiState {
             meter: false,
             show_graph: false,
             show_stats: false,
+            show_remote: false,
+            remote_qr: None,
             scope_images: None,
             reference: None,
             reference_path: "captures/reference.exr".into(),
@@ -799,6 +803,9 @@ impl App {
         if self.ui.show_stats {
             self.stats_window(ctx);
         }
+        if self.ui.show_remote {
+            self.remote_window(ctx);
+        }
     }
     fn scopes_window(&mut self, ctx: &egui::Context) {
         let g = self.gpu.as_ref().unwrap();
@@ -985,6 +992,140 @@ impl App {
                     .ui
                     .error(format!("Loading {}: {e}", self.ui.reference_path)),
             }
+        }
+    }
+    fn remote_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.ui.show_remote;
+        let mut toggle = None;
+        egui::Window::new("Phone remote").open(&mut open).default_pos([240., 120.]).resizable(false).show(ctx, |ui| {
+            let mut on = self.remote.is_some();
+            if ui.checkbox(&mut on, "Serve the remote on the local network").changed() {
+                toggle = Some(on);
+            }
+            match &self.remote {
+                Some(r) => {
+                    note(ui, "Open this on a phone on the same network (Windows may ask to allow the app through the firewall):");
+                    ui.hyperlink_to(&r.url, &r.url);
+                    if self.ui.remote_qr.is_none()
+                        && let Some(image) = crate::remote::qr_image(&r.url)
+                    {
+                        self.ui.remote_qr = Some(ctx.load_texture("remote qr", image, egui::TextureOptions::NEAREST));
+                    }
+                    if let Some(qr) = &self.ui.remote_qr {
+                        let size = qr.size_vec2().min(egui::vec2(220., 220.));
+                        ui.add(egui::Image::new((qr.id(), size)));
+                    }
+                    note(ui, &format!("Token {}: a new one every time the remote starts.", r.token));
+                }
+                None => note(ui, "Off. When on, a phone browser gets sliders for exposure, light, orbit, zoom and aperture, and buttons to switch scenes."),
+            }
+        });
+        self.ui.show_remote = open;
+        match toggle {
+            Some(true) => match crate::remote::start(true) {
+                Ok(r) => {
+                    self.ui.remote_qr = None;
+                    self.remote = Some(r);
+                }
+                Err(e) => self.ui.error(format!("Remote: {e}")),
+            },
+            Some(false) => {
+                self.remote = None;
+                self.ui.remote_qr = None;
+            }
+            None => {}
+        }
+    }
+    /// Applies phone-remote edits and gamepad input for this frame.
+    pub fn remote_and_gamepad(&mut self, dt: f32) {
+        let edits: Vec<_> = self
+            .remote
+            .as_ref()
+            .map(|r| r.edits.try_iter().collect())
+            .unwrap_or_default();
+        for (key, value) in edits {
+            match key.as_str() {
+                "preset" => {
+                    let n = PRESETS.len() as i64;
+                    self.preset =
+                        ((self.preset as i64 + value.as_i64().unwrap_or(1)).rem_euclid(n)) as usize;
+                    self.settings.preset(self.preset);
+                }
+                "restart" => self.actions.reset = true,
+                _ => {
+                    let mut j = serde_json::to_value(&self.settings).unwrap_or_default();
+                    j[key.as_str()] = value;
+                    match serde_json::from_value::<Settings>(j)
+                        .map_err(anyhow::Error::from)
+                        .and_then(|mut s| s.validate().map(|_| s))
+                    {
+                        Ok(s) => self.settings = s,
+                        Err(e) => self.ui.error(format!("Remote edit {key} rejected: {e:#}")),
+                    }
+                }
+            }
+        }
+        if let Some(r) = &self.remote
+            && self.remote_synced.elapsed() > Duration::from_millis(500)
+        {
+            self.remote_synced = Instant::now();
+            let j = serde_json::to_value(&self.settings).unwrap_or_default();
+            let state: serde_json::Map<_, _> = crate::remote::KEYS
+                .iter()
+                .map(|k| (k.to_string(), j[*k].clone()))
+                .collect();
+            if let Ok(mut s) = r.state.lock() {
+                *s = serde_json::Value::Object(state);
+            }
+        }
+        let Some(pad) = &mut self.gamepad else { return };
+        use gilrs::{Axis, Button, EventType};
+        while let Some(ev) = pad.next_event() {
+            if let EventType::ButtonPressed(button, _) = ev.event {
+                match button {
+                    Button::South => self.paused = !self.paused,
+                    Button::East => self.actions.reset = true,
+                    Button::LeftTrigger | Button::RightTrigger => {
+                        let n = PRESETS.len();
+                        self.preset = (self.preset
+                            + if button == Button::RightTrigger {
+                                1
+                            } else {
+                                n - 1
+                            })
+                            % n;
+                        self.settings.preset(self.preset);
+                    }
+                    Button::DPadUp => {
+                        self.settings.exposure = (self.settings.exposure * 1.25).min(10.)
+                    }
+                    Button::DPadDown => self.settings.exposure /= 1.25,
+                    Button::Start => self.ui.panel_hidden = !self.ui.panel_hidden,
+                    _ => {}
+                }
+            }
+        }
+        let Some((_, g)) = pad.gamepads().find(|(_, g)| g.is_connected()) else {
+            return;
+        };
+        let dead = |v: f32| if v.abs() < 0.15 { 0. } else { v };
+        let (lx, ly, ry) = (
+            dead(g.value(Axis::LeftStickX)),
+            dead(g.value(Axis::LeftStickY)),
+            dead(g.value(Axis::RightStickY)),
+        );
+        let trigger = |b: Button| g.button_data(b).map_or(0., |d| d.value());
+        let light = trigger(Button::RightTrigger2) - trigger(Button::LeftTrigger2);
+        let s = &mut self.settings;
+        if lx != 0. || ly != 0. {
+            s.yaw += lx * 90. * dt;
+            s.pitch = (s.pitch - ly * 60. * dt).clamp(-85., 85.);
+        }
+        if ry != 0. {
+            s.distance = (s.distance * (-ry * 1.5 * dt).exp()).clamp(0.5, 200.);
+        }
+        if light.abs() > 0.05 {
+            s.light_intensity = (s.light_intensity * (light * 1.5 * dt).exp()).clamp(0.01, 2000.);
         }
     }
     fn stats_window(&mut self, ctx: &egui::Context) {
@@ -1237,6 +1378,10 @@ impl App {
             ui.horizontal(|ui| {
                 ui.menu_button("Menu", |ui| {
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
+                    if ui.button("Phone remote…").clicked() {
+                        self.ui.show_remote = true;
+                        ui.close_menu();
+                    }
                     if ui.button("Statistics and achievements").clicked() {
                         self.ui.show_stats = true;
                         ui.close_menu();

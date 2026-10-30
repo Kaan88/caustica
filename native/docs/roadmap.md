@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b and 5a–5c are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b and 5a–5d are done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -167,7 +167,9 @@ As built: thin lens with round or 3–12-blade apertures, blade rotation, cat-ey
   - Grading: a `.cube` 3D LUT loader and lift/gamma/gain wheels.
   - In HDR mode these apply before the display transform from item 2.
 
-#### 5d. Toys
+#### 5d. Toys — done 2026-10-30
+
+As built: light painting (L), portals (any object pairs with another; two-sided), walk mode (`), turntable video (ffmpeg when on PATH, else PNG frames), screensaver (/s, /p, /c; `tools/make_screensaver.ps1`), gamepad through gilrs, phone remote. Deviations: the remote is a std-only HTTP server with fetch polling (no axum/websocket), and the HDR 10-bit HEVC video option is not done. Untested here: the ffmpeg path (ffmpeg is not installed on this machine) and the gamepad (no controller attached); the PNG fallback, the remote round trip and the screensaver run were tested.
 
 - **Light painting** (long-exposure photography): hold a key, drag a light, and the accumulation keeps every position.
   - An `App` flag, not a `Settings` field, makes light-only edits skip `reset()`. `rebuild_scene` and `update_materials` still run.
