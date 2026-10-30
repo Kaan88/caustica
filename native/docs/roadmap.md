@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4 and 3b are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b and 5a are done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -121,7 +121,9 @@ Because licensing doesn't matter, the import steps that follow can start with th
 
 Each is an evening to two days and touches little of the architecture. They come after item 3 so their controls land in the new UI groups, and the scene entries after item 4 so they ship as files. Start with 5a: hot reload makes all later shader work faster. Every item adds self-test frames on unused frame numbers.
 
-#### 5a. Developer tooling
+#### 5a. Developer tooling — done 2026-10-30
+
+As built: hot reload spawns the build's own `dxc.exe` (path baked in by build.rs) instead of loading `dxcompiler.dll`, polling `shaders/` every 0.5 s, so no `notify` or `hassle-rs` dependency. `tools/perf_history.py` writes `captures/perf-history.csv` and `.png`. Also added: `tools/snapshot_build.ps1` copies a runnable build into `builds/<date>-<name>/`.
 
 - **Shader hot reload** (debug builds only):
   - Watch `shaders/` with the `notify` crate. On save, compile with `dxcompiler.dll` at runtime (`DxcCreateInstance`, via `hassle-rs` or a thin FFI) using the same entries and profiles as `build.rs`, then rebuild the affected PSOs.

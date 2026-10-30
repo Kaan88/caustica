@@ -29,6 +29,14 @@ fn main() {
             candidates.sort();
             candidates.pop().unwrap_or_else(|| PathBuf::from("dxc.exe"))
         });
+    // Debug builds recompile shaders at runtime with the same DXC (src/hotreload.rs).
+    println!("cargo:rustc-env=CORNELL_DXC={}", dxc.display());
+    println!(
+        "cargo:rustc-env=CORNELL_SHADERS={}",
+        PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
+            .join("shaders")
+            .display()
+    );
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     for (file, entry, profile) in [
         ("pathtrace.hlsl", "trace", "cs_6_5"),

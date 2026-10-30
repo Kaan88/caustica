@@ -5,6 +5,7 @@ mod editor;
 mod geometry;
 mod gizmo;
 mod gpu;
+mod hotreload;
 mod lighting;
 mod presets;
 mod scene;
@@ -84,6 +85,8 @@ struct App {
     monitor: Option<display::Monitor>,
     display_dirty: bool,
     hdr_note: String,
+    /// Shader hot reload, debug builds only (not in the self-test).
+    hot: Option<hotreload::HotReload>,
 }
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
@@ -370,6 +373,7 @@ impl App {
             monitor: None,
             display_dirty: true,
             hdr_note: String::new(),
+            hot: None,
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -650,6 +654,27 @@ impl App {
                     self.ui.toast("Loaded settings.json");
                 }
                 Err(e) => self.ui.error(format!("Load rejected: {e}")),
+            }
+        }
+        if let Some(result) = self.hot.as_mut().and_then(|h| h.poll()) {
+            let started = Instant::now();
+            let g = self.gpu.as_mut().unwrap();
+            match result
+                .map_err(anyhow::Error::msg)
+                .and_then(|sh| unsafe { g.reload_shaders(&sh) })
+            {
+                Ok(()) => {
+                    println!("SHADERS RELOADED");
+                    self.ui.toast(format!(
+                        "Shaders reloaded ({} ms)",
+                        started.elapsed().as_millis()
+                    ));
+                }
+                Err(e) => {
+                    println!("SHADER ERROR {e:#}");
+                    self.ui
+                        .error(format!("Shader error, keeping the old shaders:\n{e:#}"));
+                }
             }
         }
         let g = self.gpu.as_mut().unwrap();
@@ -1072,6 +1097,9 @@ impl ApplicationHandler for App {
                 unsafe { Gpu::new(hwnd, size.width, size.height, &self.settings, self.debug)? };
             gpu.keep_ui_frame = self.capture_ui;
             self.hwnd = Some(hwnd);
+            if cfg!(debug_assertions) && !self.self_test {
+                self.hot = hotreload::HotReload::new();
+            }
             let input = egui_winit::State::new(
                 self.egui.clone(),
                 egui::ViewportId::ROOT,

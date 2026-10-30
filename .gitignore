@@ -5,6 +5,7 @@ native/target/
 native/vendor/
 native/captures/
 native/scenes/thumbnails/
+native/builds/
 native/settings.json
 native/cornell*.png
 native/cornell*.exr

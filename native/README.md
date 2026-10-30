@@ -164,6 +164,12 @@ The RR bridge converts ray-sampling offsets to NGX image displacements with oppo
 
 The integration self-test (204 scripted frames, then one per scene file) covers all 24 presets including the empty stage, scene edits, camera motion, pause/resume, accumulation reset rules, resize, changing render scale, native raw/filter paths, RR D/E/F switching, every upscaler and DLSS SR preset, HDR output checked pixel by pixel against a CPU copy of the transform, all AOVs, settings round-trip, A/B and high-resolution PNG export, draws every tab and inspector with the advanced rows shown, draws each gizmo, runs a keyed G X 0.5 Enter and its undo, and then loads every scene file in `scenes/`. It also edits a live scene: removing every light, adding all eleven shapes, making one emissive, hiding it, adding, hiding and disabling an area light, deleting an object, picking in the viewport, framing and randomizing. Every frame it checks that the GPU's triangle and emitter counts match the current settings. `verify.ps1` additionally checks formatting, unit tests, Clippy, required RR creation/evaluation, DLAA and HDR EXR. It needs an RTX GPU; use unit tests and native CLI runs for non-NVIDIA DXR devices.
 
+## Developer tools
+
+- **Shader hot reload** (debug builds): save a file in `shaders/` and the running app recompiles every entry with the build's DXC and swaps the pipelines; a compile error shows the DXC message and keeps the old shaders. Release builds keep the embedded DXIL.
+- `tools/perf_history.py`: benchmarks presets 0, 13, 17 and 21 with RR and with the native denoiser (1440×900, 4 spp, 200 frames), appends the means with the commit hash to `captures/perf-history.csv` and plots `captures/perf-history.png`.
+- `tools/snapshot_build.ps1 -Name NAME -Notes TEXT`: copies the release exe, DLLs and scene packs into `builds/<date>-NAME/` with a `NOTES.md`, so older builds stay runnable side by side (`builds/` is not committed).
+
 ## Implementation map
 
 | File | Responsibility |
@@ -174,6 +180,7 @@ The integration self-test (204 scripted frames, then one per scene file) covers 
 | `src/geometry.rs` | Cached shape meshes, scene assembly, framing, focus and viewport picking |
 | `src/lighting.rs` | Packed GPU materials and the power-weighted emissive-triangle table |
 | `src/display.rs` | Windows display query (HDR state, calibrated luminance, SDR white level), HDR transform reference and HDR PNG writer |
+| `src/hotreload.rs` | Debug-build shader hot reload: polls `shaders/`, recompiles with DXC |
 | `src/scenes.rs` | Scene files: folder lookup, pack listing, loading (wrapper or bare settings, validated), saving to `scenes/user` |
 | `src/gizmo.rs` | Transform gizmos: projection, handle layout and hit tests, drag and modal G / R / S math, light outlines and picking |
 | `src/ui.rs` | Top bar, side panel tabs, status bar, toasts, theme; UI state kept out of `Settings` |

@@ -439,21 +439,16 @@ impl Gpu {
             0,
             std::slice::from_raw_parts(blob.GetBufferPointer() as _, blob.GetBufferSize()),
         )?;
-        let compute = |code: &[u8]| -> Result<ID3D12PipelineState> {
-            let mut d = D3D12_COMPUTE_PIPELINE_STATE_DESC {
-                pRootSignature: ManuallyDrop::new(Some(root.clone())),
-                CS: bytecode(code),
-                ..Default::default()
-            };
-            let p = device.CreateComputePipelineState(&d);
-            ManuallyDrop::drop(&mut d.pRootSignature);
-            Ok(p?)
-        };
+        let compute = |code: &[u8]| create_compute_pipeline(&device, &root, code);
         let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
-        let gui = create_gui_pipeline(&device, &root, DXGI_FORMAT_R8G8B8A8_UNORM)?;
-        let gui_hdr = create_gui_pipeline(&device, &root, DXGI_FORMAT_R16G16B16A16_FLOAT)?;
+        let (vs, ps): (&[u8], &[u8]) = (
+            include_bytes!(concat!(env!("OUT_DIR"), "/vs_main.dxil")),
+            include_bytes!(concat!(env!("OUT_DIR"), "/ps_main.dxil")),
+        );
+        let gui = create_gui_pipeline(&device, &root, DXGI_FORMAT_R8G8B8A8_UNORM, vs, ps)?;
+        let gui_hdr = create_gui_pipeline(&device, &root, DXGI_FORMAT_R16G16B16A16_FLOAT, vs, ps)?;
         let constants = buffer(
             &device,
             256 * 32,
@@ -750,6 +745,38 @@ impl Gpu {
             return Ok(false);
         }
         Ok(true)
+    }
+    /// Swaps in freshly compiled shaders (hot reload). Every pipeline is built before any is
+    /// replaced, so a failure keeps the old ones. Restarts the accumulation.
+    pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
+        let trace = create_compute_pipeline(&self.device, &self.root, &sh.trace)?;
+        let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
+        let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
+        let gui = create_gui_pipeline(
+            &self.device,
+            &self.root,
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            &sh.vs,
+            &sh.ps,
+        )?;
+        let gui_hdr = create_gui_pipeline(
+            &self.device,
+            &self.root,
+            DXGI_FORMAT_R16G16B16A16_FLOAT,
+            &sh.vs,
+            &sh.ps,
+        )?;
+        self.wait_idle()?;
+        (
+            self.trace,
+            self.filter,
+            self.display,
+            self.gui,
+            self.gui_hdr,
+        ) = (trace, filter, display, gui, gui_hdr);
+        self.integrated_valid = false;
+        self.reset(true);
+        Ok(())
     }
     pub unsafe fn resize(&mut self, w: u32, h: u32, s: &Settings) -> Result<()> {
         ensure!(
@@ -1899,10 +1926,26 @@ fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
         BytecodeLength: code.len(),
     }
 }
+unsafe fn create_compute_pipeline(
+    device: &ID3D12Device5,
+    root: &ID3D12RootSignature,
+    code: &[u8],
+) -> Result<ID3D12PipelineState> {
+    let mut d = D3D12_COMPUTE_PIPELINE_STATE_DESC {
+        pRootSignature: ManuallyDrop::new(Some(root.clone())),
+        CS: bytecode(code),
+        ..Default::default()
+    };
+    let p = device.CreateComputePipelineState(&d);
+    ManuallyDrop::drop(&mut d.pRootSignature);
+    Ok(p?)
+}
 unsafe fn create_gui_pipeline(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
     format: DXGI_FORMAT,
+    vs: &[u8],
+    ps: &[u8],
 ) -> Result<ID3D12PipelineState> {
     let input = [
         D3D12_INPUT_ELEMENT_DESC {
@@ -1940,8 +1983,8 @@ unsafe fn create_gui_pipeline(
     };
     let mut d = D3D12_GRAPHICS_PIPELINE_STATE_DESC {
         pRootSignature: ManuallyDrop::new(Some(root.clone())),
-        VS: bytecode(include_bytes!(concat!(env!("OUT_DIR"), "/vs_main.dxil"))),
-        PS: bytecode(include_bytes!(concat!(env!("OUT_DIR"), "/ps_main.dxil"))),
+        VS: bytecode(vs),
+        PS: bytecode(ps),
         BlendState: D3D12_BLEND_DESC {
             RenderTarget: [blend; 8],
             ..Default::default()
