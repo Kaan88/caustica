@@ -13,6 +13,7 @@ mod hotreload;
 mod lighting;
 mod look;
 mod mesh;
+mod prefs;
 mod presets;
 mod procedural;
 mod remote;
@@ -144,7 +145,7 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 281;
+const SCENES_FROM: u32 = 283;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -349,7 +350,20 @@ impl App {
                     s.max_samples = args.next().context("--samples needs a value")?.parse()?
                 }
                 "--preset" => {
-                    selected_preset = args.next().context("--preset needs 0–23")?.parse()?;
+                    // A number or the preset's name as a slug (classic-cornell-box).
+                    let name = args.next().context("--preset needs 0–23 or a name")?;
+                    selected_preset = match name.parse() {
+                        Ok(i) => i,
+                        Err(_) => PRESETS
+                            .iter()
+                            .position(|p| scenes::slug(p) == name)
+                            .with_context(|| {
+                                format!(
+                                    "--preset {name}: none of {}",
+                                    PRESETS.map(scenes::slug).join(", ")
+                                )
+                            })?,
+                    };
                     anyhow::ensure!(selected_preset < PRESETS.len(), "--preset must be 0–23");
                     s.preset(selected_preset);
                 }
@@ -626,11 +640,18 @@ impl App {
                 168 => self.settings.rr_preset = 6,
                 170 => {
                     self.ui.export_scale = 1;
-                    self.ui.export_samples = 16;
+                    // One pass (4 spp), so the job ends within frame 171; no stale file counts.
+                    self.ui.export_samples = 4;
+                    let _ = std::fs::remove_file("cornell-high-res.png");
                     self.actions.high_res = true;
                 }
                 // Every upscaler on the native path at half resolution, then back to RR.
                 172..=176 => {
+                    anyhow::ensure!(
+                        self.export.is_none()
+                            && std::path::Path::new("cornell-high-res.png").is_file(),
+                        "The high-resolution still did not finish"
+                    );
                     self.settings.rr = false;
                     self.settings.scale = 0.5;
                     self.settings.upscaler = scene::Upscaler::ALL[(self.rendered - 172) as usize];
@@ -1108,6 +1129,40 @@ impl App {
                     self.ui.show_shortcuts = false;
                     self.ui.context_menu = None;
                 }
+                // UI phases 3–4: a scene saved to a file outside the list and opened again
+                // (title kept), the favourite and recent lists drawn, quality bundles, the A/B
+                // split handle and a Show in folder toast.
+                281 => {
+                    let path = std::env::temp_dir().join("cornell-self-test-scene.json");
+                    let mut s = self.settings.clone();
+                    s.exposure = 1.7;
+                    scenes::save_to(&path, &s, "Self test scene", "")?;
+                    self.open_scene(&path);
+                    anyhow::ensure!(
+                        self.settings.scene_name == "Self test scene"
+                            && self.settings.exposure == 1.7,
+                        "Opening a saved scene failed: {}",
+                        self.settings.scene_name
+                    );
+                    anyhow::ensure!(
+                        self.ui.prefs.recency(&path) == Some(0),
+                        "The opened scene is not first in the recent list"
+                    );
+                    self.ui.show_scenes = true;
+                    self.ui.set_scene_list(2);
+                    self.ui.toast_file("Self-test file toast", path);
+                    self.settings.compare = true;
+                    ui::Bundle::Native.apply(&mut self.settings, scene::Upscaler::Fsr);
+                    anyhow::ensure!(
+                        ui::Bundle::of(&self.settings) == Some(ui::Bundle::Native),
+                        "Quality bundle did not round trip"
+                    );
+                }
+                282 => {
+                    self.ui.set_scene_list(1);
+                    self.settings.compare = false;
+                    ui::Bundle::Best.apply(&mut self.settings, scene::Upscaler::Fsr);
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1438,9 +1493,10 @@ impl App {
         if self.actions.cancel_export {
             self.actions.cancel_export = false;
             if let Some(job) = self.export.take() {
+                let out = job.options.output();
                 let text = unsafe { job.finish(g, s, true)? };
                 println!("EXPORT {text}");
-                self.ui.toast(text);
+                self.ui.toast_file(text, out);
             }
         }
         if let Some(job) = &mut self.export {
@@ -1474,11 +1530,17 @@ impl App {
             let job_done = job.done();
             if step.is_err() || job_done {
                 let job = self.export.take().unwrap();
+                let (out, still) = (job.options.output(), job.options.still);
                 let result = unsafe { job.finish(g, s, step.is_err()) };
                 match step.and(result) {
                     Ok(text) => {
                         println!("EXPORT {text}");
-                        self.ui.toast(text);
+                        self.ui.toast_file(text, out);
+                        if let Some(st) = &mut self.stats
+                            && still
+                        {
+                            st.images_saved += 1;
+                        }
                     }
                     Err(e) => {
                         println!("EXPORT failed: {e:#}");
@@ -1809,7 +1871,8 @@ impl App {
             unsafe {
                 g.capture(std::path::Path::new("cornell.png"), false, false)?;
             }
-            self.ui.toast("Saved cornell.png");
+            self.ui
+                .toast_file("Saved cornell.png", "cornell.png".into());
             if let Some(st) = &mut self.stats {
                 st.images_saved += 1;
             }
@@ -1819,7 +1882,8 @@ impl App {
             unsafe {
                 g.capture(std::path::Path::new("cornell.exr"), true, false)?;
             }
-            self.ui.toast("Saved linear HDR cornell.exr");
+            self.ui
+                .toast_file("Saved linear HDR cornell.exr", "cornell.exr".into());
             if let Some(st) = &mut self.stats {
                 st.images_saved += 1;
             }
@@ -1834,7 +1898,10 @@ impl App {
                     g.width,
                     g.height,
                 )?;
-                self.ui.toast("Saved cornell-hdr.png (PQ / BT.2020)");
+                self.ui.toast_file(
+                    "Saved cornell-hdr.png (PQ / BT.2020)",
+                    "cornell-hdr.png".into(),
+                );
                 if let Some(st) = &mut self.stats {
                     st.images_saved += 1;
                 }
@@ -1842,43 +1909,33 @@ impl App {
                 self.ui.error("HDR PNG needs HDR output");
             }
         }
+        // The high-resolution still is a one-frame export job (UI phase 4): the window stays
+        // responsive, with progress and Cancel.
         if self.actions.high_res {
             self.actions.high_res = false;
-            let mut export = s.clone();
-            export.scale = 1.;
-            // Progressive at full resolution: DLAA would restart every frame.
-            export.native_aa = false;
-            export.max_samples = self.ui.export_samples;
-            export.vsync = false;
-            export.rotate = false;
-            export.compare = false;
             let (w, h) = (g.width, g.height);
-            let factor = (self.ui.export_scale as f32).min(4096. / w.max(h) as f32);
-            let ew = ((w as f32 * factor).round() as u32).max(1);
-            let eh = ((h as f32 * factor).round() as u32).max(1);
-            unsafe {
-                g.resize(ew, eh, &export)?;
-                while g.samples < export.max_samples {
-                    g.render(
-                        &export,
-                        true,
-                        1. / 60.,
-                        &[],
-                        &egui::TexturesDelta::default(),
-                        1.,
-                    )?;
-                }
-                g.capture(std::path::Path::new("cornell-high-res.png"), false, false)?;
-                g.resize(w, h, s)?;
-            }
-            let text = format!(
-                "Saved cornell-high-res.png · {ew}×{eh} · {} spp",
-                self.ui.export_samples
+            let factor = (self.ui.export_scale as f32).min(8192. / w.max(h) as f32);
+            let size = [w, h].map(|v| ((v as f32 * factor).round() as u32).max(1));
+            let exr = self.ui.export_exr;
+            let mut o = video::Options::turntable(
+                s,
+                size,
+                1,
+                self.ui.export_samples,
+                PathBuf::from(if exr {
+                    "cornell-high-res.exr"
+                } else {
+                    "cornell-high-res.png"
+                }),
             );
-            self.ui.toast(text);
-            if let Some(st) = &mut self.stats {
-                st.images_saved += 1;
-            }
+            o.still = true;
+            o.degrees = 0.;
+            o.format = if exr {
+                video::Format::Exr
+            } else {
+                video::Format::Png
+            };
+            self.ui.video_pending = Some(o);
         }
         let cli_turntable = if self.rendered == 2 {
             self.turntable_cli.take()
@@ -1895,17 +1952,21 @@ impl App {
         }
         if self.actions.export_video {
             self.actions.export_video = false;
-            if self.export.is_none() {
-                match unsafe { video::Job::start(g, s, self.ui.video.clone()) } {
-                    Ok(job) => {
-                        // Input is ignored while it runs, so nothing may stay held.
-                        self.drag = None;
-                        self.keys_down.clear();
-                        self.ui.video_preview = None;
-                        self.export = Some(job);
-                    }
-                    Err(e) => self.ui.error(format!("Video export: {e:#}")),
+            self.ui.video_pending = Some(self.ui.video.clone());
+        }
+        if self.export.is_some() && self.ui.video_pending.take().is_some() {
+            self.ui.toast("An export is already running");
+        }
+        if let Some(options) = self.ui.video_pending.take() {
+            match unsafe { video::Job::start(g, s, options) } {
+                Ok(job) => {
+                    // Input is ignored while it runs, so nothing may stay held.
+                    self.drag = None;
+                    self.keys_down.clear();
+                    self.ui.video_preview = None;
+                    self.export = Some(job);
                 }
+                Err(e) => self.ui.error(format!("Export: {e:#}")),
             }
         }
         if self.debug {
@@ -2163,6 +2224,10 @@ impl ApplicationHandler for App {
             }
             if !self.hidden {
                 self.stats = Some(stats::Stats::load());
+                self.ui.prefs = prefs::Prefs::load();
+                self.ui.prefs_live = true;
+                self.ui.advanced |= self.ui.prefs.advanced;
+                self.egui.set_zoom_factor(self.ui.prefs.zoom);
                 self.gamepad = gilrs::Gilrs::new().ok();
             }
             let input = egui_winit::State::new(
@@ -2449,6 +2514,8 @@ impl ApplicationHandler for App {
                         KeyCode::KeyH if self.alt => self.run_command(ui::Command::ShowAll),
                         KeyCode::KeyH if selected => self.run_command(ui::Command::Hide),
                         KeyCode::Home => self.reset_camera(),
+                        KeyCode::KeyS if self.ctrl => self.save_scene(self.shift),
+                        KeyCode::KeyO if self.ctrl => self.open_scene_dialog(),
                         KeyCode::PageUp => self.step_scene(-1),
                         KeyCode::PageDown => self.step_scene(1),
                         KeyCode::F1 => self.ui.show_shortcuts = !self.ui.show_shortcuts,
@@ -2709,6 +2776,19 @@ mod tests {
         );
         assert_eq!(live.a, 0.25, "the double-click resets it: {values:?}");
     }
+    #[test]
+    fn quality_bundles_round_trip() {
+        use crate::scene::{self, Settings};
+        use crate::ui;
+        for b in ui::Bundle::ALL {
+            let mut s = Settings::default();
+            b.apply(&mut s, scene::Upscaler::Xess);
+            assert_eq!(ui::Bundle::of(&s), Some(b), "{b:?}");
+        }
+        let mut s = Settings::default();
+        s.scale = 0.8;
+        assert_eq!(ui::Bundle::of(&s), None);
+    }
     /// Every non-ASCII character in a UI string must exist in egui's default fonts,
     /// otherwise it renders as an empty box.
     #[test]
@@ -2725,6 +2805,7 @@ mod tests {
             ("walk.rs", include_str!("walk.rs")),
             ("video.rs", include_str!("video.rs")),
             ("video_ui.rs", include_str!("video_ui.rs")),
+            ("prefs.rs", include_str!("prefs.rs")),
             ("remote.rs", include_str!("remote.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),

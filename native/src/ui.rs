@@ -112,6 +112,8 @@ struct Toast {
     text: String,
     error: bool,
     until: Instant,
+    /// A saved file: the toast offers Show in folder.
+    file: Option<std::path::PathBuf>,
 }
 pub struct UiState {
     pub tab: Tab,
@@ -127,6 +129,10 @@ pub struct UiState {
     pub video: crate::video::Options,
     pub show_video: bool,
     pub video_preview: Option<egui::TextureHandle>,
+    /// An export to start this frame (the dialog's video, or the high-resolution still).
+    pub video_pending: Option<crate::video::Options>,
+    /// The high-resolution still as linear EXR instead of PNG.
+    pub export_exr: bool,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
     /// The Assets window (item 6, browser.rs).
@@ -152,6 +158,14 @@ pub struct UiState {
     pub scenes: Vec<crate::scenes::Entry>,
     scene_search: String,
     scene_tag: Option<String>,
+    /// Scenes window list: 0 all, 1 favourites, 2 recent (most recent first).
+    scene_list: u8,
+    /// Preferences (prefs.rs); written back only when `prefs_live` (interactive runs).
+    pub prefs: crate::prefs::Prefs,
+    pub prefs_live: bool,
+    /// The scene file last loaded or saved and the scene name it had: Ctrl+S overwrites it
+    /// while the name is unchanged (never by title alone).
+    pub loaded_file: Option<(std::path::PathBuf, String)>,
     pub scene_selected: Option<usize>,
     /// Generator section of the Scenes window: family index and seed.
     gen_family: usize,
@@ -166,6 +180,8 @@ pub struct UiState {
     pub hover: Option<gizmo::Handle>,
     /// The object under the pointer (from the GPU object-id probe), outlined faintly.
     pub hovered: Option<usize>,
+    /// Status bar: when samples were last counted, how many, and samples per second.
+    sample_rate: (Instant, u32, f32),
     /// The right-click menu's position in the viewport, while it is open.
     pub context_menu: Option<egui::Pos2>,
     /// The keyboard and mouse sheet (F1).
@@ -202,6 +218,8 @@ impl Default for UiState {
             },
             show_video: false,
             video_preview: None,
+            video_pending: None,
+            export_exr: false,
             show_scenes: false,
             assets: Default::default(),
             zebras: false,
@@ -221,6 +239,10 @@ impl Default for UiState {
             scenes: crate::scenes::list(),
             scene_search: String::new(),
             scene_tag: None,
+            scene_list: 0,
+            prefs: Default::default(),
+            prefs_live: false,
+            loaded_file: None,
             scene_selected: None,
             gen_family: 0,
             gen_seed: 1,
@@ -231,6 +253,7 @@ impl Default for UiState {
             local: false,
             hover: None,
             hovered: None,
+            sample_rate: (Instant::now(), 0, 0.),
             context_menu: None,
             show_shortcuts: false,
             pending: None,
@@ -243,21 +266,36 @@ impl Default for UiState {
 }
 impl UiState {
     pub fn toast(&mut self, text: impl Into<String>) {
-        self.push(text.into(), false);
+        self.push(text.into(), false, None);
+    }
+    /// A toast about a saved file, with Show in folder.
+    pub fn toast_file(&mut self, text: impl Into<String>, file: std::path::PathBuf) {
+        self.push(text.into(), false, Some(file));
     }
     pub fn error(&mut self, text: impl Into<String>) {
-        self.push(text.into(), true);
+        self.push(text.into(), true, None);
     }
-    fn push(&mut self, text: String, error: bool) {
-        let life = if error { 8. } else { 3. };
+    fn push(&mut self, text: String, error: bool, file: Option<std::path::PathBuf>) {
+        let life = if error || file.is_some() { 8. } else { 3. };
         self.toasts.retain(|t| t.text != text);
         self.toasts.push(Toast {
             text,
             error,
             until: Instant::now() + Duration::from_secs_f32(life),
+            file,
         });
         if self.toasts.len() > 5 {
             self.toasts.remove(0);
+        }
+    }
+    /// Scenes window list: 0 all, 1 favourites, 2 recent.
+    pub fn set_scene_list(&mut self, list: u8) {
+        self.scene_list = list.min(2);
+    }
+    /// Writes the preferences file (interactive runs only).
+    pub fn save_prefs(&self) {
+        if self.prefs_live {
+            self.prefs.save();
         }
     }
     /// Remembers `s` for undo, before an edit.
@@ -659,6 +697,7 @@ impl App {
         self.overlay(ctx);
         self.context_menu(ctx);
         self.shortcuts_window(ctx);
+        self.sync_prefs(ctx);
         self.toasts(ctx);
     }
     /// ◀ ▶, Page Up / Page Down: the scene files while one is loaded, else the presets.
@@ -672,6 +711,132 @@ impl App {
                 let n = PRESETS.len() as isize;
                 self.preset = (self.preset as isize + delta).rem_euclid(n) as usize;
                 self.settings.preset(self.preset);
+            }
+        }
+    }
+    /// Ctrl+O: picks a scene file and loads it (from the scenes list when it is in there).
+    pub fn open_scene_dialog(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Scene", &["json"])
+            .set_directory(crate::scenes::folder().unwrap_or_default())
+            .pick_file()
+        else {
+            return;
+        };
+        self.open_scene(&path);
+    }
+    pub fn open_scene(&mut self, path: &std::path::Path) {
+        self.ui.scenes = crate::scenes::list();
+        let same =
+            |p: &std::path::Path| std::fs::canonicalize(p).ok() == std::fs::canonicalize(path).ok();
+        match self.ui.scenes.iter().position(|e| same(&e.path)) {
+            Some(i) => self.load_scene_file(i),
+            None => {
+                self.ui.checkpoint(&self.settings);
+                match crate::scenes::load_into(&mut self.settings, path) {
+                    Ok(()) => {
+                        self.ui.selection = Selection::Stage;
+                        self.ui.loaded_file =
+                            Some((path.to_path_buf(), self.settings.scene_name.clone()));
+                        self.ui.prefs.opened(path);
+                        self.ui.save_prefs();
+                        self.ui.toast(format!("Loaded {}", path.display()));
+                    }
+                    Err(e) => self.ui.error(format!("{e:#}")),
+                }
+            }
+        }
+    }
+    /// Ctrl+S overwrites the loaded scene when it is a user scene (scenes/user), else asks
+    /// where to save, as Ctrl+Shift+S (`as_new`) always does. The file list and thumbnails
+    /// follow.
+    pub fn save_scene(&mut self, as_new: bool) {
+        // Only the file this scene came from, while it still has that name, and only a user
+        // scene (scenes/user, not a generator file).
+        let current = self
+            .ui
+            .loaded_file
+            .clone()
+            .filter(|(_, name)| *name == self.settings.scene_name)
+            .and_then(|(path, _)| crate::scenes::read_entry(&path))
+            .filter(|e| {
+                e.tags.iter().any(|t| t == "user") && !e.tags.iter().any(|t| t == "generated")
+            });
+        let title = if self.settings.scene_name.trim().is_empty() {
+            "My scene".to_string()
+        } else {
+            self.settings.scene_name.clone()
+        };
+        let (path, description) = match current {
+            Some(e) if !as_new => (e.path, e.description),
+            _ => {
+                let dir = crate::scenes::folder()
+                    .unwrap_or_else(|| std::path::PathBuf::from("scenes"))
+                    .join("user");
+                let _ = std::fs::create_dir_all(&dir);
+                let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Scene", &["json"])
+                    .set_directory(&dir)
+                    .set_file_name(format!("{}.json", crate::scenes::slug(&title)))
+                    .save_file()
+                else {
+                    return;
+                };
+                (path, String::new())
+            }
+        };
+        // A new file is titled after its name, so Save as… can rename the scene.
+        let title = if as_new || self.ui.loaded_file.is_none() {
+            path.file_stem().map_or(title.clone(), |s| {
+                s.to_string_lossy().replace(['-', '_'], " ")
+            })
+        } else {
+            title
+        };
+        match crate::scenes::save_to(&path, &self.settings, &title, &description) {
+            Ok(()) => {
+                self.settings.scene_name = title.clone();
+                self.ui.loaded_file = Some((path.clone(), title));
+                self.reset_baseline = self.settings.clone();
+                self.ui.scenes = crate::scenes::list();
+                self.ui.scene_selected = self.scene_entry();
+                self.ui.prefs.opened(&path);
+                self.ui.save_prefs();
+                if !self.hidden {
+                    self.request_thumbnails(false);
+                }
+                self.ui
+                    .toast_file(format!("Saved {}", path.display()), path);
+            }
+            Err(e) => self.ui.error(format!("Save: {e:#}")),
+        }
+    }
+    /// Keeps the preferences in step with the UI size and the advanced toggle, and shows the
+    /// first-run hint.
+    fn sync_prefs(&mut self, ctx: &egui::Context) {
+        let zoom = ctx.zoom_factor();
+        let p = &mut self.ui.prefs;
+        if (zoom - p.zoom).abs() > 1e-3 || self.ui.advanced != p.advanced {
+            p.zoom = zoom;
+            p.advanced = self.ui.advanced;
+            self.ui.save_prefs();
+        }
+        if self.ui.prefs_live && !self.ui.prefs.hint_seen {
+            let mut seen = false;
+            egui::Area::new(egui::Id::new("first run hint"))
+                .anchor(egui::Align2::CENTER_BOTTOM, [0., -48.])
+                .order(egui::Order::Foreground)
+                .show(ctx, |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Left drag orbits · right drag pans · wheel zooms · click selects · right-click opens a menu · F1 lists every shortcut");
+                            seen = ui.button("Got it").clicked();
+                        });
+                    });
+                });
+            if seen {
+                self.ui.prefs.hint_seen = true;
+                self.ui.save_prefs();
             }
         }
     }
@@ -838,6 +1003,9 @@ impl App {
             Ok(()) => {
                 self.ui.selection = Selection::Stage;
                 self.ui.scene_selected = Some(index);
+                self.ui.loaded_file = Some((e.path.clone(), self.settings.scene_name.clone()));
+                self.ui.prefs.opened(&e.path);
+                self.ui.save_prefs();
                 self.ui.toast(format!("Loaded {}", e.title));
             }
             Err(err) => self.ui.error(format!("{err:#}")),
@@ -874,6 +1042,7 @@ impl App {
                         text: format!("Thumbnail of {title} failed"),
                         error: true,
                         until: Instant::now() + Duration::from_secs(6),
+                        file: None,
                     }),
                 }
             }
@@ -942,6 +1111,12 @@ impl App {
                 tags.sort();
                 tags.dedup();
                 ui.horizontal_wrapped(|ui| {
+                    for (i, name) in ["All", "Favorites", "Recent"].iter().enumerate() {
+                        if ui.selectable_label(state.scene_list == i as u8, *name).clicked() {
+                            state.scene_list = i as u8;
+                        }
+                    }
+                    ui.separator();
                     if ui.selectable_label(state.scene_tag.is_none(), "all").clicked() {
                         state.scene_tag = None;
                     }
@@ -954,15 +1129,26 @@ impl App {
                 });
                 ui.separator();
                 let search = state.scene_search.to_lowercase();
-                let visible: Vec<usize> = (0..state.scenes.len())
+                let mut visible: Vec<usize> = (0..state.scenes.len())
                     .filter(|i| {
                         let e = &state.scenes[*i];
                         (e.title.to_lowercase().contains(&search)
                             || e.description.to_lowercase().contains(&search)
                             || e.tags.iter().any(|t| t.contains(&search)))
                             && state.scene_tag.as_ref().is_none_or(|t| e.tags.contains(t))
+                            && match state.scene_list {
+                                1 => state.prefs.is_favorite(&e.path),
+                                2 => state.prefs.recency(&e.path).is_some(),
+                                _ => true,
+                            }
                     })
                     .collect();
+                if state.scene_list == 2 {
+                    visible.sort_by_key(|i| state.prefs.recency(&state.scenes[*i].path));
+                }
+                if visible.is_empty() && state.scene_list > 0 {
+                    note(ui, if state.scene_list == 1 { "No favourites yet: tick Favorite on a scene." } else { "No scenes opened yet." });
+                }
                 egui::ScrollArea::vertical().id_salt("scene grid").max_height(360.).auto_shrink([false, true]).show(ui, |ui| {
                     let mut start = 0;
                     while start < visible.len() {
@@ -989,7 +1175,7 @@ impl App {
                     }
                 });
                 ui.separator();
-                if let Some(e) = state.scene_selected.and_then(|i| state.scenes.get(i)) {
+                if let Some(e) = state.scene_selected.and_then(|i| state.scenes.get(i).cloned()) {
                     ui.horizontal(|ui| {
                         let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
                         match texture {
@@ -1019,9 +1205,16 @@ impl App {
                                 ui.hyperlink_to(egui::RichText::new(&e.license.source).small(), &e.license.source);
                             }
                             note(ui, &e.path.display().to_string());
-                            if ui.button("Load (or double-click)").clicked() {
-                                load = state.scene_selected;
-                            }
+                            ui.horizontal(|ui| {
+                                if ui.button("Load (or double-click)").clicked() {
+                                    load = state.scene_selected;
+                                }
+                                let mut favorite = state.prefs.is_favorite(&e.path);
+                                if ui.checkbox(&mut favorite, "Favorite").changed() {
+                                    state.prefs.toggle_favorite(&e.path);
+                                    state.save_prefs();
+                                }
+                            });
                         });
                     });
                 } else {
@@ -1551,6 +1744,32 @@ impl App {
             egui::Id::new("gizmo"),
         ));
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, self.ui.selection);
+        // A/B compare: the split line can be dragged (a 12-point strip over the line).
+        if self.settings.compare {
+            let screen = ctx.screen_rect();
+            let x = screen.left() + self.settings.split * screen.width();
+            egui::Area::new(egui::Id::new("ab split"))
+                .fixed_pos(egui::pos2(x - 6., screen.top()))
+                .order(egui::Order::Background)
+                .show(ctx, |ui| {
+                    let (rect, r) = ui
+                        .allocate_exact_size(egui::vec2(12., screen.height()), egui::Sense::drag());
+                    let r = r
+                        .on_hover_cursor(egui::CursorIcon::ResizeHorizontal)
+                        .on_hover_text("Drag to move the A/B split");
+                    if r.dragged() {
+                        self.settings.split =
+                            (self.settings.split + r.drag_delta().x / screen.width()).clamp(0., 1.);
+                    }
+                    let grip = egui::pos2(rect.center().x, rect.center().y);
+                    let fill = if r.hovered() || r.dragged() {
+                        ACCENT
+                    } else {
+                        egui::Color32::from_white_alpha(160)
+                    };
+                    ui.painter().circle_filled(grip, 6., fill);
+                });
+        }
         // Selection and hover outlines: the projected box of the object.
         if self.settings.perspective() {
             if let Some(i) = self.ui.hovered
@@ -1747,7 +1966,8 @@ impl App {
     }
     fn top_bar(&mut self, ctx: &egui::Context, known: bool) {
         egui::TopBottomPanel::top("top bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            // Wraps onto a second row when the window is too narrow, so no control is cut off.
+            ui.horizontal_wrapped(|ui| {
                 ui.menu_button("Menu", |ui| {
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
                     if ui.button("Phone remote…").clicked() {
@@ -1759,20 +1979,38 @@ impl App {
                         ui.close_menu();
                     }
                     ui.separator();
-                    if ui.add_enabled(!self.ui.undo.is_empty(), egui::Button::new("Undo (Ctrl+Z)")).clicked() {
+                    if ui
+                        .add_enabled(!self.ui.undo.is_empty(), egui::Button::new("Undo (Ctrl+Z)"))
+                        .clicked()
+                    {
                         self.ui.undo(&mut self.settings);
                         ui.close_menu();
                     }
-                    if ui.add_enabled(!self.ui.redo.is_empty(), egui::Button::new("Redo (Ctrl+Y)")).clicked() {
+                    if ui
+                        .add_enabled(!self.ui.redo.is_empty(), egui::Button::new("Redo (Ctrl+Y)"))
+                        .clicked()
+                    {
                         self.ui.redo(&mut self.settings);
                         ui.close_menu();
                     }
                     ui.separator();
-                    if ui.button("Save scene (settings.json)").clicked() {
+                    if ui.button("Open scene… (Ctrl+O)").clicked() {
+                        self.open_scene_dialog();
+                        ui.close_menu();
+                    }
+                    if ui.button("Save scene (Ctrl+S)").clicked() {
+                        self.save_scene(false);
+                        ui.close_menu();
+                    }
+                    if ui.button("Save scene as… (Ctrl+Shift+S)").clicked() {
+                        self.save_scene(true);
+                        ui.close_menu();
+                    }
+                    if ui.button("Save settings.json").clicked() {
                         self.actions.save = true;
                         ui.close_menu();
                     }
-                    if ui.button("Load scene (settings.json)").clicked() {
+                    if ui.button("Load settings.json").clicked() {
                         self.actions.load = true;
                         ui.close_menu();
                     }
@@ -1790,10 +2028,10 @@ impl App {
                         "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom",
                         "Click: select an object or light · Delete: remove it · Esc: deselect",
                         "G / R / S: move, rotate, scale · then X / Y / Z, a value, Enter",
-                        "Ctrl+Z / Ctrl+Y: undo / redo",
-                        "Space: pause · R: restart (nothing selected) · F: frame the scene · A: auto orbit",
+                        "Ctrl+Z / Ctrl+Y: undo / redo · Ctrl+S / Ctrl+O: save / open",
+                        "Space: pause · R: restart (nothing selected) · F: frame · A: auto orbit",
                         "D: native denoiser · C: freeze A/B reference · 1–8: views",
-                        "F12: save PNG · Tab: hide panels · Ctrl +/−: UI size",
+                        "F12: save PNG · Tab: hide panels · Ctrl +/−: UI size · F1: all keys",
                     ] {
                         ui.label(egui::RichText::new(line).small());
                     }
@@ -1805,7 +2043,11 @@ impl App {
                     );
                 });
                 ui.separator();
-                if ui.button("◀").on_hover_text("Previous scene (Page Up)").clicked() {
+                if ui
+                    .button("◀")
+                    .on_hover_text("Previous scene (Page Up)")
+                    .clicked()
+                {
                     self.step_scene(-1);
                 }
                 let current = if known {
@@ -1837,11 +2079,18 @@ impl App {
                     })
                     .response
                     .on_hover_text("Pick a scene. Picking the current one again restores it.");
-                if ui.button("▶").on_hover_text("Next scene (Page Down)").clicked() {
+                if ui
+                    .button("▶")
+                    .on_hover_text("Next scene (Page Down)")
+                    .clicked()
+                {
                     self.step_scene(1);
                 }
                 if ui
-                    .selectable_label(self.ui.show_scenes, format!("Scenes ({})", self.ui.scenes.len()))
+                    .selectable_label(
+                        self.ui.show_scenes,
+                        format!("Scenes ({})", self.ui.scenes.len()),
+                    )
                     .on_hover_text("Browse the scene files in scenes/")
                     .clicked()
                 {
@@ -1849,7 +2098,9 @@ impl App {
                 }
                 if ui
                     .selectable_label(self.ui.assets.open, "Assets")
-                    .on_hover_text("Download HDRIs, textures and models (Poly Haven, ambientCG, Khronos)")
+                    .on_hover_text(
+                        "Download HDRIs, textures and models (Poly Haven, ambientCG, Khronos)",
+                    )
                     .clicked()
                 {
                     self.ui.assets.open = !self.ui.assets.open;
@@ -1868,7 +2119,9 @@ impl App {
                 }
                 if ui
                     .button("Today")
-                    .on_hover_text("Seed of the day: everyone running this today gets the same random scene")
+                    .on_hover_text(
+                        "Seed of the day: everyone running this today gets the same random scene",
+                    )
                     .clicked()
                 {
                     self.settings.randomize(seed_of_the_day());
@@ -1876,6 +2129,7 @@ impl App {
                     self.ui.toast(format!("Seed of the day: {name}"));
                 }
                 ui.separator();
+                self.quality_combo(ui);
                 let s = &mut self.settings;
                 egui::ComboBox::from_id_salt("top view")
                     .selected_text(VIEWS[s.view as usize])
@@ -1914,7 +2168,9 @@ impl App {
                 }
                 if ui
                     .selectable_label(self.painting, "Paint light")
-                    .on_hover_text("Light painting (L): lights you move leave trails in one long exposure")
+                    .on_hover_text(
+                        "Light painting (L): lights you move leave trails in one long exposure",
+                    )
                     .clicked()
                 {
                     self.toggle_painting();
@@ -1931,9 +2187,14 @@ impl App {
                     (gizmo::Tool::Select, "Select", "Click to select, no handles"),
                     (gizmo::Tool::Move, "Move", "Arrows and planes. Key: G"),
                     (gizmo::Tool::Rotate, "Rotate", "Rings. Key: R"),
-                    (gizmo::Tool::Scale, "Scale", "Axis handles; the circle scales evenly. Key: S"),
+                    (
+                        gizmo::Tool::Scale,
+                        "Scale",
+                        "Axis handles; the circle scales evenly. Key: S",
+                    ),
                 ] {
-                    ui.selectable_value(&mut self.ui.tool, tool, label).on_hover_text(tip);
+                    ui.selectable_value(&mut self.ui.tool, tool, label)
+                        .on_hover_text(tip);
                 }
                 egui::ComboBox::from_id_salt("orientation")
                     .selected_text(if self.ui.local { "Local" } else { "Global" })
@@ -1985,8 +2246,40 @@ impl App {
                         .desired_width(80.)
                         .desired_height(8.),
                 );
+                // Time to converge, from samples per second smoothed over about a second.
+                let now = Instant::now();
+                let (at, samples, rate) = &mut self.ui.sample_rate;
+                let elapsed = now.duration_since(*at).as_secs_f32();
+                if g.samples < *samples {
+                    (*at, *samples, *rate) = (now, g.samples, 0.);
+                } else if elapsed > 0.25 {
+                    let r = (g.samples - *samples) as f32 / elapsed;
+                    *rate = if *rate > 0. { *rate * 0.6 + r * 0.4 } else { r };
+                    (*at, *samples) = (now, g.samples);
+                }
+                if !converged && !self.paused && *rate > 0. {
+                    let left = (s.max_samples - g.samples.min(s.max_samples)) as f32 / *rate;
+                    ui.monospace(if left < 90. {
+                        format!("~{left:.0} s")
+                    } else {
+                        format!("~{:.0} min", left / 60.)
+                    })
+                    .on_hover_text("Time until the sample cap at the current speed");
+                }
                 ui.separator();
-                ui.monospace(format!("{:.2} ms GPU", g.gpu_ms));
+                let [trace, rebuild, display, gui] = g.pass_ms;
+                let passes = format!(
+                    "Trace {trace:.2} ms · denoise / RR / upscale {rebuild:.2} ms · display {display:.2} ms · UI {gui:.2} ms"
+                );
+                if self.ui.advanced {
+                    ui.monospace(format!(
+                        "{:.2} ms GPU (trace {trace:.2} · reconstruct {rebuild:.2} · display {display:.2} · UI {gui:.2})",
+                        g.gpu_ms
+                    ));
+                } else {
+                    ui.monospace(format!("{:.2} ms GPU", g.gpu_ms))
+                        .on_hover_text(passes);
+                }
                 ui.separator();
                 ui.label(if fallback {
                     egui::RichText::new(&text).color(WARN)
@@ -2034,14 +2327,20 @@ impl App {
         egui::Area::new(egui::Id::new("toasts"))
             .anchor(egui::Align2::RIGHT_BOTTOM, [-16., -40.])
             .order(egui::Order::Foreground)
-            .interactable(false)
             .show(ctx, |ui| {
                 for t in self.ui.toasts.iter().rev() {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
-                        ui.label(if t.error {
-                            egui::RichText::new(&t.text).color(WARN)
-                        } else {
-                            egui::RichText::new(&t.text)
+                        ui.horizontal(|ui| {
+                            ui.label(if t.error {
+                                egui::RichText::new(&t.text).color(WARN)
+                            } else {
+                                egui::RichText::new(&t.text)
+                            });
+                            if let Some(file) = &t.file
+                                && ui.small_button("Show in folder").clicked()
+                            {
+                                show_in_folder(file);
+                            }
                         });
                     });
                 }
@@ -2494,6 +2793,52 @@ impl App {
             });
         });
     }
+    /// The Quality dropdown (UI plan 5.1): bundles of the reconstruction fields, the current
+    /// one derived from the settings (never stored). RR rows are disabled with the reason
+    /// when RR is not available here.
+    fn quality_combo(&mut self, ui: &mut egui::Ui) {
+        let g = self.gpu.as_ref().unwrap();
+        let rr_ok = g.rr_available();
+        let upscaler = [Upscaler::Dlss, Upscaler::Xess, Upscaler::Fsr]
+            .into_iter()
+            .find(|u| g.upscaler_available(*u))
+            .unwrap_or(Upscaler::Bicubic);
+        let rr_reason = g.rr_status.clone();
+        let current = Bundle::of(&self.settings);
+        let mut chosen = None;
+        egui::ComboBox::from_id_salt("quality")
+            .selected_text(current.map_or("Custom quality", |b| b.label()))
+            .width(120.)
+            .show_ui(ui, |ui| {
+                for b in Bundle::ALL {
+                    if b == Bundle::Native {
+                        ui.separator();
+                    }
+                    let usable = rr_ok || !b.rr();
+                    let text = format!("{}  ·  {}", b.label(), b.about(upscaler));
+                    let r = ui
+                        .add_enabled(usable, egui::SelectableLabel::new(current == Some(b), text));
+                    let r = r.on_disabled_hover_text(format!(
+                        "Needs DLSS Ray Reconstruction: {rr_reason}"
+                    ));
+                    if r.clicked() {
+                        chosen = Some(b);
+                    }
+                }
+                if current.is_none() {
+                    ui.separator();
+                    note(ui, "Custom: the Render tab's settings match no bundle.");
+                }
+            })
+            .response
+            .on_hover_text(
+                "Quality: denoiser and render resolution in one choice (details in the Render tab)",
+            );
+        if let Some(b) = chosen {
+            b.apply(&mut self.settings, upscaler);
+            self.ui.toast(format!("Quality: {}", b.label()));
+        }
+    }
     fn look_tab(&mut self, ui: &mut egui::Ui) {
         let hdr_text = hdr_line(self);
         let g = self.gpu.as_ref().unwrap();
@@ -2745,27 +3090,40 @@ impl App {
             row(
                 ui,
                 "Size",
-                "Multiple of the window size, up to 4096 pixels on the long side.",
+                "Multiple of the window size, up to 8192 pixels on the long side.",
                 |ui| {
-                    ui.add(crate::slider(&mut self.ui.export_scale, 1..=4).suffix("×"));
+                    ui.add(crate::slider(&mut self.ui.export_scale, 1..=6).suffix("×"));
                 },
             );
             row(ui, "Samples", "Samples per pixel for the export.", |ui| {
                 ui.add(
-                    crate::slider(&mut self.ui.export_samples, 16..=2048)
+                    crate::slider(&mut self.ui.export_samples, 16..=65536)
                         .logarithmic(true)
                         .suffix(" spp"),
                 );
             });
+            row(
+                ui,
+                "Linear EXR",
+                "32-bit float scene light instead of the tone-mapped PNG.",
+                |ui| {
+                    ui.checkbox(&mut self.ui.export_exr, "");
+                },
+            );
         });
-        let factor = (self.ui.export_scale as f32).min(4096. / g.width.max(g.height) as f32);
-        if ui.button("Render high-resolution PNG").clicked() {
+        let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
+        let name = if self.ui.export_exr {
+            "cornell-high-res.exr"
+        } else {
+            "cornell-high-res.png"
+        };
+        if ui.button("Render high-resolution image").clicked() {
             self.actions.high_res = true;
         }
         note(
             ui,
             &format!(
-                "cornell-high-res.png, {} × {}, traced fresh at 100% resolution. The window waits until it is done. For larger images use the command line (--width, --height, --frames, --capture).",
+                "{name}, {} × {}, traced fresh at 100% resolution. The window stays responsive, with progress and Cancel.",
                 (g.width as f32 * factor).round(),
                 (g.height as f32 * factor).round()
             ),
@@ -3147,3 +3505,118 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
 ];
+
+/// Opens Explorer with `file` selected (or the folder itself).
+pub fn show_in_folder(file: &std::path::Path) {
+    // A file that is not there (a cancelled still) shows its folder instead.
+    let file = if file.exists() {
+        file
+    } else {
+        file.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."))
+    };
+    let path = std::fs::canonicalize(file).unwrap_or_else(|_| file.to_path_buf());
+    // canonicalize gives a \\?\ path, which Explorer does not take.
+    let text = path
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_string();
+    let mut c = std::process::Command::new("explorer");
+    if path.is_dir() {
+        c.arg(&text);
+    } else {
+        c.arg(format!("/select,{text}"));
+    }
+    let _ = c.spawn();
+}
+
+/// Quality bundles (UI plan 5.1): each writes `rr`, `scale`, `denoise`, `native_aa` and, for
+/// the upscaled native one, `upscaler`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Bundle {
+    Best,
+    Balanced,
+    Fast,
+    Fastest,
+    Native,
+    NativeFast,
+    Reference,
+}
+impl Bundle {
+    pub const ALL: [Bundle; 7] = [
+        Bundle::Best,
+        Bundle::Balanced,
+        Bundle::Fast,
+        Bundle::Fastest,
+        Bundle::Native,
+        Bundle::NativeFast,
+        Bundle::Reference,
+    ];
+    pub fn rr(self) -> bool {
+        matches!(
+            self,
+            Bundle::Best | Bundle::Balanced | Bundle::Fast | Bundle::Fastest
+        )
+    }
+    fn scale(self) -> f32 {
+        match self {
+            Bundle::Balanced | Bundle::NativeFast => 2. / 3.,
+            Bundle::Fast => 0.5,
+            Bundle::Fastest => 1. / 3.,
+            _ => 1.,
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Bundle::Best => "Best",
+            Bundle::Balanced => "Balanced",
+            Bundle::Fast => "Fast",
+            Bundle::Fastest => "Fastest",
+            Bundle::Native => "Native denoiser",
+            Bundle::NativeFast => "Native, upscaled",
+            Bundle::Reference => "Reference",
+        }
+    }
+    fn about(self, upscaler: Upscaler) -> String {
+        match self {
+            Bundle::Best => "DLSS RR, DLAA (100%)".into(),
+            Bundle::Balanced => "DLSS RR, 67%".into(),
+            Bundle::Fast => "DLSS RR, 50%".into(),
+            Bundle::Fastest => "DLSS RR, 33%".into(),
+            Bundle::Native => "native denoiser, 100%".into(),
+            Bundle::NativeFast => format!("native denoiser + {}, 67%", upscaler.label()),
+            Bundle::Reference => "no denoiser, 100% (unbiased)".into(),
+        }
+    }
+    /// The bundle the settings match, if any.
+    pub fn of(s: &Settings) -> Option<Bundle> {
+        let near = |b: Bundle| (s.scale - b.scale()).abs() < 0.005;
+        Bundle::ALL.into_iter().find(|b| {
+            near(*b)
+                && if b.rr() {
+                    s.rr
+                } else {
+                    !s.rr
+                        && !s.native_aa
+                        && match b {
+                            Bundle::Native => s.denoise,
+                            // Any upscaler: without a temporal one it falls back to bicubic.
+                            Bundle::NativeFast => s.denoise,
+                            _ => !s.denoise,
+                        }
+                }
+        })
+    }
+    pub fn apply(self, s: &mut Settings, upscaler: Upscaler) {
+        s.rr = self.rr();
+        s.scale = self.scale();
+        s.native_aa = false;
+        if !self.rr() {
+            s.denoise = self != Bundle::Reference;
+        }
+        if self == Bundle::NativeFast {
+            s.upscaler = upscaler;
+        }
+    }
+}

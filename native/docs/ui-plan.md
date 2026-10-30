@@ -533,7 +533,9 @@ Undo / redo, gizmos and G / R / S came with roadmap item 3b; the rest with the p
 - Picking no longer force-opens anything; it selects and switches the panel to Scene.
 Risks: medium. Handle vs orbit input conflicts in `window_event`; BLAS rebuild cost while dragging on heavy scenes (measure chess/bunny; throttle if needed); self-test frame 138 pick check must still pass.
 
-### Phase 3: Scene browser with thumbnails (3–4 days)
+### Phase 3: Scene browser with thumbnails (3–4 days) — done 2026-10-30
+
+The browser and thumbnails came with roadmap item 4; favourites, recent, Ctrl+S / Ctrl+Shift+S / Ctrl+O and `--preset` slugs with UI phases 3–5 (CLAUDE.md). Not done: the `PresetInfo` registry refactor (slugs instead).
 
 - `gpu.rs` multi-texture egui path (managed + user ids, heap to 512, per-draw binding, `delta.free`).
 - Preset registry (`PresetInfo` with slug, category, tags, description, builder) replacing `PRESETS`/`description()`/`apply()` matches; `--preset slug`; numeric indices kept.
@@ -541,7 +543,9 @@ Risks: medium. Handle vs orbit input conflicts in `window_event`; BLAS rebuild c
 - Named Save / Save as / Open (Ctrl+S / Ctrl+Shift+S / Ctrl+O) into `scenes/`, thumbnail on save. A native file dialog via `windows` crate `IFileOpenDialog` (needs `Win32_UI_Shell` + `Win32_System_Com` features) or the `rfd` crate.
 Risks: medium. Descriptor-heap and resource-lifetime bugs in `gpu.rs` (run `--debug`); registry refactor touches `scene.rs`/`presets.rs` and the self-test's preset cycling (frames 10–125) and randomize (presets 0–22); coordinate with the main session.
 
-### Phase 4: Quality UX, export and diagnostics (2–3 days, after the upscaler backends land)
+### Phase 4: Quality UX, export and diagnostics (2–3 days, after the upscaler backends land) — done 2026-10-30
+
+Quality bundles in the top bar, per-pass GPU timestamps and a time-to-cap estimate, the high-res still as a non-blocking job (rendered at its own size, as the video export does), Show in folder, a draggable A/B split. Not done: a `Capabilities` struct with per-backend reasons, the "what the denoiser is doing" line, file name templates.
 
 - Quality bundles and the Advanced Denoiser/Upscaler/Resolution/Model controls of section 5, driven by a `Capabilities` struct from `Gpu` with per-backend reasons; runtime fallback shown honestly.
 - Per-pass GPU timestamps; "what the denoiser is doing" line from `Gpu` flags.
@@ -549,7 +553,9 @@ Risks: medium. Descriptor-heap and resource-lifetime bugs in `gpu.rs` (run `--de
 - A/B split line draggable in the viewport.
 Risks: medium–high. Export resizes the swapchain (`g.resize(ew, eh, …)`), so a non-blocking export either shows a scaled preview during export or needs an off-screen target set; the latter is renderer work. Upscaler availability semantics depend on the main session's API.
 
-### Phase 5 (optional): Polish (2 days)
+### Phase 5 (optional): Polish (2 days) — partly done 2026-10-30
+
+Done: persisted prefs (favourites, recent, UI size, advanced), first-run hint. Not done: lens shift to centre the subject, GPU silhouette outlines, material / light thumbnails, a UI-size setting beyond Ctrl +/−.
 
 - Centre the subject in the free viewport area (lens shift or offset render rect).
 - GPU selection outline from the object-id buffer; object-id texel readback for exact hover.

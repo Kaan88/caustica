@@ -91,6 +91,9 @@ pub struct Options {
     pub distance: f32,
     pub easing: Easing,
     pub path: PathBuf,
+    /// One image written to `path` itself (the high-resolution still) instead of a folder of
+    /// numbered frames.
+    pub still: bool,
 }
 impl Options {
     /// The turntable of older builds: the current camera turning, H.264 at CRF 16.
@@ -109,6 +112,7 @@ impl Options {
             distance: s.distance,
             easing: Easing::Linear,
             path,
+            still: false,
         }
     }
     /// Output size: video encoders take 4:2:x chroma, so their sizes round down to even.
@@ -137,6 +141,27 @@ impl Options {
     /// The image sequence folder (the path without its extension).
     pub fn folder(&self) -> PathBuf {
         self.path.with_extension("")
+    }
+    /// What the export writes: the video or still file, or the folder of frames.
+    pub fn output(&self) -> PathBuf {
+        if self.format.video() || self.still {
+            self.path.clone()
+        } else {
+            self.folder()
+        }
+    }
+    /// The file of frame `number` (from 1) of an image export.
+    fn frame_path(&self, number: u32) -> PathBuf {
+        if self.still {
+            self.path.clone()
+        } else {
+            let ext = if self.format == Format::Exr {
+                "exr"
+            } else {
+                "png"
+            };
+            self.folder().join(format!("{number:05}.{ext}"))
+        }
     }
 }
 
@@ -286,13 +311,19 @@ impl Writer {
             }
             Some(c.spawn().context("Starting ffmpeg")?)
         } else {
-            std::fs::create_dir_all(o.folder())?;
+            match o.output().parent() {
+                Some(dir) if o.still && !dir.as_os_str().is_empty() => {
+                    std::fs::create_dir_all(dir)?
+                }
+                _ if o.still => {}
+                _ => std::fs::create_dir_all(o.folder())?,
+            }
             None
         };
         let (tx, rx) = std::sync::mpsc::sync_channel::<Frame>(2);
         let cancel = Arc::new(AtomicBool::new(false));
         let stop = cancel.clone();
-        let (folder, path) = (o.folder(), o.path.clone());
+        let (options, path) = (o.clone(), o.path.clone());
         // ffmpeg's messages are read as they come, so a full pipe can never stall it.
         let stderr = child.as_mut().and_then(|c| c.stderr.take()).map(|mut e| {
             std::thread::spawn(move || {
@@ -323,7 +354,7 @@ impl Writer {
                         .map_err(anyhow::Error::from)
                     }
                     (None, Frame::Rgba8(rgba)) => image::save_buffer(
-                        folder.join(format!("{number:05}.png")),
+                        options.frame_path(number),
                         &rgba,
                         w,
                         h,
@@ -340,7 +371,7 @@ impl Writer {
                         image::Rgb32FImage::from_raw(w, h, rgb)
                             .context("EXR size")
                             .and_then(|i| {
-                                i.save(folder.join(format!("{number:05}.exr")))
+                                i.save(options.frame_path(number))
                                     .map_err(anyhow::Error::from)
                             })
                     }
@@ -540,6 +571,18 @@ impl Job {
         let written = written?;
         let [ew, eh] = self.options.size();
         let secs = self.started.elapsed().as_secs_f32();
+        if self.options.still && !cancel {
+            return Ok(format!(
+                "Saved {} ({ew}×{eh}, {} spp, {secs:.0} s){note}",
+                self.options.path.display(),
+                self.settings.max_samples,
+                note = if self.note.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · {}", self.note)
+                }
+            ));
+        }
         let what = if self.options.format.video() {
             self.options.path.display().to_string()
         } else {

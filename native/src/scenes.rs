@@ -154,53 +154,60 @@ pub fn list() -> Vec<Entry> {
                 .to_string()
         });
         for path in files {
-            let Ok(bytes) = std::fs::read(&path) else {
-                continue;
-            };
-            let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-                continue;
-            };
-            let text = |k: &str| {
-                value
-                    .get(k)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string()
-            };
-            let stem = path
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
-            let title = match text("title") {
-                t if !t.is_empty() => t,
-                _ => value
-                    .get("scene_name")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string)
-                    .unwrap_or(stem),
-            };
-            out.push(Entry {
-                path,
-                pack: pack_name.clone(),
-                title,
-                credits: text("credits"),
-                license: license.clone(),
-                hash: fnv(&bytes),
-                description: text("description"),
-                tags: value
-                    .get("tags")
-                    .and_then(|v| v.as_array())
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|t| t.as_str().map(str::to_string))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            });
+            if let Some(e) = entry(path, pack_name.clone(), license.clone()) {
+                out.push(e);
+            }
         }
     }
     out
+}
+/// One scene file's entry (title, description, tags) without its pack's licence; `None` when
+/// it is not JSON.
+pub fn read_entry(path: &Path) -> Option<Entry> {
+    let pack = path.parent()?.file_name()?.to_string_lossy().to_string();
+    entry(path.to_path_buf(), pack, License::default())
+}
+fn entry(path: PathBuf, pack: String, license: License) -> Option<Entry> {
+    let bytes = std::fs::read(&path).ok()?;
+    let value = serde_json::from_slice::<serde_json::Value>(&bytes).ok()?;
+    let text = |k: &str| {
+        value
+            .get(k)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
+    let stem = path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    let title = match text("title") {
+        t if !t.is_empty() => t,
+        _ => value
+            .get("scene_name")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .unwrap_or(stem),
+    };
+    Some(Entry {
+        path,
+        pack,
+        title,
+        credits: text("credits"),
+        license,
+        hash: fnv(&bytes),
+        description: text("description"),
+        tags: value
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|t| t.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
 }
 /// Reads a scene file (wrapper or bare `Settings`) and validates it. The scene name becomes
 /// the file's title.
@@ -262,7 +269,7 @@ pub fn load_into(s: &mut Settings, path: &Path) -> Result<()> {
     *s = loaded;
     Ok(())
 }
-fn slug(title: &str) -> String {
+pub(crate) fn slug(title: &str) -> String {
     let mut out = String::new();
     for c in title.chars() {
         if c.is_ascii_alphanumeric() {
@@ -297,21 +304,42 @@ pub fn save_user(s: &Settings, title: &str, description: &str) -> Result<PathBuf
         bail!("Give the scene a title");
     }
     let root = folder().unwrap_or_else(|| PathBuf::from("scenes"));
-    let dir = root.join("user");
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{}.json", slug(title)));
+    let path = root.join("user").join(format!("{}.json", slug(title)));
+    save_to(&path, s, title, description)?;
+    Ok(path)
+}
+/// Writes a scene file at `path` (Save as…; Ctrl+S on a user scene). The title becomes the
+/// scene name; the description and tags of a file being overwritten are kept.
+pub fn save_to(path: &Path, s: &Settings, title: &str, description: &str) -> Result<()> {
+    let title = title.trim();
+    ensure!(!title.is_empty(), "Give the scene a title");
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let old: Option<serde_json::Value> = std::fs::read(path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok());
+    let tags = old
+        .as_ref()
+        .and_then(|v| serde_json::from_value::<Vec<String>>(v["tags"].clone()).ok())
+        .unwrap_or_else(|| vec!["user".into()]);
+    // An overwritten file keeps its description unless a new one is given.
+    let description = match (description, &old) {
+        ("", Some(v)) => v["description"].as_str().unwrap_or("").to_string(),
+        _ => description.to_string(),
+    };
     let mut settings = s.clone();
     settings.scene_name = title.into();
     let file = SceneFile {
         format: 1,
         title: title.into(),
-        description: description.into(),
-        tags: vec!["user".into()],
+        description,
+        tags,
         credits: String::new(),
         settings,
     };
-    std::fs::write(&path, serde_json::to_string_pretty(&file)?)?;
-    Ok(path)
+    std::fs::write(path, serde_json::to_string_pretty(&file)?)?;
+    Ok(())
 }
 
 /// Renders the given scenes' thumbnails one after another on a background thread, by running

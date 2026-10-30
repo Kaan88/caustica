@@ -75,6 +75,9 @@ struct Constants {
     gain: [f32; 4],
     environment_map: [f32; 4],
 }
+/// Timestamps per frame: start, after the trace, after reconstruction, after display, after
+/// the UI.
+const TIMESTAMPS: u32 = 5;
 /// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
 const CB_STRIDE: u64 = 1024;
 const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
@@ -282,6 +285,9 @@ pub struct Gpu {
     pub samples: u32,
     pub frame: u32,
     pub gpu_ms: f64,
+    /// GPU time of each pass this frame (ms): trace, reconstruction (native denoiser, RR or
+    /// upscaler), display, UI.
+    pub pass_ms: [f64; 4],
     pub adapter_name: String,
     previous_vp: Mat4,
     rr_reset: bool,
@@ -575,7 +581,7 @@ impl Gpu {
         device.CreateQueryHeap(
             &D3D12_QUERY_HEAP_DESC {
                 Type: D3D12_QUERY_HEAP_TYPE_TIMESTAMP,
-                Count: 2,
+                Count: TIMESTAMPS,
                 NodeMask: 0,
             },
             &mut query,
@@ -583,7 +589,7 @@ impl Gpu {
         let query = query.unwrap();
         let timing = buffer(
             &device,
-            16,
+            8 * TIMESTAMPS as u64,
             D3D12_HEAP_TYPE_READBACK,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COPY_DEST,
@@ -696,6 +702,7 @@ impl Gpu {
             samples: 0,
             frame: 0,
             gpu_ms: 0.,
+            pass_ms: [0.; 4],
             adapter_name,
             previous_vp: Mat4::IDENTITY,
             rr_reset: true,
@@ -2160,6 +2167,10 @@ impl Gpu {
         write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
         self.list
             .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+        if n == 0 {
+            self.list
+                .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+        }
         if n > 0 {
             self.bind(0);
             self.list.SetPipelineState(if self.textured {
@@ -2170,6 +2181,8 @@ impl Gpu {
             self.list
                 .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
             uav(&self.list, None);
+            self.list
+                .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
             if self.rr_active {
                 let inputs = [0, 2, 3, 4, 5, 6, 7];
                 for i in inputs {
@@ -2266,6 +2279,8 @@ impl Gpu {
         {
             self.run_upscaler(kind, s, &mut c, jitter, (self.sr_reset || reset) as i32, dt);
         }
+        self.list
+            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 2);
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
         write_buffer(&self.constants, 8 * CB_STRIDE, bytemuck::bytes_of(&c))?;
@@ -2284,15 +2299,7 @@ impl Gpu {
             self.queue_readbacks(probe)?;
         }
         self.list
-            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
-        self.list.ResolveQueryData(
-            &self.query,
-            D3D12_QUERY_TYPE_TIMESTAMP,
-            0,
-            2,
-            &self.timing,
-            0,
-        );
+            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 3);
         let index = self.swap.GetCurrentBackBufferIndex() as usize;
         let back = &self.buffers[index];
         let shown = if self.hdr_active { 26 } else { 10 };
@@ -2345,6 +2352,16 @@ impl Gpu {
         }
         self.list.OMSetRenderTargets(1, Some(&handle), false, None);
         self.draw_gui(primitives, pixels_per_point, &mut keep)?;
+        self.list
+            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 4);
+        self.list.ResolveQueryData(
+            &self.query,
+            D3D12_QUERY_TYPE_TIMESTAMP,
+            0,
+            TIMESTAMPS,
+            &self.timing,
+            0,
+        );
         // Freed textures go after the draw that may still use them this frame; one frame in
         // flight means the slot is free again by the next one.
         for id in &delta.free {
@@ -2394,11 +2411,21 @@ impl Gpu {
         self.finish_readbacks(probe)?;
         self.present_count = self.present_count.wrapping_add(1);
         let mut data = null_mut();
-        self.timing
-            .Map(0, Some(&D3D12_RANGE { Begin: 0, End: 16 }), Some(&mut data))?;
-        let times = std::slice::from_raw_parts(data as *const u64, 2);
-        let frequency = self.queue.GetTimestampFrequency()?;
-        self.gpu_ms = (times[1] - times[0]) as f64 / frequency as f64 * 1000.;
+        let count = TIMESTAMPS as usize;
+        self.timing.Map(
+            0,
+            Some(&D3D12_RANGE {
+                Begin: 0,
+                End: 8 * count,
+            }),
+            Some(&mut data),
+        )?;
+        let times = std::slice::from_raw_parts(data as *const u64, count);
+        let ms = 1000. / self.queue.GetTimestampFrequency()? as f64;
+        let span = |a: usize, b: usize| times[b].saturating_sub(times[a]) as f64 * ms;
+        // Without the UI, as before: trace to the end of display.
+        self.gpu_ms = span(0, 3);
+        self.pass_ms = [span(0, 1), span(1, 2), span(2, 3), span(3, 4)];
         self.timing.Unmap(0, None);
         self.samples += n;
         if n > 0 {

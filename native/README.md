@@ -59,7 +59,9 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
   - **Gamepad:** sticks orbit and zoom, the triggers set light intensity, the bumpers switch scenes, A pauses, B restarts, the D-pad sets exposure, Start hides the panel.
   - **Phone remote** (Menu → *Phone remote*): serves a page on the local network with a QR code. It has sliders for exposure, light, orbit, zoom and aperture, scene buttons and the tone map. It is off by default, and every request needs a random per-session token.
 - **Look tools** (Look tab → Tools): zebras on clipped areas; scopes (RGB and luma histogram, luma waveform, vectorscope of the displayed image); a light meter that shows luminance (nits, 1.0 = 80 nits as in HDR) and illuminance (lux, assuming a Lambertian surface) under the cursor; and a convergence graph that plots RMSE against a reference EXR, or against the current image once converged, as samples grow. Menu → *Statistics and achievements* shows lifetime totals (paths traced, GPU time, images saved, record sample count, presets and scenes visited) and eight achievements.
-- **Captures:** PNG and linear RGB32F OpenEXR. The high-resolution button renders fresh paths at the export resolution (up to 4096 on the longest side), with a chosen sample budget; it then restarts the interactive render at its previous resolution. CLI exports can render up to 8192×8192, subject to available GPU memory.
+- **Captures:** PNG and linear RGB32F OpenEXR. *Render high-resolution image* (Export tab) renders fresh paths at up to 8192 on the longest side with a chosen sample budget, as PNG or linear EXR, while the window stays responsive (progress, Cancel). Saved files get a toast with *Show in folder*.
+- **Quality** (top bar): Best / Balanced / Fast / Fastest (DLSS Ray Reconstruction at 100 / 67 / 50 / 33%), Native denoiser, Native upscaled (with the best temporal upscaler available) and Reference (no denoiser). It picks the Render tab's settings in one go and shows *Custom quality* when they match no bundle. The status bar shows the time left to the sample cap and, on hover (or inline with advanced settings), GPU time per pass.
+- **Scene files and preferences:** Menu → *Open scene…* (Ctrl+O), *Save scene* (Ctrl+S), *Save scene as…* (Ctrl+Shift+S); the Scenes window lists Favorites and Recent. Favorites, recent scenes, the UI size (Ctrl +/−) and *Show advanced settings* are remembered in `%APPDATA%\CornellRTX\prefs.json`. `--preset` takes a name such as `mirror-corridor`. While comparing A/B, drag the split line.
 
 ## Controls
 
@@ -91,6 +93,7 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 | Ctrl+D / Shift+D | Duplicate the selection / duplicate it and move the copy |
 | H / Alt+H | Hide or show the selection / show all hidden objects |
 | F1 | Sheet of every shortcut |
+| Ctrl+S / Ctrl+Shift+S / Ctrl+O | Save the scene / save it as / open one |
 | Delete | Delete the selected object or area light |
 | Escape | Close the menu, else deselect (the app closes only from the window) |
 | Space | Pause/resume |

@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 281 scripted frames (`SCENES_FROM`), then one frame per scene file (445 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 283 scripted frames (`SCENES_FROM`), then one frame per scene file (447 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -85,6 +85,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `src/look.rs` | Roadmap 5c: `read_cube` (.cube 3D LUT) and `color_wheel` (lift/gamma/gain widget: chroma from a dragged dot in an orthonormal RGB chroma plane, level from a slider, double-click resets). |
 | `src/walk.rs`, `video.rs`, `saver.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), screensaver mode, phone remote (see "Toys"). |
 | `src/video_ui.rs` | The video export dialog and the progress window shown during an export. |
+| `src/prefs.rs` | UI preferences in %APPDATA%\CornellRTX\prefs.json: favourite and recent scenes, UI size, advanced toggle, first-run hint. |
 | `src/editor.rs` | Inspectors used by the Scene tab: `object_ui`, `light_ui`, `material_ui`, `shape_combo`, `new_object`. Ranges match `validate()`. |
 | `src/mesh.rs`, `procedural.rs`, `environment.rs`, `texture.rs` | Core tracks 2, 1, 3 and 5: mesh import (parts, UVs, texture maps), `gen:` procedural meshes, HDRI maps and their CDFs, texture sets. See their sections below. |
 | `src/assets.rs`, `browser.rs` | Item 6 asset browser: online catalogs, pinned downloads, the Assets window. See "Asset browser". |
@@ -261,7 +262,7 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
   - EXR reads texture 18.
   - HDR PNG (`--capture name.hdr.png`, or the button in HDR mode) reads texture 26 through `Gpu::read_floats`.
   - A UI capture in HDR mode converts the FP16 backbuffer back to sRGB with paper white = 1.0.
-  - High-resolution export resizes the swapchain to ≤ 4096, renders synchronously, then resizes back. Video export renders at its own output size without touching the swapchain (see "Video export").
+  - High-resolution export and video export render at their own output size without touching the swapchain, as a `video::Job` (see "Video export" and "UI phases 3–5").
 
 ## Status (2026-10-29)
 
@@ -369,7 +370,20 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - egui's default fonts lack `→` and `●`: the glyph unit test caught both. The status dot is painted.
 - CLI for captures: `--ui-tab`, `--ui-advanced`, `--ui-select`.
 - Self-test: 178 opens the Render tab for the slider-clamp guard; 190–195 draw the object, light, main light, camera, Look and Export views with advanced rows, then delete the added light through `delete_selected`.
-- Not done (later phases): Quality bundles, per-pass GPU timing, persisted UI prefs, async high-res export (undo, handles, hover, the scene browser, thumbnails and file pickers came with 3b, item 4, core 2 and phase 2 below).
+- Later phases are done; see "Viewport interaction" and "UI phases 3–5".
+
+## UI phases 3–5 (2026-10-30)
+
+- **Preferences** (`prefs.rs`): `%APPDATA%\CornellRTX\prefs.json` beside the stats: `favorites` and `recent` (≤ 12) scene files by `prefs::key` (path relative to the scenes folder, forward slashes), `zoom` (egui zoom, Ctrl +/−, applied at startup), `advanced`, `hint_seen`. Loaded and written only in visible runs (`UiState::prefs_live`, set where the stats load); `save_prefs` writes on each change; `sync_prefs` (every frame in `App::ui`) follows zoom and advanced and draws the first-run hint (bottom centre, *Got it*).
+- **Scenes:** the Scenes window has All / Favorites / Recent lists (`scene_list`; Recent sorts by recency) and a *Favorite* checkbox; loading a file (`load_scene_file`, `open_scene`) pushes it to the recent list. Menu and keys: *Open scene…* (Ctrl+O, rfd; a file in the list loads through `load_scene_file`, others through `scenes::load_into`), *Save scene* (Ctrl+S: overwrites the loaded file when it is a non-generated user scene, else asks), *Save scene as…* (Ctrl+Shift+S, defaults to `scenes/user/<slug>.json`; the file name becomes the title). `scenes::save_to` writes any path (keeping an overwritten file's tags); `save_user` uses it. After a save the list refreshes, `reset_baseline` follows and missing thumbnails render. `--preset` takes a slug of the preset name (`scenes::slug`, e.g. `mirror-corridor`) as well as a number. The settings.json save / load entries stay in the menu.
+- **Quality bundles** (`ui::Bundle`, top bar): Best / Balanced / Fast / Fastest (RR at 100 / 67 / 50 / 33%), Native denoiser, Native upscaled (67% with the first available of DLSS SR, XeSS, FSR, else bicubic), Reference (no denoiser). `Bundle::of(&Settings)` derives the current one (else "Custom quality"); `apply` writes `rr`, `scale`, `native_aa`, `denoise` and the upscaler. RR rows are disabled with `rr_status` when `rr_available()` is false. Unit test `quality_bundles_round_trip`.
+- **Per-pass GPU time:** 5 timestamps (start, after trace, after reconstruction, after display, after UI; `TIMESTAMPS`), resolved after the UI draw. `Gpu::pass_ms` = trace, reconstruct (native filter, RR or upscaler), display, UI; `gpu_ms` is still start → display. The status bar shows them on hover, inline with advanced settings, and an estimate of the time to the sample cap (samples per second smoothed over ~1 s; `UiState::sample_rate`).
+- **High-resolution still** is a one-frame `video::Job` (`Options::still`: the frame goes to `path` itself, PNG or linear EXR with the new *Linear EXR* row), up to 8192 on the long side (size 1–6× the window), 16–65536 spp; the progress window says "Rendering image". `UiState::video_pending` starts either kind of export. Self-test 172 asserts frame 170's still finished.
+- **Toasts with Show in folder:** `UiState::toast_file(text, path)` (PNG, EXR, HDR PNG, exports, scene saves; 8 s) adds a button that runs `explorer /select,<path>` (`ui::show_in_folder`; folders open directly).
+- **A/B split:** while comparing, a 12-point strip over the split line is draggable (`overlay`, ResizeHorizontal cursor, grip dot); `split` is display-only.
+- **Top bar** wraps onto a second row when it does not fit (at 1440 wide it now takes two rows; Rotate / Scale / Hide panel were cut off before).
+- **Self-test 281–282:** a scene saved with `scenes::save_to` to the temp folder is opened (title and exposure checked, first in the recent list), the Recent and Favorites lists, a file toast, the A/B handle and the Native and Best bundles are drawn. Scene files start at 283.
+- Not done: the preset registry refactor (slugs only); thumbnails of material balls and lights; lens shift to centre the subject in the free viewport; GPU silhouette outlines from the id buffer; a capabilities struct with per-backend reasons (the bundles use `rr_status` and `upscaler_available`); file name templates for exports; the "what the denoiser is doing" line.
 
 ## Viewport interaction (UI phase 2, 2026-10-30)
 
@@ -377,7 +391,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Keys** (`window_event`): Ctrl+D, Shift+D (duplicate, then a modal move), H, Alt+H (`App::alt`), Home, Page Up / Down (`step_scene`, shared with ◀ ▶), F1 (`shortcuts_window`, three groups side by side from `SHORTCUTS`), F frames the selection. The Ctrl / Shift D arms come before plain D (denoiser). Esc closes the menu before it deselects.
 - **Mouse:** middle drag pans. Double-click: a left click within 400 ms and 6 px of the last (`last_click`) sets `frame_pick`, and the pick result frames that object. A short right click (< 3 px of drag, not over egui) picks under the pointer and sets `UiState::context_menu` (logical position); `App::context_menu` draws it as a foreground `Area` until an item, a press outside or Esc. A right click on empty space keeps the selection. Outliner rows open the same entries through egui's `context_menu`, queued in `UiState::pending` and run by `context_menu` in the same frame.
 - **Outlines:** `geometry::object_corners` (the mesh's local AABB, cached by mesh pointer, through the object transform) → `gizmo::draw_box_outline` (convex hull of the projected corners; nothing when a corner is behind the camera). The selection is drawn in the accent colour, the hovered object in faint white. Hover comes from the GPU probe: while the pointer is over the viewport (no drag, transform or menu, perspective camera) `g.probe` is set every frame and `ui.hovered` = probe id − 6 when that is an object (ids are material + 1; objects are materials 5…).
-- **Tests:** unit test `the_hull_drops_inner_points`; self-test 279–280 runs duplicate (count and selection), hide, show all, delete, Home (yaw back to the baseline) and Page Down + Page Up (same scene name), drawing the menu, hover outline and sheet. Scene files start at 281.
+- **Tests:** unit test `the_hull_drops_inner_points`; self-test 279–280 runs duplicate (count and selection), hide, show all, delete, Home (yaw back to the baseline) and Page Down + Page Up (same scene name), drawing the menu, hover outline and sheet. Scene files started at 281 then (283 since phases 3–5).
 - Shift+D moves only when a copy was made (the main light has none); Ctrl / Shift+D never reach the denoiser key. The menu closes on a press outside its area (`contains_pointer`, so its own buttons still click).
 - Not done: Alt-drag duplicate (Shift+D covers it); an outline disappears while any box corner is behind the camera (close-up walls); hover and outlines for lights (they have their own outlines) and for non-perspective cameras; outlines are boxes, not the silhouette (GPU outline from the id buffer is phase 5); the probe readback runs every hovered frame (one texel).
 

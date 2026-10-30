@@ -219,42 +219,46 @@ impl App {
         let [w, h] = o.size();
         let progress = job.progress(samples);
         let mut cancel = false;
-        egui::Window::new("Exporting video")
-            .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
-            .resizable(false)
-            .collapsible(false)
-            .show(ctx, |ui| {
-                ui.set_width(380.);
-                if let Some(t) = &self.ui.video_preview {
-                    let size = t.size_vec2();
-                    ui.image((t.id(), size * (380. / size.x)));
-                } else {
-                    ui.add_sized([380., 380. * h as f32 / w as f32], egui::Spinner::new());
-                }
-                ui.add(egui::ProgressBar::new(progress).show_percentage());
-                ui.label(format!(
-                    "Frame {} of {} · {} / {} spp",
-                    (job.frame + 1).min(o.frames),
-                    o.frames,
-                    samples.min(job.settings().max_samples),
-                    job.settings().max_samples
-                ));
-                let elapsed = job.started.elapsed().as_secs();
-                let left = job.remaining().map_or("estimating".into(), |d| {
-                    format!("about {} left", clock(d.as_secs()))
-                });
-                note(
-                    ui,
-                    &format!(
-                        "{} · {w}×{h} · {} elapsed, {left}",
-                        o.format.label(),
-                        clock(elapsed)
-                    ),
-                );
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
+        egui::Window::new(if o.still {
+            "Rendering image"
+        } else {
+            "Exporting video"
+        })
+        .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
+        .resizable(false)
+        .collapsible(false)
+        .show(ctx, |ui| {
+            ui.set_width(380.);
+            if let Some(t) = &self.ui.video_preview {
+                let size = t.size_vec2();
+                ui.image((t.id(), size * (380. / size.x)));
+            } else {
+                ui.add_sized([380., 380. * h as f32 / w as f32], egui::Spinner::new());
+            }
+            ui.add(egui::ProgressBar::new(progress).show_percentage());
+            ui.label(format!(
+                "Frame {} of {} · {} / {} spp",
+                (job.frame + 1).min(o.frames),
+                o.frames,
+                samples.min(job.settings().max_samples),
+                job.settings().max_samples
+            ));
+            let elapsed = job.started.elapsed().as_secs();
+            let left = job.remaining().map_or("estimating".into(), |d| {
+                format!("about {} left", clock(d.as_secs()))
             });
+            note(
+                ui,
+                &format!(
+                    "{} · {w}×{h} · {} elapsed, {left}",
+                    o.format.label(),
+                    clock(elapsed)
+                ),
+            );
+            if ui.button("Cancel").clicked() {
+                cancel = true;
+            }
+        });
         if cancel {
             self.actions.cancel_export = true;
         }
