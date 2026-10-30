@@ -140,14 +140,38 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
         .num_columns(2)
         .spacing([12., 6.])
         .show(ui, |ui| {
-            row(ui, "Shape", "The mesh used for this object.", |ui| {
-                let mut kind = o.kind();
-                shape_combo(ui, "object shape", &mut kind);
-                if kind != o.kind() {
-                    o.shape = kind;
-                    o.sphere = false;
-                }
-            });
+            if o.mesh.is_empty() {
+                row(ui, "Shape", "The mesh used for this object.", |ui| {
+                    let mut kind = o.kind();
+                    shape_combo(ui, "object shape", &mut kind);
+                    if kind != o.kind() {
+                        o.shape = kind;
+                        o.sphere = false;
+                    }
+                });
+            } else {
+                row(
+                    ui,
+                    "Mesh",
+                    "An imported mesh, scaled into the same box as the built-in shapes.",
+                    |ui| {
+                        let name = std::path::Path::new(&o.mesh)
+                            .file_name()
+                            .map_or(o.mesh.clone(), |n| n.to_string_lossy().to_string());
+                        ui.label(name).on_hover_text(&o.mesh);
+                        if let Err(e) = crate::mesh::load(&o.mesh) {
+                            ui.label(
+                                egui::RichText::new("missing")
+                                    .color(egui::Color32::from_rgb(232, 176, 72)),
+                            )
+                            .on_hover_text(format!("{e:#}"));
+                        }
+                        if ui.small_button("Use a shape").clicked() {
+                            o.mesh.clear();
+                        }
+                    },
+                );
+            }
             row(
                 ui,
                 "Position",

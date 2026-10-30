@@ -104,6 +104,7 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 - **Save to scenes/user** in the same window writes the current scene with a title and description.
 - **Generators:** the Scenes window's *Generate* section builds a scene from a family and a seed: studio still life, material grid, city blocks (day or night), temple, stairs (straight, L, U, spiral), stacking (cairn, Jenga, house of cards, sphere pyramid), Menger sponge, Sierpinski tetrahedron, sphereflake, kaleidoscope and Truchet maze. *Next seed* and *Random* step through variations, and a generated scene can be saved as a tiny scene file (family + seed). `scenes/generated` ships 66 curated seeds.
 - **Thumbnails** are rendered in the background the first time the browser opens, by running the exe headless for each scene (320×200), and cached in `scenes/thumbnails/` under the file's hash, so an edited scene gets a new one. *Re-render thumbnails* redoes them all; `--make-thumbnails` renders the missing ones from the command line.
+- **Meshes:** *+ Mesh…* in the Scene tab imports an OBJ (with its MTL diffuse colour) or a glTF/GLB (node transforms and PBR material: base colour, roughness, metallic, emission, transmission, IOR). The mesh is scaled into the same box as the built-in shapes, so size, stretch and rotation work as usual. Scene files store the path, relative to `scenes/` when the file lives there; a missing file falls back to the object's shape and the inspector says so.
 - `--scene NAME` loads a scene by file name, title or path on the command line; `--help` lists them.
 - `tools/build_scenes.py` generates the built-in pack (edit scenes there, then rerun it); `tools/scene_sheet.py` renders every scene into a labelled contact sheet in `captures/scenes/`.
 
@@ -198,6 +199,7 @@ The integration self-test (260 scripted frames, then one per scene file: 373 fra
 | `src/walk.rs`, `src/video.rs`, `src/saver.rs`, `src/remote.rs` | Walk mode, turntable video, screensaver mode, phone remote |
 | `src/stats.rs` | Lifetime statistics and achievements (`%APPDATA%\CornellRTX\stats.json`) |
 | `src/generators.rs` | Seeded scene generators (11 families) |
+| `src/mesh.rs` | OBJ and glTF/GLB import, cached per path, normalised to the shape box |
 | `src/scenes.rs` | Scene files: folder lookup, pack listing, loading (wrapper or bare settings, validated), saving to `scenes/user` |
 | `src/gizmo.rs` | Transform gizmos: projection, handle layout and hit tests, drag and modal G / R / S math, light outlines and picking |
 | `src/ui.rs` | Top bar, side panel tabs, status bar, toasts, theme; UI state kept out of `Settings` |
@@ -219,7 +221,7 @@ All frame submissions are fenced before upload buffers or descriptors can be reu
 - The native sampler has Sobol scrambling but does not carry over the browser's generated blue-noise texture. The native denoiser follows SVGF but at very low sample counts it can leave faint low-frequency blotches on flat walls.
 - RR albedo guides use a material/Fresnel estimate; glass guides describe the primary glass surface. Neural reconstruction can leave artifacts in difficult glossy/refractive scenes, especially during disocclusion or at aggressive render scales.
 - Direct/indirect sliders are exact AOV recomposition for raw native output. On filtered/RR output they apply the accumulated AOV ratio to reconstructed beauty; that operation is an approximation. Diagnostic AOVs remain progressive raw estimates.
-- Memory scales with pixel count. Guides/history use FP32, and large output targets can allocate several GB. There is one frame in flight and no frame generation, Reflex, ReSTIR, texture importer, or mesh importer.
+- Memory scales with pixel count. Guides/history use FP32, and large output targets can allocate several GB. There is one frame in flight and no frame generation, Reflex, ReSTIR, or texture importer. Imported meshes are part of the one scene BLAS, so moving one rebuilds it all.
 - High-resolution export currently runs synchronously and restarts interactive accumulation. The side panel covers the right of the image (the render still fills the window); Tab gives a clean viewport. A/B references are invalidated by resize.
 
 NVIDIA integration reference: [official DLSS SDK and integration guides](https://github.com/NVIDIA/DLSS). D3D12 bindings: [Microsoft windows-rs](https://github.com/microsoft/windows-rs).

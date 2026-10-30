@@ -36,9 +36,11 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     }
     h=(Hit)0;
     if(q.CommittedStatus()!=COMMITTED_TRIANGLE_HIT)return false;
-    uint idx=q.CommittedPrimitiveIndex()*3;float2 b=q.CommittedTriangleBarycentrics();
+    // Geometry 1 is the opaque range; its primitive indices restart at 0 (see rebuild_scene).
+    uint prim=q.CommittedPrimitiveIndex()+(q.CommittedGeometryIndex()!=0?(uint)environment.w:0);
+    uint idx=prim*3;float2 b=q.CommittedTriangleBarycentrics();
     Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];h.t=q.CommittedRayT();h.p=o+d*h.t;
-    h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.material=a.material;h.emitter=emitter_lookup[q.CommittedPrimitiveIndex()];return true;
+    h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.material=a.material;h.emitter=emitter_lookup[prim];return true;
 }
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
 bool occluded(float3 o,float3 d,float limit){

@@ -755,7 +755,50 @@ fn light_quads(s: &Settings) -> Vec<(Selection, [Vec3; 4])> {
     }
     out
 }
-/// Picks the nearest object or light quad under `pixel`.
+/// Picks from a GPU readback at the click: the first-hit material id (u19, id + 1) and its
+/// view depth. Objects and visible lights come straight from the id; lights hidden from the
+/// camera are not in the id buffer, so their quads are still tested on the CPU.
+pub fn pick_from_probe(
+    s: &Settings,
+    pixel: [f32; 2],
+    size: [u32; 2],
+    id: u32,
+    depth: f32,
+) -> Option<Selection> {
+    let objects = s.objects.len() as u32;
+    let hit = match id.checked_sub(1) {
+        Some(4) => Some(Selection::MainLight),
+        Some(m) if (5..5 + objects).contains(&m) => Some(Selection::Object((m - 5) as usize)),
+        Some(m) if m >= 5 + objects && ((m - 5 - objects) as usize) < s.lights.len() => {
+            Some(Selection::Light((m - 5 - objects) as usize))
+        }
+        _ => None,
+    };
+    let view = View::new(s, size);
+    let (o, d) = view.ray(Vec2::from(pixel));
+    // Ray distance of the GPU hit, from its view depth.
+    let along = d.dot(view.forward()).max(1e-4);
+    let mut best = hit.map(|h| (h, if id > 0 { depth / along } else { f32::INFINITY }));
+    for (sel, q) in light_quads(s) {
+        let n = (q[1] - q[0]).cross(q[3] - q[0]).normalize_or_zero();
+        let denom = d.dot(n);
+        if denom.abs() < 1e-6 {
+            continue;
+        }
+        let t = (q[0] - o).dot(n) / denom;
+        let p = o + d * t;
+        let (u, v) = ((p - q[0]).dot(q[1] - q[0]), (p - q[0]).dot(q[3] - q[0]));
+        let inside = (0. ..=(q[1] - q[0]).length_squared()).contains(&u)
+            && (0. ..=(q[3] - q[0]).length_squared()).contains(&v);
+        let nearer = t < if id > 0 { depth / along } else { f32::INFINITY };
+        if t > 0. && inside && nearer && best.is_none_or(|(_, b)| t < b) {
+            best = Some((sel, t));
+        }
+    }
+    best.map(|(sel, _)| sel)
+}
+/// Picks the nearest object or light quad under `pixel` on the CPU (every triangle; tests).
+#[allow(dead_code)]
 pub fn pick(s: &Settings, pixel: [f32; 2], size: [u32; 2]) -> Option<Selection> {
     let view = View::new(s, size);
     let (o, d) = view.ray(Vec2::from(pixel));

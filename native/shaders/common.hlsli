@@ -16,7 +16,7 @@ cbuffer Frame:register(b0) {
     float4 jitter; // x,y,sobol,glass shadows
     uint4 filter_settings; // pass (0 reproject, 1 integrate, 2–6 à-trous),temporal,no history,reference valid
     uint4 scene_info; // emissive triangle count, object count, Sobol sequence base, flags (bit 0 jittered primaries, bit 1 show upscaled texture 14, bits 2-3 spatial upscale: 1 bilinear, 2 bicubic; bits 4-5 light sampling: 0 MIS, 1 NEE only, 2 BSDF only)
-    float4 environment; // sky intensity, view-space ray scale x, y (tan of half field of view)
+    float4 environment; // sky intensity, view-space ray scale x, y (tan of half field of view), first triangle of the opaque BLAS range
     float4 hdr; // scRGB output on (1/0), paper white nits, peak nits
     float4 tools; // zebras on, scopes on, heat-map scale for bounces, for BVH steps per pixel
     float4 lens; // aperture radius, focus distance, blades (0 round), blade rotation (radians)

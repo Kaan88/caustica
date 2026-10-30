@@ -173,7 +173,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 
 There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–29, egui textures from 32.
 
-**Acceleration structures.** There is one BLAS of the whole triangle soup and one TLAS instance with an identity transform. Both use PREFER_FAST_TRACE. Geometry is **non-opaque**, so every candidate runs through the `Proceed()` loop. That loop is how hidden lights and glass shadows are skipped.
+**Acceleration structures.** There is one BLAS of the whole triangle soup and one TLAS instance with an identity transform. Both use PREFER_FAST_TRACE. The BLAS has two geometries (see "Mesh import"): hidden lights and glass are **non-opaque**, so their candidates run through the `Proceed()` loop (how hidden lights and glass shadows are skipped); everything else is opaque.
 
 **UAV textures.** Index = `u` register = heap slot. Formats are RGBA32F unless noted; resolution is render resolution unless noted.
 
@@ -422,6 +422,17 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - `infinite-corridor`: the end portals are paired, the near one rotated 180°.
   - `bigger-on-the-inside`: the box door is paired with the hall doorway at x = 30, which **must be rotated 180°** or the view leads back out of the hall.
 
+## Mesh import (core track 2, 2026-10-30)
+
+- `mesh.rs`: `Mesh = Vec<(Vec3, Vec3)>` (position, normal per vertex, 3 per triangle), at most 20M triangles and 2 GB files. A cache maps path → `Result<Arc<Imported>, String>` (errors are cached too). `resolve` makes relative paths relative to `scenes::folder()`; `store` is the inverse. `load`, `of(&Object)`, `import_object(path)` (size 2, material from the file).
+  - OBJ via tobj (triangulate, single index; MTL diffuse). glTF via `gltf::Gltf::open` + `import_buffers`, following node transforms; material from PBR plus KHR emissive_strength / transmission / ior (each needs a Cargo feature). Smooth normals when missing; normalised into −1..1.
+- `Object.mesh` (≤ 1024 chars) replaces `shape` when set. `geometry.rs` uses `mesh::of(o)` in `object_frame` / `object_geometry`; a missing file falls back to the shape. The inspector shows a Mesh row (file name, "missing", *Use a shape*); the Scene tab has *+ Mesh…* (rfd file dialog).
+- **Opaque split** (`Gpu::rebuild_scene`): triangles whose material needs the any-hit loop (`lobes.w` bit 1 hidden, or transmission > 0) go first as geometry 0; the rest is geometry 1, flagged OPAQUE. `opaque_offset` (count of the first range) goes in `environment.w`; `intersect` adds it when `CommittedGeometryIndex() != 0`. `geometry_key` includes transmission > 0 and light visibility for that reason. Bit-identical renders on presets 0, 14 and 17 (RMSE 0.000).
+- The vertex buffer is a DEFAULT-heap buffer created COMMON (creating it COPY_DEST warned), filled by a copy from a staging upload, then NON_PIXEL_SHADER_RESOURCE.
+- **GPU picking:** a click stores `pick_point`; that frame's probe also copies u19 (object id) to `probe_albedo + 768`, so `Probe` has `id`. `gizmo::pick_from_probe` maps id − 1 (4 main light, 5..5+N objects, then area lights) and still tests light quads on the CPU, nearer than the GPU hit (lights hidden from the camera are not in u19). `gizmo::pick` (CPU, every triangle) stays for tests.
+- Self-test 257–259: GPU pick of object 0's projected centre; 258 imports an OBJ pyramid from the temp folder (asserts 6 triangles) plus an object with a missing mesh file.
+- Unit tests: OBJ quad, glTF triangle with an embedded base64 buffer.
+
 ## Toys (roadmap 5d, 2026-10-30)
 
 - **Light painting:** `App::painting` → `Gpu::painting`. That makes `rr_active` false and `prepare_upscaler` return None, and stops `update_materials` and `rebuild_scene` from resetting. In `redraw` the light fields are removed from the transport-key diff, so light-only edits skip the reset. The sample cap is ignored while painting. Toggling it resets once.
@@ -458,7 +469,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - Grain is hashed per cell and frame, weighted to the midtones, after the tone map.
   - Tone maps 6 AgX and 7 PBR Neutral (`validate` allows < 8).
 - **LUT:** u29 is a 3D RGBA32F texture (`texture_3d`) kept outside `textures`, so `resize` only re-creates its view (`lut_view`, heap slot 29). The root UAV range is `TEXTURES + 1`. `look::read_cube` parses .cube (3D, domain 0..1, size 2–128). `App` reloads it when `lut_path` changes.
-- **Probe** is now `gpu::Probe { linear, albedo, depth }` (depth from u5). Ctrl+left-click sets `focus_pending`; the next readback's depth becomes `focus_target`, eased with 1 − e^(−10·dt) per frame.
+- **Probe** is now `gpu::Probe { linear, albedo, depth, id }` (depth from u5, id from u19). Ctrl+left-click sets `focus_pending`; the next readback's depth becomes `focus_target`, eased with 1 − e^(−10·dt) per frame.
 - Look fields (halation, grain, grain_size, vignette, lift, grade_gamma, gain, lut_path, lut_strength) are display-only, so they are excluded from `transport_key`.
 - Self-test 216–239: aperture, blades and cat-eye; models 1–4 (218 asserts RR off); AgX, PBR Neutral; the film look plus a generated inverting LUT (224 asserts it loaded); Ctrl+click focus at the center (239 asserts it settled). Scene files start at 240.
 - Visual check: `captures` at 640×400 of bokeh, ortho skyline, equirect Stonehenge, little-planet forest, tilt-shift skyline, AgX + halation/grain/vignette, PBR Neutral, all as intended.

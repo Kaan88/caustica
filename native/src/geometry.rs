@@ -294,7 +294,9 @@ pub fn object_frame(o: &Object) -> (Vec3, glam::Mat3) {
         o.tilt[1].to_radians(),
     );
     let y = if o.grounded {
-        let ymin = mesh(o.kind())
+        let imported = crate::mesh::of(o);
+        let source: &Mesh = imported.as_deref().unwrap_or_else(|| mesh(o.kind()));
+        let ymin = source
             .iter()
             .map(|(p, _)| r.transform_vector3(*p * scale).y)
             .fold(f32::INFINITY, f32::min);
@@ -318,7 +320,8 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
         o.tilt[0].to_radians(),
         o.tilt[1].to_radians(),
     );
-    let source = mesh(o.kind());
+    let imported = crate::mesh::of(o);
+    let source: &Mesh = imported.as_deref().unwrap_or_else(|| mesh(o.kind()));
     let ymin = source
         .iter()
         .map(|(p, _)| r.transform_vector3(*p * scale).y)

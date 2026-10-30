@@ -33,6 +33,8 @@ pub struct Probe {
     pub linear: [f32; 4],
     pub albedo: [f32; 4],
     pub depth: f32,
+    /// First-hit material id + 1 (u19), 0 for a miss: what a click selects.
+    pub id: u32,
 }
 struct GuiTexture {
     texture: Texture,
@@ -192,6 +194,8 @@ pub struct Gpu {
     pub hdr_active: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
+    /// Triangles in the non-opaque BLAS range; the opaque range's primitive indices start here.
+    pub opaque_offset: u32,
     /// Light painting (roadmap 5d): progressive path only, and scene edits keep the accumulation.
     pub painting: bool,
     /// Film-look LUT (u29, a 3D texture kept across resizes) and its edge length, 0 = none.
@@ -567,6 +571,7 @@ impl Gpu {
             gui_hdr,
             hdr_active: false,
             hdr_levels: [200., 1000.],
+            opaque_offset: 0,
             painting: false,
             lut,
             lut_size: 0,
@@ -1025,6 +1030,13 @@ impl Gpu {
                 DXGI_FORMAT_R32_FLOAT,
                 256,
             );
+            copy(
+                19,
+                [rx, ry, rx + 1, ry + 1],
+                probe_albedo + 768,
+                DXGI_FORMAT_R32_FLOAT,
+                256,
+            );
         }
         Ok(())
     }
@@ -1053,6 +1065,7 @@ impl Gpu {
                 linear: texel(probe_linear),
                 albedo: texel(probe_albedo),
                 depth: texel(probe_albedo + 512)[0],
+                id: texel(probe_albedo + 768)[0] as u32,
             });
         }
         readback.Unmap(0, None);
@@ -1226,30 +1239,71 @@ impl Gpu {
         }
     }
     pub unsafe fn rebuild_scene(&mut self, s: &Settings) -> Result<()> {
-        let vertices = scene::geometry(s);
-        self.geometry = upload(&self.device, bytemuck::cast_slice(&vertices))?;
-        let geometry = D3D12_RAYTRACING_GEOMETRY_DESC {
+        // Two BLAS ranges: triangles that need the any-hit loop first (lights hidden from the
+        // camera, glass that shadow rays may pass), then everything else as opaque geometry,
+        // which the hardware commits without running the Proceed() loop.
+        let packed = crate::lighting::materials(s);
+        let needs_any_hit = |v: &Vertex| {
+            let m = &packed[v.material as usize];
+            (m.lobes[3] as u32 & 2) != 0 || m.lobes[2] > 0.
+        };
+        let soup = scene::geometry(s);
+        let (special, opaque): (Vec<&[Vertex; 3]>, Vec<&[Vertex; 3]>) = soup
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .partition(|t| needs_any_hit(&t[0]));
+        self.opaque_offset = special.len() as u32;
+        let vertices: Vec<Vertex> = special
+            .into_iter()
+            .chain(opaque)
+            .flatten()
+            .copied()
+            .collect();
+        drop(soup);
+        // Vertices live in GPU memory: hits read them, and big meshes would otherwise cross PCIe.
+        let bytes: &[u8] = bytemuck::cast_slice(&vertices);
+        let staging = upload(&self.device, bytes)?;
+        self.geometry = buffer(
+            &self.device,
+            bytes.len() as u64,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            // Buffers start in COMMON; the copy promotes it to COPY_DEST.
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        let stride = size_of::<Vertex>() as u64;
+        let base = self.geometry.GetGPUVirtualAddress();
+        let range = |first: usize, count: usize, flags| D3D12_RAYTRACING_GEOMETRY_DESC {
             Type: D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES,
-            Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+            Flags: flags,
             Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
                 Triangles: D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC {
                     VertexFormat: DXGI_FORMAT_R32G32B32_FLOAT,
-                    VertexCount: vertices.len() as u32,
+                    VertexCount: (count * 3) as u32,
                     VertexBuffer: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
-                        StartAddress: self.geometry.GetGPUVirtualAddress(),
-                        StrideInBytes: size_of::<Vertex>() as u64,
+                        StartAddress: base + first as u64 * 3 * stride,
+                        StrideInBytes: stride,
                     },
                     ..Default::default()
                 },
             },
         };
+        let (n0, total) = (self.opaque_offset as usize, vertices.len() / 3);
+        let mut descs = vec![];
+        if n0 > 0 {
+            descs.push(range(0, n0, D3D12_RAYTRACING_GEOMETRY_FLAG_NONE));
+        }
+        if total > n0 {
+            descs.push(range(n0, total - n0, D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE));
+        }
         let inputs = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
             Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
             Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
-            NumDescs: 1,
+            NumDescs: descs.len() as u32,
             DescsLayout: D3D12_ELEMENTS_LAYOUT_ARRAY,
             Anonymous: D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_0 {
-                pGeometryDescs: &geometry,
+                pGeometryDescs: descs.as_ptr(),
             },
         };
         let mut info = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO::default();
@@ -1305,6 +1359,14 @@ impl Gpu {
             D3D12_RESOURCE_STATE_COMMON,
         )?;
         self.begin()?;
+        self.list
+            .CopyBufferRegion(&self.geometry, 0, &staging, 0, bytes.len() as u64);
+        transition(
+            &self.list,
+            &self.geometry,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+        );
         self.list.BuildRaytracingAccelerationStructure(
             &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
                 DestAccelerationStructureData: blas.GetGPUVirtualAddress(),
@@ -1488,7 +1550,12 @@ impl Gpu {
                 flags,
             ],
             // View-space ray scale (tan of the half field of view) for the denoiser.
-            environment: [s.sky, 1. / proj.x_axis.x, 1. / proj.y_axis.y, 0.],
+            environment: [
+                s.sky,
+                1. / proj.x_axis.x,
+                1. / proj.y_axis.y,
+                self.opaque_offset as f32,
+            ],
             hdr: [
                 self.hdr_active as u32 as f32,
                 self.hdr_levels[0],

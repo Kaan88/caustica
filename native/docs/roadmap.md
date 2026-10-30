@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core track 1 (generators) are done (2026-10-30).
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core tracks 1 (generators) and 2 (mesh import) are done (2026-10-30).
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -208,7 +208,8 @@ As built: `kusama-infinity-room`, `flavin-fluorescent`, `turrell-ganzfeld`, plus
 
 Order is from scene-research.md section 5, unchanged:
 1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 66 curated seeds. Mesh-based generators (Mandelbulb, terrain, Menger 3+, L-system trees) wait for mesh import (item 2).
-2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split.
+2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split. — done 2026-10-30: `src/mesh.rs` reads OBJ (tobj, MTL diffuse) and glTF/GLB (node transforms, PBR base colour, roughness, metallic, emissive strength, transmission, IOR) into the same −1..1 box as the built-in shapes. *+ Mesh…* in the Scene tab opens a file picker; `Object.mesh` keeps the path (relative to `scenes/` when inside it). The BLAS has two geometries: lights hidden from the camera and glass first (any-hit loop), everything else flagged opaque. Vertices moved to a DEFAULT-heap buffer. Clicks pick on the GPU (object-id readback), so big meshes cost nothing to click.
+   - Not done: a pinned test-asset fetch script (no large models are checked yet), texture maps (track 5), one BLAS per mesh so moving a big mesh doesn't rebuild everything (track 4), the mesh-based generators listed in item 1, and a perf comparison of the opaque split (the GPU was busy with the screensaver; both builds measured the same under that load).
 3. HDRI environments with importance sampling.
 4. Multiple BLAS + TLAS instancing past 256 objects.
 5. Textures.

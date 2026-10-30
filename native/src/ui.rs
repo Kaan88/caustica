@@ -1873,6 +1873,27 @@ impl App {
             }
             if ui
                 .add_enabled(
+                    s.objects.len() < scene::MAX_OBJECTS,
+                    egui::Button::new("+ Mesh…"),
+                )
+                .on_hover_text("Import an OBJ, glTF or GLB file")
+                .clicked()
+                && let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Meshes", &["obj", "gltf", "glb"])
+                    .set_directory(crate::scenes::folder().unwrap_or_default())
+                    .pick_file()
+            {
+                match crate::mesh::import_object(&path) {
+                    Ok(o) => {
+                        state.checkpoint(s);
+                        s.objects.push(o);
+                        state.selection = Selection::Object(s.objects.len() - 1);
+                    }
+                    Err(e) => state.error(format!("{e:#}")),
+                }
+            }
+            if ui
+                .add_enabled(
                     s.lights.len() < scene::MAX_LIGHTS,
                     egui::Button::new("+ Light"),
                 )

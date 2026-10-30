@@ -180,6 +180,9 @@ pub struct Object {
     /// Index of the paired portal object (roadmap 5d), -1 for none. Rays that hit this object
     /// continue from the matching point of the pair.
     pub portal: i32,
+    /// An imported mesh file (OBJ, glTF, GLB) used instead of `shape`; relative paths are
+    /// relative to the scenes folder. Empty for built-in shapes.
+    pub mesh: String,
 }
 impl Default for Object {
     fn default() -> Self {
@@ -198,6 +201,7 @@ impl Default for Object {
             rotation: 18.,
             material: Material::default(),
             portal: -1,
+            mesh: String::new(),
         }
     }
 }
@@ -732,7 +736,8 @@ impl Settings {
                     && o.elevation.abs() <= 40.
                     && o.tilt.iter().all(|v| v.abs() <= 360.)
                     && o.scale_xz.iter().all(|v| (0.01..=20.).contains(v))
-                    && o.name.len() <= 128,
+                    && o.name.len() <= 128
+                    && o.mesh.len() <= 1024,
                 "Invalid object"
             );
         }

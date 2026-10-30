@@ -9,6 +9,7 @@ mod gpu;
 mod hotreload;
 mod lighting;
 mod look;
+mod mesh;
 mod presets;
 mod remote;
 mod saver;
@@ -104,6 +105,8 @@ struct App {
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
     focus_target: Option<f32>,
+    /// A click waiting for the object-id readback at this pixel.
+    pick_point: Option<[f64; 2]>,
     /// Light painting (L): light edits keep the accumulation; progressive path only.
     painting: bool,
     /// Walk mode (`): WASD and mouse look; the keys held down right now.
@@ -169,6 +172,9 @@ fn geometry_key(s: &Settings) -> String {
             .iter()
             .map(|o| (
                 o.kind(),
+                &o.mesh,
+                // Glass goes to the non-opaque BLAS range (shadow rays may pass it).
+                o.material.transmission > 0.,
                 o.visible,
                 o.position,
                 o.size,
@@ -181,6 +187,8 @@ fn geometry_key(s: &Settings) -> String {
             ))
             .collect::<Vec<_>>(),
         s.light_on,
+        // Visibility to the camera picks the BLAS range (hidden lights need the any-hit loop).
+        s.light_visible,
         s.light_position,
         s.light_size,
         s.light_aspect,
@@ -188,7 +196,7 @@ fn geometry_key(s: &Settings) -> String {
         s.floor_extent,
         s.lights
             .iter()
-            .map(|l| (l.enabled, l.position, l.rotation, l.size))
+            .map(|l| (l.enabled, l.visible, l.position, l.rotation, l.size))
             .collect::<Vec<_>>()
     ])
     .to_string()
@@ -456,6 +464,7 @@ impl App {
             lut_loaded: String::new(),
             focus_pending: false,
             focus_target: None,
+            pick_point: None,
             painting: false,
             walking: None,
             keys_down: Default::default(),
@@ -819,6 +828,46 @@ impl App {
                     self.remote = None;
                     self.settings.exposure = 1.;
                 }
+                // GPU picking: a click on object 0's projected centre selects it next frame.
+                257 => {
+                    let s = &self.settings;
+                    let (view, proj, _) = s.camera(self.size[0] as f32 / self.size[1] as f32);
+                    let (centre, _) = geometry::object_frame(&s.objects[0]);
+                    let ndc = (proj * view).project_point3(centre);
+                    let g = self.gpu.as_ref().unwrap();
+                    self.pick_point = Some([
+                        ((ndc.x * 0.5 + 0.5) * g.width as f32) as f64,
+                        ((0.5 - ndc.y * 0.5) * g.height as f32) as f64,
+                    ]);
+                    self.ui.selection = ui::Selection::None;
+                }
+                // Mesh import: an OBJ pyramid, plus an object whose mesh file is missing (it
+                // falls back to its shape). The per-frame GPU counts check both.
+                258 => {
+                    let path = std::env::temp_dir().join("cornell-self-test-pyramid.obj");
+                    std::fs::write(
+                        &path,
+                        "v -1 0 -1\nv 1 0 -1\nv 1 0 1\nv -1 0 1\nv 0 2 0\n\
+                         f 1 2 3 4\nf 1 2 5\nf 2 3 5\nf 3 4 5\nf 4 1 5\n",
+                    )?;
+                    let mut pyramid = mesh::import_object(&path)?;
+                    pyramid.position = [0.5, 0.];
+                    let mut missing = pyramid.clone();
+                    missing.mesh = "missing/nothing-here.obj".into();
+                    missing.position = [-0.5, 0.];
+                    self.settings.objects.push(pyramid);
+                    self.settings.objects.push(missing);
+                    anyhow::ensure!(
+                        mesh::of(&self.settings.objects[self.settings.objects.len() - 2])
+                            .is_some_and(|m| m.len() == 18),
+                        "Imported pyramid is not 6 triangles"
+                    );
+                }
+                259 => anyhow::ensure!(
+                    self.ui.selection == ui::Selection::Object(0),
+                    "GPU pick selected {:?}",
+                    self.ui.selection
+                ),
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1091,8 +1140,11 @@ impl App {
         // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
         g.zebras = self.ui.zebras;
         g.scopes_on = self.ui.show_scopes;
-        g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area()) || self.focus_pending)
-            .then_some([self.cursor[0].max(0.) as u32, self.cursor[1].max(0.) as u32]);
+        let probe_at = self.pick_point.unwrap_or(self.cursor);
+        g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area())
+            || self.focus_pending
+            || self.pick_point.is_some())
+        .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
         if s.lut_path != self.lut_loaded {
             self.lut_loaded = s.lut_path.clone();
             let result = if s.lut_path.is_empty() {
@@ -1123,6 +1175,19 @@ impl App {
                 &output.textures_delta,
                 output.pixels_per_point,
             )?;
+        }
+        if let (Some(point), Some(p)) = (self.pick_point.take(), g.probe_result) {
+            let pixel = [point[0] as f32, point[1] as f32];
+            match gizmo::pick_from_probe(&self.settings, pixel, [g.width, g.height], p.id, p.depth)
+            {
+                Some(sel) => {
+                    self.ui.selection = sel;
+                    self.ui.tab = ui::Tab::Scene;
+                    self.ui.panel_hidden = false;
+                    self.show_ui = true;
+                }
+                None => self.ui.selection = ui::Selection::None,
+            }
         }
         // Ctrl+click focus: the depth under the click becomes the focus target.
         if self.focus_pending
@@ -1332,6 +1397,7 @@ impl App {
                         linear,
                         albedo,
                         depth,
+                        ..
                     } = g.probe_result.context("No light-meter reading")?;
                     anyhow::ensure!(depth > 0., "Light-meter depth is not positive");
                     anyhow::ensure!(
@@ -1732,21 +1798,10 @@ impl ApplicationHandler for App {
                         && !self.egui.is_pointer_over_area()
                         && let Some(g) = &self.gpu
                     {
-                        // A click selects the object or light under the pointer; empty space
-                        // deselects, as in Blender.
-                        match gizmo::pick(
-                            &self.settings,
-                            [self.cursor[0] as f32, self.cursor[1] as f32],
-                            [g.width, g.height],
-                        ) {
-                            Some(sel) => {
-                                self.ui.selection = sel;
-                                self.ui.tab = ui::Tab::Scene;
-                                self.ui.panel_hidden = false;
-                                self.show_ui = true;
-                            }
-                            None => self.ui.selection = ui::Selection::None,
-                        }
+                        // A click selects what is under the pointer, read from the GPU's
+                        // object-id buffer next frame; empty space deselects, as in Blender.
+                        let _ = g;
+                        self.pick_point = Some(self.cursor);
                     }
                     self.drag = None;
                 } else if transforming == Some(false) {
