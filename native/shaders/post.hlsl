@@ -133,6 +133,24 @@ float3 beauty(uint2 p,uint2 op){
     if(display_settings.z!=1 || display_settings.w!=1){float3 composed=direct_light[p].rgb*display_settings.z+(raw-direct_light[p].rgb)*display_settings.w;c*=max(composed,0)/max(raw,0.0001);}
     return max(c,0);
 }
+// Turbo-like heat map for 0..1.
+float3 heat(float t){t=saturate(t);return saturate(float3(1.5-abs(4*t-3),1.5-abs(4*t-2),1.5-abs(4*t-1)))*smoothstep(0,0.08,t+0.02);}
+// False colour: exposed scene luminance in stops around middle grey (0.18).
+float3 false_color(float3 c){
+    float ev=log2(max(luminance(max(c*display_settings.x,0)),1e-6)/0.18);
+    if(ev<-6)return float3(0.25,0.0,0.35);if(ev<-4)return float3(0.1,0.15,0.75);if(ev<-2)return float3(0.0,0.5,0.6);
+    if(ev<-0.5)return float3(0.35,0.35,0.35);if(ev<0.5)return float3(0.35,0.75,0.3);if(ev<2)return float3(0.7,0.7,0.7);
+    if(ev<4)return float3(0.95,0.85,0.2);if(ev<6)return float3(1.0,0.5,0.1);return float3(1,0.1,0.1);
+}
+// Scopes: histogram, waveform and vectorscope of the displayed (SDR) image.
+void bin_scopes(uint2 op,float3 c){
+    c=saturate(c);float l=luminance(c);uint4 b=uint4(c*255+0.5,l*255+0.5);
+    uint dummy;InterlockedAdd(scopes[uint2(b.x,0)],1,dummy);InterlockedAdd(scopes[uint2(b.y,1)],1,dummy);
+    InterlockedAdd(scopes[uint2(b.z,2)],1,dummy);InterlockedAdd(scopes[uint2(b.w,3)],1,dummy);
+    InterlockedAdd(scopes[uint2(op.x*256/dimensions.z,4+uint((1-l)*127+0.5))],1,dummy);
+    float cb=(c.b-l)/1.8556,cr=(c.r-l)/1.5748;
+    InterlockedAdd(scopes[uint2(uint(saturate(cb+0.5)*127+0.5),132+uint(saturate(0.5-cr)*127+0.5))],1,dummy);
+}
 [numthreads(8,8,1)]void display(uint3 tid:SV_DispatchThreadID){
     uint2 op=tid.xy;if(any(op>=dimensions.zw))return;uint2 p=min(uint2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)),dimensions.xy-1);
     float3 c=beauty(p,op);linear_output[op]=float4(c,1);
@@ -143,9 +161,17 @@ float3 beauty(uint2 p,uint2 op){
     else if(modes.x==5)c=tonemap(max(0,accumulation[p].rgb-direct_light[p].rgb));
     else if(modes.x==6)c=tonemap(specular_light[p].rgb);
     else if(modes.x==7){float n=max(2,sampling.x+sampling.y);float se=sqrt(accumulation[p].a/(n*(n-1)))/max(0.01,luminance(accumulation[p].rgb));float t=saturate((log2(max(se,0.001))-log2(0.001))/(log2(0.3)-log2(0.001)));c=saturate(float3(t*2,1-abs(t*2-1),2-t*2));}
+    else if(modes.x==8)c=heat((trace_stats[p].x-1)/max(1,tools.z-1));
+    // BVH steps per sample on a log scale: tools.w steps per sample is the top of the map.
+    else if(modes.x==9)c=heat(log2(1+trace_stats[p].y/max(1,sampling.y))/log2(1+tools.w));
+    else if(modes.x==10){float n=max(2,sampling.x+sampling.y);c=heat(log2(1+accumulation[p].a/(n-1))/4);}
+    else if(modes.x==11)c=false_color(c);
     float3 h;bool beauty_view=modes.x==0;
     if(beauty_view){if(options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w)c=reference_image[op].rgb;h=hdr_map(c);c=tonemap(c);if(options.z>0 && abs(float(op.x)/dimensions.z-options.w)<1.0/dimensions.z){c=float3(0.3,0.8,1);h=sdr_in_hdr(c);}}
     else h=sdr_in_hdr(c);
+    // Zebras: diagonal stripes where the displayed image clips.
+    if(tools.x>0 && beauty_view && max(c.r,max(c.g,c.b))>0.97 && ((op.x+op.y)/6)%2==0){c=float3(0.05,0.05,0.05);h=sdr_in_hdr(c);}
+    if(tools.y>0)bin_scopes(op,c);
     output_image[op]=float4(c,1);
     if(hdr.x>0)hdr_output[op]=float4(h,1);
 }

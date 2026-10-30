@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(96, 202, 216);
 const WARN: egui::Color32 = egui::Color32::from_rgb(232, 176, 72);
-const VIEWS: [&str; 8] = [
+const VIEWS: [&str; 12] = [
     "Beauty",
     "Normals",
     "Albedo",
@@ -16,6 +16,10 @@ const VIEWS: [&str; 8] = [
     "Indirect light",
     "Specular",
     "Convergence",
+    "Bounces (heat)",
+    "BVH cost (heat)",
+    "Variance (heat)",
+    "False colour",
 ];
 const TONE_MAPS: [&str; 6] = [
     "Linear",
@@ -112,6 +116,17 @@ pub struct UiState {
     pub export_samples: u32,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
+    /// Look tools (roadmap 5b).
+    pub zebras: bool,
+    pub show_scopes: bool,
+    pub meter: bool,
+    pub show_graph: bool,
+    pub show_stats: bool,
+    scope_images: Option<(egui::TextureHandle, egui::TextureHandle)>,
+    /// Convergence graph: reference image (width, height, RGBA), points (samples, RMSE x1000).
+    pub reference: Option<(u32, u32, Vec<f32>)>,
+    pub reference_path: String,
+    pub graph: Vec<(u32, f64)>,
     /// Thumbnails: loaded textures by file, the background render (results, total, done) and
     /// whether this session already asked for the missing ones.
     pub thumbnails: std::collections::HashMap<std::path::PathBuf, egui::TextureHandle>,
@@ -147,6 +162,15 @@ impl Default for UiState {
             export_scale: 2,
             export_samples: 128,
             show_scenes: false,
+            zebras: false,
+            show_scopes: false,
+            meter: false,
+            show_graph: false,
+            show_stats: false,
+            scope_images: None,
+            reference: None,
+            reference_path: "captures/reference.exr".into(),
+            graph: Vec::new(),
             thumbnails: Default::default(),
             thumbnail_jobs: None,
             thumbnails_requested: false,
@@ -481,6 +505,7 @@ impl App {
             self.side_panel(ctx, known.is_some());
         }
         self.scenes_window(ctx);
+        self.tool_windows(ctx);
         self.overlay(ctx);
         self.toasts(ctx);
     }
@@ -722,9 +747,276 @@ impl App {
             _ => gizmo::Mode::Move,
         }
     }
+    fn tool_windows(&mut self, ctx: &egui::Context) {
+        if self.ui.show_scopes {
+            self.scopes_window(ctx);
+        }
+        if self.ui.show_graph {
+            self.graph_window(ctx);
+        }
+        if self.ui.show_stats {
+            self.stats_window(ctx);
+        }
+    }
+    fn scopes_window(&mut self, ctx: &egui::Context) {
+        let g = self.gpu.as_ref().unwrap();
+        let [w, h] = crate::gpu::SCOPES.map(|v| v as usize);
+        if g.scopes.len() == w * h {
+            // Waveform (256 x 128) and vectorscope (128 x 128) as images, log-scaled counts.
+            let image = |x0: usize, y0: usize, cw: usize, ch: usize, tint: [f32; 3]| {
+                let rows = &g.scopes;
+                let peak = (y0..y0 + ch)
+                    .flat_map(|y| (x0..x0 + cw).map(move |x| rows[y * w + x]))
+                    .max()
+                    .unwrap_or(1)
+                    .max(1);
+                let pixels: Vec<egui::Color32> = (y0..y0 + ch)
+                    .flat_map(|y| (x0..x0 + cw).map(move |x| (x, y)))
+                    .map(|(x, y)| {
+                        let v = ((1. + rows[y * w + x] as f32).ln() / (1. + peak as f32).ln())
+                            .clamp(0., 1.);
+                        egui::Color32::from_rgb(
+                            (v * 255. * tint[0]) as u8,
+                            (v * 255. * tint[1]) as u8,
+                            (v * 255. * tint[2]) as u8,
+                        )
+                    })
+                    .collect();
+                egui::ColorImage {
+                    size: [cw, ch],
+                    pixels,
+                }
+            };
+            let wave = image(0, 4, 256, 128, [0.75, 1., 0.8]);
+            let vector = image(0, 132, 128, 128, [0.85, 0.95, 1.]);
+            match &mut self.ui.scope_images {
+                Some((a, b)) => {
+                    a.set(wave, egui::TextureOptions::LINEAR);
+                    b.set(vector, egui::TextureOptions::LINEAR);
+                }
+                None => {
+                    self.ui.scope_images = Some((
+                        ctx.load_texture("waveform", wave, egui::TextureOptions::LINEAR),
+                        ctx.load_texture("vectorscope", vector, egui::TextureOptions::LINEAR),
+                    ))
+                }
+            }
+        }
+        let mut open = self.ui.show_scopes;
+        egui::Window::new("Scopes")
+            .open(&mut open)
+            .default_pos([140., 420.])
+            .resizable(false)
+            .show(ctx, |ui| {
+                let g = self.gpu.as_ref().unwrap();
+                if g.scopes.len() != w * h {
+                    note(ui, "Waiting for the next frame…");
+                    return;
+                }
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("Histogram").small());
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(256., 128.), egui::Sense::hover());
+                        let painter = ui.painter_at(rect);
+                        painter.rect_filled(rect, 2., egui::Color32::from_gray(16));
+                        let colors = [
+                            egui::Color32::from_rgb(230, 70, 70),
+                            egui::Color32::from_rgb(80, 210, 90),
+                            egui::Color32::from_rgb(80, 130, 245),
+                            egui::Color32::from_gray(220),
+                        ];
+                        for (row, color) in colors.iter().enumerate() {
+                            let bins = &g.scopes[row * w..row * w + 256];
+                            let peak = bins.iter().max().copied().unwrap_or(1).max(1) as f32;
+                            let line: Vec<egui::Pos2> = bins
+                                .iter()
+                                .enumerate()
+                                .map(|(i, v)| {
+                                    egui::pos2(
+                                        rect.min.x + i as f32,
+                                        rect.max.y
+                                            - (1. + *v as f32).ln() / (1. + peak).ln()
+                                                * rect.height(),
+                                    )
+                                })
+                                .collect();
+                            painter.add(egui::Shape::line(
+                                line,
+                                egui::Stroke::new(1_f32, color.gamma_multiply(0.85)),
+                            ));
+                        }
+                    });
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("Luma waveform").small());
+                        if let Some((wave, _)) = &self.ui.scope_images {
+                            ui.add(egui::Image::new((wave.id(), egui::vec2(256., 128.))));
+                        }
+                    });
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("Vectorscope").small());
+                        if let Some((_, vector)) = &self.ui.scope_images {
+                            let r = ui.add(egui::Image::new((vector.id(), egui::vec2(128., 128.))));
+                            let c = r.rect.center();
+                            ui.painter().circle_stroke(
+                                c,
+                                64.,
+                                egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(40)),
+                            );
+                            ui.painter().line_segment(
+                                [egui::pos2(c.x - 64., c.y), egui::pos2(c.x + 64., c.y)],
+                                egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(30)),
+                            );
+                            ui.painter().line_segment(
+                                [egui::pos2(c.x, c.y - 64.), egui::pos2(c.x, c.y + 64.)],
+                                egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(30)),
+                            );
+                        }
+                    });
+                });
+                note(
+                    ui,
+                    "Of the displayed SDR image (after exposure and tone map).",
+                );
+            });
+        self.ui.show_scopes = open;
+    }
+    fn graph_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.ui.show_graph;
+        let mut use_current = false;
+        let mut load = false;
+        egui::Window::new("Convergence").open(&mut open).default_pos([140., 120.]).default_width(420.).show(ctx, |ui| {
+            let g = self.gpu.as_ref().unwrap();
+            match &self.ui.reference {
+                Some((w, h, _)) => note(ui, &format!("Reference: {w} × {h}. RMSE ×1000 of l/(1+l), measured as samples grow (log–log).")),
+                None => note(ui, "No reference yet: load a linear EXR of the same size, or use the current image once it has converged."),
+            }
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.ui.reference_path).desired_width(220.));
+                load = ui.button("Load EXR").clicked();
+                use_current = ui.button("Use current image").on_hover_text(format!("{} spp now", g.samples)).clicked();
+            });
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(300.), 200.), egui::Sense::hover());
+            let painter = ui.painter_at(rect);
+            painter.rect_filled(rect, 2., egui::Color32::from_gray(16));
+            let points = &self.ui.graph;
+            if points.len() >= 2 {
+                let (xs, ys): (Vec<f64>, Vec<f64>) = points.iter().map(|(s, e)| ((*s as f64).max(1.).log2(), e.max(1e-3).log2())).unzip();
+                let (x0, x1) = (xs[0], xs.last().copied().unwrap().max(xs[0] + 1.));
+                let (y0, y1) = (ys.iter().copied().fold(f64::MAX, f64::min) - 0.2, ys.iter().copied().fold(f64::MIN, f64::max) + 0.2);
+                let to = |x: f64, y: f64| egui::pos2(rect.min.x + ((x - x0) / (x1 - x0)) as f32 * rect.width(), rect.max.y - ((y - y0) / (y1 - y0)) as f32 * rect.height());
+                // The ideal Monte Carlo slope: error halves for every 4x samples.
+                painter.line_segment([to(x0, ys[0]), to(x1, ys[0] - 0.5 * (x1 - x0))], egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(50)));
+                let line: Vec<_> = xs.iter().zip(&ys).map(|(x, y)| to(*x, *y)).collect();
+                painter.add(egui::Shape::line(line, egui::Stroke::new(2_f32, ACCENT)));
+                let (s, e) = points.last().unwrap();
+                painter.text(rect.right_top() + egui::vec2(-6., 6.), egui::Align2::RIGHT_TOP, format!("{s} spp · {e:.2}"), egui::FontId::proportional(13.), egui::Color32::WHITE);
+                painter.text(rect.left_bottom() + egui::vec2(6., -6.), egui::Align2::LEFT_BOTTOM, "grey: 1/√n", egui::FontId::proportional(11.), egui::Color32::from_gray(140));
+            } else {
+                painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Points appear as samples accumulate", egui::FontId::proportional(13.), egui::Color32::from_gray(140));
+            }
+        });
+        self.ui.show_graph = open;
+        let g = self.gpu.as_mut().unwrap();
+        if use_current {
+            match unsafe { g.read_floats(18) } {
+                Ok(pixels) => {
+                    self.ui.reference = Some((g.width, g.height, pixels));
+                    self.ui.graph.clear();
+                    self.actions.reset = true;
+                    self.ui
+                        .toast("Reference set; the render restarts to measure against it");
+                }
+                Err(e) => self.ui.error(format!("{e:#}")),
+            }
+        }
+        if load {
+            match image::open(&self.ui.reference_path) {
+                Ok(img) => {
+                    let img = img.to_rgba32f();
+                    self.ui.reference = Some((img.width(), img.height(), img.into_raw()));
+                    self.ui.graph.clear();
+                    self.actions.reset = true;
+                    self.ui.toast("Reference loaded");
+                }
+                Err(e) => self
+                    .ui
+                    .error(format!("Loading {}: {e}", self.ui.reference_path)),
+            }
+        }
+    }
+    fn stats_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.ui.show_stats;
+        egui::Window::new("Statistics")
+            .open(&mut open)
+            .default_pos([200., 120.])
+            .default_width(380.)
+            .show(ctx, |ui| {
+                let Some(s) = &self.stats else {
+                    note(ui, "Statistics are kept for interactive runs only.");
+                    return;
+                };
+                grid("stats").show(ui, |ui| {
+                    for (label, value) in [
+                        ("Camera paths traced", format!("{:.3e}", s.paths)),
+                        ("GPU time", format!("{:.2} hours", s.gpu_seconds / 3600.)),
+                        ("Images saved", s.images_saved.to_string()),
+                        ("Highest sample count", s.max_samples.to_string()),
+                        (
+                            "Presets visited",
+                            format!("{} / {}", s.presets_seen.len(), PRESETS.len()),
+                        ),
+                        ("Scene files opened", s.scenes_seen.len().to_string()),
+                        ("Shader hot reloads", s.hot_reloads.to_string()),
+                    ] {
+                        ui.label(label);
+                        ui.monospace(value);
+                        ui.end_row();
+                    }
+                });
+                section(ui, "Achievements");
+                for (id, title, how) in crate::stats::ACHIEVEMENTS {
+                    ui.horizontal(|ui| match s.achievements.get(id) {
+                        Some(date) => {
+                            ui.label(egui::RichText::new(title).color(ACCENT).strong());
+                            note(ui, &format!("{how} · {date}"));
+                        }
+                        None => {
+                            ui.label(egui::RichText::new(title).weak());
+                            note(ui, how);
+                        }
+                    });
+                }
+            });
+        self.ui.show_stats = open;
+    }
     /// Gizmo, light outlines and the transform header, drawn under the panels.
     fn overlay(&mut self, ctx: &egui::Context) {
         let g = self.gpu.as_ref().unwrap();
+        if self.ui.meter
+            && let (Some((linear, albedo)), Some(p)) = (g.probe_result, ctx.pointer_hover_pos())
+        {
+            // 1.0 in scene light is 80 nits, as in the HDR output. Illuminance assumes a
+            // Lambertian surface: E = π L / albedo.
+            let l = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+            let a = 0.2126 * albedo[0] + 0.7152 * albedo[1] + 0.0722 * albedo[2];
+            let nits = l * 80.;
+            let text = if a > 0.02 {
+                format!(
+                    "{nits:.1} nits · {:.0} lux",
+                    std::f32::consts::PI * nits / a
+                )
+            } else {
+                format!("{nits:.1} nits")
+            };
+            ctx.debug_painter().text(
+                p + egui::vec2(16., 16.),
+                egui::Align2::LEFT_TOP,
+                text,
+                egui::FontId::monospace(13.),
+                egui::Color32::from_rgb(255, 230, 140),
+            );
+        }
         let view = gizmo::View::new(&self.settings, [g.width, g.height]);
         let ppp = ctx.pixels_per_point();
         let painter = ctx.layer_painter(egui::LayerId::new(
@@ -898,6 +1190,10 @@ impl App {
             ui.horizontal(|ui| {
                 ui.menu_button("Menu", |ui| {
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
+                    if ui.button("Statistics and achievements").clicked() {
+                        self.ui.show_stats = true;
+                        ui.close_menu();
+                    }
                     ui.separator();
                     if ui.add_enabled(!self.ui.undo.is_empty(), egui::Button::new("Undo (Ctrl+Z)")).clicked() {
                         self.ui.undo(&mut self.settings);
@@ -1653,6 +1949,17 @@ impl App {
                 "In HDR, midtones look as in SDR and the tone map's highlights expand up to the panel peak. Linear shows true scene brightness with a roll-off near the peak.",
             );
         }
+        section(ui, "Tools");
+        ui.horizontal_wrapped(|ui| {
+            ui.checkbox(&mut self.ui.zebras, "Zebras")
+                .on_hover_text("Stripes where the displayed image clips");
+            ui.checkbox(&mut self.ui.show_scopes, "Scopes")
+                .on_hover_text("Histogram, luma waveform and vectorscope");
+            ui.checkbox(&mut self.ui.meter, "Light meter")
+                .on_hover_text("Luminance and illuminance under the cursor");
+            ui.checkbox(&mut self.ui.show_graph, "Convergence graph")
+                .on_hover_text("Error against a reference image as samples grow");
+        });
         section(ui, "Compare");
         ui.horizontal(|ui| {
             if ui

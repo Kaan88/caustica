@@ -601,7 +601,7 @@ impl Settings {
             (0.1..=4.).contains(&self.gamma)
                 && (0. ..=10.).contains(&self.exposure)
                 && self.tonemap < 6
-                && self.view < 8,
+                && self.view < 12,
             "Invalid display settings"
         );
         anyhow::ensure!(

@@ -20,7 +20,9 @@ use windows::{
     core::{Interface, PCSTR},
 };
 
-const TEXTURES: usize = 27;
+const TEXTURES: usize = 29;
+/// Size of the scopes counter texture (u28).
+pub const SCOPES: [u32; 2] = [256, 260];
 /// Shader-visible heap: UAVs 0..TEXTURES, then one SRV slot per egui texture from 32.
 const HEAP_SIZE: usize = 512;
 const FIRST_GUI_SLOT: usize = 32;
@@ -52,6 +54,7 @@ struct Constants {
     scene_info: [u32; 4],
     environment: [f32; 4],
     hdr: [f32; 4],
+    tools: [f32; 4],
 }
 unsafe extern "C" {
     fn cornell_ngx_release(ngx: *mut c_void);
@@ -172,6 +175,16 @@ pub struct Gpu {
     pub hdr_active: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
+    /// Look tools (roadmap 5b): zebras, scopes (read back into `scopes` each frame) and a
+    /// light-meter probe at an output pixel (read back into `probe_result`: linear beauty and
+    /// diffuse albedo).
+    pub zebras: bool,
+    pub scopes_on: bool,
+    pub scopes: Vec<u32>,
+    pub probe: Option<[u32; 2]>,
+    pub probe_result: Option<([f32; 4], [f32; 4])>,
+    readback: Option<ID3D12Resource>,
+    scope_zero: Option<ID3D12Resource>,
     /// The swapchain accepted the color space for its current format.
     color_space_ok: bool,
     buffers: Vec<ID3D12Resource>,
@@ -528,6 +541,13 @@ impl Gpu {
             gui_hdr,
             hdr_active: false,
             hdr_levels: [200., 1000.],
+            zebras: false,
+            scopes_on: false,
+            scopes: vec![],
+            probe: None,
+            probe_result: None,
+            readback: None,
+            scope_zero: None,
             color_space_ok: true,
             buffers: vec![],
             textures: vec![],
@@ -746,6 +766,164 @@ impl Gpu {
         }
         Ok(true)
     }
+    /// Zeroes the scope counters (u28) with a copy from a zero buffer.
+    unsafe fn clear_scopes(&mut self) -> Result<()> {
+        let t = self.textures[28].resource.clone();
+        let (layout, bytes) = footprint(&self.device, &t);
+        if self.scope_zero.is_none() {
+            let zero = buffer(
+                &self.device,
+                bytes,
+                D3D12_HEAP_TYPE_UPLOAD,
+                D3D12_RESOURCE_FLAG_NONE,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+            )?;
+            write_buffer(&zero, 0, &vec![0u8; bytes as usize])?;
+            self.scope_zero = Some(zero);
+        }
+        transition(
+            &self.list,
+            &t,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        );
+        let mut dst = location(&t);
+        let mut src = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(self.scope_zero.clone()),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &t,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        Ok(())
+    }
+    /// Readback buffer layout: scopes at 0, then the probe texels (linear output, albedo).
+    fn readback_layout(&self) -> (u64, u64, u64) {
+        let scopes = SCOPES[0] as u64 * 4 * SCOPES[1] as u64;
+        let probe_linear = scopes.next_multiple_of(512);
+        (scopes, probe_linear, probe_linear + 512)
+    }
+    /// Copies the scope counters and the probe texels into the readback buffer.
+    unsafe fn queue_readbacks(&mut self, probe: Option<[u32; 2]>) -> Result<()> {
+        let (_, probe_linear, probe_albedo) = self.readback_layout();
+        if self.readback.is_none() {
+            self.readback = Some(buffer(
+                &self.device,
+                probe_albedo + 512,
+                D3D12_HEAP_TYPE_READBACK,
+                D3D12_RESOURCE_FLAG_NONE,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+            )?);
+        }
+        let readback = self.readback.clone().unwrap();
+        let copy = |index: usize, rect: [u32; 4], offset: u64, format: DXGI_FORMAT, row: u32| {
+            let t = &self.textures[index].resource;
+            transition(
+                &self.list,
+                t,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            let mut src = location(t);
+            let mut dst = D3D12_TEXTURE_COPY_LOCATION {
+                pResource: ManuallyDrop::new(Some(readback.clone())),
+                Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+                Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                    PlacedFootprint: D3D12_PLACED_SUBRESOURCE_FOOTPRINT {
+                        Offset: offset,
+                        Footprint: D3D12_SUBRESOURCE_FOOTPRINT {
+                            Format: format,
+                            Width: rect[2] - rect[0],
+                            Height: rect[3] - rect[1],
+                            Depth: 1,
+                            RowPitch: row,
+                        },
+                    },
+                },
+            };
+            let area = D3D12_BOX {
+                left: rect[0],
+                top: rect[1],
+                front: 0,
+                right: rect[2],
+                bottom: rect[3],
+                back: 1,
+            };
+            self.list
+                .CopyTextureRegion(&dst, 0, 0, 0, &src, Some(&area));
+            ManuallyDrop::drop(&mut src.pResource);
+            ManuallyDrop::drop(&mut dst.pResource);
+            transition(
+                &self.list,
+                t,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+        };
+        if self.scopes_on {
+            copy(
+                28,
+                [0, 0, SCOPES[0], SCOPES[1]],
+                0,
+                DXGI_FORMAT_R32_UINT,
+                SCOPES[0] * 4,
+            );
+        }
+        if let Some([x, y]) = probe {
+            copy(
+                18,
+                [x, y, x + 1, y + 1],
+                probe_linear,
+                DXGI_FORMAT_R32G32B32A32_FLOAT,
+                256,
+            );
+            let rx = (x * self.rw / self.width).min(self.rw - 1);
+            let ry = (y * self.rh / self.height).min(self.rh - 1);
+            copy(
+                3,
+                [rx, ry, rx + 1, ry + 1],
+                probe_albedo,
+                DXGI_FORMAT_R32G32B32A32_FLOAT,
+                256,
+            );
+        }
+        Ok(())
+    }
+    unsafe fn finish_readbacks(&mut self, probe: Option<[u32; 2]>) -> Result<()> {
+        self.probe_result = None;
+        let Some(readback) = &self.readback else {
+            return Ok(());
+        };
+        if !self.scopes_on && probe.is_none() {
+            return Ok(());
+        }
+        let (scopes, probe_linear, probe_albedo) = self.readback_layout();
+        let mut p = null_mut();
+        readback.Map(0, None, Some(&mut p))?;
+        let base = p as *const u8;
+        if self.scopes_on {
+            self.scopes =
+                std::slice::from_raw_parts(base as *const u32, (scopes / 4) as usize).to_vec();
+        }
+        if probe.is_some() {
+            let texel = |offset: u64| {
+                let f = std::slice::from_raw_parts(base.add(offset as usize) as *const f32, 4);
+                [f[0], f[1], f[2], f[3]]
+            };
+            self.probe_result = Some((texel(probe_linear), texel(probe_albedo)));
+        }
+        readback.Unmap(0, None);
+        Ok(())
+    }
     /// Swaps in freshly compiled shaders (hot reload). Every pipeline is built before any is
     /// replaced, so a failure keeps the old ones. Restarts the accumulation.
     pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
@@ -854,10 +1032,14 @@ impl Gpu {
                 6 => DXGI_FORMAT_R32G32_FLOAT,
                 10 => DXGI_FORMAT_R8G8B8A8_UNORM,
                 26 => DXGI_FORMAT_R16G16B16A16_FLOAT,
+                27 => DXGI_FORMAT_R32G32_FLOAT,
+                28 => DXGI_FORMAT_R32_UINT,
                 _ => DXGI_FORMAT_R32G32B32A32_FLOAT,
             };
             let (tw, th) = if [10, 13, 14, 18, 26].contains(&i) {
                 (w, h)
+            } else if i == 28 {
+                (SCOPES[0], SCOPES[1])
             } else {
                 (self.rw, self.rh)
             };
@@ -1169,6 +1351,12 @@ impl Gpu {
                 self.hdr_levels[1],
                 0.,
             ],
+            tools: [
+                self.zebras as u32 as f32,
+                self.scopes_on as u32 as f32,
+                s.bounces.min(8) as f32,
+                256.,
+            ],
         };
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
         if self.hdr_active {
@@ -1282,11 +1470,20 @@ impl Gpu {
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
         write_buffer(&self.constants, 6144, bytemuck::bytes_of(&c))?;
+        if self.scopes_on {
+            self.clear_scopes()?;
+        }
         self.bind(6144);
         self.list.SetPipelineState(&self.display);
         self.list
             .Dispatch(self.width.div_ceil(8), self.height.div_ceil(8), 1);
         uav(&self.list, None);
+        let probe = self
+            .probe
+            .filter(|p| p[0] < self.width && p[1] < self.height);
+        if self.scopes_on || probe.is_some() {
+            self.queue_readbacks(probe)?;
+        }
         self.list
             .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
         self.list.ResolveQueryData(
@@ -1381,6 +1578,7 @@ impl Gpu {
         }
         self.submit()?;
         self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
+        self.finish_readbacks(probe)?;
         let mut data = null_mut();
         self.timing
             .Map(0, Some(&D3D12_RANGE { Begin: 0, End: 16 }), Some(&mut data))?;

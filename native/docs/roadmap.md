@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b and 5a are done (2026-10-30); the rest is not started.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. Items 1–4, 3b, 5a and 5b are done (2026-10-30); the rest is not started.
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -131,7 +131,9 @@ As built: hot reload spawns the build's own `dxc.exe` (path baked in by build.rs
   - Release keeps the embedded DXIL.
 - **Perf history:** a script runs a fixed benchmark set (`--headless --no-vsync --frames 200` over presets 0, 13, 17 and 21, native and RR). It appends the `RENDER_OK` means with the commit hash to `captures/perf-history.csv` and plots the history, so slowdowns show up per commit.
 
-#### 5b. Seeing the invisible: debug views and meters
+#### 5b. Seeing the invisible: debug views and meters — done 2026-10-30
+
+As built: views 8–11 (bounces, BVH cost, variance heat maps, false colour), zebras, scopes binned with atomics in the display pass (no extra pass; cleared by a copy), light meter (one-texel readback of linear output and albedo), convergence graph in egui (reference from an EXR or the current image, log–log with a 1/√n guide), lifetime stats and 8 achievements in `%APPDATA%\CornellRTX\stats.json`.
 
 Each is a new `modes.x` view in `display` or a small compute pass:
 

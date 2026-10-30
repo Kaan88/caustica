@@ -10,6 +10,7 @@ mod lighting;
 mod presets;
 mod scene;
 mod scenes;
+mod stats;
 mod teapot_data;
 mod ui;
 use anyhow::{Context, Result, bail};
@@ -87,7 +88,13 @@ struct App {
     hdr_note: String,
     /// Shader hot reload, debug builds only (not in the self-test).
     hot: Option<hotreload::HotReload>,
+    /// Lifetime statistics (interactive runs only) and when they were last written.
+    stats: Option<stats::Stats>,
+    stats_saved: Instant,
+    last_samples: u32,
 }
+/// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
+const SCENES_FROM: u32 = 220;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -269,6 +276,10 @@ impl App {
                 }
                 "--ui-advanced" => interface.advanced = true,
                 "--ui-scenes" => interface.show_scenes = true,
+                "--ui-scopes" => {
+                    interface.show_scopes = true;
+                    interface.zebras = true;
+                }
                 "--ui-tool" => {
                     interface.tool = match args.next().context("--ui-tool needs a name")?.as_str() {
                         "select" => gizmo::Tool::Select,
@@ -302,12 +313,12 @@ impl App {
                     hidden = true;
                     debug = true;
                     // Then one frame per scene file.
-                    frames = Some(204 + scenes::list().len() as u32);
+                    frames = Some(SCENES_FROM + scenes::list().len() as u32);
                 }
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --orbit-test --drag-test --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --orbit-test --drag-test --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -374,6 +385,9 @@ impl App {
             display_dirty: true,
             hdr_note: String::new(),
             hot: None,
+            stats: None,
+            stats_saved: Instant::now(),
+            last_samples: 0,
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -563,6 +577,34 @@ impl App {
                     );
                     self.ui.tool = gizmo::Tool::Move;
                 }
+                // Debug views (bounces, BVH cost, variance, false colour), then zebras, scopes,
+                // the light meter and the convergence graph.
+                204..=207 => self.settings.view = 8 + self.rendered - 204,
+                208 => {
+                    self.settings.view = 0;
+                    self.ui.zebras = true;
+                    self.ui.show_scopes = true;
+                    self.ui.meter = true;
+                    self.cursor = [self.size[0] as f64 * 0.5, self.size[1] as f64 * 0.5];
+                }
+                210 => {
+                    let g = self.gpu.as_mut().unwrap();
+                    self.ui.reference = Some((g.width, g.height, unsafe { g.read_floats(18)? }));
+                    self.ui.show_graph = true;
+                    self.actions.reset = true;
+                }
+                215 => {
+                    anyhow::ensure!(
+                        self.ui.graph.len() >= 2
+                            && self.ui.graph.iter().all(|(_, e)| e.is_finite()),
+                        "Convergence graph has no points: {:?}",
+                        self.ui.graph
+                    );
+                    self.ui.zebras = false;
+                    self.ui.show_scopes = false;
+                    self.ui.meter = false;
+                    self.ui.show_graph = false;
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -579,9 +621,9 @@ impl App {
                 }
                 // Every scene file, one per frame; the per-frame checks compare GPU triangle and
                 // emitter counts with the loaded settings.
-                n if n >= 204 => {
+                n if n >= SCENES_FROM => {
                     let entries = scenes::list();
-                    if let Some(e) = entries.get((n - 204) as usize) {
+                    if let Some(e) = entries.get((n - SCENES_FROM) as usize) {
                         scenes::load_into(&mut self.settings, &e.path)
                             .with_context(|| format!("Scene file {}", e.path.display()))?;
                         anyhow::ensure!(
@@ -665,6 +707,9 @@ impl App {
             {
                 Ok(()) => {
                     println!("SHADERS RELOADED");
+                    if let Some(st) = &mut self.stats {
+                        st.hot_reloads += 1;
+                    }
                     self.ui.toast(format!(
                         "Shaders reloaded ({} ms)",
                         started.elapsed().as_millis()
@@ -780,6 +825,11 @@ impl App {
             self.actions.reset = false;
         }
         let draw = (!self.paused || g.samples == 0) && g.samples < s.max_samples;
+        // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
+        g.zebras = self.ui.zebras;
+        g.scopes_on = self.ui.show_scopes;
+        g.probe = (self.ui.meter && !self.egui.is_pointer_over_area())
+            .then_some([self.cursor[0].max(0.) as u32, self.cursor[1].max(0.) as u32]);
         unsafe {
             g.render(
                 s,
@@ -789,6 +839,83 @@ impl App {
                 &output.textures_delta,
                 output.pixels_per_point,
             )?;
+        }
+        // Convergence graph: RMSE against the reference at log-spaced sample counts.
+        if self.ui.show_graph
+            && let Some((rw, rh, reference)) = &self.ui.reference
+            && (*rw, *rh) == (g.width, g.height)
+        {
+            if g.samples < self.ui.graph.last().map_or(0, |p| p.0) {
+                self.ui.graph.clear();
+            }
+            let last = self.ui.graph.last().map_or(0, |p| p.0);
+            if g.samples > 0 && (last == 0 || g.samples as f64 >= last as f64 * 1.25) {
+                let image = unsafe { g.read_floats(18)? };
+                let compress = |p: &[f32]| {
+                    let l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+                    (l / (1. + l.max(0.))) as f64
+                };
+                let (a, b) = (image.as_chunks::<4>().0, reference.as_chunks::<4>().0);
+                let sum: f64 = a
+                    .iter()
+                    .zip(b)
+                    .map(|(x, y)| (compress(x) - compress(y)).powi(2))
+                    .sum();
+                self.ui
+                    .graph
+                    .push((g.samples, (sum / a.len().max(1) as f64).sqrt() * 1000.));
+            }
+        }
+        // Lifetime statistics and achievements.
+        if let Some(st) = &mut self.stats {
+            if g.samples > self.last_samples {
+                st.paths += (g.samples - self.last_samples) as f64 * (g.rw * g.rh) as f64;
+            }
+            self.last_samples = g.samples;
+            st.gpu_seconds += g.gpu_ms / 1000.;
+            st.max_samples = st.max_samples.max(g.samples);
+            if PRESETS.contains(&s.scene_name.as_str()) {
+                st.presets_seen.insert(s.scene_name.clone());
+            } else if self.ui.scenes.iter().any(|e| e.title == s.scene_name) {
+                st.scenes_seen.insert(s.scene_name.clone());
+            }
+            let builtin: Vec<&String> = self
+                .ui
+                .scenes
+                .iter()
+                .filter(|e| {
+                    e.path
+                        .parent()
+                        .and_then(|d| d.file_name())
+                        .is_some_and(|n| n == "builtin")
+                })
+                .map(|e| &e.title)
+                .collect();
+            let checks = [
+                ("first-light", g.samples > 0),
+                ("long-exposure", g.samples >= 65_536),
+                ("tourist", st.presets_seen.len() >= PRESETS.len()),
+                (
+                    "collector",
+                    !builtin.is_empty() && builtin.iter().all(|t| st.scenes_seen.contains(*t)),
+                ),
+                ("photographer", st.images_saved >= 10),
+                (
+                    "caustic-hunter",
+                    s.scene_name == "Cornell caustic" && g.samples >= 4096,
+                ),
+                ("hot-shader", st.hot_reloads > 0),
+                ("billion", st.paths >= 1e9),
+            ];
+            for (id, done) in checks {
+                if done && let Some(title) = st.unlock(id) {
+                    self.ui.toast(format!("Achievement unlocked: {title}"));
+                }
+            }
+            if self.stats_saved.elapsed() > Duration::from_secs(30) {
+                st.save();
+                self.stats_saved = Instant::now();
+            }
         }
         if self.self_test {
             // Every edit must reach the GPU: geometry and light tables match the settings.
@@ -849,6 +976,21 @@ impl App {
                     );
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
+                209 => {
+                    let [w, h] = gpu::SCOPES.map(|v| v as usize);
+                    anyhow::ensure!(g.scopes.len() == w * h, "Scopes were not read back");
+                    let luma: u64 = g.scopes[3 * w..4 * w].iter().map(|v| *v as u64).sum();
+                    anyhow::ensure!(
+                        luma == (g.width * g.height) as u64,
+                        "Histogram counts {luma} pixels, not {}",
+                        g.width * g.height
+                    );
+                    let (linear, albedo) = g.probe_result.context("No light-meter reading")?;
+                    anyhow::ensure!(
+                        linear.iter().chain(&albedo).all(|v| v.is_finite()),
+                        "Light-meter reading is not finite"
+                    );
+                }
                 196 => anyhow::ensure!(
                     !g.upscaler_available(scene::Upscaler::Dlss)
                         || g.upscale_status.contains("active"),
@@ -912,6 +1054,9 @@ impl App {
                 g.capture(std::path::Path::new("cornell.png"), false, false)?;
             }
             self.ui.toast("Saved cornell.png");
+            if let Some(st) = &mut self.stats {
+                st.images_saved += 1;
+            }
         }
         if self.actions.exr {
             self.actions.exr = false;
@@ -919,6 +1064,9 @@ impl App {
                 g.capture(std::path::Path::new("cornell.exr"), true, false)?;
             }
             self.ui.toast("Saved linear HDR cornell.exr");
+            if let Some(st) = &mut self.stats {
+                st.images_saved += 1;
+            }
         }
         if self.actions.hdr_png {
             self.actions.hdr_png = false;
@@ -931,6 +1079,9 @@ impl App {
                     g.height,
                 )?;
                 self.ui.toast("Saved cornell-hdr.png (PQ / BT.2020)");
+                if let Some(st) = &mut self.stats {
+                    st.images_saved += 1;
+                }
             } else {
                 self.ui.error("HDR PNG needs HDR output");
             }
@@ -969,6 +1120,9 @@ impl App {
                 self.ui.export_samples
             );
             self.ui.toast(text);
+            if let Some(st) = &mut self.stats {
+                st.images_saved += 1;
+            }
         }
         if self.debug {
             let messages = unsafe { g.debug_messages() };
@@ -1100,6 +1254,9 @@ impl ApplicationHandler for App {
             if cfg!(debug_assertions) && !self.self_test {
                 self.hot = hotreload::HotReload::new();
             }
+            if !self.hidden {
+                self.stats = Some(stats::Stats::load());
+            }
             let input = egui_winit::State::new(
                 self.egui.clone(),
                 egui::ViewportId::ROOT,
@@ -1125,7 +1282,12 @@ impl ApplicationHandler for App {
             false
         };
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if let Some(st) = &self.stats {
+                    st.save();
+                }
+                event_loop.exit();
+            }
             WindowEvent::Resized(size) => {
                 if size.width > 0
                     && size.height > 0

@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 204 scripted frames, then one frame per scene file (246 with the built-in pack); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 220 scripted frames (`SCENES_FROM`), then one frame per scene file (262 with the built-in pack); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -163,13 +163,13 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 0 | CBV b0 |
 | 1 | SRV t0 TLAS |
 | 2 | SRV t1 vertices |
-| 3 | Table: UAV u0–u26 (heap slots 0–26) |
+| 3 | Table: UAV u0–u28 (heap slots 0–28) |
 | 4 | Table: SRV t2, the egui texture of each GUI draw (heap slots 32–511, one per texture; pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
 | 7 | Root SRV t5 emitter lookup |
 
-There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–26, egui textures from 32.
+There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–28, egui textures from 32.
 
 **Acceleration structures.** There is one BLAS of the whole triangle soup and one TLAS instance with an identity transform. Both use PREFER_FAST_TRACE. Geometry is **non-opaque**, so every candidate runs through the `Proceed()` loop. That loop is how hidden lights and glass shadows are skipped.
 
@@ -203,6 +203,8 @@ There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAV
 | 24 | filter_guide (octahedral normal xy, depth, object id: one read per à-trous tap) | |
 | 25 | device_depth (projected z/w, 0 near → 1 far) for DLSS SR / FSR / XeSS | R32F |
 | 26 | hdr_output (scRGB, 1.0 = 80 nits; written only in HDR mode, copied to the HDR backbuffer) | RGBA16F, **output resolution** |
+| 27 | trace_stats: this frame's mean bounces per sample, BVH steps (`Proceed()` calls, all rays) per pixel | RG32F |
+| 28 | scopes: counters, rows 0–3 histogram R,G,B,L; 4–131 luma waveform; 132–259 vectorscope (128 wide) | R32_UINT, **256×260 fixed** |
 
 ## Rendering behaviour worth remembering
 
@@ -390,6 +392,16 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - Cards are painted at a fixed 160×100 (egui's `ImageButton` padding made the grid uneven). The selected scene shows a 256×160 preview, licence badge, tags, attribution and credits.
   - Self-test 203 loads a generated texture as entry 0's thumbnail and opens the window with it selected, so the scene-file frames draw the textured UI under the debug layer.
 - Not done: relative asset paths (nothing references assets yet).
+
+## Debug views and meters (roadmap 5b, 2026-10-30)
+
+- `Constants.tools` (mirrored in common.hlsli): zebras, scopes, heat scale for bounces (min(bounces, 8)), and BVH steps per sample at the top of the log map (256).
+- Trace counts `proceed_steps` in both `RayQuery` loops and the bounces used, written to u27. Views 8–11 are in `display`: 8 is `(bounces − 1) / (max − 1)`; 9 is `log2(1 + steps/spp) / log2(257)`; 10 is the variance of the accumulation (log); 11 is false colour in EV around 0.18 of the exposed image.
+- Scopes: `bin_scopes` atomics in `display` on the final SDR value. Before display, `clear_scopes` copies a zero upload buffer into u28; after display, `queue_readbacks` copies u28 and the light-meter texels (u18 at the output pixel, u3 at the render pixel) into one readback buffer. `finish_readbacks` maps it after Present into `Gpu::scopes` / `probe_result`.
+- App: `g.zebras` / `scopes_on` / `probe` are set from `UiState` before `render`. The convergence graph reads u18 with `read_floats` at sample counts growing by 1.25× and computes RMSE ×1000 of l/(1+l) on the CPU (a 20 MB readback each time, so a hitch). The graph clears when samples drop.
+- `stats.rs`: loaded only when the window is visible; saved every 30 s and on close. Achievements are checked each frame in `redraw`.
+- Self-test 204–207 cycle views 8–11. 208 turns on zebras, scopes and the meter (cursor at the center). 209 asserts the luma histogram counts exactly width×height and the meter texels are finite. 210 sets the current image as the reference and restarts. 215 asserts ≥ 2 finite graph points and turns the tools off. Scene files start at frame 220.
+- Capture CLI: `--ui-scopes` (scopes + zebras).
 
 ## Tooling (roadmap 5a, 2026-10-30)
 

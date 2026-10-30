@@ -8,6 +8,8 @@ uint owen(uint x,uint seed){return reversebits(permute(reversebits(x),seed));}
 // transform replaces the 32-step loop over direction numbers (bit-identical results).
 uint superset(uint i){i^=(i>>1)&0x55555555;i^=(i>>2)&0x33333333;i^=(i>>4)&0x0f0f0f0f;i^=(i>>8)&0x00ff00ff;i^=(i>>16)&0x0000ffff;return i;}
 static float pair_second;
+// Debug statistics for this pixel and frame (views 8 and 9).
+static uint proceed_steps;
 float random(){
     if(jitter.z>0.5 && modes.w==0){
         // Padded 2D Owen-scrambled Sobol. RR uses independent white noise per NVIDIA's guide.
@@ -27,7 +29,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
     RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
-    while(q.Proceed()){
+    while(q.Proceed()){proceed_steps++;
         uint m=vertices[q.CandidatePrimitiveIndex()*3].material;
         if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
         if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();
@@ -42,7 +44,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
-    while(q.Proceed()){uint m=vertices[q.CandidatePrimitiveIndex()*3].material;if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
+    while(q.Proceed()){proceed_steps++;uint m=vertices[q.CandidatePrimitiveIndex()*3].material;if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
     return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT;
 }
 Material material_at(uint id,float3 p){
@@ -70,7 +72,7 @@ Emitter select_emitter(float u){uint lo=0,hi=scene_info.x-1;while(lo<hi){uint mi
 float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 p=mul(inverse_vp,float4(ndc,1,1));return normalize(p.xyz/p.w-eye.xyz);}
 [numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy;if(any(p>=dimensions.xy))return;
-    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);
+    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
     Hit guide;float3 gd=camera_direction(float2(p)+0.5+jitter.xy);
@@ -96,6 +98,7 @@ float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
         float3 direction=camera_direction(float2(p)+0.5+subpixel),origin=eye.xyz,throughput=1,radiance=0,direct=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z;bounce++){
+            bounces_used+=1;
             Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){float3 e=throughput*environment_radiance(direction);radiance+=e;if(bounce<=1)direct+=e;break;}
             throughput*=exp(-absorption*h.t);
             Material m=material_at(h.material,h.p);float3 emitted=m.color_rough.rgb*m.optical.y;
@@ -136,6 +139,7 @@ float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2
         float count=sampling.x+sample_id+1;float delta_l=luminance(radiance)-luminance(mean);mean+=(radiance-mean)/count;m2+=delta_l*(luminance(radiance)-luminance(mean));
         dmean+=(direct-dmean)/count;smean+=((first_spec?radiance:0)-smean)/count;batch+=radiance/sampling.y;
     }
+    trace_stats[p]=float2(bounces_used/max(1,sampling.y),proceed_steps);
     noisy[p]=float4(batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);
 }
 
