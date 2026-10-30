@@ -9,11 +9,13 @@ mod hotreload;
 mod lighting;
 mod look;
 mod presets;
+mod saver;
 mod scene;
 mod scenes;
 mod stats;
 mod teapot_data;
 mod ui;
+mod video;
 mod walk;
 use anyhow::{Context, Result, bail};
 use gpu::Gpu;
@@ -42,6 +44,7 @@ struct Actions {
     hdr_png: bool,
     reference: bool,
     high_res: bool,
+    turntable: bool,
     frame_scene: bool,
 }
 struct App {
@@ -104,6 +107,10 @@ struct App {
     /// Walk mode (`): WASD and mouse look; the keys held down right now.
     walking: Option<walk::Walk>,
     keys_down: std::collections::HashSet<KeyCode>,
+    /// Screensaver show mode (`/s`): cycles scenes and quits on input.
+    saver: Option<saver::Saver>,
+    /// `--turntable PATH`: render the video in a headless run, then exit.
+    turntable_cli: Option<video::Turntable>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 260;
@@ -202,7 +209,16 @@ impl App {
         // switch: the command line then means the same in any order.
         let mut ordered: Vec<String> = vec![];
         let mut rest: Vec<String> = vec![];
-        let mut all = std::env::args().skip(1);
+        // A screensaver run (`/s`, `/c`, `/p`) has no other switches.
+        let raw: Vec<String> = std::env::args().skip(1).collect();
+        let screensaver = matches!(saver::mode(&raw), saver::Mode::Show);
+        let raw = if raw.first().is_some_and(|a| a.starts_with('/')) {
+            vec![]
+        } else {
+            raw
+        };
+        let mut turntable_cli: Option<video::Turntable> = None;
+        let mut all = raw.into_iter();
         while let Some(arg) = all.next() {
             if arg == "--preset" || arg == "--settings" || arg == "--scene" {
                 anyhow::ensure!(
@@ -220,6 +236,24 @@ impl App {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--orbit-test" => orbit_test = true,
+                "--turntable" => {
+                    turntable_cli = Some(video::Turntable {
+                        frames: 60,
+                        spp: 16,
+                        degrees: 360.,
+                        fps: 30,
+                        path: PathBuf::from(args.next().context("--turntable needs a file name")?),
+                    });
+                }
+                "--turntable-frames" | "--turntable-spp" => {
+                    let value: u32 = args.next().context("a number")?.parse()?;
+                    let t = turntable_cli.as_mut().context("give --turntable first")?;
+                    if arg == "--turntable-frames" {
+                        t.frames = value
+                    } else {
+                        t.spp = value
+                    }
+                }
                 "--drag-test" => drag_test = true,
                 "--capture-sequence" => {
                     capture_sequence = Some(PathBuf::from(
@@ -339,7 +373,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --orbit-test --drag-test --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -363,6 +397,9 @@ impl App {
             "Dimensions must be 64–8192"
         );
         anyhow::ensure!(frames != Some(0), "--frames must be positive");
+        if turntable_cli.is_some() && frames.is_none() {
+            frames = Some(4);
+        }
         anyhow::ensure!(!hidden || frames.is_some(), "--headless requires --frames");
         let egui = egui::Context::default();
         ui::theme(&egui);
@@ -415,6 +452,8 @@ impl App {
             painting: false,
             walking: None,
             keys_down: Default::default(),
+            saver: screensaver.then(saver::Saver::new),
+            turntable_cli,
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -712,6 +751,27 @@ impl App {
                     self.toggle_walk();
                     self.keys_down.insert(KeyCode::KeyW);
                 }
+                // A three-frame turntable (PNG frames when ffmpeg is missing).
+                253 => {
+                    let path = std::env::temp_dir().join("cornell-self-test-turntable.mp4");
+                    let folder = path.with_extension("");
+                    let _ = std::fs::remove_dir_all(&folder);
+                    let t = video::Turntable {
+                        frames: 3,
+                        spp: 2,
+                        degrees: 30.,
+                        fps: 30,
+                        path: path.clone(),
+                    };
+                    let g = self.gpu.as_mut().unwrap();
+                    let text = unsafe { video::render(g, &self.settings.clone(), &t)? };
+                    let made = if video::ffmpeg_available() {
+                        path.is_file()
+                    } else {
+                        (1..=3).all(|i| folder.join(format!("{i:05}.png")).is_file())
+                    };
+                    anyhow::ensure!(made, "Turntable output missing: {text}");
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -828,6 +888,23 @@ impl App {
                         .error(format!("Shader error, keeping the old shaders:\n{e:#}"));
                 }
             }
+        }
+        if let Some(sv) = &mut self.saver
+            && Instant::now() >= sv.next_switch
+        {
+            // Presets except the empty stage, then every scene file.
+            let presets = PRESETS.len() - 1;
+            let count = presets + self.ui.scenes.len();
+            let i = sv.index % count;
+            sv.index += 1;
+            sv.next_switch = Instant::now() + Duration::from_secs(saver::Saver::SCENE_SECONDS);
+            if i < presets {
+                self.settings.preset(i);
+            } else {
+                self.load_scene_file(i - presets);
+            }
+            self.settings.rotate = true;
+            self.settings.rotate_speed = 4.;
         }
         let g = self.gpu.as_mut().unwrap();
         if self.actions.frame_scene {
@@ -1345,6 +1422,24 @@ impl App {
                 st.images_saved += 1;
             }
         }
+        let cli_turntable = if self.rendered == 2 {
+            self.turntable_cli.take()
+        } else {
+            None
+        };
+        if self.actions.turntable || cli_turntable.is_some() {
+            self.actions.turntable = false;
+            let t = cli_turntable.unwrap_or_else(|| video::Turntable {
+                frames: self.ui.tt_frames,
+                spp: self.ui.tt_spp,
+                degrees: self.ui.tt_degrees,
+                fps: self.ui.tt_fps,
+                path: PathBuf::from(&self.ui.tt_path),
+            });
+            let text = unsafe { video::render(g, s, &t)? };
+            println!("TURNTABLE {text}");
+            self.ui.toast(text);
+        }
         if self.debug {
             let messages = unsafe { g.debug_messages() };
             for msg in &messages {
@@ -1460,9 +1555,18 @@ impl ApplicationHandler for App {
                     Window::default_attributes()
                         .with_title("Cornell RTX")
                         .with_inner_size(winit::dpi::PhysicalSize::new(self.size[0], self.size[1]))
-                        .with_visible(!self.hidden),
+                        .with_visible(!self.hidden)
+                        .with_fullscreen(
+                            self.saver
+                                .as_ref()
+                                .map(|_| winit::window::Fullscreen::Borderless(None)),
+                        ),
                 )?,
             );
+            if self.saver.is_some() {
+                window.set_cursor_visible(false);
+                self.show_ui = false;
+            }
             let hwnd = match window.window_handle()?.as_raw() {
                 RawWindowHandle::Win32(h) => windows::Win32::Foundation::HWND(h.hwnd.get() as _),
                 _ => bail!("Windows only"),
@@ -1502,6 +1606,39 @@ impl ApplicationHandler for App {
         } else {
             false
         };
+        if let Some(sv) = &mut self.saver {
+            // Windows sends stray events while a fullscreen window takes focus (synthetic keys,
+            // an AltGr press on some layouts), so input counts after a short grace period and
+            // modifier keys never do.
+            let settled = sv.started.elapsed() > Duration::from_millis(1500);
+            let quit = settled
+                && match &event {
+                    WindowEvent::KeyboardInput {
+                        event,
+                        is_synthetic: false,
+                        ..
+                    } => !matches!(
+                        event.physical_key,
+                        PhysicalKey::Code(
+                            KeyCode::AltLeft
+                                | KeyCode::AltRight
+                                | KeyCode::ControlLeft
+                                | KeyCode::ControlRight
+                                | KeyCode::ShiftLeft
+                                | KeyCode::ShiftRight
+                                | KeyCode::SuperLeft
+                                | KeyCode::SuperRight
+                        )
+                    ),
+                    WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. } => true,
+                    WindowEvent::CursorMoved { position, .. } => sv.moved([position.x, position.y]),
+                    _ => false,
+                };
+            if quit {
+                event_loop.exit();
+                return;
+            }
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(st) = &self.stats {
@@ -1811,6 +1948,11 @@ fn main() {
     }
 }
 fn run() -> Result<()> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let saver::Mode::Preview(parent) = saver::mode(&args) {
+        saver::preview(parent);
+        return Ok(());
+    }
     // Renders the missing scene thumbnails (each one a headless run of this exe) and exits.
     if std::env::args().any(|a| a == "--make-thumbnails") {
         let missing: Vec<_> = scenes::list()
@@ -1850,6 +1992,7 @@ mod tests {
             ("gizmo.rs", include_str!("gizmo.rs")),
             ("look.rs", include_str!("look.rs")),
             ("walk.rs", include_str!("walk.rs")),
+            ("video.rs", include_str!("video.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
         ] {

@@ -123,6 +123,12 @@ pub struct UiState {
     pub search: String,
     pub export_scale: u32,
     pub export_samples: u32,
+    /// Turntable video export settings.
+    pub tt_frames: u32,
+    pub tt_spp: u32,
+    pub tt_degrees: f32,
+    pub tt_fps: u32,
+    pub tt_path: String,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
     /// Look tools (roadmap 5b).
@@ -170,6 +176,11 @@ impl Default for UiState {
             search: String::new(),
             export_scale: 2,
             export_samples: 128,
+            tt_frames: 120,
+            tt_spp: 32,
+            tt_degrees: 360.,
+            tt_fps: 30,
+            tt_path: "cornell-turntable.mp4".into(),
             show_scenes: false,
             zebras: false,
             show_scopes: false,
@@ -2201,6 +2212,40 @@ impl App {
                 "cornell-high-res.png, {} × {}, traced fresh at 100% resolution. The window waits until it is done. For larger images use the command line (--width, --height, --frames, --capture).",
                 (g.width as f32 * factor).round(),
                 (g.height as f32 * factor).round()
+            ),
+        );
+        section(ui, "Turntable video");
+        grid("turntable").show(ui, |ui| {
+            row(ui, "Frames", "Number of video frames.", |ui| {
+                ui.add(crate::slider(&mut self.ui.tt_frames, 2..=1440).logarithmic(true));
+            });
+            row(ui, "Samples per frame", "Each frame converges this far before the next.", |ui| {
+                ui.add(crate::slider(&mut self.ui.tt_spp, 1..=4096).logarithmic(true).suffix(" spp"));
+            });
+            row(ui, "Orbit", "How far the camera turns over the whole video.", |ui| {
+                ui.add(crate::slider(&mut self.ui.tt_degrees, 15. ..=1080.).suffix("°"));
+            });
+            row(ui, "Frame rate", "Frames per second of the video.", |ui| {
+                for fps in [24, 30, 60] {
+                    ui.selectable_value(&mut self.ui.tt_fps, fps, format!("{fps}"));
+                }
+            });
+            row(ui, "File", "H.264 MP4 through ffmpeg when it is on PATH; otherwise PNG frames in a folder of the same name.", |ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.ui.tt_path).desired_width(180.));
+            });
+        });
+        if ui.button("Render turntable").clicked() {
+            self.actions.turntable = true;
+        }
+        note(
+            ui,
+            &format!(
+                "{} · the window waits until every frame is done.",
+                if crate::video::ffmpeg_available() {
+                    "ffmpeg found"
+                } else {
+                    "ffmpeg not on PATH: PNG frames"
+                }
             ),
         );
         section(ui, "Scene file");

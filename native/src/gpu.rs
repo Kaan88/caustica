@@ -2193,6 +2193,59 @@ impl Gpu {
         Ok(())
     }
     /// Reads an output-resolution float texture (18 linear RGBA32F, 26 scRGB RGBA16F) as RGBA f32.
+    /// Reads the RGBA8 output (texture 10) as tightly packed rows.
+    pub unsafe fn read_rgba8(&mut self, index: usize) -> Result<Vec<u8>> {
+        ensure!(
+            self.textures[index].format == DXGI_FORMAT_R8G8B8A8_UNORM,
+            "Texture {index} is not RGBA8"
+        );
+        let resource = self.textures[index].resource.clone();
+        let (layout, bytes) = footprint(&self.device, &resource);
+        let staging = buffer(
+            &self.device,
+            bytes,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        self.begin()?;
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+        );
+        let mut src = location(&resource);
+        let mut dst = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(Some(staging.clone())),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        self.submit()?;
+        let mut p = null_mut();
+        staging.Map(0, None, Some(&mut p))?;
+        let row = self.width as usize * 4;
+        let mut out = Vec::with_capacity(row * self.height as usize);
+        for y in 0..self.height as usize {
+            out.extend_from_slice(std::slice::from_raw_parts(
+                (p as *const u8).add(y * layout.Footprint.RowPitch as usize),
+                row,
+            ));
+        }
+        staging.Unmap(0, None);
+        Ok(out)
+    }
     pub unsafe fn read_floats(&mut self, index: usize) -> Result<Vec<f32>> {
         let resource = self.textures[index].resource.clone();
         let half = self.textures[index].format == DXGI_FORMAT_R16G16B16A16_FLOAT;
