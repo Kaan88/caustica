@@ -1,5 +1,6 @@
-//! GPU material records and power-weighted emissive-triangle sampling tables.
-use crate::scene::{Material, Settings, Vertex};
+//! GPU material records and power-weighted light sampling tables: emissive triangles, plus
+//! spheres and suns sampled by solid angle (track 7).
+use crate::scene::{LightKind, Material, Settings, Vertex};
 use glam::Vec3;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -82,12 +83,19 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
     out.extend(s.lights.iter().map(|l| {
         let mut m = pack(&Material {
             color: l.color,
-            emission: if l.enabled { l.intensity } else { 0. },
+            emission: if l.enabled { l.radiance() } else { 0. },
             unlit: true,
             ..Material::default()
         });
-        m.optical[3] = 1.;
+        // Flat lights shine from their front only; a sphere all round.
+        m.optical[3] = (l.kind != LightKind::Sphere) as u32 as f32;
         m.lobes[3] = 1. + if l.visible { 0. } else { 2. };
+        // Spot (flag bit 5): emission × smoothstep(cos outer, cos inner, cos to the normal).
+        if l.kind == LightKind::Spot {
+            let (outer, inner) = l.cone();
+            m.lobes[3] += 32.;
+            m.secondary = [outer, inner, 0., 0.];
+        }
         m
     }));
     // Portals (flag bit 2): the object's record points (secondary.w) at an extra record whose
@@ -130,20 +138,100 @@ pub fn portal_matrix(a: &crate::scene::Object, b: &crate::scene::Object) -> glam
     let flip = glam::Mat4::from_scale(Vec3::new(-1., 1., -1.));
     local(b) * flip * local(a).inverse()
 }
+/// A light sampled by direction rather than by triangle (track 7).
+pub struct Analytic {
+    pub material: u32,
+    pub kind: LightKind,
+    /// Sphere: its centre; sun: the unit direction towards it.
+    pub at: Vec3,
+    /// Sphere: radius; sun: 1 − cosine of its angular radius (as 2·sin² of half of it, which
+    /// keeps its precision for small suns).
+    pub extent: f32,
+}
+/// Suns first (the trace tests the first `suns` entries on every miss), then spheres.
+pub fn analytic(s: &Settings) -> Vec<Analytic> {
+    let first = 5 + s.objects.len() as u32;
+    let lights = |kind| {
+        s.lights
+            .iter()
+            .enumerate()
+            .filter(move |(_, l)| l.enabled && l.kind == kind)
+            .map(move |(i, l)| Analytic {
+                material: first + i as u32,
+                kind,
+                at: match kind {
+                    LightKind::Sun => -l.direction(),
+                    _ => Vec3::from(l.position),
+                },
+                extent: match kind {
+                    LightKind::Sun => 2. * (l.angle * 0.25).to_radians().sin().powi(2),
+                    _ => l.size[0] * 0.5,
+                },
+            })
+    };
+    lights(LightKind::Sun)
+        .chain(lights(LightKind::Sphere))
+        .collect()
+}
+fn luminance(c: Vec3) -> f32 {
+    c.dot(Vec3::new(0.2126, 0.7152, 0.0722))
+}
+/// The emitter table (power-weighted CDF) and a per-triangle index into it (1-based, 0 = not
+/// an emitter). Analytic lights come first, encoded by a negative `position_area.w` (−1 sphere,
+/// −2 sun) with the centre or direction in xyz and radius or 1 − cos in `edge1_cdf.x`; a
+/// sphere's triangles all point at its entry.
 pub fn emitter_table(
     vertices: &[Vertex],
     materials: &[PackedMaterial],
+    analytic: &[Analytic],
 ) -> (Vec<Emitter>, Vec<u32>) {
     let mut emitters = vec![];
     let mut lookup = vec![0; vertices.len() / 3];
     let mut powers = vec![];
     let mut sum = 0f64;
+    let emission = |id: u32| {
+        let m = materials[id as usize];
+        Vec3::new(m.color_rough[0], m.color_rough[1], m.color_rough[2]) * m.optical[1]
+    };
+    let mut spheres = std::collections::HashMap::new();
+    for a in analytic {
+        let l = emission(a.material);
+        let power = match a.kind {
+            // Total output of the sphere's surface, as a triangle's area × radiance.
+            LightKind::Sphere => 4. * std::f32::consts::PI * a.extent * a.extent * luminance(l),
+            // Irradiance (L·π·sin²) over a nominal 50-unit area: suns have no finite power.
+            _ => luminance(l) * std::f32::consts::PI * a.extent * (2. - a.extent) * 50.,
+        } as f64;
+        // Black or zero-intensity lights are not sampled (their triangles are not emitters).
+        if power <= 0. {
+            continue;
+        }
+        if a.kind == LightKind::Sphere {
+            spheres.insert(a.material, emitters.len() as u32 + 1);
+        }
+        sum += power;
+        powers.push(power);
+        let code = if a.kind == LightKind::Sphere {
+            -1.
+        } else {
+            -2.
+        };
+        emitters.push(Emitter {
+            position_area: [a.at.x, a.at.y, a.at.z, code],
+            edge1_cdf: [a.extent, 0., 0., 0.],
+            edge2_probability: [0.; 4],
+            emission_material: [l.x, l.y, l.z, a.material as f32],
+        });
+    }
     for (i, t) in vertices.as_chunks::<3>().0.iter().enumerate() {
         let id = t[0].material;
+        if let Some(entry) = spheres.get(&id) {
+            lookup[i] = *entry;
+            continue;
+        }
         let m = materials[id as usize];
-        let emission =
-            Vec3::new(m.color_rough[0], m.color_rough[1], m.color_rough[2]) * m.optical[1];
-        let lum = emission.dot(Vec3::new(0.2126, 0.7152, 0.0722));
+        let emission = emission(id);
+        let lum = luminance(emission);
         if lum <= 0. {
             continue;
         }
@@ -154,7 +242,15 @@ pub fn emitter_table(
         if area < 1e-10 {
             continue;
         }
-        let power = area as f64 * lum as f64;
+        // A spot sends ∫cos over its cone, π·sin² of the half angle, instead of π (the inner
+        // and outer angles averaged for the blend).
+        let cone = if m.lobes[3] as u32 & 32 != 0 {
+            let sin2 = |c: f32| 1. - c * c;
+            0.5 * (sin2(m.secondary[0]) + sin2(m.secondary[1]))
+        } else {
+            1.
+        };
+        let power = area as f64 * lum as f64 * cone as f64;
         if power <= 0. {
             continue;
         }
@@ -180,6 +276,13 @@ pub fn emitter_table(
     }
     (emitters, lookup)
 }
+/// How many suns lead the emitter table.
+pub fn sun_count(emitters: &[Emitter]) -> u32 {
+    emitters
+        .iter()
+        .take_while(|e| e.position_area[3] == -2.)
+        .count() as u32
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,10 +290,49 @@ mod tests {
     fn powers_are_normalized() {
         let s = Settings::default();
         let g = crate::scene::geometry(&s);
-        let (e, l) = emitter_table(&g, &materials(&s));
+        let (e, l) = emitter_table(&g, &materials(&s), &analytic(&s));
         assert_eq!(e.len(), 2);
         assert_eq!(l.iter().filter(|x| **x != 0).count(), 2);
         assert!((e.iter().map(|e| e.edge2_probability[3]).sum::<f32>() - 1.).abs() < 1e-6);
         assert_eq!(e.last().unwrap().edge1_cdf[3], 1.);
+    }
+    #[test]
+    fn analytic_lights_lead_the_table() {
+        let mut s = Settings::default();
+        for kind in [
+            LightKind::Sphere,
+            LightKind::Sun,
+            LightKind::Spot,
+            LightKind::Disk,
+        ] {
+            s.lights.push(crate::scene::AreaLight {
+                kind,
+                ..Default::default()
+            });
+        }
+        s.validate().unwrap();
+        let g = crate::scene::geometry(&s);
+        let (e, l) = emitter_table(&g, &materials(&s), &analytic(&s));
+        assert_eq!(sun_count(&e), 1);
+        // Sun, sphere, then the main light's 2 triangles and 2 × 64 fan triangles.
+        assert_eq!(e[0].position_area[3], -2.);
+        assert_eq!(e[1].position_area[3], -1.);
+        assert_eq!(e.len(), 2 + 2 + 2 * crate::geometry::DISK_SEGMENTS as usize);
+        // Every sphere triangle points at the sphere's entry.
+        let sphere = 5 + s.objects.len() as u32;
+        let tris = g.as_chunks::<3>().0;
+        assert!(
+            tris.iter()
+                .zip(&l)
+                .filter(|(t, _)| t[0].material == sphere)
+                .all(|(_, i)| *i == 2)
+        );
+        assert!((e.iter().map(|e| e.edge2_probability[3]).sum::<f32>() - 1.).abs() < 1e-5);
+        // The sun points against its travel: straight down by default, so up.
+        assert!((Vec3::from_slice(&e[0].position_area[..3]) - Vec3::Y).length() < 1e-6);
+        // A disk of the same intensity as a 1 × 1 rectangle has the same radiance × area.
+        let d = &s.lights[3];
+        let area = std::f32::consts::PI * 0.25 * d.size[0] * d.size[1];
+        assert!((d.radiance() * area - d.intensity).abs() < 1e-3);
     }
 }

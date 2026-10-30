@@ -1,6 +1,6 @@
 //! Inspectors for the Scene tab: objects, area lights and materials. Every range matches
 //! `Settings::validate`, and every slider goes through `crate::slider` (clamps edits only).
-use crate::scene::{AreaLight, Material, Object, Pattern, Shape};
+use crate::scene::{AreaLight, LightKind, Material, Object, Pattern, Shape};
 use crate::ui::{more, row};
 
 pub fn pattern_label(p: Pattern) -> &'static str {
@@ -359,7 +359,21 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
                     ui.checkbox(&mut l.outline, "");
                 },
             );
-            row(ui, "Intensity", "Brightness multiplier.", |ui| {
+            row(ui, "Kind", "Rectangle, disk and spot lights shine from their front; a sphere all round; a sun from far away in one direction, with sharp shadows when its angle is small.", |ui| {
+                egui::ComboBox::from_id_salt("light kind")
+                    .selected_text(l.kind.label())
+                    .show_ui(ui, |ui| {
+                        for k in LightKind::ALL {
+                            ui.selectable_value(&mut l.kind, k, k.label());
+                        }
+                    });
+            });
+            let intensity = match l.kind {
+                LightKind::Rect => "Brightness of the panel (its radiance).",
+                LightKind::Sun => "Brightness of a white surface facing the sun; independent of its angle.",
+                _ => "Brightness as a 1 × 1 panel; it does not change with the size.",
+            };
+            row(ui, "Intensity", intensity, |ui| {
                 ui.add(
                     crate::slider(&mut l.intensity, 0. ..=2000.)
                         .logarithmic(true)
@@ -379,16 +393,59 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
                     );
                 }
             });
-            row(
-                ui,
-                "Size",
-                "Width and depth in scene units. Bigger lights give softer shadows.",
-                |ui| {
-                    for p in &mut l.size {
-                        ui.add(egui::DragValue::new(p).speed(0.025).range(0.05..=40.));
-                    }
-                },
-            );
+            match l.kind {
+                LightKind::Sphere => row(
+                    ui,
+                    "Diameter",
+                    "In scene units. Bigger lights give softer shadows.",
+                    |ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut l.size[0])
+                                .speed(0.01)
+                                .range(0.05..=40.),
+                        );
+                    },
+                ),
+                LightKind::Sun => row(
+                    ui,
+                    "Angle",
+                    "Angular diameter of the sun's disk; the real sun is 0.53°. Bigger gives softer shadows. Position only places its handle.",
+                    |ui| {
+                        ui.add(
+                            crate::slider(&mut l.angle, 0.05..=30.)
+                                .logarithmic(true)
+                                .suffix("°"),
+                        );
+                    },
+                ),
+                _ => row(
+                    ui,
+                    "Size",
+                    "Width and depth in scene units (a disk's diameters). Bigger lights give softer shadows.",
+                    |ui| {
+                        for p in &mut l.size {
+                            ui.add(egui::DragValue::new(p).speed(0.025).range(0.05..=40.));
+                        }
+                    },
+                ),
+            }
+            if l.kind == LightKind::Spot {
+                row(ui, "Spread", "Full angle of the cone of light.", |ui| {
+                    ui.add(crate::slider(&mut l.spread, 1. ..=179.).suffix("°"));
+                });
+                row(
+                    ui,
+                    "Blend",
+                    "How much of the cone fades out towards its edge: 0 is a hard edge.",
+                    |ui| {
+                        ui.add(crate::slider(&mut l.blend, 0. ..=1.));
+                    },
+                );
+            }
+            // Where a spot or sun points matters more than a panel's tilt.
+            if matches!(l.kind, LightKind::Spot | LightKind::Sun) {
+                rotation_row(ui, l);
+            }
         });
     more(ui, "area light more", advanced, |ui| {
         egui::Grid::new("area light advanced")
@@ -403,18 +460,67 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
                         ui.checkbox(&mut l.visible, "");
                     },
                 );
-                row(ui, "Rotation", "Pitch, yaw and roll in degrees.", |ui| {
-                    for p in &mut l.rotation {
-                        ui.add(
-                            egui::DragValue::new(p)
-                                .speed(1.)
-                                .range(-360. ..=360.)
-                                .suffix("°"),
-                        );
-                    }
-                });
+                if !matches!(l.kind, LightKind::Spot | LightKind::Sun) {
+                    rotation_row(ui, l);
+                }
             });
     });
+}
+fn rotation_row(ui: &mut egui::Ui, l: &mut AreaLight) {
+    row(
+        ui,
+        "Rotation",
+        "Pitch, yaw and roll in degrees; at 0 the light points straight down.",
+        |ui| {
+            for p in &mut l.rotation {
+                ui.add(
+                    egui::DragValue::new(p)
+                        .speed(1.)
+                        .range(-360. ..=360.)
+                        .suffix("°"),
+                );
+            }
+        },
+    );
+}
+/// A new light of `kind`, numbered `n` in its name: panels and spots above the stage, a bulb
+/// inside the Cornell box's volume, a sun from the upper left.
+pub fn new_light(kind: LightKind, n: usize) -> AreaLight {
+    let base = AreaLight {
+        kind,
+        ..Default::default()
+    };
+    match kind {
+        LightKind::Rect => AreaLight {
+            name: format!("Softbox {n}"),
+            ..base
+        },
+        LightKind::Disk => AreaLight {
+            name: format!("Disk {n}"),
+            size: [1., 1.],
+            ..base
+        },
+        LightKind::Sphere => AreaLight {
+            name: format!("Bulb {n}"),
+            position: [0.4, 0.3, 0.3],
+            size: [0.2, 0.2],
+            intensity: 2.,
+            ..base
+        },
+        LightKind::Spot => AreaLight {
+            name: format!("Spot {n}"),
+            size: [0.3, 0.3],
+            intensity: 20.,
+            spread: 45.,
+            ..base
+        },
+        LightKind::Sun => AreaLight {
+            name: format!("Sun {n}"),
+            rotation: [35., -30., 0.],
+            intensity: 1.,
+            ..base
+        },
+    }
 }
 pub fn new_object(shape: Shape, index: usize) -> Object {
     Object {

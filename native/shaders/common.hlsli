@@ -9,7 +9,7 @@ cbuffer Frame:register(b0) {
     float4 eye;
     uint4 dimensions; // render w,h,output w,h
     uint4 sampling; // accumulated samples,spp,bounces,frame
-    float4 light_position_size;
+    float4 lights; // suns at the start of the emitter table (track 7)
     float4 light_color_aspect;
     float4 background;
     float4 display_settings; // exposure,gamma,direct,indirect

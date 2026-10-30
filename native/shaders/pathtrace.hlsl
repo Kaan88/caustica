@@ -207,7 +207,19 @@ float3 eval_bsdf(Material m,float3 n,float3 v,float3 l,out float pdf){
     float3 diff=(1-f)*(1-m.lobes.x)*m.color_rough.rgb/PI;
     return (1-m.lobes.z)*(diff+f*d*g1(nv,a)*g1(nl,a)/max(4*nv*nl,1e-6));
 }
-float emitter_pdf(float3 from,float3 at,Emitter light){float3 d=at-from;float dist2=dot(d,d);float3 n=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));float c=abs(dot(n,normalize(d)));return light.edge2_probability.w*dist2/max(1e-8,light.position_area.w*c);}
+// Track 7: analytic emitters have a negative position_area.w: −1 a sphere (centre, radius in
+// edge1_cdf.x), −2 a sun (unit direction to it, 1 − cos of its angular radius in edge1_cdf.x).
+// Both are sampled uniformly over the cone they cover; om = 1 − cos of the cone's half angle.
+// The sine comes from 1 − cos directly (sin² = x·(2 − x)): near 1 a float cosine has too few
+// steps for a small sun (0.05° is om ≈ 1e-7).
+float3 cone_sample(float3 axis,float om,out float pdf){float x=random()*om,s=sqrt(x*(2-x)),a=2*PI*random();pdf=1/(2*PI*om);return basis(axis,float3(s*cos(a),s*sin(a),1-x));}
+// 1 − cos of the half angle a sphere covers (0 from inside), without cancellation when far.
+float sphere_om(float d2,float r){float s2=r*r/d2;return d2>r*r?s2/(1+sqrt(1-s2)):0;}
+// Spot lights (flag bit 5): smoothstep between the cosines of the outer and inner half angles.
+float spot(Material m,float c){return ((uint)m.lobes.w&32u)!=0?smoothstep(m.secondary.x,m.secondary.y,c):1;}
+float emitter_pdf(float3 from,float3 at,Emitter light){
+    if(light.position_area.w==-1){float3 c=light.position_area.xyz-from;float om=sphere_om(dot(c,c),light.edge1_cdf.x);return om>0?light.edge2_probability.w/(2*PI*om):0;}
+    float3 d=at-from;float dist2=dot(d,d);float3 n=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));float c=abs(dot(n,normalize(d)));return light.edge2_probability.w*dist2/max(1e-8,light.position_area.w*c);}
 Emitter select_emitter(float u){uint lo=0,hi=scene_info.x-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return emitters[lo];}
 float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 p=mul(inverse_vp,float4(ndc,1,1));return normalize(p.xyz/p.w-eye.xyz);}
 // A point in the unit aperture: a disk, or an n-gon (one triangle of the fan, then uniform in it).
@@ -284,7 +296,17 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
                 // The camera sees the background colour when the HDRI is hidden from it.
                 float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
-                float3 e=throughput*env*weight;radiance+=e;if(bounce<=1)direct+=e;break;}
+                float3 e=throughput*env*weight;
+                // Suns (they lead the emitter table): seen inside their disk, weighted against
+                // light sampling as triangles are; a hidden one only from bounce 1 on.
+                for(uint i=0;i<(uint)lights.x;i++){Emitter sun=emitters[i];
+                    // Inside the disk by sin² (from a cross product), which keeps its precision.
+                    float3 x=cross(direction,sun.position_area.xyz);float om=sun.edge1_cdf.x;
+                    if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
+                    if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
+                    float w=1;if(bounce>0 && !previous_delta)w=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
+                    e+=throughput*sun.emission_material.rgb*w;}
+                radiance+=e;if(bounce<=1)direct+=e;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
@@ -302,6 +324,7 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             }
             float3 emitted=m.color_rough.rgb*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
+            emitted*=spot(m,-dot(direction,h.n));
             // Emission keeps the flat colour: light sampling has no texture lookup.
             apply_maps(h,m);
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
@@ -314,14 +337,28 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
                     float3 e=throughput*f*nl*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }else if(tri_nee){
-            Emitter light=select_emitter(random());float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
+            Emitter light=select_emitter(random());
+            if(light.position_area.w<0){
+                // Sphere or sun: a direction in the cone it covers, then a shadow ray up to the
+                // sphere's true surface (its inscribed mesh lies beyond) or to infinity.
+                float om=0,pc=0,limit=1e4;float3 ld=float3(0,1,0);
+                if(light.position_area.w==-1){
+                    float3 c=light.position_area.xyz-h.p;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
+                    if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);limit=b-sqrt(max(0,r*r-(d2-b*b)));}
+                }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
+                float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
+                if(pc>0 && nl>0 && !occluded(h.p+h.ng*0.0003,ld,max(0.0002,limit-0.0006))){
+                    float pl=(1-p_env)*light.edge2_probability.w*pc;float3 e=throughput*f*nl*light.emission_material.rgb/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                }
+            }else{
+            float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
             float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
                 if(!occluded(h.p+h.ng*0.0003,ld,max(0.0002,len-0.0006))){
-                    float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                    float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld)))/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
-            }}
+            }}}
             float3 next;bool delta=false;float bsdf_pdf=0;
             if(random()<m.lobes.z){
                 float eta=h.front?1/m.optical.x:m.optical.x;float cosi=saturate(dot(-direction,h.n));float cost2=1-eta*eta*(1-cosi*cosi);float f=pow((m.optical.x-1)/(m.optical.x+1),2);float fr=f+(1-f)*pow(1-(h.front?cosi:sqrt(max(0,cost2))),5);

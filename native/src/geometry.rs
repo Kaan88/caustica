@@ -1,5 +1,5 @@
 //! Cached primitive meshes, transformed scene geometry, and CPU picking.
-use crate::scene::{Object, Settings, Shape, Vertex};
+use crate::scene::{LightKind, Object, Settings, Shape, Vertex};
 use glam::{EulerRot, Mat4, Vec3};
 use std::sync::LazyLock;
 type Mesh = Vec<(Vec3, Vec3)>;
@@ -468,25 +468,26 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
 pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
     let mut out = vec![];
     let p = Vec3::new;
-    let mut quad = |q: [Vec3; 4], n: Vec3, id: u32| {
-        for i in [0, 1, 2, 0, 2, 3] {
-            out.push(Vertex {
-                position: q[i].to_array(),
-                normal: n.to_array(),
-                material: id,
-                pad: 0,
-                uv: [0.; 2],
-            });
-        }
+    let vertex = |v: Vec3, n: Vec3, id: u32| Vertex {
+        position: v.to_array(),
+        normal: n.to_array(),
+        material: id,
+        pad: 0,
+        uv: [0.; 2],
+    };
+    let quad = |out: &mut Vec<Vertex>, q: [Vec3; 4], n: Vec3, id: u32| {
+        out.extend([0, 1, 2, 0, 2, 3].map(|i| vertex(q[i], n, id)));
     };
     let e = s.floor_extent;
     quad(
+        &mut out,
         [p(-e, -1., e), p(e, -1., e), p(e, -1., -e), p(-e, -1., -e)],
         Vec3::Y,
         3,
     );
     if s.cornell_room {
         quad(
+            &mut out,
             [
                 p(-1., 1., -1.),
                 p(1., 1., -1.),
@@ -497,6 +498,7 @@ pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
             2,
         );
         quad(
+            &mut out,
             [
                 p(-1., -1., -1.),
                 p(1., -1., -1.),
@@ -507,6 +509,7 @@ pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
             2,
         );
         quad(
+            &mut out,
             [
                 p(-1., -1., 1.),
                 p(-1., -1., -1.),
@@ -517,6 +520,7 @@ pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
             0,
         );
         quad(
+            &mut out,
             [
                 p(1., -1., -1.),
                 p(1., -1., 1.),
@@ -534,6 +538,7 @@ pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
         let x = s.light_size * 0.5;
         let z = x * s.light_aspect;
         quad(
+            &mut out,
             [
                 l + p(-x, 0., -z),
                 l + p(x, 0., -z),
@@ -554,16 +559,41 @@ pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
         let center = Vec3::from(l.position);
         let x = l.size[0] * 0.5;
         let z = l.size[1] * 0.5;
-        let q = [p(-x, 0., -z), p(x, 0., -z), p(x, 0., z), p(-x, 0., z)]
-            .map(|v| r.transform_point3(v) + center);
-        quad(
-            q,
-            r.transform_vector3(-Vec3::Y),
-            5 + s.objects.len() as u32 + i as u32,
-        );
+        let id = 5 + s.objects.len() as u32 + i as u32;
+        let n = r.transform_vector3(-Vec3::Y);
+        match l.kind {
+            LightKind::Rect => {
+                let q = [p(-x, 0., -z), p(x, 0., -z), p(x, 0., z), p(-x, 0., z)]
+                    .map(|v| r.transform_point3(v) + center);
+                quad(&mut out, q, n, id);
+            }
+            // A fan, wound like the rectangle so the edges' cross product is the normal.
+            LightKind::Disk | LightKind::Spot => {
+                let rim = |k: u32| {
+                    let a = k as f32 / DISK_SEGMENTS as f32 * std::f32::consts::TAU;
+                    r.transform_point3(p(x * a.cos(), 0., z * a.sin())) + center
+                };
+                for k in 0..DISK_SEGMENTS {
+                    out.extend([center, rim(k), rim(k + 1)].map(|v| vertex(v, n, id)));
+                }
+            }
+            // The unit sphere's vertices lie on the sphere, so the mesh sits inside it and
+            // never blocks a shadow ray aimed at the true surface (light sampling).
+            LightKind::Sphere => {
+                out.extend(
+                    mesh(Shape::Sphere)
+                        .iter()
+                        .map(|(v, normal)| vertex(*v * x + center, *normal, id)),
+                );
+            }
+            // At infinity: no geometry (the trace finds it on misses).
+            LightKind::Sun => {}
+        }
     }
     out
 }
+/// Triangles in a disk or spot light.
+pub const DISK_SEGMENTS: u32 = 64;
 type CachedMesh = Option<(Object, u32, Vec<Vertex>)>;
 static OBJECT_CACHE: std::sync::Mutex<Vec<CachedMesh>> = std::sync::Mutex::new(Vec::new());
 impl Settings {

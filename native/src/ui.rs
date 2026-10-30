@@ -2505,21 +2505,20 @@ impl App {
                     Err(e) => state.error(format!("{e:#}")),
                 }
             }
-            if ui
-                .add_enabled(
-                    s.lights.len() < scene::MAX_LIGHTS,
-                    egui::Button::new("+ Light"),
-                )
-                .on_hover_text("Add an area light")
-                .clicked()
-            {
-                state.checkpoint(s);
-                s.lights.push(scene::AreaLight {
-                    name: format!("Softbox {}", s.lights.len() + 1),
-                    ..Default::default()
-                });
-                state.selection = Selection::Light(s.lights.len() - 1);
-            }
+            ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
+                ui.menu_button("+ Light", |ui| {
+                    for kind in scene::LightKind::ALL {
+                        if ui.button(kind.label()).clicked() {
+                            state.checkpoint(s);
+                            s.lights.push(editor::new_light(kind, s.lights.len() + 1));
+                            state.selection = Selection::Light(s.lights.len() - 1);
+                            ui.close_menu();
+                        }
+                    }
+                })
+                .response
+                .on_hover_text("Add a light");
+            });
         });
         // A selection can outlive its item (preset switch, load, undo-free deletes).
         state.selection = match state.selection {

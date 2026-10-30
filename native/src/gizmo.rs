@@ -1,7 +1,7 @@
 //! Blender-style transform gizmos (roadmap item 3b): move arrows and planes, rotation rings,
 //! scale handles, and the modal G / R / S transforms with axis constraints, typed values,
 //! snapping and cancel. All math is in physical pixels; egui drawing converts to points.
-use crate::scene::Settings;
+use crate::scene::{LightKind, Settings};
 use crate::ui::Selection;
 use glam::{EulerRot, Mat3, Mat4, Quat, Vec2, Vec3, Vec4};
 
@@ -459,6 +459,11 @@ fn scale(s: &mut Settings, target: Selection, c: Constraint, k: f32) {
                 }
             }
         }
+        // A sphere's diameter follows any handle.
+        Selection::Light(i) if s.lights[i].kind == LightKind::Sphere => {
+            let l = &mut s.lights[i];
+            l.size[0] = (l.size[0] * k).clamp(0.05, 40.);
+        }
         Selection::Light(i) => {
             let l = &mut s.lights[i];
             if on[0] {
@@ -753,12 +758,12 @@ pub fn draw_lights(
     s: &Settings,
     selected: Selection,
 ) {
-    for (sel, quad) in light_quads(s) {
+    for (sel, outline) in light_outlines(s, view.forward()) {
         if sel != selected && !outline_on(s, sel) {
             continue;
         }
-        let pts: Vec<_> = quad.iter().filter_map(|p| view.project(*p)).collect();
-        if pts.len() != 4 {
+        let pts: Vec<_> = outline.iter().filter_map(|p| view.project(*p)).collect();
+        if pts.len() != outline.len() {
             continue;
         }
         let (width, color) = if sel == selected {
@@ -775,6 +780,22 @@ pub fn draw_lights(
             .collect();
         line.push(line[0]);
         painter.add(egui::Shape::line(line, egui::Stroke::new(width, color)));
+        // Spots and suns: a stroke along the direction the light travels.
+        if let Selection::Light(i) = sel
+            && let Some(l) = s.lights.get(i)
+            && matches!(l.kind, LightKind::Spot | LightKind::Sun)
+        {
+            let c = Vec3::from(l.position);
+            if let (Some(a), Some(b)) = (view.project(c), view.project(c + l.direction() * 0.6)) {
+                painter.line_segment(
+                    [
+                        egui::pos2(a.x / ppp, a.y / ppp),
+                        egui::pos2(b.x / ppp, b.y / ppp),
+                    ],
+                    egui::Stroke::new(width, color),
+                );
+            }
+        }
     }
 }
 /// The light's outline is switched on (`light_outline` / `AreaLight::outline`).
@@ -785,15 +806,43 @@ fn outline_on(s: &Settings, sel: Selection) -> bool {
         _ => false,
     }
 }
-/// Quads of the lights that are on (off lights leave no geometry, so nothing to see or click).
-fn light_quads(s: &Settings) -> Vec<(Selection, [Vec3; 4])> {
+/// Where a ray meets a planar convex polygon (wound either way), as a ray distance.
+fn polygon_hit(poly: &[Vec3], o: Vec3, d: Vec3) -> Option<f32> {
+    let n = (poly[1] - poly[0])
+        .cross(poly[poly.len() - 1] - poly[0])
+        .normalize_or_zero();
+    let denom = d.dot(n);
+    if denom.abs() < 1e-6 {
+        return None;
+    }
+    let t = (poly[0] - o).dot(n) / denom;
+    let p = o + d * t;
+    let side = |i: usize| {
+        let (a, b) = (poly[i], poly[(i + 1) % poly.len()]);
+        (b - a).cross(p - a).dot(n)
+    };
+    let first = side(0).signum();
+    ((0..poly.len()).all(|i| side(i) * first >= -1e-9) && t > 0.).then_some(t)
+}
+/// Outlines of the lights that are on (off lights leave no geometry, so nothing to see or
+/// click): rectangles, ellipses for disks and spots, a circle facing the view for spheres, and
+/// a small disk for a sun at its handle.
+fn light_outlines(s: &Settings, forward: Vec3) -> Vec<(Selection, Vec<Vec3>)> {
     let mut out = vec![];
+    let ellipse = |c: Vec3, u: Vec3, v: Vec3| {
+        (0..32)
+            .map(|k| {
+                let a = k as f32 / 32. * std::f32::consts::TAU;
+                c + u * a.cos() + v * a.sin()
+            })
+            .collect::<Vec<_>>()
+    };
     let l = Vec3::from(s.light_position);
     let (x, z) = (s.light_size * 0.5, s.light_size * 0.5 * s.light_aspect);
     if s.light_on {
         out.push((
             Selection::MainLight,
-            [
+            vec![
                 l + Vec3::new(-x, 0., -z),
                 l + Vec3::new(x, 0., -z),
                 l + Vec3::new(x, 0., z),
@@ -805,16 +854,23 @@ fn light_quads(s: &Settings) -> Vec<(Selection, [Vec3; 4])> {
         let r = light_quat(a.rotation);
         let c = Vec3::from(a.position);
         let (x, z) = (a.size[0] * 0.5, a.size[1] * 0.5);
-        out.push((
-            Selection::Light(i),
-            [
+        let outline = match a.kind {
+            LightKind::Rect => [
                 Vec3::new(-x, 0., -z),
                 Vec3::new(x, 0., -z),
                 Vec3::new(x, 0., z),
                 Vec3::new(-x, 0., z),
             ]
-            .map(|v| r * v + c),
-        ));
+            .map(|v| r * v + c)
+            .to_vec(),
+            LightKind::Disk | LightKind::Spot => ellipse(c, r * Vec3::X * x, r * Vec3::Z * z),
+            LightKind::Sphere => {
+                let u = forward.any_orthonormal_vector();
+                ellipse(c, u * x, forward.cross(u) * x)
+            }
+            LightKind::Sun => ellipse(c, r * Vec3::X * 0.15, r * Vec3::Z * 0.15),
+        };
+        out.push((Selection::Light(i), outline));
     }
     out
 }
@@ -843,22 +899,15 @@ pub fn pick_from_probe(
     let along = d.dot(view.forward()).max(1e-4);
     let mut best = hit.map(|h| (h, if id > 0 { depth / along } else { f32::INFINITY }));
     // Only rectangles that are drawn can be clicked; hidden ones are picked in the Scene tab.
-    for (sel, q) in light_quads(s)
+    for (sel, q) in light_outlines(s, view.forward())
         .into_iter()
         .filter(|(sel, _)| outline_on(s, *sel))
     {
-        let n = (q[1] - q[0]).cross(q[3] - q[0]).normalize_or_zero();
-        let denom = d.dot(n);
-        if denom.abs() < 1e-6 {
+        let Some(t) = polygon_hit(&q, o, d) else {
             continue;
-        }
-        let t = (q[0] - o).dot(n) / denom;
-        let p = o + d * t;
-        let (u, v) = ((p - q[0]).dot(q[1] - q[0]), (p - q[0]).dot(q[3] - q[0]));
-        let inside = (0. ..=(q[1] - q[0]).length_squared()).contains(&u)
-            && (0. ..=(q[3] - q[0]).length_squared()).contains(&v);
+        };
         let nearer = t < if id > 0 { depth / along } else { f32::INFINITY };
-        if t > 0. && inside && nearer && best.is_none_or(|(_, b)| t < b) {
+        if nearer && best.is_none_or(|(_, b)| t < b) {
             best = Some((sel, t));
         }
     }
@@ -872,18 +921,11 @@ pub fn pick(s: &Settings, pixel: [f32; 2], size: [u32; 2]) -> Option<Selection> 
     let mut best = s
         .pick_object_hit(pixel, size)
         .map(|(i, t)| (Selection::Object(i), t));
-    for (sel, q) in light_quads(s) {
-        let n = (q[1] - q[0]).cross(q[3] - q[0]).normalize_or_zero();
-        let denom = d.dot(n);
-        if denom.abs() < 1e-6 {
+    for (sel, q) in light_outlines(s, view.forward()) {
+        let Some(t) = polygon_hit(&q, o, d) else {
             continue;
-        }
-        let t = (q[0] - o).dot(n) / denom;
-        let p = o + d * t;
-        let (u, v) = ((p - q[0]).dot(q[1] - q[0]), (p - q[0]).dot(q[3] - q[0]));
-        let inside = (0. ..=(q[1] - q[0]).length_squared()).contains(&u)
-            && (0. ..=(q[3] - q[0]).length_squared()).contains(&v);
-        if t > 0. && inside && best.is_none_or(|(_, b)| t < b) {
+        };
+        if best.is_none_or(|(_, b)| t < b) {
             best = Some((sel, t));
         }
     }

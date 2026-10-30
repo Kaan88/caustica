@@ -108,6 +108,35 @@ impl Shape {
         }
     }
 }
+/// What an extra light is (track 7). The flat kinds face their local −Y, as the rectangle does.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LightKind {
+    /// A rectangle of `size`, sampled by area.
+    #[default]
+    Rect,
+    /// An ellipse inscribed in `size`.
+    Disk,
+    /// A sphere of diameter `size[0]`, sampled by the solid angle it covers.
+    Sphere,
+    /// A disk whose emission falls off outside a cone (`spread`, `blend`).
+    Spot,
+    /// A distant disk of angular diameter `angle`, sampled by direction; position only places
+    /// its handle.
+    Sun,
+}
+impl LightKind {
+    pub const ALL: [Self; 5] = [Self::Rect, Self::Disk, Self::Sphere, Self::Spot, Self::Sun];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Rect => "Rectangle",
+            Self::Disk => "Disk",
+            Self::Sphere => "Sphere",
+            Self::Spot => "Spot",
+            Self::Sun => "Sun",
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Pattern {
@@ -164,6 +193,49 @@ pub struct AreaLight {
     /// Draw the light's rectangle over the viewport (for grabbing it); the selected light
     /// always shows it. Display only.
     pub outline: bool,
+    pub kind: LightKind,
+    /// Spot: full cone angle in degrees.
+    pub spread: f32,
+    /// Spot: share of the cone over which the edge fades (0 hard, 1 from the axis).
+    pub blend: f32,
+    /// Sun: angular diameter in degrees (the real sun is 0.53).
+    pub angle: f32,
+}
+impl AreaLight {
+    /// The direction the light faces (a sun's light travels along it).
+    pub fn direction(&self) -> glam::Vec3 {
+        let r = glam::Mat3::from_euler(
+            glam::EulerRot::YXZ,
+            self.rotation[1].to_radians(),
+            self.rotation[0].to_radians(),
+            self.rotation[2].to_radians(),
+        );
+        r * -glam::Vec3::Y
+    }
+    /// Emitted radiance per unit colour. A rectangle's intensity is its radiance; disks, spots
+    /// and spheres shine as a 1 × 1 rectangle of that intensity seen face on, whatever their
+    /// size; a sun of intensity 1 lights a white surface facing it to 1.
+    pub fn radiance(&self) -> f32 {
+        let pi = std::f32::consts::PI;
+        match self.kind {
+            LightKind::Rect => self.intensity,
+            LightKind::Disk | LightKind::Spot => {
+                self.intensity / (pi * 0.25 * self.size[0] * self.size[1])
+            }
+            LightKind::Sphere => self.intensity / (pi * 0.25 * self.size[0] * self.size[0]),
+            LightKind::Sun => {
+                let s = (self.angle * 0.5).to_radians().sin();
+                self.intensity / (s * s)
+            }
+        }
+    }
+    /// Spot: cosines of the cone's outer and inner half angles.
+    pub fn cone(&self) -> (f32, f32) {
+        let outer = (self.spread * 0.5).to_radians();
+        // A hard edge still needs inner > outer for smoothstep.
+        let inner = (outer * (1. - self.blend)).cos().max(outer.cos() + 1e-5);
+        (outer.cos(), inner)
+    }
 }
 impl Default for AreaLight {
     fn default() -> Self {
@@ -177,6 +249,10 @@ impl Default for AreaLight {
             enabled: true,
             visible: true,
             outline: false,
+            kind: LightKind::Rect,
+            spread: 60.,
+            blend: 0.25,
+            angle: 0.53,
         }
     }
 }
@@ -800,7 +876,10 @@ impl Settings {
                     && l.rotation.iter().all(|v| v.abs() <= 360.)
                     && l.size.iter().all(|v| (0.05..=40.).contains(v))
                     && l.color.iter().all(|v| (0. ..=1.).contains(v))
-                    && (0. ..=2000.).contains(&l.intensity),
+                    && (0. ..=2000.).contains(&l.intensity)
+                    && (1. ..=179.).contains(&l.spread)
+                    && (0. ..=1.).contains(&l.blend)
+                    && (0.05..=30.).contains(&l.angle),
                 "Invalid area light"
             );
         }

@@ -145,7 +145,7 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 283;
+const SCENES_FROM: u32 = 285;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -223,7 +223,7 @@ fn geometry_key(s: &Settings) -> String {
         s.floor_extent,
         s.lights
             .iter()
-            .map(|l| (l.enabled, l.visible, l.position, l.rotation, l.size))
+            .map(|l| (l.enabled, l.visible, l.position, l.rotation, l.size, l.kind))
             .collect::<Vec<_>>()
     ])
     .to_string()
@@ -1163,6 +1163,31 @@ impl App {
                     self.settings.compare = false;
                     ui::Bundle::Best.apply(&mut self.settings, scene::Upscaler::Fsr);
                 }
+                // Track 7: one light of every kind (the per-frame check covers their triangles
+                // and emitter entries), the spot's inspector and every outline drawn; then the
+                // sun alone, with the room open so it reaches the floor.
+                283 => {
+                    self.ui.tab = ui::Tab::Scene;
+                    for (n, kind) in scene::LightKind::ALL.into_iter().enumerate() {
+                        let mut l = editor::new_light(kind, n);
+                        l.outline = true;
+                        self.settings.lights.push(l);
+                    }
+                    self.ui.selection = ui::Selection::Light(self.settings.lights.len() - 2);
+                }
+                284 => {
+                    let g = self.gpu.as_ref().unwrap();
+                    anyhow::ensure!(
+                        g.sun_count == 1,
+                        "The sun is not in the emitter table ({} suns)",
+                        g.sun_count
+                    );
+                    self.settings
+                        .lights
+                        .retain(|l| l.kind == scene::LightKind::Sun);
+                    self.settings.cornell_room = false;
+                    self.ui.selection = ui::Selection::Light(0);
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1692,7 +1717,8 @@ impl App {
         if self.self_test {
             // Every edit must reach the GPU: geometry and light tables match the settings.
             let vertices = scene::geometry(s);
-            let (emitters, _) = lighting::emitter_table(&vertices, &lighting::materials(s));
+            let (emitters, _) =
+                lighting::emitter_table(&vertices, &lighting::materials(s), &lighting::analytic(s));
             anyhow::ensure!(
                 g.triangle_count == vertices.len() / 3 && g.emitter_count == emitters.len(),
                 "Frame {}: GPU scene is stale ({} / {} triangles, {} / {} emitters)",

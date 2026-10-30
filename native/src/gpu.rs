@@ -55,7 +55,8 @@ struct Constants {
     eye: [f32; 4],
     dimensions: [u32; 4],
     sampling: [u32; 4],
-    light_position_size: [f32; 4],
+    /// x: suns at the start of the emitter table (track 7); yzw unused.
+    lights: [f32; 4],
     light_color_aspect: [f32; 4],
     background: [f32; 4],
     display: [f32; 4],
@@ -250,6 +251,8 @@ pub struct Gpu {
     emitter_lookup: ID3D12Resource,
     pub triangle_count: usize,
     pub emitter_count: usize,
+    /// Suns lead the emitter table (`lighting::analytic`).
+    pub sun_count: u32,
     tlas: Option<ID3D12Resource>,
     /// egui textures (font atlas, scene thumbnails), each with its own heap slot (32 and up).
     gui_textures: std::collections::HashMap<egui::TextureId, GuiTexture>,
@@ -669,6 +672,7 @@ impl Gpu {
             emitter_lookup: geometry.clone(),
             triangle_count: 0,
             emitter_count: 0,
+            sun_count: 0,
             mesh_vertices: geometry.clone(),
             static_vertices: geometry.clone(),
             instance_table: geometry,
@@ -1733,7 +1737,9 @@ impl Gpu {
                 u32::MAX
             };
         }
-        let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials);
+        let analytic = crate::lighting::analytic(s);
+        let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials, &analytic);
+        self.sun_count = crate::lighting::sun_count(&emitters);
         let mut materials = materials;
         self.attach_maps(s, &mut materials)?;
         self.textured = materials.iter().any(|m| m.lobes[3] as u32 & 16 != 0);
@@ -2065,12 +2071,7 @@ impl Gpu {
             eye: [eye.x, eye.y, eye.z, 1.],
             dimensions: [self.rw, self.rh, self.width, self.height],
             sampling: [self.samples, n, s.bounces, self.frame],
-            light_position_size: [
-                s.light_position[0],
-                s.light_position[1],
-                s.light_position[2],
-                s.light_size,
-            ],
+            lights: [self.sun_count as f32, 0., 0., 0.],
             light_color_aspect: [lc[0], lc[1], lc[2], s.light_aspect],
             background: [s.background[0], s.background[1], s.background[2], 0.],
             display: [s.exposure, s.gamma, s.direct, s.indirect],

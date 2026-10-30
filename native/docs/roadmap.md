@@ -262,9 +262,11 @@ Order is from scene-research.md section 5, unchanged:
 
 These follow the core track. Each lists what it needs; within those limits the order is a suggestion. The letters refer to the engine features in scene-research.md section 4. Items 7–12 schedule the ones the core track left out; the rest of the features depend on them.
 
-#### 7. Analytic lights (F)
+#### 7. Analytic lights (F) — done 2026-10-30
 
-Point/sphere, spot and directional sun with an angular radius, as in scene-research.md. Prefer small spheres and disks over true delta lights, for RR and the native denoiser.
+As built: extra lights have a *Kind*: rectangle, disk, sphere, spot (a disk with a cone and a soft edge) and sun (angular diameter, 0.53° by default). Spheres and suns are sampled uniformly over the solid angle they cover, disks and spots by area; all share the power-weighted emitter table with MIS, and were checked unbiased (MIS, NEE-only and BSDF-only agree). Spheres, disks and spots are real geometry (picking, RR guides, reflections); suns are found on misses. See CLAUDE.md "Analytic lights".
+
+- Not done: glTF `KHR_lights_punctual` import (mesh import ignores lights); true delta point and directional lights (by design: the smallest sphere is 0.05 across, the smallest sun 0.05°); IES profiles, gobos / cookies and light linking; the main ceiling light stays a rectangle; a sun is not split out of an HDRI automatically (core 3 not-done); a sphere's camera and BSDF hits see its 64 × 32 inscribed mesh while light sampling sees the true sphere (under 0.5% of its solid angle, at the silhouette); a sun's weight in the light-selection CDF uses a nominal 50-unit receiving area, so a sun beside very bright small lights can be under-sampled; suns are tested per miss in a loop (fine for a few, not for 32); spheres and suns do not get a shape-specific gizmo (spheres scale their diameter, suns ignore size); no scene files use the new kinds yet; flashlight mode (below) is not built.
 
 - Unlocks **flashlight mode**: a spotlight attached to the camera. With walk mode (5d) and a dark Sponza, it's an instant horror game.
 
