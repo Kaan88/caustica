@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 270 scripted frames (`SCENES_FROM`), then one frame per scene file (420 with the built-in, generated, mesh and environment packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 270 scripted frames (`SCENES_FROM`), then one frame per scene file (426 with the built-in, generated, mesh and environment packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -164,16 +164,18 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 |---|---|
 | 0 | CBV b0 |
 | 1 | SRV t0 TLAS |
-| 2 | SRV t1 vertices |
+| 2 | SRV t1 mesh vertices (object space, every mesh in use) |
 | 3 | Table: UAV u0–u31 (heap slots 0–31; u29 is the 3D LUT, u30 / u31 the HDRI and its CDFs) |
 | 4 | Table: SRV t2, the egui texture of each GUI draw (heap slots 32–511, one per texture; pixel-visible only) |
 | 5 | Root SRV t3 materials |
 | 6 | Root SRV t4 emitters |
 | 7 | Root SRV t5 emitter lookup |
+| 8 | Root SRV t6 static vertices (floor, room, lights; world space) |
+| 9 | Root SRV t7 instance table (`InstanceRecord` / `Instance`, by InstanceID) |
 
 There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAVs 0–31, egui textures from 32.
 
-**Acceleration structures.** There is one BLAS of the whole triangle soup and one TLAS instance with an identity transform. Both use PREFER_FAST_TRACE. The BLAS has two geometries (see "Mesh import"): hidden lights and glass are **non-opaque**, so their candidates run through the `Proceed()` loop (how hidden lights and glass shadows are skipped); everything else is opaque.
+**Acceleration structures** (instanced since core track 4, see "Instancing"): a static BLAS (floor, room, lights; world space; two geometries, hidden lights non-opaque first, the rest opaque) as InstanceID 0, plus one BLAS per distinct object mesh in object space, instanced once per visible object with its transform. Glass objects are FORCE_NON_OPAQUE instances (their candidates run the `Proceed()` loop, so shadow rays can pass them), all other objects FORCE_OPAQUE. All use PREFER_FAST_TRACE.
 
 **UAV textures.** Index = `u` register = heap slot. Formats are RGBA32F unless noted; resolution is render resolution unless noted.
 
@@ -257,7 +259,7 @@ There is one static linear-clamp sampler s0. The heap holds 512 descriptors: UAV
 **The scene expansion is finished.** It was paused on 2026-10-26 and completed on 2026-10-29. It added:
 
 - 24 presets and 11 shapes.
-- Up to 256 objects and 32 extra area lights.
+- Up to 256 objects (4096 since instancing) and 32 extra area lights.
 - An object and light editor, viewport picking, procedural patterns and a material library.
 
 The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this section replaces it.
@@ -373,9 +375,9 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Math:** an axis move uses the axis's on-screen direction (so the pivot follows the pointer, checked to 3 px); plane and free moves intersect pointer rays with the plane through the pivot; rotation is the screen angle around the projected pivot, with the sign flipped for axes facing away; scale is the ratio of pointer distances from the pivot. Rotations compose as quaternions and go back to YXZ Euler (objects: yaw = `rotation`, `tilt` = pitch / roll; area lights: `rotation` = [pitch, yaw, roll]). Per-axis scale uses local axes: X `scale_xz[0]`, Y `stretch`, Z `scale_xz[1]`, free = `size`. Main light: X scales width keeping depth, Z changes `light_aspect`; no rotation.
 - **Drag cost** (release, 1440×900, `--drag-test`, frame ms): Classic 4.6 → 6.6, bunny 4.7 → 20, chess 4.9 → 22.
   - `geometry()` rebuilt every object (about 11 ms for 600k vertices), so it now caches each object's mesh per slot (`OBJECT_CACHE`, keyed by the `Object` and its material id). That saved about 4 ms.
-  - The rest is new upload, BLAS and scratch allocations, plus the whole-scene BLAS build. Instancing (core track 4) is the real fix.
+  - The rest was new upload, BLAS and scratch allocations, plus the whole-scene BLAS build. Instancing (core track 4) fixed it: drags now rebuild only the TLAS (see "Instancing").
 - Capture CLI: `--ui-tool`. Self-test 198–202: each tool drawn on object 0 and the main light, then a keyed G X 0.5 Enter (asserts +0.5 and that the transform ended), then undo (asserts the move is gone).
-- Not done: see the list under roadmap item 3b (object snapping, pivot options, multi-select, Alt-drag / Shift+D duplicate, vector entry, cheap drags).
+- Not done: see the list under roadmap item 3b (object snapping, pivot options, multi-select, Alt-drag / Shift+D duplicate, vector entry). Cheap drags came with instancing.
 
 ## Scene files (roadmap item 4, 2026-10-30)
 
@@ -405,13 +407,13 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 ## Generators (core track 1, 2026-10-30)
 
-- `generators.rs`: `generate(family, seed) -> Settings` for the 15 `FAMILIES` (the last four use procedural meshes, see "Mesh import"). RNG is xorshift64* seeded by seed and a hash of the family.
+- `generators.rs`: `generate(family, seed) -> Settings` for the 17 `FAMILIES` (the last four use procedural meshes, see "Mesh import"). RNG is xorshift64* seeded by seed and a hash of the family.
   - Helpers reuse `presets::{object, light, studio, material}` (now `pub(crate)`). `at()` places a mesh centre at a world y. `sun()` is a far quad aimed at the origin (warm 350, day 450, sky 0.2 / 0.55; brighter washed out). `frame()` is `frame_objects` × 0.78.
-  - `finish()` names the scene "<family> · seed N", truncates to 256 objects and runs `fit()` (excess stretch/scale into size, angles wrapped, as build_scenes.py does).
+  - `finish()` names the scene "<family> · seed N", truncates to `MAX_OBJECTS` and runs `fit()` (excess stretch/scale into size, angles wrapped, as build_scenes.py does).
 - New shape **Tetrahedron** (last in `Shape::ALL`; the mesh cache is indexed by enum order): base at y = −1, apex at +1, base circumradius √2.
 - Menger level 2 merges filled cells into runs along x (fits under 256). The Sierpinski child centre is c + corner·scale/2. The sphereflake uses Haines' 6 + 3 directions, rotated per parent.
-- Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 15 families; `GENERATED` table).
-- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 150 (420 frames).
+- Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 15 families plus 3 each for forest and crowd; `GENERATED` table).
+- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 156 (426 frames).
 - `tools/scene_sheet.py --pack generated` renders the pack. All 90 were checked; day cities and warm suns were dimmed, framing tightened.
 
 ## Scenes buildable today (roadmap 5e, 2026-10-30)
@@ -440,6 +442,19 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Test models:** `tools/fetch_assets.ps1` (was fetch_models.ps1) downloads 11 models into `scenes/models/` (gitignored), pinned to a commit and SHA-256: 6 OBJ scans from alecjacobson/common-3d-test-models (xyzrgb dragon, happy Buddha, armadillo, Lucy, Spot, Suzanne) and 5 GLBs from KhronosGroup/glTF-Sample-Assets (DragonAttenuation, Duck, Lantern, ABeautifulGame, ToyCar). Lucy is Z-up (tilt −90). Without them the mesh scenes fall back to boxes. The snapshot script copies them with the scenes (about 95 MB).
 - **Procedural meshes** (`procedural.rs`): `mesh: "gen:<kind>/<seed>[#part]"` builds in `mesh::read` and caches like a file (`resolve` leaves `gen:` paths alone). Kinds: `mandelbulb` (surface nets over the distance estimator, 240³ release / 80³ debug, sampled on all cores; power 5–9 and a phase twist per seed), `terrain` (384² fBm heightfield, ridged half the time, island falloff; parts sand / grass / rock / snow by height and slope, rock below normal.y 0.62), `menger` (voxels with exposed faces only; level 4 when seed % 3 == 0 in release, else 3), `tree` (recursive branching: 6-sided frusta, double-sided leaf cards; parts bark / leaves). The generator families `mandelbulb`, `terrain` (plus a sea box: stretch 0.065 puts it at height 0), `deep-menger` and `tree` (1–7 trees, summer or autumn) use them.
 - **Perf of the opaque split** (2026-10-30, 1440×900, 300 frames, median of 3 alternating runs vs the core1 snapshot): Classic −7% RR / −8% native, bunny −7 / −8%, mirror corridor −3 / −3%, chess −7 / −4%, neon −3 / −4%.
+
+## Instancing (core track 4, 2026-10-30)
+
+- **Layout:** `Gpu::rebuild_scene` builds (1) the static BLAS from `geometry::static_geometry` (floor, room, main light, area lights; world space, split into non-opaque / opaque ranges as before, `opaque_offset` in `environment.w`), only when its vertices change; (2) one BLAS per distinct mesh key (`geometry::object_source`: `shape:<Kind>` or the `mesh` string), object-space, in `meshes`; (3) a TLAS of the static instance (InstanceID 0) and one instance per visible object (`geometry::object_transform`, DXR 3×4 row-major).
+- **Mesh buffer:** every mesh in use is packed into one object-space vertex buffer (t1). When the set of mesh keys changes it is rebuilt and only new keys get a BLAS (a built BLAS holds its own copy of the triangles, so old ones are reused with new `first` offsets). The static vertices live in their own buffer (t6), so light edits don't touch the meshes.
+- **Instance table** (t7, `InstanceRecord` ↔ `Instance` in common.hlsli): `vertex_base`, `material` (5 + object index; u32::MAX for the static instance, whose vertices carry ids), `emitter_base` (start of this instance's range in `emitter_lookup`, u32::MAX for non-emissive objects), `object`. Built in `rebuild_scene`, emitter bases filled and uploaded in `update_materials`.
+- **Emitters** stay world-space triangles: static ones, then each emissive object's `object_geometry` (in instance order). The self-test's count check (full soup vs GPU) still holds.
+- **Shader:** `candidate_material(instance, prim)` in both `Proceed()` loops; `intersect` reads the instance, then static vertices (+ `opaque_offset` for geometry 1) or `vertices[vertex_base + prim·3]` with the normal taken to world space as `mul(n, (float3x3)CommittedWorldToObject3x4())` (inverse transpose).
+- `geometry::lowest_y` caches grounding per (mesh pointer, rotation, scale) because instancing asks for every object's frame on every rebuild (a chess part scans the whole 1.6M-vertex file).
+- `frame_objects` is exact up to 256 objects; past that it uses each mesh's box corners through the instance transform (a 3600-object forest took minutes in the debug unit tests). The generator test runs 3 seeds for forest / crowd; unit tests take about 60 s in debug.
+- `MAX_OBJECTS` = 4096. New generator families `forest` (400–1800 trees from 6 shared tree meshes, two objects each) and `crowd` (up to 54² copies of one shape).
+- **Measured** (1440×900, release, median of 3 alternating runs vs the core3 snapshot): drag frame time bunny 26 → 5.5 ms, chess preset 24 → 6.1 ms, ASWF chess set 141 → 7 ms. Plain render GPU time: Classic +7% RR / +5% native, bunny +1 / +5%, chess +6 / +2%, mirror corridor −3 / −3%, neon −2 / +1% (two-level traversal costs a little in tiny scenes).
+- **Render check** vs the core3 build (raw native, 512 and 4096 spp): RMSE ×1000 below 0.2 on presets 0, 2, 8, 13, 20 and the chess set; glass scenes differ by noise (the glass dragon 7.4 → 2.7 from 512 to 4096 spp). The glass lab (14) keeps a difference where glass objects' bottom faces lie exactly on the floor: coplanar faces z-fight, and the instance transform moves them by float rounding, so the other face wins in places. Neither build is more correct.
 
 ## HDRI environments (core track 3, 2026-10-30)
 

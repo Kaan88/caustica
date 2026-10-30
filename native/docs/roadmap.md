@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core tracks 1–3 (generators, mesh import, HDRI) are done (2026-10-30).
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core tracks 1–4 (generators, mesh import, HDRI, instancing) are done (2026-10-30).
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -85,7 +85,8 @@ As built: move / rotate / scale gizmos for objects, area lights and the main lig
 - **Multi-select:** Shift-click to add, box select, select all (A), and transforming several items together.
 - **Alt-drag duplicate:** Blender's Shift+D duplicate-then-move as well.
 - **Smaller gaps:** free moves show one vector line in the header, with no per-axis typed vector entry.
-- **Cheap drags:** about 20 ms per frame on the bunny and chess scenes needs instancing (core track 4).
+- **Light outlines always on:** they should be hidden by default with a toggle in the light settings (item 6).
+- ~~Cheap drags~~: done with instancing (core track 4): bunny 26 → 5.5 ms, chess 24 → 6.1 ms per drag frame.
 
 Clicking an object (in the viewport or the outliner) shows transform handles on it, as in Blender. This replaces the plain drag handles of ui-plan.md phase 2 and lands together with that phase's undo stack.
 
@@ -198,11 +199,21 @@ As built: light painting (L), portals (any object pairs with another; two-sided)
 
 As built: `kusama-infinity-room`, `flavin-fluorescent`, `turrell-ganzfeld`, plus two portal scenes, `infinite-corridor` and `bigger-on-the-inside` (47 built-in scenes). The Veach toggle is a render setting, *Light sampling* (MIS / NEE only / BSDF only), shown on the existing `veach-mis` scene. Seed of the day is the top bar's *Today* button.
 
-- **Kusama, *Infinity Mirror Room*:** a mirror cube with a few hundred tiny emissive spheres, within the 256-object cap.
+- **Kusama, *Infinity Mirror Room*:** a mirror cube with a few hundred tiny emissive spheres, within the 256-object cap of the time (4096 since instancing).
 - **Dan Flavin installations:** emissive colored cylinders in a white room; pure color bleeding.
 - **James Turrell Ganzfeld room:** rounded corners from stacked tori and cylinders, with one colored emitter.
 - **Veach MIS test scene:** 4 glossy plates × 4 light sizes, which shows off the MIS. Add a toggle that shows NEE-only and BSDF-only.
 - **Seed of the day:** `randomize()` seeded from today's date. It moves to the generators once they exist.
+
+### 6. Owner requests (2026-10-30, after core track 4)
+
+Small to medium items the owner asked for, in rough order of size. Each also points at the item it extends.
+
+- **Double-click resets a slider** to its default (the `Settings::default()` value, or the scene file's value when one is loaded). All sliders go through `crate::slider`, so one wrapper change covers them; the colour wheels (5c) already reset on double-click. Small; belongs with UI phase 2 (core 6).
+- **Light rectangles hidden by default:** the outlines `gizmo::draw_lights` paints over every area light and the main light are for grabbing them, so they should be off unless asked for. Add a "Show outlines" toggle to the existing light settings (the Lights section of the Scene tab, next to each light's *Seen by camera*), plus one for the main light; the selected light still shows its outline and gizmo. Small; extends 3b.
+- **More and better HDRIs:** fetch 4k (and some 8k) maps instead of 2k, add more of them (interiors, night, overcast, golden hour), and drop or replace the ones that look pixelated as backgrounds. Likely cause besides resolution: the camera sees the map through the same nearest-texel lookup the importance sampling uses (core 3), which is blocky at 2k; use a bilinear lookup for camera rays (and possibly for lighting too, with the pdf kept per texel). Check each map at 1440×900 before keeping it. Half-float storage (core 3 not-done) matters at 8k (8k RGBA32F = 512 MB). Small to medium; extends core 3.
+- **Better video export:** today the turntable is a fixed-yaw orbit at the window's size through ffmpeg H.264 CRF 16 (5d). Wanted: an export dialog with resolution independent of the window (up to the high-res still limit and beyond with tiling), fps, duration or frame count, samples per frame or a time budget, codec and quality (H.264 / H.265 / ProRes / PNG or EXR sequence), 10-bit HEVC for HDR (5d not-done), orbit options (angle, elevation, radius, easing), a progress bar with cancel that does not block the UI (shares the async export work of UI phase 1's not-done list), and later camera paths and keyframes (track 8). Medium.
+- **Mesh (and HDRI) sources with a built-in browser:** a list of sources the owner can use, plus an in-app browser to search, preview and download into `scenes/models` and `scenes/hdri`. Sources: Poly Haven (models, HDRIs and textures; CC0, public JSON API), the Khronos glTF sample assets, the Stanford 3D Scanning Repository and common-3d-test-models (scans), Morgan McGuire's Computer Graphics Archive (Sponza, San Miguel, Bistro and more), Benedikt Bitterli's rendering resources (scenes), NVIDIA ORCA (Bistro, Emerald Square, Zero Day), Sketchfab's downloadable models (API key; licence per model), Smithsonian 3D (open access) and ambientCG (CC0 materials, for core 5). The browser reuses the Scenes window's grid and thumbnail cache, pins every download by SHA-256 like `tools/fetch_assets.ps1`, shows the licence and credit, and imports with *+ Mesh…* / *Load HDRI* in one click. Medium to large; extends core 2 and 3, and the textures track (core 5) once materials download too.
 
 ## Medium term
 
@@ -212,13 +223,19 @@ Order is from scene-research.md section 5, unchanged:
 1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 90 curated seeds. The mesh-based generators (Mandelbulb, terrain, Menger 3–4, L-system trees) followed mesh import, as `gen:` procedural meshes.
 2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split. — done 2026-10-30: `src/mesh.rs` reads OBJ (tobj, MTL diffuse) and glTF/GLB (node transforms, PBR base colour, roughness, metallic, emissive strength, transmission, IOR) into the same −1..1 box as the built-in shapes. *+ Mesh…* in the Scene tab opens a file picker; `Object.mesh` keeps the path (relative to `scenes/` when inside it). The BLAS has two geometries: lights hidden from the camera and glass first (any-hit loop), everything else flagged opaque. Vertices moved to a DEFAULT-heap buffer. Clicks pick on the GPU (object-id readback), so big meshes cost nothing to click.
    - Follow-ups done the same day: `tools/fetch_assets.ps1` (11 pinned models) and a `scenes/meshes` pack; multi-material files split into one object per material; texture averages as colours; the mesh-based generators; the opaque split measured 3–8% faster.
-   - Still open: texture maps and normal maps (track 5), one BLAS per mesh so moving a big mesh doesn't rebuild everything, and moving a split file's parts together (track 4 instancing; multi-select from 3b).
+   - Still open: texture maps and normal maps (track 5), moving a split file's parts together (track 4 instancing; multi-select from 3b).
+   - Owner request: a list of mesh sources and an in-app browser that downloads into `scenes/models` (item 6).
    - Importer gaps: glTF clearcoat, sheen, volume attenuation and `KHR_texture_transform` are ignored (the toy car's paint and the dragon's attenuation colour are approximated by hand in the scenes); OBJ reads only the MTL diffuse colour and shininess (no Ke emission, Ks, d / Tr transparency); no up-axis option, so Z-up scans (Lucy) need a −90° tilt; no PLY or STL.
    - Grounding a mesh scans every vertex of the whole file on each `object_frame` call; not measured on 20M-triangle files.
 3. HDRI environments with importance sampling. — done 2026-10-30: .hdr / .exr equirect maps (`src/environment.rs`), luminance·sinθ CDFs on the GPU, NEE shared with area lights and MIS on misses, strength / rotation / seen-by-camera, 5 Poly Haven HDRIs in `tools/fetch_assets.ps1` and a `scenes/environments` pack. Checked unbiased (MIS, NEE-only and BSDF-only agree).
    - Not done: a separate sun light for very small suns, ground projection / shadow catcher, MIS compensation, half-float storage.
+   - Owner request: more HDRIs at 4k / 8k, replace the pixelated-looking ones, bilinear background lookup, and an in-app browser (item 6).
    - Decide: lights hidden from the camera still block light and cast shadows (their quads stay in the BLAS for shadow rays). The studio stage's hidden rim light shadowed the HDRI sun, so the environment scenes start with no lights. Either keep it (physical) or make hidden lights invisible to shadow rays too.
-4. Multiple BLAS + TLAS instancing past 256 objects.
+4. Multiple BLAS + TLAS instancing past 256 objects. — done 2026-10-30: one object-space BLAS per distinct mesh, a static BLAS for floor / room / lights, a TLAS instance per object, an instance table for vertices, materials and emitters; 4096 objects; `forest` and `crowd` generators. Drags rebuild only the TLAS (chess set 141 → 7 ms per drag frame).
+   - Not done: TLAS refit (`ALLOW_UPDATE`) instead of a full rebuild per edit; BLAS compaction; the mesh vertex buffer is re-uploaded whole when the set of meshes changes (adding one mesh to the chess scene re-sends 19 MB); a light edit still rebuilds the static BLAS (small).
+   - Cost: simple scenes render up to 7% slower (two-level traversal; Classic RR 3.67 → 3.94 ms). Idea: flatten scenes with few objects into one BLAS, or put the floor and walls in the opaque range of a shared instance.
+   - The Menger generator still merges cells into runs to fit 256 objects; it could use one instance per cube now. The object list UI draws every row (no virtual scrolling) at 4096 objects. `frame_objects` past 256 objects uses mesh bounding boxes (loose for rotated objects).
+   - Coplanar faces (a glass object's base on the floor) z-fight differently than before; see CLAUDE.md "Instancing".
 5. Textures.
 6. UI phases 2–5.
 
@@ -241,7 +258,7 @@ Point/sphere, spot and directional sun with an angular radius, as in scene-resea
 #### 8. Animation and timeline (K)
 
 - **Keyframes:** camera, object transforms, light intensity and color, and material parameters. Use a timeline strip in the UI, with linear, smooth and hold interpolation. Keyframes are stored in the scene file.
-- **Video export:** step the timeline per frame, render N spp, and pipe the result to ffmpeg (5d).
+- **Video export:** step the timeline per frame, render N spp, and pipe the result to ffmpeg (5d). The export dialog itself (resolution, fps, codecs, progress, HDR) comes first, as item 6.
 - **Motion blur:** shutter open/close settings.
   - DXR has no motion BVH. Pick one shutter time per spp batch, set the instance transforms for that time and rebuild the TLAS.
   - This is cheap only after instancing (core 4), where the TLAS is rebuilt and the BLAS stays.

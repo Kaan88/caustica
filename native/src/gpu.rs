@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)]
-use crate::scene::{self, Settings, Upscaler, Vertex};
+use crate::scene::{Settings, Upscaler, Vertex};
 use anyhow::{Context, Result, ensure};
 use glam::Mat4;
 use std::{
@@ -224,14 +224,21 @@ pub struct Gpu {
     buffers: Vec<ID3D12Resource>,
     textures: Vec<Texture>,
     constants: ID3D12Resource,
-    geometry: ID3D12Resource,
+    /// Object-space vertices of every mesh in use (t1), and the static world-space vertices:
+    /// floor, room and lights (t6), with their BLASes (core track 4).
+    mesh_vertices: ID3D12Resource,
+    static_vertices: ID3D12Resource,
+    static_cache: Vec<Vertex>,
+    static_blas: Option<ID3D12Resource>,
+    meshes: std::collections::HashMap<String, MeshBlas>,
+    /// One record per TLAS instance (t7, indexed by InstanceID).
+    instances: Vec<InstanceRecord>,
+    instance_table: ID3D12Resource,
     material_buffer: ID3D12Resource,
     emitter_buffer: ID3D12Resource,
     emitter_lookup: ID3D12Resource,
-    cached_vertices: Vec<Vertex>,
     pub triangle_count: usize,
     pub emitter_count: usize,
-    blas: Option<ID3D12Resource>,
     tlas: Option<ID3D12Resource>,
     /// egui textures (font atlas, scene thumbnails), each with its own heap slot (32 and up).
     gui_textures: std::collections::HashMap<egui::TextureId, GuiTexture>,
@@ -455,6 +462,8 @@ impl Gpu {
             root_srv(3),
             root_srv(4),
             root_srv(5),
+            root_srv(6),
+            root_srv(7),
         ];
         let sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -601,11 +610,15 @@ impl Gpu {
             material_buffer: geometry.clone(),
             emitter_buffer: geometry.clone(),
             emitter_lookup: geometry.clone(),
-            cached_vertices: vec![],
             triangle_count: 0,
             emitter_count: 0,
-            geometry,
-            blas: None,
+            mesh_vertices: geometry.clone(),
+            static_vertices: geometry.clone(),
+            instance_table: geometry,
+            static_cache: vec![],
+            static_blas: None,
+            meshes: Default::default(),
+            instances: vec![],
             tlas: None,
             gui_textures: Default::default(),
             free_slots: (FIRST_GUI_SLOT..HEAP_SIZE).rev().collect(),
@@ -1330,64 +1343,229 @@ impl Gpu {
         }
     }
     pub unsafe fn rebuild_scene(&mut self, s: &Settings) -> Result<()> {
-        // Two BLAS ranges: triangles that need the any-hit loop first (lights hidden from the
-        // camera, glass that shadow rays may pass), then everything else as opaque geometry,
-        // which the hardware commits without running the Proceed() loop.
         let packed = crate::lighting::materials(s);
-        let needs_any_hit = |v: &Vertex| {
-            let m = &packed[v.material as usize];
+        let needs_any_hit = |m: u32| {
+            let m = &packed[m as usize];
             (m.lobes[3] as u32 & 2) != 0 || m.lobes[2] > 0.
         };
-        let soup = scene::geometry(s);
+        self.begin()?;
+        let mut keep: Vec<ID3D12Resource> = vec![];
+        // Static BLAS (floor, room, lights) in world space, rebuilt only when it changes. Two
+        // ranges: triangles that need the any-hit loop first (lights hidden from the camera),
+        // then the rest as opaque geometry, which the hardware commits without Proceed().
+        let soup = crate::geometry::static_geometry(s);
         let (special, opaque): (Vec<&[Vertex; 3]>, Vec<&[Vertex; 3]>) = soup
             .as_chunks::<3>()
             .0
             .iter()
-            .partition(|t| needs_any_hit(&t[0]));
-        self.opaque_offset = special.len() as u32;
-        let vertices: Vec<Vertex> = special
+            .partition(|t| needs_any_hit(t[0].material));
+        let opaque_offset = special.len() as u32;
+        let statics: Vec<Vertex> = special
             .into_iter()
             .chain(opaque)
             .flatten()
             .copied()
             .collect();
-        drop(soup);
-        // Vertices live in GPU memory: hits read them, and big meshes would otherwise cross PCIe.
-        let bytes: &[u8] = bytemuck::cast_slice(&vertices);
+        if self.static_blas.is_none()
+            || bytemuck::cast_slice::<Vertex, u8>(&statics)
+                != bytemuck::cast_slice::<Vertex, u8>(&self.static_cache)
+        {
+            self.static_vertices = self.gpu_buffer(bytemuck::cast_slice(&statics), &mut keep)?;
+            let base = self.static_vertices.GetGPUVirtualAddress();
+            let (n0, total) = (opaque_offset as usize, statics.len() / 3);
+            let mut descs = vec![];
+            if n0 > 0 {
+                descs.push(triangles(base, n0, D3D12_RAYTRACING_GEOMETRY_FLAG_NONE));
+            }
+            if total > n0 {
+                descs.push(triangles(
+                    base + (n0 * 3 * size_of::<Vertex>()) as u64,
+                    total - n0,
+                    D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE,
+                ));
+            }
+            self.static_blas = Some(self.build_blas(&descs, &mut keep)?);
+            self.static_cache = statics;
+            self.opaque_offset = opaque_offset;
+        }
+        // One BLAS per distinct mesh in object space (core track 4). They are rebuilt only when
+        // the set of meshes changes; the shared vertex buffer then holds every mesh in use.
+        let visible: Vec<(usize, String, crate::geometry::Source)> = s
+            .objects
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.visible)
+            .map(|(i, o)| {
+                let (key, source) = crate::geometry::object_source(o);
+                (i, key, source)
+            })
+            .collect();
+        let mut wanted: Vec<&str> = visible.iter().map(|v| v.1.as_str()).collect();
+        wanted.sort_unstable();
+        wanted.dedup();
+        let mut have: Vec<&str> = self.meshes.keys().map(String::as_str).collect();
+        have.sort_unstable();
+        if wanted != have {
+            let mut local: Vec<Vertex> = vec![];
+            let mut bases = std::collections::HashMap::new();
+            for (_, key, source) in &visible {
+                if bases.contains_key(key) {
+                    continue;
+                }
+                bases.insert(key.clone(), (local.len() as u32, source.len() / 3));
+                local.extend(source.iter().map(|(p, n)| Vertex {
+                    position: p.to_array(),
+                    material: 0,
+                    normal: n.to_array(),
+                    pad: 0,
+                }));
+            }
+            if local.is_empty() {
+                local.push(bytemuck::Zeroable::zeroed());
+            }
+            self.mesh_vertices = self.gpu_buffer(bytemuck::cast_slice(&local), &mut keep)?;
+            let base = self.mesh_vertices.GetGPUVirtualAddress();
+            let mut meshes = std::collections::HashMap::new();
+            for (key, (first, count)) in bases {
+                // A BLAS holds its own copy of the triangles, so ones already built are reused.
+                let blas = match self.meshes.remove(&key) {
+                    Some(old) => old.blas,
+                    None => self.build_blas(
+                        &[triangles(
+                            base + first as u64 * size_of::<Vertex>() as u64,
+                            count,
+                            D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+                        )],
+                        &mut keep,
+                    )?,
+                };
+                meshes.insert(key, MeshBlas { blas, first, count });
+            }
+            self.meshes = meshes;
+        }
+        // Instances: the static BLAS (InstanceID 0), then one per visible object. Flags decide
+        // opacity per object: glass runs the any-hit loop so shadow rays may pass it.
+        let cull = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32;
+        let mut descs: Vec<u8> = vec![];
+        let mut table = vec![InstanceRecord {
+            vertex_base: 0,
+            material: u32::MAX,
+            emitter_base: 0,
+            object: u32::MAX,
+        }];
+        let identity = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
+        let mut push = |transform: &[f32; 12], id: u32, flags: u32, blas: &ID3D12Resource| {
+            descs.extend_from_slice(bytemuck::cast_slice(transform));
+            descs.extend_from_slice(&(id | 0xff00_0000).to_le_bytes());
+            descs.extend_from_slice(&(flags << 24).to_le_bytes());
+            descs.extend_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
+        };
+        push(&identity, 0, cull, self.static_blas.as_ref().unwrap());
+        let mut triangle_count = self.static_cache.len() / 3;
+        for (i, key, _) in &visible {
+            let mesh = &self.meshes[key];
+            let material = 5 + *i as u32;
+            let opacity = if needs_any_hit(material) {
+                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
+            } else {
+                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
+            } as u32;
+            push(
+                &crate::geometry::object_transform(&s.objects[*i]),
+                table.len() as u32,
+                cull | opacity,
+                &mesh.blas,
+            );
+            table.push(InstanceRecord {
+                vertex_base: mesh.first,
+                material,
+                emitter_base: u32::MAX,
+                object: *i as u32,
+            });
+            triangle_count += mesh.count;
+        }
+        let instances = upload(&self.device, &descs)?;
+        let ti = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
+            Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
+            Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
+            NumDescs: table.len() as u32,
+            DescsLayout: D3D12_ELEMENTS_LAYOUT_ARRAY,
+            Anonymous: D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_0 {
+                InstanceDescs: instances.GetGPUVirtualAddress(),
+            },
+        };
+        let mut info = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO::default();
+        self.device
+            .GetRaytracingAccelerationStructurePrebuildInfo(&ti, &mut info);
+        let tlas = buffer(
+            &self.device,
+            info.ResultDataMaxSizeInBytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        )?;
+        let ts = buffer(
+            &self.device,
+            info.ScratchDataSizeInBytes.max(256),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        // Each BLAS build above ends with a UAV barrier.
+        self.list.BuildRaytracingAccelerationStructure(
+            &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
+                DestAccelerationStructureData: tlas.GetGPUVirtualAddress(),
+                Inputs: ti,
+                ScratchAccelerationStructureData: ts.GetGPUVirtualAddress(),
+                ..Default::default()
+            },
+            None,
+        );
+        uav(&self.list, Some(&tlas));
+        self.submit()?;
+        drop((keep, instances, ts));
+        self.tlas = Some(tlas);
+        self.instances = table;
+        self.triangle_count = triangle_count;
+        self.update_materials(s)?;
+        if !self.painting {
+            self.reset(true);
+        }
+        Ok(())
+    }
+    /// A DEFAULT-heap buffer filled through a staging copy recorded on the open command list
+    /// (the staging buffer goes into `keep` until the list has run).
+    unsafe fn gpu_buffer(
+        &mut self,
+        bytes: &[u8],
+        keep: &mut Vec<ID3D12Resource>,
+    ) -> Result<ID3D12Resource> {
         let staging = upload(&self.device, bytes)?;
-        self.geometry = buffer(
+        // Buffers start in COMMON; the copy promotes it to COPY_DEST.
+        let b = buffer(
             &self.device,
             bytes.len() as u64,
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_NONE,
-            // Buffers start in COMMON; the copy promotes it to COPY_DEST.
             D3D12_RESOURCE_STATE_COMMON,
         )?;
-        let stride = size_of::<Vertex>() as u64;
-        let base = self.geometry.GetGPUVirtualAddress();
-        let range = |first: usize, count: usize, flags| D3D12_RAYTRACING_GEOMETRY_DESC {
-            Type: D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES,
-            Flags: flags,
-            Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
-                Triangles: D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC {
-                    VertexFormat: DXGI_FORMAT_R32G32B32_FLOAT,
-                    VertexCount: (count * 3) as u32,
-                    VertexBuffer: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
-                        StartAddress: base + first as u64 * 3 * stride,
-                        StrideInBytes: stride,
-                    },
-                    ..Default::default()
-                },
-            },
-        };
-        let (n0, total) = (self.opaque_offset as usize, vertices.len() / 3);
-        let mut descs = vec![];
-        if n0 > 0 {
-            descs.push(range(0, n0, D3D12_RAYTRACING_GEOMETRY_FLAG_NONE));
-        }
-        if total > n0 {
-            descs.push(range(n0, total - n0, D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE));
-        }
+        self.list
+            .CopyBufferRegion(&b, 0, &staging, 0, bytes.len() as u64);
+        transition(
+            &self.list,
+            &b,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+        );
+        keep.push(staging);
+        Ok(b)
+    }
+    /// Records a BLAS build on the open command list (scratch goes into `keep`).
+    unsafe fn build_blas(
+        &mut self,
+        descs: &[D3D12_RAYTRACING_GEOMETRY_DESC],
+        keep: &mut Vec<ID3D12Resource>,
+    ) -> Result<ID3D12Resource> {
         let inputs = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
             Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
             Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
@@ -1409,55 +1587,11 @@ impl Gpu {
         )?;
         let scratch = buffer(
             &self.device,
-            info.ScratchDataSizeInBytes,
+            info.ScratchDataSizeInBytes.max(256),
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COMMON,
         )?;
-        // Explicit 64-byte DXR instance descriptor, including packed 24/8 bitfields.
-        let mut instance = [0u8; 64];
-        let transform: [f32; 12] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
-        instance[..48].copy_from_slice(bytemuck::cast_slice(&transform));
-        instance[48..52].copy_from_slice(&0xff000000u32.to_le_bytes());
-        instance[52..56].copy_from_slice(
-            &((D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32) << 24).to_le_bytes(),
-        );
-        instance[56..64].copy_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
-        let instances = upload(&self.device, &instance)?;
-        let ti = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
-            Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
-            Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
-            NumDescs: 1,
-            DescsLayout: D3D12_ELEMENTS_LAYOUT_ARRAY,
-            Anonymous: D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_0 {
-                InstanceDescs: instances.GetGPUVirtualAddress(),
-            },
-        };
-        self.device
-            .GetRaytracingAccelerationStructurePrebuildInfo(&ti, &mut info);
-        let tlas = buffer(
-            &self.device,
-            info.ResultDataMaxSizeInBytes,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
-        )?;
-        let ts = buffer(
-            &self.device,
-            info.ScratchDataSizeInBytes,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_COMMON,
-        )?;
-        self.begin()?;
-        self.list
-            .CopyBufferRegion(&self.geometry, 0, &staging, 0, bytes.len() as u64);
-        transition(
-            &self.list,
-            &self.geometry,
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-        );
         self.list.BuildRaytracingAccelerationStructure(
             &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
                 DestAccelerationStructureData: blas.GetGPUVirtualAddress(),
@@ -1468,34 +1602,36 @@ impl Gpu {
             None,
         );
         uav(&self.list, Some(&blas));
-        self.list.BuildRaytracingAccelerationStructure(
-            &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
-                DestAccelerationStructureData: tlas.GetGPUVirtualAddress(),
-                Inputs: ti,
-                ScratchAccelerationStructureData: ts.GetGPUVirtualAddress(),
-                ..Default::default()
-            },
-            None,
-        );
-        uav(&self.list, Some(&tlas));
-        self.submit()?;
-        self.blas = Some(blas);
-        self.tlas = Some(tlas);
-        self.triangle_count = vertices.len() / 3;
-        self.cached_vertices = vertices;
-        self.update_materials(s)?;
-        if !self.painting {
-            self.reset(true);
-        }
-        Ok(())
+        keep.push(scratch);
+        Ok(blas)
     }
+    /// Materials, the emitter table and the instance table. Emitters stay world-space
+    /// triangles: the static ones, then each emissive object's (its lookup range is
+    /// `emitter_base` in the instance table; other objects have none).
     pub unsafe fn update_materials(&mut self, s: &Settings) -> Result<()> {
         let materials = crate::lighting::materials(s);
-        let (emitters, lookup) = crate::lighting::emitter_table(&self.cached_vertices, &materials);
+        let mut world = self.static_cache.clone();
+        for record in self.instances.iter_mut().skip(1) {
+            let m = &materials[record.material as usize];
+            let emission =
+                m.color_rough[0].max(m.color_rough[1]).max(m.color_rough[2]) * m.optical[1];
+            record.emitter_base = if emission > 0. {
+                let base = (world.len() / 3) as u32;
+                world.extend(crate::geometry::object_geometry(
+                    &s.objects[record.object as usize],
+                    record.material,
+                ));
+                base
+            } else {
+                u32::MAX
+            };
+        }
+        let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials);
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&emitters))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
+        self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;
         if !self.painting {
             self.reset(true);
         }
@@ -1511,7 +1647,7 @@ impl Gpu {
             self.tlas.as_ref().unwrap().GetGPUVirtualAddress(),
         );
         self.list
-            .SetComputeRootShaderResourceView(2, self.geometry.GetGPUVirtualAddress());
+            .SetComputeRootShaderResourceView(2, self.mesh_vertices.GetGPUVirtualAddress());
         self.list.SetComputeRootDescriptorTable(3, self.gpu(0));
         self.list
             .SetComputeRootShaderResourceView(5, self.material_buffer.GetGPUVirtualAddress());
@@ -1519,6 +1655,10 @@ impl Gpu {
             .SetComputeRootShaderResourceView(6, self.emitter_buffer.GetGPUVirtualAddress());
         self.list
             .SetComputeRootShaderResourceView(7, self.emitter_lookup.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootShaderResourceView(8, self.static_vertices.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootShaderResourceView(9, self.instance_table.GetGPUVirtualAddress());
     }
     pub unsafe fn render(
         &mut self,
@@ -2519,6 +2659,44 @@ fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
     D3D12_SHADER_BYTECODE {
         pShaderBytecode: code.as_ptr() as _,
         BytecodeLength: code.len(),
+    }
+}
+/// A mesh's BLAS and its range in the shared object-space vertex buffer.
+struct MeshBlas {
+    blas: ID3D12Resource,
+    first: u32,
+    count: usize,
+}
+/// Mirrors `Instance` in common.hlsli. `material` u32::MAX marks the static instance, whose
+/// vertices carry their own material ids.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct InstanceRecord {
+    vertex_base: u32,
+    material: u32,
+    emitter_base: u32,
+    object: u32,
+}
+/// A triangle geometry of `count` triangles at `address` (32-byte vertices, position first).
+fn triangles(
+    address: u64,
+    count: usize,
+    flags: D3D12_RAYTRACING_GEOMETRY_FLAGS,
+) -> D3D12_RAYTRACING_GEOMETRY_DESC {
+    D3D12_RAYTRACING_GEOMETRY_DESC {
+        Type: D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES,
+        Flags: flags,
+        Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
+            Triangles: D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC {
+                VertexFormat: DXGI_FORMAT_R32G32B32_FLOAT,
+                VertexCount: (count * 3) as u32,
+                VertexBuffer: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                    StartAddress: address,
+                    StrideInBytes: size_of::<Vertex>() as u64,
+                },
+                ..Default::default()
+            },
+        },
     }
 }
 /// A UAV texture that lives across resizes (the environment and its CDFs).

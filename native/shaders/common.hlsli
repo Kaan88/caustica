@@ -33,7 +33,11 @@ StructuredBuffer<Emitter> emitters:register(t4);
 StructuredBuffer<uint> emitter_lookup:register(t5);
 RaytracingAccelerationStructure scene:register(t0);
 struct Vertex {float3 position;uint material;float3 normal;uint pad;};
-StructuredBuffer<Vertex> vertices:register(t1);
+StructuredBuffer<Vertex> vertices:register(t1); // every mesh in use, object space (core track 4)
+StructuredBuffer<Vertex> static_vertices:register(t6); // floor, room and lights, world space
+// One per TLAS instance (InstanceID). material 0xffffffff = the static instance (per-vertex ids).
+struct Instance{uint vertex_base;uint material;uint emitter_base;uint object;};
+StructuredBuffer<Instance> instances:register(t7);
 RWTexture2D<float4> noisy:register(u0);
 RWTexture2D<float4> accumulation:register(u1);
 RWTexture2D<float4> normal_roughness:register(u2);

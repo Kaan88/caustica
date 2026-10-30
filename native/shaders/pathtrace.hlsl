@@ -25,28 +25,40 @@ float random(){
 float3 basis(float3 n,float3 h){float3 u=normalize(cross(abs(n.z)<0.999?float3(0,0,1):float3(0,1,0),n));return u*h.x+cross(n,u)*h.y+n*h.z;}
 float3 cosine_sample(float3 n){float r=sqrt(random()),a=2*PI*random();return basis(n,float3(r*cos(a),r*sin(a),sqrt(max(0,1-r*r))));}
 struct Hit{float t;float3 p;float3 n;uint material;uint emitter;bool front;};
+// Candidates only come from non-opaque geometry: static range 0 (no offset) or a glass object.
+uint candidate_material(uint instance,uint prim){Instance inst=instances[instance];return inst.material!=0xffffffffu?inst.material:static_vertices[prim*3].material;}
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
     RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
-        uint m=vertices[q.CandidatePrimitiveIndex()*3].material;
+        uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
         if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();
     }
     h=(Hit)0;
     if(q.CommittedStatus()!=COMMITTED_TRIANGLE_HIT)return false;
-    // Geometry 1 is the opaque range; its primitive indices restart at 0 (see rebuild_scene).
-    uint prim=q.CommittedPrimitiveIndex()+(q.CommittedGeometryIndex()!=0?(uint)environment.w:0);
-    uint idx=prim*3;float2 b=q.CommittedTriangleBarycentrics();
-    Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];h.t=q.CommittedRayT();h.p=o+d*h.t;
-    h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.material=a.material;h.emitter=emitter_lookup[prim];return true;
+    Instance inst=instances[q.CommittedInstanceID()];uint prim=q.CommittedPrimitiveIndex();float2 b=q.CommittedTriangleBarycentrics();
+    h.t=q.CommittedRayT();h.p=o+d*h.t;
+    if(inst.material==0xffffffffu){
+        // Static geometry: geometry 1 is the opaque range; its primitive indices restart at 0.
+        prim+=q.CommittedGeometryIndex()!=0?(uint)environment.w:0;uint idx=prim*3;
+        Vertex a=static_vertices[idx],v=static_vertices[idx+1],c=static_vertices[idx+2];
+        h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.material=a.material;
+    }else{
+        // An object: object-space normal to world by the inverse transpose (row vector × W2O).
+        uint idx=inst.vertex_base+prim*3;Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];
+        float3 n=a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y;
+        h.n=normalize(mul(n,(float3x3)q.CommittedWorldToObject3x4()));h.material=inst.material;
+    }
+    h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;
+    h.emitter=inst.emitter_base==0xffffffffu?0:emitter_lookup[inst.emitter_base+prim];return true;
 }
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
-    while(q.Proceed()){proceed_steps++;uint m=vertices[q.CandidatePrimitiveIndex()*3].material;if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
+    while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
     return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT;
 }
 Material material_at(uint id,float3 p){

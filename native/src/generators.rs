@@ -1,12 +1,12 @@
 //! Procedural scene generators (roadmap core track 1): seeded, deterministic families that
-//! fit the 256-object engine. A scene file can name a generator and a seed instead of listing
+//! fit the object limit (4096 instances). A scene file can name a generator and a seed instead of listing
 //! objects: `{"format": 1, "title": "...", "generator": {"family": "city", "seed": 7}}`.
 use crate::presets::{light, material, object, studio};
 use crate::scene::{MAX_OBJECTS, Material, Object, Pattern, Settings, Shape};
 use std::f32::consts::{PI, TAU};
 
 /// (id, label, what it makes)
-pub const FAMILIES: [(&str, &str, &str); 15] = [
+pub const FAMILIES: [(&str, &str, &str); 17] = [
     (
         "still-life",
         "Studio still life",
@@ -77,6 +77,16 @@ pub const FAMILIES: [(&str, &str, &str); 15] = [
         "tree",
         "Trees",
         "A grove of branching trees (an L-system), in summer or autumn",
+    ),
+    (
+        "forest",
+        "Forest",
+        "Hundreds of trees from a few shared meshes: instancing past the old 256-object cap",
+    ),
+    (
+        "crowd",
+        "Crowd",
+        "Up to 3000 copies of one shape in a field, each with its own colour",
     ),
 ];
 
@@ -241,6 +251,8 @@ pub fn generate(family: &str, seed: u64) -> anyhow::Result<Settings> {
         "terrain" => terrain(&mut r, seed),
         "deep-menger" => deep_menger(&mut r, seed),
         "tree" => trees(&mut r, seed),
+        "forest" => forest(&mut r, seed),
+        "crowd" => crowd(&mut r),
         _ => anyhow::bail!("Unknown generator family {family}"),
     };
     Ok(finish(s, family, seed))
@@ -1330,6 +1342,104 @@ fn trees(r: &mut Rng, seed: u64) -> Settings {
     frame(&mut s);
     s
 }
+/// Many trees from a handful of tree meshes: each mesh is one BLAS, every tree an instance.
+fn forest(r: &mut Rng, seed: u64) -> Settings {
+    let mut s = base(r);
+    let autumn = r.chance(0.35);
+    let warm = autumn || r.chance(0.3);
+    sun(&mut s, r, warm);
+    s.floor.color = hue(r.range(0.2, 0.3), 0.5, 0.3);
+    s.floor.roughness = 0.95;
+    s.floor_extent = 40.;
+    let species = 6;
+    let count = r.pick(&[400, 800, 1200, 1800]);
+    let radius = (count as f32).sqrt() * 0.55;
+    for _ in 0..count {
+        let (angle, d) = (r.range(0., TAU), radius * r.next().sqrt());
+        let kind = (r.next() * species as f32) as u64 % species;
+        let size = r.range(2.5, 5.);
+        let rotation = r.range(-180., 180.);
+        let leaves = if autumn {
+            hue(r.range(0.0, 0.12), r.range(0.7, 0.95), r.range(0.55, 0.9))
+        } else {
+            hue(r.range(0.2, 0.36), r.range(0.5, 0.8), r.range(0.3, 0.55))
+        };
+        for (part, name, color, roughness) in [
+            (0, "Bark", [0.16, 0.11, 0.07], 0.9),
+            (1, "Leaves", leaves, 0.6),
+        ] {
+            let mut o = procedural(
+                name,
+                format!("tree/{}#{part}", seed * 16 + kind),
+                size,
+                Material {
+                    color,
+                    roughness,
+                    ..Material::default()
+                },
+            );
+            o.position = [angle.cos() * d, angle.sin() * d];
+            o.rotation = rotation;
+            s.objects.push(o);
+        }
+    }
+    s.bounces = 6;
+    frame(&mut s);
+    s.distance *= 0.8;
+    s.pitch = r.range(14., 30.);
+    s
+}
+/// A field of one shape, each copy its own colour and turn.
+fn crowd(r: &mut Rng) -> Settings {
+    let mut s = base(r);
+    let shape = r.pick(&[
+        Shape::Bunny,
+        Shape::Teapot,
+        Shape::Sphere,
+        Shape::Torus,
+        Shape::Knot,
+    ]);
+    let side = r.pick(&[20usize, 32, 44, 54]);
+    let spacing = r.range(0.55, 0.8);
+    let (h0, spread) = (r.next(), r.range(0.1, 0.6));
+    let metal = r.chance(0.3);
+    for j in 0..side {
+        for i in 0..side {
+            let jitter = [r.range(-0.15, 0.15), r.range(-0.15, 0.15)];
+            s.objects.push(Object {
+                name: format!("{shape:?}"),
+                shape,
+                position: [
+                    (i as f32 - side as f32 / 2.) * spacing + jitter[0],
+                    (j as f32 - side as f32 / 2.) * spacing + jitter[1],
+                ],
+                size: spacing * r.range(0.9, 1.3),
+                stretch: 1.,
+                rotation: r.range(-180., 180.),
+                material: Material {
+                    color: hue(
+                        h0 + spread * r.next(),
+                        r.range(0.5, 0.9),
+                        r.range(0.55, 0.9),
+                    ),
+                    roughness: r.range(0.15, 0.5),
+                    metallic: if metal { 1. } else { 0. },
+                    ..Material::default()
+                },
+                ..Object::default()
+            });
+        }
+    }
+    s.light_size = 6.;
+    s.light_position = [-3., 9., 4.];
+    s.light_intensity = 9.;
+    s.floor_extent = 40.;
+    s.bounces = 6;
+    frame(&mut s);
+    s.distance *= 0.7;
+    s.pitch = r.range(20., 40.);
+    s
+}
 
 #[cfg(test)]
 mod tests {
@@ -1337,7 +1447,13 @@ mod tests {
     #[test]
     fn every_family_is_valid_and_deterministic() {
         for (family, _, _) in FAMILIES {
-            for seed in 0..24u64 {
+            // Thousands of objects each: a few seeds keep the debug test fast.
+            let seeds = if ["forest", "crowd"].contains(&family) {
+                3
+            } else {
+                24
+            };
+            for seed in 0..seeds {
                 let mut s = generate(family, seed).unwrap();
                 s.validate()
                     .unwrap_or_else(|e| panic!("{family} seed {seed}: {e:#}"));

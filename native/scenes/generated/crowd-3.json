@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Crowd 3",
+ "description": "Generated scene: crowd, seed 3. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "crowd"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "crowd",
+  "seed": 3
+ }
+}

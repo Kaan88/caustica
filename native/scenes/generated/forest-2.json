@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Forest 2",
+ "description": "Generated scene: forest, seed 2. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "forest"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "forest",
+  "seed": 2
+ }
+}

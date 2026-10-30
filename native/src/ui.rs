@@ -1890,8 +1890,9 @@ impl App {
                         let room = scene::MAX_OBJECTS - first;
                         if parts.len() > room {
                             state.error(format!(
-                                "Only {room} of {} parts fit (256 objects)",
-                                parts.len()
+                                "Only {room} of {} parts fit ({} objects)",
+                                parts.len(),
+                                scene::MAX_OBJECTS
                             ));
                         }
                         s.objects.extend(parts.into_iter().take(room));

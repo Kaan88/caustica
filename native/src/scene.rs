@@ -33,7 +33,9 @@ impl Default for Material {
         }
     }
 }
-pub const MAX_OBJECTS: usize = 256;
+/// Objects are TLAS instances of shared mesh BLASes (core track 4), so the limit is about UI
+/// and settings size, not the BLAS.
+pub const MAX_OBJECTS: usize = 4096;
 pub const MAX_LIGHTS: usize = 32;
 /// DLSS Super Resolution presets offered by SDK 310.9.16 (`NVSDK_NGX_DLSS_Hint_Render_Preset`).
 /// A–D are removed, E/F deprecated, and G–I, N, O revert to the default.

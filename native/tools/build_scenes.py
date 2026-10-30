@@ -136,7 +136,7 @@ SCENES = []
 
 
 def scene(slug, title, description, tags, settings):
-    assert len(settings.get("objects", [])) <= 256, slug
+    assert len(settings.get("objects", [])) <= 4096, slug
     assert len(settings.get("lights", [])) <= 32, slug
     SCENES.append((slug, {"format": 1, "title": title, "description": description, "tags": tags,
                           "credits": "Cornell RTX built-in scenes", "settings": settings}))
@@ -1221,6 +1221,8 @@ GENERATED = {
     "terrain": ("Terrain island", [1, 2, 3, 4, 6, 8]),
     "deep-menger": ("Deep Menger sponge", [1, 3, 4, 6, 7, 8]),
     "tree": ("Trees", [1, 3, 4, 6, 7, 8]),
+    "forest": ("Forest", [1, 2, 3]),
+    "crowd": ("Crowd", [1, 2, 3]),
 }
 
 

@@ -8,6 +8,86 @@ static MESHES: LazyLock<Vec<Mesh>> =
 fn mesh(shape: Shape) -> &'static Mesh {
     &MESHES[shape as usize]
 }
+/// An object's local triangles (−1..1): a built-in shape or an imported / procedural mesh.
+pub enum Source {
+    Shape(&'static Mesh),
+    File(std::sync::Arc<Mesh>),
+}
+impl std::ops::Deref for Source {
+    type Target = Mesh;
+    fn deref(&self) -> &Mesh {
+        match self {
+            Source::Shape(m) => m,
+            Source::File(m) => m,
+        }
+    }
+}
+/// The mesh an object instances (core track 4): a key shared by every object with the same
+/// triangles, which names its BLAS, and the triangles.
+pub fn object_source(o: &Object) -> (String, Source) {
+    match crate::mesh::of(o) {
+        Some(m) => (o.mesh.clone(), Source::File(m)),
+        None => (
+            format!("shape:{:?}", o.kind()),
+            Source::Shape(mesh(o.kind())),
+        ),
+    }
+}
+/// Local scale (size · 0.35 · per-axis factors) and rotation of an object.
+fn scale_rotation(o: &Object) -> (Vec3, Mat4) {
+    (
+        Vec3::new(o.scale_xz[0], o.stretch, o.scale_xz[1]) * o.size * 0.35,
+        Mat4::from_euler(
+            EulerRot::YXZ,
+            o.rotation.to_radians(),
+            o.tilt[0].to_radians(),
+            o.tilt[1].to_radians(),
+        ),
+    )
+}
+/// Lowest y of the object's grounding mesh after scale and rotation. Cached: it scans every
+/// vertex (a whole file for a part), and instancing asks for it on every rebuild.
+fn lowest_y(o: &Object, scale: Vec3, r: Mat4) -> f32 {
+    type Key = (usize, [u32; 7]);
+    static CACHE: LazyLock<std::sync::Mutex<std::collections::HashMap<Key, f32>>> =
+        LazyLock::new(Default::default);
+    let ground = crate::mesh::ground(o);
+    let source: &Mesh = ground.as_deref().unwrap_or_else(|| mesh(o.kind()));
+    let key = (
+        source.as_ptr() as usize,
+        [
+            o.rotation,
+            o.tilt[0],
+            o.tilt[1],
+            o.scale_xz[0],
+            o.stretch,
+            o.scale_xz[1],
+            o.size,
+        ]
+        .map(f32::to_bits),
+    );
+    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(y) = cache.get(&key) {
+        return *y;
+    }
+    let y = source
+        .iter()
+        .map(|(p, _)| r.transform_vector3(*p * scale).y)
+        .fold(f32::INFINITY, f32::min);
+    if cache.len() > 4096 {
+        cache.clear();
+    }
+    cache.insert(key, y);
+    y
+}
+/// Object-to-world transform of an object's instance, as a DXR 3×4 row-major matrix.
+pub fn object_transform(o: &Object) -> [f32; 12] {
+    let (scale, r) = scale_rotation(o);
+    let (center, _) = object_frame(o);
+    let m = Mat4::from_translation(center) * r * Mat4::from_scale(scale);
+    let c = m.to_cols_array_2d();
+    std::array::from_fn(|i| c[i % 4][i / 4])
+}
 fn triangle(out: &mut Mesh, p: [Vec3; 3], n: [Vec3; 3]) {
     let geometric = (p[1] - p[0]).cross(p[2] - p[0]);
     if geometric.length_squared() < 1e-14 {
@@ -286,21 +366,9 @@ fn make_mesh(shape: Shape) -> Mesh {
 }
 /// The object's pivot (mesh origin in the world, as placed by `object_geometry`) and rotation.
 pub fn object_frame(o: &Object) -> (Vec3, glam::Mat3) {
-    let scale = Vec3::new(o.scale_xz[0], o.stretch, o.scale_xz[1]) * o.size * 0.35;
-    let r = Mat4::from_euler(
-        EulerRot::YXZ,
-        o.rotation.to_radians(),
-        o.tilt[0].to_radians(),
-        o.tilt[1].to_radians(),
-    );
+    let (scale, r) = scale_rotation(o);
     let y = if o.grounded {
-        let imported = crate::mesh::ground(o);
-        let source: &Mesh = imported.as_deref().unwrap_or_else(|| mesh(o.kind()));
-        let ymin = source
-            .iter()
-            .map(|(p, _)| r.transform_vector3(*p * scale).y)
-            .fold(f32::INFINITY, f32::min);
-        -1. - ymin + o.elevation
+        -1. - lowest_y(o, scale, r) + o.elevation
     } else {
         o.elevation
     };
@@ -313,22 +381,9 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
     if !o.visible {
         return vec![];
     }
-    let scale = Vec3::new(o.scale_xz[0], o.stretch, o.scale_xz[1]) * o.size * 0.35;
-    let r = Mat4::from_euler(
-        EulerRot::YXZ,
-        o.rotation.to_radians(),
-        o.tilt[0].to_radians(),
-        o.tilt[1].to_radians(),
-    );
-    let imported = crate::mesh::of(o);
-    let source: &Mesh = imported.as_deref().unwrap_or_else(|| mesh(o.kind()));
-    let ground = crate::mesh::ground(o);
-    let ymin = ground
-        .as_deref()
-        .unwrap_or(source)
-        .iter()
-        .map(|(p, _)| r.transform_vector3(*p * scale).y)
-        .fold(f32::INFINITY, f32::min);
+    let (scale, r) = scale_rotation(o);
+    let (_, source) = object_source(o);
+    let ymin = lowest_y(o, scale, r);
     let center = Vec3::new(
         o.position[0],
         if o.grounded {
@@ -349,6 +404,29 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
         .collect()
 }
 pub fn geometry(s: &Settings) -> Vec<Vertex> {
+    let mut out = static_geometry(s);
+    // Objects come from a per-slot cache: a gizmo drag changes one object per frame, and
+    // rebuilding every mesh (600k vertices in the chess scene) cost about 11 ms.
+    let mut cache = OBJECT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    cache.resize_with(s.objects.len(), || None);
+    for (i, o) in s.objects.iter().enumerate() {
+        let id = 5 + i as u32;
+        match &cache[i] {
+            Some((cached, cached_id, mesh)) if cached == o && *cached_id == id => {
+                out.extend_from_slice(mesh)
+            }
+            _ => {
+                let mesh = object_geometry(o, id);
+                out.extend_from_slice(&mesh);
+                cache[i] = Some((o.clone(), id, mesh));
+            }
+        }
+    }
+    out
+}
+/// Everything that is not an object, in world space: floor, room, main light, area lights.
+/// The GPU keeps it in its own BLAS; objects are instances of their meshes (core track 4).
+pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
     let mut out = vec![];
     let p = Vec3::new;
     let mut quad = |q: [Vec3; 4], n: Vec3, id: u32| {
@@ -444,23 +522,6 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
             5 + s.objects.len() as u32 + i as u32,
         );
     }
-    // Objects come from a per-slot cache: a gizmo drag changes one object per frame, and
-    // rebuilding every mesh (600k vertices in the chess scene) cost about 11 ms.
-    let mut cache = OBJECT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    cache.resize_with(s.objects.len(), || None);
-    for (i, o) in s.objects.iter().enumerate() {
-        let id = 5 + i as u32;
-        match &cache[i] {
-            Some((cached, cached_id, mesh)) if cached == o && *cached_id == id => {
-                out.extend_from_slice(mesh)
-            }
-            _ => {
-                let mesh = object_geometry(o, id);
-                out.extend_from_slice(&mesh);
-                cache[i] = Some((o.clone(), id, mesh));
-            }
-        }
-    }
     out
 }
 type CachedMesh = Option<(Object, u32, Vec<Vertex>)>;
@@ -469,9 +530,41 @@ impl Settings {
     pub fn frame_objects(&mut self, aspect: f32) {
         let mut min = Vec3::splat(f32::INFINITY);
         let mut max = Vec3::splat(f32::NEG_INFINITY);
+        // Exact (every vertex) up to the old 256-object cap; past it, each mesh's box corners
+        // through the instance transform, which is slightly loose for rotated objects but keeps
+        // a 3600-object forest from transforming millions of vertices.
+        let exact = self.objects.len() <= 256;
         for o in &self.objects {
-            for v in object_geometry(o, 0) {
-                let p = Vec3::from(v.position);
+            if exact {
+                for v in object_geometry(o, 0) {
+                    let p = Vec3::from(v.position);
+                    min = min.min(p);
+                    max = max.max(p);
+                }
+                continue;
+            }
+            if !o.visible {
+                continue;
+            }
+            let (_, source) = object_source(o);
+            let (lo, hi) = source.iter().fold(
+                (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+                |(lo, hi), (p, _)| (lo.min(*p), hi.max(*p)),
+            );
+            let m = object_transform(o);
+            let m = Mat4::from_cols_array_2d(&[
+                [m[0], m[4], m[8], 0.],
+                [m[1], m[5], m[9], 0.],
+                [m[2], m[6], m[10], 0.],
+                [m[3], m[7], m[11], 1.],
+            ]);
+            for k in 0..8 {
+                let c = Vec3::new(
+                    if k & 1 == 0 { lo.x } else { hi.x },
+                    if k & 2 == 0 { lo.y } else { hi.y },
+                    if k & 4 == 0 { lo.z } else { hi.z },
+                );
+                let p = m.transform_point3(c);
                 min = min.min(p);
                 max = max.max(p);
             }
