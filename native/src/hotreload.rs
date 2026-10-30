@@ -7,18 +7,26 @@ use std::time::{Duration, Instant, SystemTime};
 /// Compiled DXIL for every pipeline.
 pub struct Shaders {
     pub trace: Vec<u8>,
+    pub trace_maps: Vec<u8>,
     pub filter: Vec<u8>,
     pub display: Vec<u8>,
     pub vs: Vec<u8>,
     pub ps: Vec<u8>,
 }
-/// The entries build.rs compiles: (file, entry, profile).
-pub const ENTRIES: [(&str, &str, &str); 5] = [
-    ("pathtrace.hlsl", "trace", "cs_6_5"),
-    ("post.hlsl", "filter", "cs_6_5"),
-    ("post.hlsl", "display", "cs_6_5"),
-    ("gui.hlsl", "vs_main", "vs_6_0"),
-    ("gui.hlsl", "ps_main", "ps_6_0"),
+/// The entries build.rs compiles: (file, entry, profile, output name, defines).
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 6] = [
+    ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_maps",
+        &["-D", "TEXTURE_MAPS"],
+    ),
+    ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
+    ("post.hlsl", "display", "cs_6_5", "display", &[]),
+    ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
+    ("gui.hlsl", "ps_main", "ps_6_0", "ps_main", &[]),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -55,14 +63,15 @@ impl HotReload {
         let out = std::env::temp_dir().join("cornell-rtx-shaders");
         std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
         let mut blobs = vec![];
-        for (file, entry, profile) in ENTRIES {
-            let target = out.join(format!("{entry}.dxil"));
+        for (file, entry, profile, name, defines) in ENTRIES {
+            let target = out.join(format!("{name}.dxil"));
             let mut command = std::process::Command::new(&self.dxc);
             command
                 .args([
                     "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-Ges", "-I",
                 ])
                 .arg(&self.dir)
+                .args(defines)
                 .arg("-Fo")
                 .arg(&target)
                 .arg(self.dir.join(file));
@@ -79,13 +88,14 @@ impl HotReload {
                     .filter(|l| !l.trim().is_empty())
                     .take(4)
                     .collect();
-                return Err(format!("{entry}: {}", short.join("\n")));
+                return Err(format!("{name}: {}", short.join("\n")));
             }
             blobs.push(std::fs::read(&target).map_err(|e| e.to_string())?);
         }
         let mut b = blobs.into_iter();
         Ok(Shaders {
             trace: b.next().unwrap(),
+            trace_maps: b.next().unwrap(),
             filter: b.next().unwrap(),
             display: b.next().unwrap(),
             vs: b.next().unwrap(),

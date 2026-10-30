@@ -400,6 +400,7 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
             normal: r.transform_vector3(*n / scale).normalize().to_array(),
             material: id,
             pad: 0,
+            uv: [0.; 2],
         })
         .collect()
 }
@@ -436,6 +437,7 @@ pub fn static_geometry(s: &Settings) -> Vec<Vertex> {
                 normal: n.to_array(),
                 material: id,
                 pad: 0,
+                uv: [0.; 2],
             });
         }
     };

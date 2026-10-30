@@ -1,5 +1,6 @@
-# Downloads the test models (scenes/models/) and HDRIs (scenes/hdri/) used by the meshes and
-# environments packs; both folders are gitignored. Every file is pinned to a SHA-256 (and the
+# Downloads the test models (scenes/models/), HDRIs (scenes/hdri/) and texture sets
+# (scenes/textures/) used by the meshes, environments and materials packs; all three folders
+# are gitignored. Every file is pinned to a SHA-256 (and the
 # models to a commit), so a changed upstream file fails instead of slipping in.
 #   powershell -File tools/fetch_assets.ps1
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,18 @@ $gltf = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/8f492
 # Poly Haven HDRIs (CC0), 4k, and 8k for the skies seen large. Checked by eye as backgrounds at
 # 1440x900; satara_night (sensor noise) and moonless_golf (motion blur) were dropped.
 $hdri = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr'
+# Poly Haven texture sets (CC0), 2k: colour, OpenGL normals, and AO / roughness / metalness packed.
+$phtex = 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k'
+# ambientCG materials (CC0), 2k JPG zips; only the colour, NormalGL, roughness and metalness
+# maps are extracted, into scenes/textures/<id>/.
+$ambientcg = @(
+    @('Bricks097', '0c4ea4f9ba8373ba9a6f12b0f92a2b1859686e8c670f44616b38be095f65b71f'),
+    @('Fabric062', 'af2f1e0db747b69a2c9a3916b6d4b0187c89c7e557fc7f056ab4714a2ae140e5'),
+    @('Marble016', 'da551007da2ad2ccd4f18b5b28b93b52e853651b826347729f313c42b06357c3'),
+    @('Metal032', '4b8884843c490963d5734be036c35639d064e7a817eb61145322f69c6c19895a'),
+    @('Tiles074', '8c9439bd30113c9ab4e223cf4e1fb08265d0a34978d02b5b61d7754c68cfc74f'),
+    @('WoodFloor041', 'f80d5875cfd72a2607d1fc2b8a8dc1272f22d4ef1d1111758b2a0727cc58cdae')
+)
 $models = @(
     @("$obj/xyzrgb_dragon.obj", '5d7106b58f2ac0d017758480fe607c5b6bf7d6201d930d2dd1ba7022c4d281c0'),
     @("$obj/happy.obj", '8ce5a4a7161efd97dabc8eeb281824fac1b17c9ba2cb0c2c6f350cd05982058c'),
@@ -45,7 +58,16 @@ $hdris = @(
     @("$hdri/8k/the_sky_is_on_fire_8k.hdr", '1aa2fb96a87be9578e4b328675bb9baca8b3e5de9ee38544c2189909c09fb303'),
     @("$hdri/8k/venice_sunset_8k.hdr", 'aeb30638c4793cab176b615e9ca09ae11f96b112d4a89cc3b3e6f23b805c7362')
 )
-$all = @($models | ForEach-Object { , @($_[0], $_[1], 'models') }) + @($hdris | ForEach-Object { , @($_[0], $_[1], 'hdri') })
+$textures = @(
+    @("$phtex/laminate_floor_02/laminate_floor_02_diff_2k.jpg", '2a1e6519309b369f749f06aaf241ac67ea762c686b6a848c1a79331b18a30521'),
+    @("$phtex/laminate_floor_02/laminate_floor_02_nor_gl_2k.jpg", '49aa58c34c6770d209e63f9bdb4d16326f5dab24474cfeb18433e63fc54456de'),
+    @("$phtex/laminate_floor_02/laminate_floor_02_arm_2k.jpg", 'd646acf8dede6ee1dc0c8a6bc3436f1742cfa65468bf8ad8985aea9edbb91ecb'),
+    @("$phtex/rock_wall_08/rock_wall_08_diff_2k.jpg", 'd01a1cbadd402ca039a76d5905b0334ed5fb3e471b0547fe7ba2bb185c7c5f9f'),
+    @("$phtex/rock_wall_08/rock_wall_08_nor_gl_2k.jpg", '0bd5dd743149ecccdf5ff79abdcc72426d4b4eb97f431fde5171f8e6d82d6259'),
+    @("$phtex/rock_wall_08/rock_wall_08_arm_2k.jpg", '91489a16465996beefdeb868d66a56e9f780458f60950a659bd2376ac35d0edb')
+)
+$all = @($models | ForEach-Object { , @($_[0], $_[1], 'models') }) + @($hdris | ForEach-Object { , @($_[0], $_[1], 'hdri') }) +
+    @($textures | ForEach-Object { , @($_[0], $_[1], "textures/$(Split-Path -Leaf (Split-Path -Parent $_[0]))") })
 foreach ($m in $all) {
     $url, $sha256, $folder = $m
     $target = Join-Path $projectRoot "scenes/$folder"
@@ -58,5 +80,26 @@ foreach ($m in $all) {
     if ($actual -ne $sha256) { Remove-Item -LiteralPath $partial; throw "$url checksum mismatch: $actual" }
     Move-Item -Force -LiteralPath $partial -Destination $file
     Write-Output "FETCHED $([IO.Path]::GetFileName($url))"
+}
+foreach ($m in $ambientcg) {
+    $id, $sha256 = $m
+    $target = Join-Path $projectRoot "scenes/textures/$id"
+    if (Test-Path -LiteralPath (Join-Path $target "$($id)_2K-JPG_Color.jpg")) { continue }
+    $zip = Join-Path ([IO.Path]::GetTempPath()) "$id-cornell.zip"
+    Invoke-WebRequest -Uri "https://ambientcg.com/get?file=$($id)_2K-JPG.zip" -OutFile $zip -UserAgent 'cornell-rtx'
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $sha256) { Remove-Item -LiteralPath $zip; throw "$id checksum mismatch: $actual" }
+    New-Item -ItemType Directory -Force $target | Out-Null
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($zip)
+    try {
+        foreach ($entry in $archive.Entries) {
+            if ($entry.Name -match '_(Color|NormalGL|Roughness|Metalness)\.jpg$') {
+                [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $target $entry.Name), $true)
+            }
+        }
+    } finally { $archive.Dispose() }
+    Remove-Item -LiteralPath $zip
+    Write-Output "FETCHED $id"
 }
 Write-Output "ASSETS $(Join-Path $projectRoot scenes)"

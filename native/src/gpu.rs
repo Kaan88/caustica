@@ -26,6 +26,8 @@ pub const SCOPES: [u32; 2] = [256, 260];
 /// Shader-visible heap: UAVs 0..TEXTURES, then one SRV slot per egui texture from 32.
 const HEAP_SIZE: usize = 512;
 const FIRST_GUI_SLOT: usize = 32;
+/// Mesh texture maps (core track 5): SRVs t0.. in space 1, in the heap after `HEAP_SIZE`.
+const MAX_MAPS: usize = 4096;
 /// A light-meter / click-to-focus reading at one pixel: linear beauty, diffuse albedo and
 /// linear view depth.
 #[derive(Clone, Copy)]
@@ -187,6 +189,9 @@ pub struct Gpu {
     rtv: ID3D12DescriptorHeap,
     root: ID3D12RootSignature,
     trace: ID3D12PipelineState,
+    /// The path tracer with texture-map code (core track 5), used while any material has maps.
+    trace_maps: ID3D12PipelineState,
+    textured: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
     gui: ID3D12PipelineState,
@@ -246,6 +251,10 @@ pub struct Gpu {
     /// egui textures (font atlas, scene thumbnails), each with its own heap slot (32 and up).
     gui_textures: std::collections::HashMap<egui::TextureId, GuiTexture>,
     free_slots: Vec<usize>,
+    /// Mesh texture maps on the GPU, keyed by the `Arc<Map>` address (the Arc is kept, so the
+    /// address stays unique), and the free map slots.
+    maps: std::collections::HashMap<usize, MapTexture>,
+    free_maps: Vec<u32>,
     /// When set, each frame's backbuffer (with UI) is copied here before Present, because a
     /// FLIP_DISCARD buffer's contents are undefined once presented. Kept in COPY_DEST.
     pub keep_ui_frame: bool,
@@ -385,7 +394,7 @@ impl Gpu {
         let event = CreateEventW(None, false, false, None)?;
         let heap = device.CreateDescriptorHeap(&D3D12_DESCRIPTOR_HEAP_DESC {
             Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors: HEAP_SIZE as u32,
+            NumDescriptors: (HEAP_SIZE + MAX_MAPS) as u32,
             Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
             NodeMask: 0,
         })?;
@@ -408,6 +417,15 @@ impl Gpu {
                 NumDescriptors: 1,
                 BaseShaderRegister: 2,
                 RegisterSpace: 0,
+                OffsetInDescriptorsFromTableStart: 0,
+            },
+            // Texture maps: only slots a material points at are read, so unused ones may stay
+            // empty (root signature 1.0 descriptors are volatile).
+            D3D12_DESCRIPTOR_RANGE {
+                RangeType: D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+                NumDescriptors: MAX_MAPS as u32,
+                BaseShaderRegister: 0,
+                RegisterSpace: 1,
                 OffsetInDescriptorsFromTableStart: 0,
             },
         ];
@@ -467,8 +485,18 @@ impl Gpu {
             root_srv(5),
             root_srv(6),
             root_srv(7),
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    DescriptorTable: D3D12_ROOT_DESCRIPTOR_TABLE {
+                        NumDescriptorRanges: 1,
+                        pDescriptorRanges: &ranges[2],
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
         ];
-        let sampler = D3D12_STATIC_SAMPLER_DESC {
+        let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
             AddressU: D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
             AddressV: D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
@@ -479,11 +507,23 @@ impl Gpu {
             ComparisonFunc: D3D12_COMPARISON_FUNC_ALWAYS,
             ..Default::default()
         };
+        // Texture maps repeat (glTF's default wrap mode).
+        let samplers = [
+            gui_sampler,
+            D3D12_STATIC_SAMPLER_DESC {
+                AddressU: D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+                AddressV: D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+                AddressW: D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+                ShaderRegister: 1,
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+                ..gui_sampler
+            },
+        ];
         let rd = D3D12_ROOT_SIGNATURE_DESC {
             NumParameters: params.len() as _,
             pParameters: params.as_ptr(),
-            NumStaticSamplers: 1,
-            pStaticSamplers: &sampler,
+            NumStaticSamplers: samplers.len() as _,
+            pStaticSamplers: samplers.as_ptr(),
             Flags: D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
         };
         let mut blob = None;
@@ -501,6 +541,7 @@ impl Gpu {
         )?;
         let compute = |code: &[u8]| create_compute_pipeline(&device, &root, code);
         let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
+        let trace_maps = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps.dxil")))?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
         let (vs, ps): (&[u8], &[u8]) = (
@@ -585,6 +626,8 @@ impl Gpu {
             rtv,
             root,
             trace,
+            trace_maps,
+            textured: false,
             filter,
             display,
             gui,
@@ -626,6 +669,8 @@ impl Gpu {
             tlas: None,
             gui_textures: Default::default(),
             free_slots: (FIRST_GUI_SLOT..HEAP_SIZE).rev().collect(),
+            maps: Default::default(),
+            free_maps: (0..MAX_MAPS as u32).rev().collect(),
             keep_ui_frame: false,
             ui_frame: None,
             ngx,
@@ -948,6 +993,10 @@ impl Gpu {
         self.lut_view();
         Ok(())
     }
+    /// Texture maps on the GPU (core track 5).
+    pub fn map_count(&self) -> usize {
+        self.maps.len()
+    }
     pub fn environment_loaded(&self) -> bool {
         self.env_inv_norm > 0.
     }
@@ -1196,6 +1245,7 @@ impl Gpu {
     /// replaced, so a failure keeps the old ones. Restarts the accumulation.
     pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
         let trace = create_compute_pipeline(&self.device, &self.root, &sh.trace)?;
+        let trace_maps = create_compute_pipeline(&self.device, &self.root, &sh.trace_maps)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
         let gui = create_gui_pipeline(
@@ -1215,11 +1265,12 @@ impl Gpu {
         self.wait_idle()?;
         (
             self.trace,
+            self.trace_maps,
             self.filter,
             self.display,
             self.gui,
             self.gui_hdr,
-        ) = (trace, filter, display, gui, gui_hdr);
+        ) = (trace, trace_maps, filter, display, gui, gui_hdr);
         self.integrated_valid = false;
         self.reset(true);
         Ok(())
@@ -1426,16 +1477,18 @@ impl Gpu {
         if wanted != have {
             let mut local: Vec<Vertex> = vec![];
             let mut bases = std::collections::HashMap::new();
-            for (_, key, source) in &visible {
+            for (i, key, source) in &visible {
                 if bases.contains_key(key) {
                     continue;
                 }
                 bases.insert(key.clone(), (local.len() as u32, source.len() / 3));
-                local.extend(source.iter().map(|(p, n)| Vertex {
+                let uv = crate::mesh::uvs(&s.objects[*i]).filter(|u| u.len() == source.len());
+                local.extend(source.iter().enumerate().map(|(k, (p, n))| Vertex {
                     position: p.to_array(),
                     material: 0,
                     normal: n.to_array(),
                     pad: 0,
+                    uv: uv.as_ref().map_or([0.; 2], |u| u[k]),
                 }));
             }
             if local.is_empty() {
@@ -1483,7 +1536,11 @@ impl Gpu {
         for (i, key, _) in &visible {
             let mesh = &self.meshes[key];
             let material = 5 + *i as u32;
-            let opacity = if needs_any_hit(material) {
+            // Masked maps (alpha cutoff) are tested in the any-hit loop as well.
+            let o = &s.objects[*i];
+            let masked = o.material.texture.is_empty()
+                && crate::mesh::maps(o).is_some_and(|m| m.cutoff > 0.);
+            let opacity = if needs_any_hit(material) || masked {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
             } else {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
@@ -1645,6 +1702,9 @@ impl Gpu {
             };
         }
         let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials);
+        let mut materials = materials;
+        self.attach_maps(s, &mut materials)?;
+        self.textured = materials.iter().any(|m| m.lobes[3] as u32 & 16 != 0);
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&emitters))?;
@@ -1677,6 +1737,215 @@ impl Gpu {
             .SetComputeRootShaderResourceView(8, self.static_vertices.GetGPUVirtualAddress());
         self.list
             .SetComputeRootShaderResourceView(9, self.instance_table.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootDescriptorTable(10, self.gpu(HEAP_SIZE));
+    }
+    /// Points each visible object's material at its texture maps (core track 5), uploading
+    /// maps that are new and releasing ones no object uses any more.
+    unsafe fn attach_maps(
+        &mut self,
+        s: &Settings,
+        materials: &mut [crate::lighting::PackedMaterial],
+    ) -> Result<()> {
+        let mut used = std::collections::HashSet::new();
+        // (material record, maps): visible objects (a texture set wins over the mesh's own
+        // maps), then the walls (records 0-2) and the floor (3).
+        let set = |m: &crate::scene::Material| {
+            (!m.texture.is_empty())
+                .then(|| crate::texture::load(&m.texture).ok())
+                .flatten()
+        };
+        let mut wanted: Vec<(usize, crate::mesh::Maps)> = vec![];
+        for record in self.instances.iter().skip(1) {
+            let o = &s.objects[record.object as usize];
+            let maps = if o.material.texture.is_empty() {
+                crate::mesh::maps(o)
+            } else {
+                set(&o.material)
+            };
+            wanted.extend(maps.map(|m| (record.material as usize, m)));
+        }
+        if let Some(maps) = set(&s.walls) {
+            wanted.extend((0..3).map(|i| (i, maps.clone())));
+        }
+        wanted.extend(set(&s.floor).map(|m| (3, m)));
+        for (record, maps) in wanted {
+            let mut slots = [0u32; 3];
+            for (slot, map) in slots
+                .iter_mut()
+                .zip([&maps.base, &maps.normal, &maps.metal_rough])
+            {
+                let Some(map) = map else { continue };
+                let key = std::sync::Arc::as_ptr(map) as usize;
+                used.insert(key);
+                if !self.maps.contains_key(&key) {
+                    let texture = self.upload_map(map)?;
+                    self.maps.insert(key, texture);
+                }
+                *slot = self.maps[&key].slot + 1;
+            }
+            let m = &mut materials[record];
+            m.maps = [slots[0], slots[1], slots[2], maps.cutoff.to_bits()];
+            // Flag bits the shader tests before any map work: 16 has maps, 8 masked.
+            let masked = slots[0] != 0 && maps.cutoff > 0.;
+            m.lobes[3] = (m.lobes[3] as u32 | 16 | if masked { 8 } else { 0 }) as f32;
+            // Scale by value / average, so the map's mean is the slider value. A channel
+            // that averages black (no metal anywhere) leaves the value unscaled.
+            let ratio = |value: f32, average: f32| {
+                if average > 1e-3 { value / average } else { 0. }
+            };
+            if let Some(b) = &maps.base {
+                for k in 0..3 {
+                    m.base_scale[k] = ratio(m.color_rough[k], b.average[k]);
+                }
+            }
+            if let Some(mr) = &maps.metal_rough {
+                m.surface_scale = [
+                    ratio(m.color_rough[3], mr.average[1]),
+                    ratio(m.lobes[0], mr.average[2]),
+                    0.,
+                    0.,
+                ];
+            }
+        }
+        let stale: Vec<usize> = self
+            .maps
+            .keys()
+            .filter(|k| !used.contains(k))
+            .copied()
+            .collect();
+        if !stale.is_empty() {
+            // Frames in flight may still read them.
+            self.wait_idle()?;
+            for key in stale {
+                let old = self.maps.remove(&key).unwrap();
+                self.free_maps.push(old.slot);
+            }
+        }
+        Ok(())
+    }
+    /// One map as an RGBA8 texture (sRGB view for colour maps) with an SRV in its slot.
+    unsafe fn upload_map(&mut self, map: &std::sync::Arc<crate::mesh::Map>) -> Result<MapTexture> {
+        let slot = self
+            .free_maps
+            .pop()
+            .context("Out of texture map slots (4096)")?;
+        let levels = 1 + map.mips.len();
+        let desc = D3D12_RESOURCE_DESC {
+            Dimension: D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            Width: map.width as u64,
+            Height: map.height,
+            DepthOrArraySize: 1,
+            MipLevels: levels as u16,
+            Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+            SampleDesc: DXGI_SAMPLE_DESC {
+                Count: 1,
+                Quality: 0,
+            },
+            ..Default::default()
+        };
+        let mut resource: Option<ID3D12Resource> = None;
+        self.device.CreateCommittedResource(
+            &D3D12_HEAP_PROPERTIES {
+                Type: D3D12_HEAP_TYPE_DEFAULT,
+                ..Default::default()
+            },
+            D3D12_HEAP_FLAG_NONE,
+            &desc,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            None,
+            &mut resource,
+        )?;
+        let t = Texture {
+            resource: resource.unwrap(),
+            format: DXGI_FORMAT_R8G8B8A8_UNORM,
+        };
+        // Every level through one staging buffer, laid out by the copy footprints.
+        let mut layouts = vec![D3D12_PLACED_SUBRESOURCE_FOOTPRINT::default(); levels];
+        let mut total = 0;
+        self.device.GetCopyableFootprints(
+            &desc,
+            0,
+            levels as u32,
+            0,
+            Some(layouts.as_mut_ptr()),
+            None,
+            None,
+            Some(&mut total),
+        );
+        let staging = buffer(
+            &self.device,
+            total,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+        )?;
+        let mut mapped = null_mut();
+        staging.Map(0, Some(&D3D12_RANGE::default()), Some(&mut mapped))?;
+        for (layout, data) in layouts
+            .iter()
+            .zip(std::iter::once(&map.rgba).chain(&map.mips))
+        {
+            let row = layout.Footprint.Width as usize * 4;
+            for (y, src) in data.chunks_exact(row).enumerate() {
+                let at = layout.Offset as usize + y * layout.Footprint.RowPitch as usize;
+                std::ptr::copy_nonoverlapping(src.as_ptr(), (mapped as *mut u8).add(at), row);
+            }
+        }
+        staging.Unmap(0, None);
+        self.begin()?;
+        for (level, layout) in layouts.iter().enumerate() {
+            let mut dst = D3D12_TEXTURE_COPY_LOCATION {
+                pResource: ManuallyDrop::new(Some(t.resource.clone())),
+                Type: D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+                Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                    SubresourceIndex: level as u32,
+                },
+            };
+            let mut src = D3D12_TEXTURE_COPY_LOCATION {
+                pResource: ManuallyDrop::new(Some(staging.clone())),
+                Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+                Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                    PlacedFootprint: *layout,
+                },
+            };
+            self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+            ManuallyDrop::drop(&mut src.pResource);
+            ManuallyDrop::drop(&mut dst.pResource);
+        }
+        transition(
+            &self.list,
+            &t.resource,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+        );
+        self.submit()?;
+        drop(staging);
+        let desc = D3D12_SHADER_RESOURCE_VIEW_DESC {
+            Format: if map.srgb {
+                DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+            } else {
+                DXGI_FORMAT_R8G8B8A8_UNORM
+            },
+            ViewDimension: D3D12_SRV_DIMENSION_TEXTURE2D,
+            Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
+                Texture2D: D3D12_TEX2D_SRV {
+                    MipLevels: levels as u32,
+                    ..Default::default()
+                },
+            },
+        };
+        self.device.CreateShaderResourceView(
+            &t.resource,
+            Some(&desc),
+            self.cpu(HEAP_SIZE + slot as usize),
+        );
+        Ok(MapTexture {
+            _texture: t,
+            slot,
+            _map: map.clone(),
+        })
     }
     pub unsafe fn render(
         &mut self,
@@ -1868,7 +2137,11 @@ impl Gpu {
             .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 0);
         if n > 0 {
             self.bind(0);
-            self.list.SetPipelineState(&self.trace);
+            self.list.SetPipelineState(if self.textured {
+                &self.trace_maps
+            } else {
+                &self.trace
+            });
             self.list
                 .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
             uav(&self.list, None);
@@ -2714,6 +2987,12 @@ fn bytecode(code: &[u8]) -> D3D12_SHADER_BYTECODE {
     }
 }
 /// A mesh's BLAS and its range in the shared object-space vertex buffer.
+/// A texture map on the GPU (`Gpu::maps`), holding its source so the key stays unique.
+struct MapTexture {
+    _texture: Texture,
+    slot: u32,
+    _map: std::sync::Arc<crate::mesh::Map>,
+}
 struct MeshBlas {
     blas: ID3D12Resource,
     first: u32,

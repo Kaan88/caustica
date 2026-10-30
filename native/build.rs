@@ -38,18 +38,30 @@ fn main() {
             .display()
     );
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    for (file, entry, profile) in [
-        ("pathtrace.hlsl", "trace", "cs_6_5"),
-        ("post.hlsl", "filter", "cs_6_5"),
-        ("post.hlsl", "display", "cs_6_5"),
-        ("gui.hlsl", "vs_main", "vs_6_0"),
-        ("gui.hlsl", "ps_main", "ps_6_0"),
+    // Same list as src/hotreload.rs: (file, entry, profile, output name, defines). The path
+    // tracer is built twice: scenes without texture maps use the variant without map code
+    // (core track 5; the map code alone cost untextured scenes about 7%).
+    for (file, entry, profile, name, defines) in [
+        ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[][..]),
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_maps",
+            &["-D", "TEXTURE_MAPS"][..],
+        ),
+        ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
+        ("post.hlsl", "display", "cs_6_5", "display", &[]),
+        ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
+        ("gui.hlsl", "ps_main", "ps_6_0", "ps_main", &[]),
     ] {
         let status = Command::new(&dxc)
             .args([
-                "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-Ges", "-I", "shaders", "-Fo",
+                "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-Ges", "-I", "shaders",
             ])
-            .arg(out.join(format!("{entry}.dxil")))
+            .args(defines)
+            .arg("-Fo")
+            .arg(out.join(format!("{name}.dxil")))
             .arg(format!("shaders/{file}"))
             .status()
             .expect("DXC missing: install Windows SDK 26100 or set DXC_PATH");

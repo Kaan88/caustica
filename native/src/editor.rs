@@ -11,6 +11,61 @@ pub fn pattern_label(p: Pattern) -> &'static str {
         Pattern::Marble => "Marble",
     }
 }
+/// A texture set (core track 5): pick any map of a set (or a plain image), clear it, and its
+/// scale. Picking one sets colour, roughness and metal to the maps' averages.
+fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
+    row(
+        ui,
+        "Texture",
+        "An image, or one map of a set (ambientCG / Poly Haven names: Color, NormalGL, \
+         Roughness, Metalness): the set's other maps beside it load too. Box-mapped onto \
+         shapes, meshes, the floor and the walls; colour, roughness and metal then scale it.",
+        |ui| {
+            if m.texture.is_empty() {
+                ui.weak("none");
+            } else {
+                let name = std::path::Path::new(&m.texture)
+                    .file_name()
+                    .map_or(m.texture.clone(), |n| n.to_string_lossy().to_string());
+                ui.label(name).on_hover_text(&m.texture);
+                if let Err(e) = crate::texture::load(&m.texture) {
+                    ui.label(
+                        egui::RichText::new("missing").color(egui::Color32::from_rgb(232, 176, 72)),
+                    )
+                    .on_hover_text(format!("{e:#}"));
+                }
+            }
+            if ui.small_button("Load…").clicked() {
+                let mut dialog =
+                    rfd::FileDialog::new().add_filter("Images", &["jpg", "jpeg", "png"]);
+                if let Some(folder) = crate::scenes::folder().map(|f| f.join("textures"))
+                    && folder.is_dir()
+                {
+                    dialog = dialog.set_directory(folder);
+                }
+                if let Some(path) = dialog.pick_file() {
+                    m.texture = crate::mesh::store(&path);
+                    if let Ok(maps) = crate::texture::load(&m.texture) {
+                        crate::texture::apply_averages(m, &maps);
+                    }
+                }
+            }
+            if !m.texture.is_empty() && ui.small_button("Clear").clicked() {
+                m.texture.clear();
+            }
+        },
+    );
+    if !m.texture.is_empty() {
+        row(
+            ui,
+            "Texture scale",
+            "Repeats per scene unit (the Cornell box is 2 wide).",
+            |ui| {
+                ui.add(crate::slider(&mut m.texture_scale, 0.01..=100.).logarithmic(true));
+            },
+        );
+    }
+}
 pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool) {
     egui::ComboBox::from_id_salt((id, "library"))
         .selected_text("Apply a material…")
@@ -61,6 +116,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.emission, 0. ..=20.).suffix("×"));
                 },
             );
+            texture_row(ui, m);
         });
     more(ui, (id, "material more"), advanced, |ui| {
         egui::Grid::new((id, "material advanced"))
@@ -275,6 +331,11 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
     });
     ui.separator();
     ui.label(egui::RichText::new("Material").strong());
+    if crate::mesh::has_maps(o) {
+        ui.checkbox(&mut o.material.textures, "Texture maps").on_hover_text(
+            "Base colour, normal and metallic-roughness maps from the mesh file. Colour,              roughness and metallic below start at the maps' averages and scale them; off              shows those averages as flat values.",
+        );
+    }
     material_ui(ui, "object", &mut o.material, advanced);
 }
 pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {

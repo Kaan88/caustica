@@ -1,0 +1,15 @@
+{
+ "name": "Textured materials",
+ "version": 1,
+ "license": "CC0 textures (ambientCG, Poly Haven)",
+ "commercial_use": false,
+ "attribution": "See credits",
+ "source": "tools/fetch_assets.ps1",
+ "description": "Texture sets on shapes, floors and walls. Run tools/fetch_assets.ps1 first; without the maps the surfaces show their average colours.",
+ "scenes": [
+  "texture-showroom.json",
+  "texture-brick-box.json",
+  "texture-rock-garden.json",
+  "texture-duck-on-wood.json"
+ ]
+}

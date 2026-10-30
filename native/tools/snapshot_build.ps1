@@ -19,12 +19,13 @@ $scenes = Join-Path $root "scenes"
 if (Test-Path $scenes) {
     Get-ChildItem $scenes -Directory | Where-Object { $_.Name -ne "thumbnails" } | ForEach-Object {
         $target = Join-Path $dest "scenes\$($_.Name)"
-        if ($_.Name -in @("models", "hdri")) {
+        if ($_.Name -in @("models", "hdri", "textures")) {
             # Downloaded assets (hundreds of MB) are hard-linked, not copied: same files, no extra
             # disk per snapshot. They never change in place (fetch_assets.ps1 pins each by hash).
-            New-Item -ItemType Directory -Force $target | Out-Null
-            Get-ChildItem $_.FullName -File | ForEach-Object {
-                $link = Join-Path $target $_.Name
+            $source = $_.FullName
+            Get-ChildItem $source -File -Recurse | ForEach-Object {
+                $link = Join-Path $target $_.FullName.Substring($source.Length + 1)
+                New-Item -ItemType Directory -Force (Split-Path -Parent $link) | Out-Null
                 if (-not (Test-Path $link)) { New-Item -ItemType HardLink -Path $link -Target $_.FullName | Out-Null }
             }
         } else {

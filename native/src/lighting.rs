@@ -8,6 +8,13 @@ pub struct PackedMaterial {
     pub lobes: [f32; 4],
     pub optical: [f32; 4],
     pub secondary: [f32; 4],
+    /// Texture maps (core track 5): heap slot + 1 of base colour, normal and
+    /// metallic-roughness (0 = none), then the alpha cutoff's bits (0 = opaque).
+    pub maps: [u32; 4],
+    /// Base colour value / map average per channel (rgb); w unused.
+    pub base_scale: [f32; 4],
+    /// Roughness and metallic value / map average (G and B channels); z, w unused.
+    pub surface_scale: [f32; 4],
 }
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -33,15 +40,34 @@ fn pack(m: &Material) -> PackedMaterial {
             m.secondary_color[2],
             m.pattern_scale,
         ],
+        maps: [0; 4],
+        // w: box-mapping repeats per unit for a texture set (0 = the mesh's own UVs).
+        base_scale: [
+            0.,
+            0.,
+            0.,
+            if m.texture.is_empty() {
+                0.
+            } else {
+                m.texture_scale
+            },
+        ],
+        surface_scale: [0.; 4],
     }
 }
 pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
     let mut out = vec![pack(&s.walls); 5];
-    for (i, c) in [s.left, s.right, s.base].iter().enumerate() {
-        out[i].color_rough[..3].copy_from_slice(c);
+    // The room's colours come from left / right / base, except on a textured surface: its own
+    // colour is the map average (`Material::textures`), and tinting bricks red would hide them.
+    if s.walls.texture.is_empty() {
+        for (i, c) in [s.left, s.right, s.base].iter().enumerate() {
+            out[i].color_rough[..3].copy_from_slice(c);
+        }
     }
     out[3] = pack(&s.floor);
-    out[3].color_rough[..3].copy_from_slice(&s.base);
+    if s.floor.texture.is_empty() {
+        out[3].color_rough[..3].copy_from_slice(&s.base);
+    }
     let c = s.light_color();
     out[4] = pack(&Material {
         color: c,
@@ -80,7 +106,7 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
             color_rough: row(0),
             lobes: row(1),
             optical: row(2),
-            secondary: [0.; 4],
+            ..bytemuck::Zeroable::zeroed()
         });
         let p = &mut out[first_object + i];
         p.color_rough = [1., 1., 1., 0.];

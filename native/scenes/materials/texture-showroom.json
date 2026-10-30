@@ -1,0 +1,231 @@
+{
+ "format": 1,
+ "title": "Showroom",
+ "description": "Marble, brushed metal and fabric on a wood floor: ambientCG texture sets with colour, normal, roughness and metalness maps.",
+ "tags": [
+  "texture",
+  "studio",
+  "material"
+ ],
+ "credits": "WoodFloor041, Marble016, Metal032, Fabric062: ambientCG (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.08,
+  "base": [
+   0.6,
+   0.5,
+   0.4
+  ],
+  "floor": {
+   "color": [
+    0.1114,
+    0.0734,
+    0.0423
+   ],
+   "roughness": 0.6037,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false,
+   "texture": "textures/WoodFloor041/WoodFloor041_2K-JPG_Color.jpg",
+   "texture_scale": 0.6
+  },
+  "light_on": true,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Cool rim",
+    "position": [
+     2.5,
+     3,
+     -2.5
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2,
+     2
+    ],
+    "color": [
+     0.42,
+     0.65,
+     1.0
+    ],
+    "intensity": 10,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 12,
+  "yaw": 10,
+  "pitch": 16,
+  "distance": 6,
+  "target": [
+   0,
+   -0.5,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Marble sphere",
+    "shape": "sphere",
+    "position": [
+     -1.5,
+     0.2
+    ],
+    "size": 1.5,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.0491,
+      0.0518,
+      0.0504
+     ],
+     "roughness": 0.1142,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Marble016/Marble016_2K-JPG_Color.jpg",
+     "texture_scale": 0.6
+    },
+    "portal": -1
+   },
+   {
+    "name": "Metal cube",
+    "shape": "box",
+    "position": [
+     0.1,
+     -0.3
+    ],
+    "size": 1.3,
+    "stretch": 1.0,
+    "rotation": 25,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2049,
+      0.2483,
+      0.2938
+     ],
+     "roughness": 0.4081,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Metal032/Metal032_2K-JPG_Color.jpg",
+     "texture_scale": 0.8
+    },
+    "portal": -1
+   },
+   {
+    "name": "Fabric cushion",
+    "shape": "box",
+    "position": [
+     1.6,
+     0.4
+    ],
+    "size": 1.5,
+    "stretch": 0.35,
+    "rotation": -15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

@@ -19,6 +19,7 @@ mod scene;
 mod scenes;
 mod stats;
 mod teapot_data;
+mod texture;
 mod ui;
 mod video;
 mod walk;
@@ -131,7 +132,7 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 270;
+const SCENES_FROM: u32 = 273;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -186,6 +187,8 @@ fn geometry_key(s: &Settings) -> String {
                 &o.mesh,
                 // Glass goes to the non-opaque BLAS range (shadow rays may pass it).
                 o.material.transmission > 0.,
+                // Masked texture maps need the any-hit loop too.
+                o.material.textures,
                 o.visible,
                 o.position,
                 o.size,
@@ -213,7 +216,18 @@ fn geometry_key(s: &Settings) -> String {
     .to_string()
 }
 fn material_key(s: &Settings) -> Vec<u8> {
-    bytemuck::cast_slice(&lighting::materials(s)).to_vec()
+    let mut key = bytemuck::cast_slice(&lighting::materials(s)).to_vec();
+    // Texture sets are attached on the GPU side, so their paths join the key.
+    for m in s
+        .objects
+        .iter()
+        .map(|o| &o.material)
+        .chain([&s.walls, &s.floor])
+    {
+        key.extend(m.texture.as_bytes());
+        key.push(0);
+    }
+    key
 }
 impl App {
     fn new() -> Result<Self> {
@@ -934,6 +948,25 @@ impl App {
                 268 => {
                     self.settings.light_outline = false;
                     self.settings.lights.pop();
+                }
+                // Texture maps (core track 5): a masked, normal-mapped glTF quad uploads two
+                // maps; switching its maps off releases them.
+                269 => {
+                    let path = std::env::temp_dir().join("cornell-self-test-tiles.gltf");
+                    mesh::write_test_gltf(&path)?;
+                    let mut quad = mesh::import_objects(&path)?.remove(0);
+                    quad.position = [0., 0.4];
+                    self.settings.objects.push(quad);
+                }
+                270 => {
+                    let maps = self.gpu.as_ref().unwrap().map_count();
+                    anyhow::ensure!(maps == 2, "{maps} texture maps on the GPU, expected 2");
+                    self.settings.objects.last_mut().unwrap().material.textures = false;
+                }
+                271 => {
+                    let maps = self.gpu.as_ref().unwrap().map_count();
+                    anyhow::ensure!(maps == 0, "{maps} texture maps left after switching off");
+                    self.settings.objects.pop();
                 }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.

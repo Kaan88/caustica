@@ -223,7 +223,7 @@ Order is from scene-research.md section 5, unchanged:
 1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 90 curated seeds. The mesh-based generators (Mandelbulb, terrain, Menger 3–4, L-system trees) followed mesh import, as `gen:` procedural meshes.
 2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split. — done 2026-10-30: `src/mesh.rs` reads OBJ (tobj, MTL diffuse) and glTF/GLB (node transforms, PBR base colour, roughness, metallic, emissive strength, transmission, IOR) into the same −1..1 box as the built-in shapes. *+ Mesh…* in the Scene tab opens a file picker; `Object.mesh` keeps the path (relative to `scenes/` when inside it). The BLAS has two geometries: lights hidden from the camera and glass first (any-hit loop), everything else flagged opaque. Vertices moved to a DEFAULT-heap buffer. Clicks pick on the GPU (object-id readback), so big meshes cost nothing to click.
    - Follow-ups done the same day: `tools/fetch_assets.ps1` (11 pinned models) and a `scenes/meshes` pack; multi-material files split into one object per material; texture averages as colours; the mesh-based generators; the opaque split measured 3–8% faster.
-   - Still open: texture maps and normal maps (track 5), moving a split file's parts together (track 4 instancing; multi-select from 3b).
+   - Still open: moving a split file's parts together (multi-select from 3b). Texture and normal maps came with track 5.
    - Owner request: a list of mesh sources and an in-app browser that downloads into `scenes/models` (item 6).
    - Importer gaps: glTF clearcoat, sheen, volume attenuation and `KHR_texture_transform` are ignored (the toy car's paint and the dragon's attenuation colour are approximated by hand in the scenes); OBJ reads only the MTL diffuse colour and shininess (no Ke emission, Ks, d / Tr transparency); no up-axis option, so Z-up scans (Lucy) need a −90° tilt; no PLY or STL.
    - Grounding a mesh scans every vertex of the whole file on each `object_frame` call; not measured on 20M-triangle files.
@@ -236,7 +236,11 @@ Order is from scene-research.md section 5, unchanged:
    - Cost: simple scenes render up to 7% slower (two-level traversal; Classic RR 3.67 → 3.94 ms). Idea: flatten scenes with few objects into one BLAS, or put the floor and walls in the opaque range of a shared instance.
    - The Menger generator still merges cells into runs to fit 256 objects; it could use one instance per cube now. The object list UI draws every row (no virtual scrolling) at 4096 objects. `frame_objects` past 256 objects uses mesh bounding boxes (loose for rotated objects).
    - Coplanar faces (a glass object's base on the floor) z-fight differently than before; see CLAUDE.md "Instancing".
-5. Textures.
+5. Textures. — done 2026-10-30: imported meshes sample their base colour, normal and metallic-roughness maps (UVs in the vertex buffer, a bindless table of up to 4096 maps, mipmaps chosen by ray cones, alpha MASK cutouts in the any-hit loops), and any material (shapes, meshes, floor, walls) can take a box-mapped texture set from an ambientCG or Poly Haven folder. Material values scale the maps (value / average), so old scenes and the sliders keep working. Untextured scenes run a shader variant without the map code (unchanged speed); the textured chess set costs 16% more than its flat averages did. 8 CC0 sets in `tools/fetch_assets.ps1` and a `scenes/materials` pack.
+   - Not done: emissive maps (emission stays the average colour: light sampling has no texture lookup; would need per-emitter-triangle UVs); glTF `KHR_texture_transform`, TEXCOORD_1, stored tangents (per-triangle tangents from UV derivatives instead of MikkTSpace), occlusion maps (a path tracer does not need them), clearcoat / sheen maps; BLEND alpha is treated as MASK at 0.5 (no stochastic transparency); texture sets ignore Opacity, AO and Displacement maps.
+   - Not done: box mapping has hard seams on curved shapes (a blended triplanar would need three lookups); a texture set on a mesh is box-mapped too (no option to use the mesh's UVs); built-in shapes have no UVs.
+   - Not done: maps are uncompressed RGBA8 (a 4k map is 85 MB with mips; BC7 would be a quarter); sRGB maps are mip-filtered in sRGB; the ray-cone widening for rough bounces is a heuristic (0.5·α or 0.5 per bounce), not the lobe's real spread; the alpha test samples LOD 0.
+   - Not done: the material editor picks a file (no folder picker, no previews); downloading sets from inside the app belongs to the asset browser (item 6); texture painting and the lightmap baker (feature tracks) can build on the UVs now.
 6. UI phases 2–5.
 
 ### Known issues (not scheduled)
@@ -473,6 +477,6 @@ The biggest single jump in physical realism.
 
 ### Lightmap baker and texture painting
 
-- **Baker:** bake path-traced GI into UV lightmaps and export glTF with the lightmaps, for use in game engines. Needs textures and UVs (core 5).
+- **Baker:** bake path-traced GI into UV lightmaps and export glTF with the lightmaps, for use in game engines. Mesh UVs and textures exist since core 5; it still needs a second, non-overlapping UV set.
 - **Texture painting:** paint directly on surfaces in the viewport. Strokes are projected through the object-id and UV buffers, and the render updates live.
   - Until textures exist, "paint mode" just recolors the clicked object's material, an S-sized quick win on top of picking.

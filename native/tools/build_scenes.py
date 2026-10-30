@@ -1146,6 +1146,35 @@ scene("bigger-on-the-inside", "Bigger on the inside",
 
 
 # ---------------------------------------------------------------- checks
+def textured(folder, scale=0.5, **kw):
+    """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
+    roughness and metal are the maps' averages (as the app sets them on Load…), so the maps show
+    unscaled; keyword arguments override the other material fields."""
+    from PIL import Image
+    root = Path(__file__).resolve().parents[1] / "scenes" / "textures" / folder
+    files = sorted(root.glob("*.jpg")) + sorted(root.glob("*.png"))
+    def mean(words, channel=None, srgb=False):
+        for f in files:
+            tokens = f.stem.lower().replace("-", "_").split("_")
+            if any(w in tokens for w in words):
+                im = Image.open(f).convert("RGB").reduce(16)
+                px = list(im.getdata())
+                dec = (lambda v: (v / 255 / 12.92) if v <= 10 else ((v / 255 + 0.055) / 1.055) ** 2.4) if srgb else (lambda v: v / 255)
+                avg = [sum(dec(p[k]) for p in px) / len(px) for k in range(3)]
+                return avg if channel is None else avg[channel]
+        return None
+    color = mean(["color", "diff", "albedo", "basecolor"], srgb=True)
+    if color is None:
+        raise SystemExit(f"Texture set {folder} missing: run tools/fetch_assets.ps1")
+    arm = mean(["arm"])
+    rough = arm[1] if arm else mean(["roughness", "rough"], 0)
+    metal = arm[2] if arm else (mean(["metalness", "metallic"], 0) or 0.0)
+    m = M(tuple(min(1.0, c) for c in color), round(rough if rough is not None else 0.5, 4), metal=round(metal, 4), **kw)
+    stem = next((f for f in files if any(w in f.stem.lower().replace("-", "_").split("_") for w in ["color", "diff"])))
+    m.update(texture=f"textures/{folder}/{stem.name}", texture_scale=scale)
+    return m
+
+
 def check(slug, s):
     """The ranges of Settings::validate, so a bad scene fails here with a readable message."""
     bad = []
@@ -1160,6 +1189,7 @@ def check(slug, s):
         rng(label + " ior", m["ior"], 1, 2.5)
         rng(label + " emission", m["emission"], 0, 20)
         rng(label + " pattern_scale", m["pattern_scale"], 0.1, 100)
+        rng(label + " texture_scale", m.get("texture_scale", 0.5), 0.01, 100)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)
@@ -1399,6 +1429,70 @@ env_scene("hdri-fire-sky-dragon", "Gold dragon at dusk",
                  floor=M((0.05, 0.05, 0.06), 0.05, refl=0.7), bounces=16, **camera(160, 6, 5, (0, -0.4, 0))))
 
 
+# ---------------------------------------------------------------- materials pack
+# Texture sets (core track 5) from tools/fetch_assets.ps1 (scenes/textures): ambientCG and
+# Poly Haven, all CC0.
+MATERIAL_SCENES = []
+AMBIENTCG = "ambientCG (CC0)"
+
+
+def material_scene(slug, title, description, tags, credits, settings):
+    MATERIAL_SCENES.append((slug, {"format": 1, "title": title, "description": description, "tags": ["texture", *tags],
+                                   "credits": credits, "settings": settings}))
+
+
+def material_scenes():
+    wood, marble, metal = textured("WoodFloor041", 0.6), textured("Marble016", 0.6), textured("Metal032", 0.8)
+    bricks, tiles, fabric = textured("Bricks097", 0.7), textured("Tiles074", 0.8), textured("Fabric062", 0.9)
+    laminate, rock = textured("laminate_floor_02", 0.4), textured("rock_wall_08", 0.5)
+    material_scene("texture-showroom", "Showroom",
+                   "Marble, brushed metal and fabric on a wood floor: ambientCG texture sets with colour, normal, roughness and metalness maps.",
+                   ["studio", "material"], "WoodFloor041, Marble016, Metal032, Fabric062: " + AMBIENTCG,
+                   studio(objects=[obj("Marble sphere", "sphere", -1.5, 0.2, 1.5, marble),
+                                   obj("Metal cube", "box", 0.1, -0.3, 1.3, metal, rotation=25),
+                                   obj("Fabric cushion", "box", 1.6, 0.4, 1.5, fabric, stretch=0.35, rotation=-15)],
+                          floor=wood, base=[0.6, 0.5, 0.4], bounces=12, **camera(10, 16, 6, (0, -0.5, 0))))
+    material_scene("texture-brick-box", "Brick box",
+                   "The Cornell box rebuilt in brick with a tiled floor, holding a marble sphere and a metal block.",
+                   ["cornell", "material"], "Bricks097, Tiles074, Marble016, Metal032: " + AMBIENTCG,
+                   cornell(walls=bricks, floor=tiles,
+                           objects=[obj("Marble", "sphere", -0.35, 0.25, 1.4, marble),
+                                    obj("Block", "box", 0.4, -0.2, 1.1, metal, stretch=1.6, rotation=-20)]))
+    material_scene("texture-rock-garden", "Rock garden",
+                   "Rough stone plinths on a laminate floor (Poly Haven sets, with roughness and metalness packed in one ARM map).",
+                   ["studio", "material"], "Laminate floor 02, Rock wall 08: Poly Haven (CC0)",
+                   studio(objects=[obj("Plinth", "box", -1.0, 0, 1.6, rock, stretch=0.7, rotation=12),
+                                   obj("Boulder", "sphere", 1.0, 0.3, 1.5, rock),
+                                   obj("Gold", "sphere", 0.1, -1.0, 0.8, M((1.0, 0.77, 0.34), 0.2, metal=1.0))],
+                          floor=laminate, base=[0.5, 0.45, 0.4], bounces=12, **camera(-20, 18, 6.5, (0, -0.5, 0))))
+    material_scene("texture-duck-on-wood", "Duck on wood",
+                   "The Khronos duck (its own UV-mapped texture) beside a marble sphere on a wood floor, lit by a studio HDRI.",
+                   ["studio", "gltf", "material"], "Duck: " + KHRONOS + ". WoodFloor041, Marble016: " + AMBIENTCG + ". Studio small 09: " + POLYHAVEN,
+                   {**studio(objects=[mesh("Duck.glb", -0.4, 0, 1.6, rotation=-30),
+                                      obj("Marble", "sphere", 1.1, -0.2, 1.0, marble)],
+                             floor=wood, bounces=12, **camera(15, 12, 4.5, (0, -0.4, 0))),
+                    "hdri": "hdri/studio_small_09_4k.hdr", "hdri_visible": False, "hdri_strength": 1.0,
+                    "light_on": False, "lights": [], "sky": 0.0})
+
+
+def write_materials():
+    problems = [p for slug, data in MATERIAL_SCENES for p in check(slug, data["settings"])]
+    if problems:
+        raise SystemExit("; ".join(problems))
+    out = OUT.parent / "materials"
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.json"):
+        old.unlink()
+    for slug, data in MATERIAL_SCENES:
+        (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    pack = {"name": "Textured materials", "version": 1, "license": "CC0 textures (ambientCG, Poly Haven)", "commercial_use": False,
+            "attribution": "See credits", "source": "tools/fetch_assets.ps1",
+            "description": "Texture sets on shapes, floors and walls. Run tools/fetch_assets.ps1 first; without the maps the surfaces show their average colours.",
+            "scenes": [f"{slug}.json" for slug, _ in MATERIAL_SCENES]}
+    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
+    print(f"wrote {len(MATERIAL_SCENES)} material scenes to {out}")
+
+
 def write_environments():
     problems = [p for slug, data in ENV_SCENES for p in check(slug, data["settings"])]
     if problems:
@@ -1454,6 +1548,8 @@ def main():
     write_generated()
     write_meshes()
     write_environments()
+    material_scenes()
+    write_materials()
 
 
 if __name__ == "__main__":

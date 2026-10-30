@@ -15,6 +15,16 @@ pub struct Material {
     pub secondary_color: [f32; 3],
     pub pattern_scale: f32,
     pub unlit: bool,
+    /// Use the mesh's texture maps (core track 5). The colour, roughness and metallic values
+    /// are then the map averages, so the maps are scaled by value / average: editing a value
+    /// tints the map, and switching maps off shows the averages.
+    pub textures: bool,
+    /// A texture set (core track 5, `texture.rs`): an image, or a folder of maps such as an
+    /// ambientCG download. Box-mapped, so it works on shapes, meshes, the floor and the walls.
+    /// Empty = none.
+    pub texture: String,
+    /// Repeats of the texture set per scene unit (the Cornell box is 2 wide).
+    pub texture_scale: f32,
 }
 impl Default for Material {
     fn default() -> Self {
@@ -30,6 +40,9 @@ impl Default for Material {
             secondary_color: [0.04; 3],
             pattern_scale: 3.,
             unlit: false,
+            textures: true,
+            texture: String::new(),
+            texture_scale: 0.5,
         }
     }
 }
@@ -745,6 +758,10 @@ impl Settings {
                     && (0.1..=100.).contains(&m.pattern_scale),
                 "Invalid material pattern"
             );
+            anyhow::ensure!(
+                (0.01..=100.).contains(&m.texture_scale) && m.texture.len() <= 1024,
+                "Invalid material texture"
+            );
         }
         for (i, o) in self.objects.iter().enumerate() {
             anyhow::ensure!(
@@ -851,6 +868,8 @@ pub struct Vertex {
     pub material: u32,
     pub normal: [f32; 3],
     pub pad: u32,
+    /// Texture coordinates (meshes only; zero elsewhere).
+    pub uv: [f32; 2],
 }
 pub fn geometry(s: &Settings) -> Vec<Vertex> {
     crate::geometry::geometry(s)

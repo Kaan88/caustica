@@ -1,0 +1,154 @@
+{
+ "format": 1,
+ "title": "Brick box",
+ "description": "The Cornell box rebuilt in brick with a tiled floor, holding a marble sphere and a metal block.",
+ "tags": [
+  "texture",
+  "cornell",
+  "material"
+ ],
+ "credits": "Bricks097, Tiles074, Marble016, Metal032: ambientCG (CC0)",
+ "settings": {
+  "cornell_room": true,
+  "objects": [
+   {
+    "name": "Marble",
+    "shape": "sphere",
+    "position": [
+     -0.35,
+     0.25
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.0491,
+      0.0518,
+      0.0504
+     ],
+     "roughness": 0.1142,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Marble016/Marble016_2K-JPG_Color.jpg",
+     "texture_scale": 0.6
+    },
+    "portal": -1
+   },
+   {
+    "name": "Block",
+    "shape": "box",
+    "position": [
+     0.4,
+     -0.2
+    ],
+    "size": 1.1,
+    "stretch": 1.6,
+    "rotation": -20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2049,
+      0.2483,
+      0.2938
+     ],
+     "roughness": 0.4081,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Metal032/Metal032_2K-JPG_Color.jpg",
+     "texture_scale": 0.8
+    },
+    "portal": -1
+   }
+  ],
+  "walls": {
+   "color": [
+    0.2469,
+    0.1599,
+    0.0991
+   ],
+   "roughness": 0.5987,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false,
+   "texture": "textures/Bricks097/Bricks097_2K-JPG_Color.jpg",
+   "texture_scale": 0.7
+  },
+  "floor": {
+   "color": [
+    0.159,
+    0.1176,
+    0.0896
+   ],
+   "roughness": 0.0882,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false,
+   "texture": "textures/Tiles074/Tiles074_2K-JPG_Color.jpg",
+   "texture_scale": 0.8
+  }
+ }
+}

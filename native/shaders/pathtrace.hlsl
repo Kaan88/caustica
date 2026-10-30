@@ -24,41 +24,124 @@ float random(){
 }
 float3 basis(float3 n,float3 h){float3 u=normalize(cross(abs(n.z)<0.999?float3(0,0,1):float3(0,1,0),n));return u*h.x+cross(n,u)*h.y+n*h.z;}
 float3 cosine_sample(float3 n){float r=sqrt(random()),a=2*PI*random();return basis(n,float3(r*cos(a),r*sin(a),sqrt(max(0,1-r*r))));}
-struct Hit{float t;float3 p;float3 n;uint material;uint emitter;bool front;};
+// n: shading normal (normal-mapped), ng: interpolated normal for ray offsets, both facing the ray.
+// Texture maps are sampled in intersect (fewer live registers than the bounce loop): textured is
+// set when albedo and rough_metal hold the mapped base colour, roughness and metallic.
+struct Hit{float t;float3 p;float3 n;float3 ng;float3 albedo;float2 rough_metal;uint material;uint emitter;bool front;bool textured;};
 // Candidates only come from non-opaque geometry: static range 0 (no offset) or a glass object.
 uint candidate_material(uint instance,uint prim){Instance inst=instances[instance];return inst.material!=0xffffffffu?inst.material:static_vertices[prim*3].material;}
+float4 sample_map(uint slot,float2 uv){return maps[NonUniformResourceIndex(slot-1)].SampleLevel(map_sampler,uv,0);}
+// Ray cones pick the mip level (core track 5): the width of the cone at the current ray's origin
+// and its spread per unit length. Camera rays start at one pixel's angle; each rough bounce
+// widens the cone (a crude stand-in for the lobe's width), so indirect hits read small mips.
+static float cone_width,cone_spread;
+// footprint: the cone's width at the hit in texture units (uv), so the level is
+// log2(footprint · texels across).
+float4 sample_map_lod(uint slot,float2 uv,float footprint){
+    uint w,h;maps[NonUniformResourceIndex(slot-1)].GetDimensions(w,h);
+    float lod=log2(max(footprint*max(w,h),1e-8));
+    return maps[NonUniformResourceIndex(slot-1)].SampleLevel(map_sampler,uv,max(lod,0));
+}
+// Material flag bits (lobes.w): 1 unlit, 2 hidden from the camera, 4 portal, 8 masked texture
+// maps, 16 any texture maps. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
+// no maps) the map code folds away: it cost untextured scenes about 7% even when never run.
+#ifdef TEXTURE_MAPS
+static const bool texture_maps=true;
+#else
+static const bool texture_maps=false;
+#endif
+bool flagged(uint m,uint bit){return texture_maps && ((uint)materials[m].lobes.w&bit)!=0;}
+// Masked texture maps: a candidate whose base-colour alpha is below the cutoff is a hole.
+bool alpha_hole(uint instance,uint prim,float2 b,uint m){
+    uint4 mp=materials[m].maps;
+    uint idx=instances[instance].vertex_base+prim*3;
+    float2 uv=vertices[idx].uv*(1-b.x-b.y)+vertices[idx+1].uv*b.x+vertices[idx+2].uv*b.y;
+    return sample_map(mp.x,uv).a<asfloat(mp.w);
+}
+// Texture sets on geometry without UVs (core track 5): box mapping along the dominant axis of
+// the normal n, from a position p in world units, with dP/du (t) and dP/dv (bt) in that space.
+void box_map(float3 p,float3 n,float scale,out float2 uv,out float3 t,out float3 bt){
+    float3 a=abs(n);float s;
+    if(a.x>=a.y && a.x>=a.z){s=n.x<0?-1:1;uv=float2(-s*p.z,-p.y);t=float3(0,0,-s);bt=float3(0,-1,0);}
+    else if(a.y>=a.z){s=n.y<0?-1:1;uv=float2(p.x,s*p.z);t=float3(1,0,0);bt=float3(0,0,s);}
+    else{s=n.z<0?-1:1;uv=float2(s*p.x,-p.y);t=float3(s,0,0);bt=float3(0,-1,0);}
+    uv*=scale;
+}
+// glTF v runs down the image, so the map's +Y (green) is -dP/dv: the bitangent sign is flipped.
+float tangent_sign(float3 n,float3 t,float3 bt){return dot(cross(n,t),bt)<0?1:-1;}
+// Texture maps (core track 5): base colour, metallic-roughness (G, B) and a tangent-space normal
+// map (+Y up, as glTF), at uv with world tangent (bitangent sign in w; 0 = no tangent frame).
+// Each map is scaled by value / average, so the sliders still steer it.
+void sample_maps(inout Hit h,float2 uv,float4 tangent,float footprint){
+    Material m=materials[h.material];uint4 mp=m.maps;h.textured=true;
+    h.albedo=mp.x!=0?saturate(sample_map_lod(mp.x,uv,footprint).rgb*m.base_scale.rgb):m.color_rough.rgb;
+    h.rough_metal=float2(m.color_rough.a,m.lobes.x);
+    if(mp.z!=0){
+        float4 r=sample_map_lod(mp.z,uv,footprint);
+        if(m.surface_scale.x>0)h.rough_metal.x=saturate(r.g*m.surface_scale.x);
+        if(m.surface_scale.y>0)h.rough_metal.y=saturate(r.b*m.surface_scale.y);
+    }
+    if(mp.y!=0 && tangent.w!=0){
+        float3 t=sample_map_lod(mp.y,uv,footprint).xyz*2-1;float3 n=h.n;
+        float3 T=tangent.xyz-n*dot(n,tangent.xyz);
+        if(dot(T,T)>1e-12){T=normalize(T);float3 B=cross(n,T)*tangent.w;h.n=normalize(T*t.x+B*t.y+n*max(t.z,1e-3));}
+    }
+}
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
     RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
         uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+        if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
         if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();
     }
     h=(Hit)0;
     if(q.CommittedStatus()!=COMMITTED_TRIANGLE_HIT)return false;
     Instance inst=instances[q.CommittedInstanceID()];uint prim=q.CommittedPrimitiveIndex();float2 b=q.CommittedTriangleBarycentrics();
-    h.t=q.CommittedRayT();h.p=o+d*h.t;
+    // uv_scale: texture units per world unit at the hit, for the mip level.
+    h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;
     if(inst.material==0xffffffffu){
         // Static geometry: geometry 1 is the opaque range; its primitive indices restart at 0.
         prim+=q.CommittedGeometryIndex()!=0?(uint)environment.w:0;uint idx=prim*3;
         Vertex a=static_vertices[idx],v=static_vertices[idx+1],c=static_vertices[idx+2];
         h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.material=a.material;
+        mapped=flagged(h.material,16u);
+        if(mapped){uv_scale=materials[h.material].base_scale.w;float3 t,bt;box_map(h.p,h.n,uv_scale,uv,t,bt);tangent=float4(t,tangent_sign(h.n,t,bt));}
     }else{
         // An object: object-space normal to world by the inverse transpose (row vector × W2O).
         uint idx=inst.vertex_base+prim*3;Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];
         float3 n=a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y;
         h.n=normalize(mul(n,(float3x3)q.CommittedWorldToObject3x4()));h.material=inst.material;
+        // UVs and tangents only for materials with maps (flag 16).
+        mapped=flagged(h.material,16u);float scale=materials[h.material].base_scale.w;float3x4 m2w=q.CommittedObjectToWorld3x4();
+        if(mapped && scale>0){
+            // Texture set: box-mapped in the object's own axes, at world size (so it moves and
+            // turns with the object but keeps its density when the object is scaled).
+            float3 size=float3(length(m2w._m00_m10_m20),length(m2w._m01_m11_m21),length(m2w._m02_m12_m22));
+            float3 op=q.CommittedObjectRayOrigin()+q.CommittedObjectRayDirection()*h.t,t,bt;
+            box_map(op*size,n,scale,uv,t,bt);tangent=float4(mul(m2w,float4(t,0)),tangent_sign(n,t,bt));uv_scale=scale;
+        }else if(mapped){
+            uv=a.uv*(1-b.x-b.y)+v.uv*b.x+c.uv*b.y;
+            // Per-triangle tangent from the UV derivatives (glTF's MikkTSpace tangents are not read).
+            float3 e1=v.position-a.position,e2=c.position-a.position;float2 d1=v.uv-a.uv,d2=c.uv-a.uv;float det=d1.x*d2.y-d1.y*d2.x;
+            if(abs(det)>1e-12){float3 t=(e1*d2.y-e2*d1.y)/det,bt=(e2*d1.x-e1*d2.x)/det;tangent=float4(mul(m2w,float4(t,0)),tangent_sign(n,t,bt));}
+            float world_area=length(cross(mul(m2w,float4(e1,0)),mul(m2w,float4(e2,0))));uv_scale=sqrt(abs(det)/max(world_area,1e-20));
+        }
     }
-    h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;
+    h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
+    // Footprint: the cone's width at the hit, stretched by the grazing angle (capped at 20×).
+    if(mapped)sample_maps(h,uv,tangent,(cone_width+cone_spread*h.t)/max(abs(dot(d,h.ng)),0.05)*uv_scale);
     h.emitter=inst.emitter_base==0xffffffffu?0:emitter_lookup[inst.emitter_base+prim];return true;
 }
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
-    while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
+    while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+        if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
+        if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
     return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT;
 }
 Material material_at(uint id,float3 p){
@@ -69,6 +152,8 @@ Material material_at(uint id,float3 p){
     if(pattern==3){float s=m.secondary.w;float vein=sin((p.x+p.z)*s*0.6+3*sin(p.y*3+p.z*2)+1.5*sin(p.x*5-p.z*2)+0.6*sin(p.x*13+p.y*11)+0.3*sin(p.z*27-p.y*21));t=0.75*pow(1-abs(vein),6);}
     m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);return m;
 }
+// The textured surface values intersect sampled (sample_maps).
+void apply_maps(Hit h,inout Material m){if(h.textured){m.color_rough.rgb=h.albedo;m.color_rough.a=h.rough_metal.x;m.lobes.x=h.rough_metal.y;}}
 // HDRI (environment.rs has the mapping): nearest texel, so the sampling pdf matches exactly.
 bool hdri_on(){return ((uint)environment_map.z&1u)!=0;}
 uint2 env_size(){uint w,h;env_map.GetDimensions(w,h);return uint2(w,h);}
@@ -162,9 +247,12 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
     // Guides come from the pinhole ray through the lens center (RR and the denoiser).
+    // Ray cones: one pixel's angle (orthographic: one pixel's width, no spread).
+    float pixel_angle=camera_model.x==1?0:2*environment.z/dimensions.y,pixel_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;
+    cone_width=pixel_width;cone_spread=pixel_angle;
     Hit guide;float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
     if(intersect(go,gd,1e4,guide,false,true)){
-        Material m=material_at(guide.material,guide.p);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
+        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
         diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
         specular_albedo[p]=float4(fresnel(abs(dot(-gd,guide.n)),f0_of(m)),1);
         depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
@@ -184,6 +272,7 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
+        cone_width=pixel_width;cone_spread=pixel_angle;
         float3 throughput=lens_valid?1:0,radiance=0,direct=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
@@ -196,7 +285,7 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
                 float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
                 float3 e=throughput*env*weight;radiance+=e;if(bounce<=1)direct+=e;break;}
-            throughput*=exp(-absorption*h.t);
+            throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
             Material m=material_at(h.material,h.p);
@@ -213,13 +302,15 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             }
             float3 emitted=m.color_rough.rgb*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
+            // Emission keeps the flat colour: light sampling has no texture lookup.
+            apply_maps(h,m);
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             if(((uint)m.lobes.w&1u)!=0)break;
             if(env_nee && random()<p_env){
                 float pe;float3 ld=sample_env(pe);float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
-                if(nl>0 && pe>0 && !occluded(h.p+h.n*0.0003,ld,1e4)){
+                if(nl>0 && pe>0 && !occluded(h.p+h.ng*0.0003,ld,1e4)){
                     float3 e=throughput*f*nl*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }else if(tri_nee){
@@ -227,7 +318,7 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
             float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
-                if(!occluded(h.p+h.n*0.0003,ld,max(0.0002,len-0.0006))){
+                if(!occluded(h.p+h.ng*0.0003,ld,max(0.0002,len-0.0006))){
                     float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y)/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }}
@@ -241,13 +332,14 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
                 delta=true;
             }else{
                 float ps=spec_probability(m);if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 hvec=basis(h.n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));next=reflect(direction,hvec);if(bounce==0)first_spec=true;
-                }else next=cosine_sample(h.n);
+                    cone_spread+=0.5*a;
+                }else{next=cosine_sample(h.n);cone_spread+=0.5;}
                 if(dot(h.n,next)<=0)break;
                 float3 bsdf=eval_bsdf(m,h.n,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
             }
             if(bounce==0 && delta)first_spec=true;
             previous_pdf=bsdf_pdf;previous_delta=delta;previous_position=h.p;
-            direction=normalize(next);origin=h.p+h.n*(dot(direction,h.n)>0?0.0003:-0.0003);
+            direction=normalize(next);origin=h.p+h.ng*(dot(direction,h.ng)>0?0.0003:-0.0003);
             if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival)break;throughput/=survival;}
         }
         if(!all(isfinite(radiance))){radiance=0;direct=0;}

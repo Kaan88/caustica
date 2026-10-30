@@ -1,4 +1,6 @@
-struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;};
+// maps: heap slot + 1 of base colour, normal, metallic-roughness (0 = none), alpha cutoff bits.
+// base_scale.rgb and surface_scale.xy (roughness, metallic) = value / map average (core track 5).
+struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;};
 cbuffer Frame:register(b0) {
     float4x4 inverse_vp;
     float4x4 current_vp;
@@ -32,12 +34,14 @@ struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;f
 StructuredBuffer<Emitter> emitters:register(t4);
 StructuredBuffer<uint> emitter_lookup:register(t5);
 RaytracingAccelerationStructure scene:register(t0);
-struct Vertex {float3 position;uint material;float3 normal;uint pad;};
+struct Vertex {float3 position;uint material;float3 normal;uint pad;float2 uv;};
 StructuredBuffer<Vertex> vertices:register(t1); // every mesh in use, object space (core track 4)
 StructuredBuffer<Vertex> static_vertices:register(t6); // floor, room and lights, world space
 // One per TLAS instance (InstanceID). material 0xffffffff = the static instance (per-vertex ids).
 struct Instance{uint vertex_base;uint material;uint emitter_base;uint object;};
 StructuredBuffer<Instance> instances:register(t7);
+Texture2D<float4> maps[]:register(t0,space1); // mesh texture maps (gpu.rs MAX_MAPS)
+SamplerState map_sampler:register(s1); // linear, wrap
 RWTexture2D<float4> noisy:register(u0);
 RWTexture2D<float4> accumulation:register(u1);
 RWTexture2D<float4> normal_roughness:register(u2);
