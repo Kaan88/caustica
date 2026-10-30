@@ -131,6 +131,8 @@ pub struct UiState {
     pub tt_path: String,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
+    /// The Assets window (item 6, browser.rs).
+    pub assets: crate::browser::Browser,
     /// Look tools (roadmap 5b).
     pub zebras: bool,
     pub show_scopes: bool,
@@ -187,6 +189,7 @@ impl Default for UiState {
             tt_fps: 30,
             tt_path: "cornell-turntable.mp4".into(),
             show_scenes: false,
+            assets: Default::default(),
             zebras: false,
             show_scopes: false,
             meter: false,
@@ -341,7 +344,7 @@ fn section(ui: &mut egui::Ui, title: &str) {
 fn grid(id: &str) -> egui::Grid {
     egui::Grid::new(id).num_columns(2).spacing([12., 6.])
 }
-fn note(ui: &mut egui::Ui, text: &str) {
+pub(crate) fn note(ui: &mut egui::Ui, text: &str) {
     ui.label(egui::RichText::new(text).small().weak());
 }
 fn rr_model(id: u32) -> &'static str {
@@ -443,7 +446,7 @@ fn card(
     r.on_hover_text(&e.description)
 }
 /// A grey card with the scene's initial, until its thumbnail exists.
-fn placeholder(ui: &mut egui::Ui, title: &str, size: egui::Vec2) -> egui::Response {
+pub(crate) fn placeholder(ui: &mut egui::Ui, title: &str, size: egui::Vec2) -> egui::Response {
     let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
     let painter = ui.painter();
     painter.rect_filled(
@@ -564,6 +567,7 @@ impl App {
             self.side_panel(ctx, known.is_some());
         }
         self.scenes_window(ctx);
+        self.assets_window(ctx);
         self.tool_windows(ctx);
         self.overlay(ctx);
         self.toasts(ctx);
@@ -1578,6 +1582,13 @@ impl App {
                     .clicked()
                 {
                     self.ui.show_scenes = !self.ui.show_scenes;
+                }
+                if ui
+                    .selectable_label(self.ui.assets.open, "Assets")
+                    .on_hover_text("Download HDRIs, textures and models (Poly Haven, ambientCG, Khronos)")
+                    .clicked()
+                {
+                    self.ui.assets.open = !self.ui.assets.open;
                 }
                 if ui
                     .button("Randomize")

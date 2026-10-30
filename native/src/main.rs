@@ -1,5 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod assets;
+mod browser;
 mod display;
 mod editor;
 mod environment;
@@ -371,6 +373,7 @@ impl App {
                 }
                 "--ui-advanced" => interface.advanced = true,
                 "--ui-scenes" => interface.show_scenes = true,
+                "--ui-assets" => interface.assets.open = true,
                 "--ui-scopes" => {
                     interface.show_scopes = true;
                     interface.zebras = true;
@@ -413,7 +416,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -967,6 +970,20 @@ impl App {
                     let maps = self.gpu.as_ref().unwrap().map_count();
                     anyhow::ensure!(maps == 0, "{maps} texture maps left after switching off");
                     self.settings.objects.pop();
+                }
+                // The Assets window, offline: a two-entry catalog with the first selected. It
+                // stays open (drawn every frame) while the scene files load.
+                272 => {
+                    let (mut duck, _) = assets::from_spec("khronos/model/Duck")?;
+                    duck.tags = vec!["test".into()];
+                    let (mut other, _) = assets::from_spec("khronos/model/NotDownloaded")?;
+                    other.name = "Not downloaded".into();
+                    self.ui.assets.offline = true;
+                    self.ui
+                        .assets
+                        .set_catalog(assets::Source::Khronos, vec![duck, other]);
+                    self.ui.assets.open = true;
+                    self.show_ui = true;
                 }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
@@ -2313,6 +2330,28 @@ fn run() -> Result<()> {
                 "{}",
                 serde_json::json!({"file": path, "triangles": triangles, "objects": objects})
             );
+        }
+        return Ok(());
+    }
+    // Asset browser downloads from the command line (item 6): `--fetch-asset
+    // polyhaven/hdri/meadow_2@2k` prints the path to use; `--asset-catalog polyhaven` refreshes
+    // a cached catalog and prints its size.
+    if let Some(i) = args.iter().position(|a| a == "--fetch-asset") {
+        for spec in &args[i + 1..] {
+            let (asset, res) = assets::from_spec(spec)?;
+            let path = assets::install(&asset, &res, &Default::default())?;
+            println!("ASSET {path}");
+        }
+        return Ok(());
+    }
+    if let Some(i) = args.iter().position(|a| a == "--asset-catalog") {
+        for name in &args[i + 1..] {
+            let source = assets::Source::ALL
+                .into_iter()
+                .find(|s| s.label().to_lowercase().starts_with(&name.to_lowercase()))
+                .with_context(|| format!("Unknown source {name}"))?;
+            let catalog = assets::fetch_catalog(source)?;
+            println!("CATALOG {} {}", source.label(), catalog.len());
         }
         return Ok(());
     }

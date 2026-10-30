@@ -16,3 +16,4 @@ __pycache__/
 native/scenes/models/
 native/scenes/hdri/
 native/scenes/textures/
+native/scenes/assets.json
