@@ -187,6 +187,8 @@ pub struct UiState {
     pub context_menu: Option<egui::Pos2>,
     /// The keyboard and mouse sheet (F1).
     pub show_shortcuts: bool,
+    /// The timeline strip (track 8); it also shows whenever the scene has keys.
+    pub show_timeline: bool,
     /// A command chosen in an outliner menu, run once the panel is drawn.
     pub pending: Option<Command>,
     pub transform: Option<gizmo::Transform>,
@@ -258,6 +260,7 @@ impl Default for UiState {
             sample_rate: (Instant::now(), 0, 0.),
             context_menu: None,
             show_shortcuts: false,
+            show_timeline: false,
             pending: None,
             transform: None,
             header: String::new(),
@@ -402,6 +405,7 @@ impl UiState {
         match self.selection {
             Selection::Object(i) if i < s.objects.len() => {
                 let name = s.objects.remove(i).name;
+                s.animation.removed("objects", i);
                 self.selection = if s.objects.is_empty() {
                     Selection::Stage
                 } else {
@@ -411,6 +415,7 @@ impl UiState {
             }
             Selection::Light(i) if i < s.lights.len() => {
                 let name = s.lights.remove(i).name;
+                s.animation.removed("lights", i);
                 self.selection = Selection::MainLight;
                 Some(name)
             }
@@ -690,6 +695,7 @@ impl App {
         self.top_bar(ctx, known.is_some());
         if !self.ui.panel_hidden {
             self.status_bar(ctx);
+            self.timeline_panel(ctx);
             self.side_panel(ctx, known.is_some());
         }
         self.scenes_window(ctx);
@@ -1986,6 +1992,7 @@ impl App {
                         .clicked()
                     {
                         self.ui.undo(&mut self.settings);
+                        self.timeline.settle(&self.settings);
                         ui.close_menu();
                     }
                     if ui
@@ -1993,6 +2000,7 @@ impl App {
                         .clicked()
                     {
                         self.ui.redo(&mut self.settings);
+                        self.timeline.settle(&self.settings);
                         ui.close_menu();
                     }
                     ui.separator();
@@ -2185,6 +2193,18 @@ impl App {
                     .clicked()
                 {
                     self.toggle_walk();
+                }
+                if ui
+                    .selectable_label(
+                        self.ui.show_timeline || !self.settings.animation.is_empty(),
+                        "Timeline",
+                    )
+                    .on_hover_text(
+                        "Keyframes: I keys the selection (the camera when nothing is selected), K plays",
+                    )
+                    .clicked()
+                {
+                    self.ui.show_timeline = !self.ui.show_timeline;
                 }
                 ui.separator();
                 for (tool, label, tip) in [
@@ -3573,6 +3593,12 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("C", "Freeze an A/B reference"),
             ("L", "Light painting"),
             ("F12", "Save cornell.png"),
+            (
+                "I / Shift+I / Alt+I",
+                "Key the selection / key every edit / delete its keys",
+            ),
+            ("K", "Play or stop the timeline"),
+            ("Shift+Left / Right", "One frame back / on"),
             ("Page Up / Page Down", "Previous / next scene"),
             ("Tab", "Cycle panels, top bar only, nothing"),
             ("F1", "This sheet"),

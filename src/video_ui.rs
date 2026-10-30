@@ -35,6 +35,15 @@ impl App {
         let mut open = true;
         let mut start = false;
         let camera = (self.settings.pitch, self.settings.distance);
+        let animation = self.settings.animation.clone();
+        if animation.is_empty() {
+            self.ui.video.timeline = false;
+        }
+        if self.ui.video.timeline {
+            // The keys set the rate and the length.
+            self.ui.video.fps = animation.fps;
+            self.ui.video.frames = animation.frames();
+        }
         egui::Window::new("Export video")
             .open(&mut open)
             .default_pos([160., 80.])
@@ -130,7 +139,11 @@ impl App {
                         ui.label("×");
                         ui.add(egui::DragValue::new(&mut o.height).range(16..=8192));
                     });
-                    row(ui, "Frame rate", "Frames per second.", |ui| {
+                    let timed = !o.timeline;
+                    row(ui, "Frame rate", "Frames per second. A timeline export takes the timeline's.", |ui| {
+                        if !timed {
+                            ui.disable();
+                        }
                         let seconds = o.frames as f32 / o.fps as f32;
                         for fps in RATES {
                             if ui.selectable_label(o.fps == fps, fps.to_string()).clicked() && o.fps != fps {
@@ -140,7 +153,10 @@ impl App {
                             }
                         }
                     });
-                    row(ui, "Length", "Duration in seconds; the frame count follows.", |ui| {
+                    row(ui, "Length", "Duration in seconds; the frame count follows. A timeline export takes the timeline's.", |ui| {
+                        if !timed {
+                            ui.disable();
+                        }
                         let mut seconds = o.frames as f32 / o.fps as f32;
                         if ui
                             .add(crate::slider(&mut seconds, 0.1..=600.).logarithmic(true).suffix(" s"))
@@ -157,7 +173,32 @@ impl App {
                         ui.add(crate::slider(&mut o.seconds_per_frame, 0. ..=600.).logarithmic(true).smallest_positive(0.1).custom_formatter(|v, _| if v <= 0. { "off".into() } else { format!("{v:.1} s") }));
                     });
                 });
-                section(ui, "Camera orbit");
+                section(ui, "Motion");
+                grid("video-motion").show(ui, |ui| {
+                    row(ui, "Camera", "Orbit turns the camera around its target; Timeline plays the scene's keyframes (camera, objects, lights, materials), with motion blur when the timeline's shutter is open.", |ui| {
+                        ui.selectable_value(&mut o.timeline, false, "Orbit");
+                        ui.add_enabled_ui(!animation.is_empty(), |ui| {
+                            ui.selectable_value(&mut o.timeline, true, "Timeline")
+                                .on_disabled_hover_text("The scene has no keyframes (I keys the selection).");
+                        });
+                    });
+                });
+                if o.timeline {
+                    note(
+                        ui,
+                        &format!(
+                            "{:.2} s at {} fps from the timeline. Motion blur: {}.",
+                            animation.length,
+                            animation.fps,
+                            if animation.shutter > 0. {
+                                format!("{:.0}° shutter, one moment per pass (Ray Reconstruction is off for it)", animation.shutter * 360.)
+                            } else {
+                                "off (set Shutter on the timeline)".into()
+                            }
+                        ),
+                    );
+                }
+                if !o.timeline {
                 grid("video-orbit").show(ui, |ui| {
                     row(ui, "Angle", "How far the camera turns over the whole video, from the current view.", |ui| {
                         ui.add(crate::slider(&mut o.degrees, -1080. ..=1080.).suffix("°"));
@@ -178,6 +219,7 @@ impl App {
                         }
                     });
                 });
+                }
                 let [w, h] = o.size();
                 let seconds = o.frames as f32 / o.fps as f32;
                 note(

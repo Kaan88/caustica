@@ -276,7 +276,12 @@ As built: extra lights have a *Kind*: rectangle, disk, sphere, spot (a disk with
 
 - Unlocks **flashlight mode**: a spotlight attached to the camera. With walk mode (5d) and a dark Sponza, it's an instant horror game.
 
-#### 8. Animation and timeline (K)
+#### 8. Animation and timeline (K) — done 2026-10-31
+
+As built: keyframes on any float in the scene (camera, object transforms, lights, materials, exposure, sky, HDRI rotation) as tracks on JSON paths, stored in the scene file; smooth (monotone cubic, no overshoot), linear, ease and hold per key; a timeline strip (play / scrub / step, the selection's keys, interpolation, length, fps, shutter); I keys the selection or the camera, Shift+I every edited value, Alt+I deletes; the video dialog's *Timeline* motion (and `--turntable-timeline`) renders the animation, with motion blur from a shutter angle (one moment per pass, TLAS / materials rebuilt, accumulation kept, RR off); `scenes/builtin/pool-break-1984` as the showcase. See CLAUDE.md "Animation and timeline".
+
+- Not done: a curve editor (keys are edited by value at the playhead only, no tangent handles or dragging keys in time); keys on booleans and choices (light on / off, shapes, tone map; flickering candles need a hold-keyed intensity instead); per-object timing tools (offset, scale, copy keys); camera paths along a spline with look-at targets; recording a walk or a gizmo drag into keys (auto-key); Shift+I with no keys yet keys nothing (an edit counts only against the last time the animation applied); keyed playback serializes the whole scene each frame (fine for hundreds of objects, not measured at 4096); motion blur only in exports (the viewport plays sharp) and only on the non-RR path; each pass is one moment, so deformation and HDRI-rotation blur come only from many passes; audio; Newton's cradle and day-cycle time-lapses (track 9) are not built as scenes yet.
+
 
 - **Keyframes:** camera, object transforms, light intensity and color, and material parameters. Use a timeline strip in the UI, with linear, smooth and hold interpolation. Keyframes are stored in the scene file.
 - **Video export:** step the timeline per frame, render N spp, and pipe the result to ffmpeg (5d). The export dialog itself (resolution, fps, codecs, progress, HDR) comes first, as item 6.

@@ -212,6 +212,9 @@ pub struct Options {
     pub pitch: f32,
     pub distance: f32,
     pub easing: Easing,
+    /// Follow the scene's keyframes (track 8) instead of orbiting: frame i is the animation at
+    /// i / fps, with motion blur when its shutter is open.
+    pub timeline: bool,
     pub path: PathBuf,
     /// One image written to `path` itself (the high-resolution still) instead of a folder of
     /// numbered frames.
@@ -236,6 +239,7 @@ impl Options {
             pitch: s.pitch,
             distance: s.distance,
             easing: Easing::Linear,
+            timeline: false,
             path,
             still: false,
             image: ImageFormat::Png,
@@ -559,6 +563,14 @@ pub struct Job {
     /// Shown with the result, e.g. that ffmpeg was missing.
     pub note: String,
     writer: Writer,
+    /// The settings before animation (timeline exports evaluate the keys on them), the GPU
+    /// scene's keys, and whether the job changed that scene.
+    base: Settings,
+    geometry: String,
+    materials: Vec<u8>,
+    scene_changed: bool,
+    /// Passes rendered (motion blur's shutter samples).
+    pass: u32,
 }
 impl Job {
     /// Resizes the output to the export size and starts the writer. Video formats fall back to
@@ -577,6 +589,15 @@ impl Job {
             options.format.video() || !options.image_format().needs_hdr() || g.hdr_active,
             "HDR PNG needs HDR output"
         );
+        if options.timeline {
+            // The keys set the frame count and rate.
+            anyhow::ensure!(
+                !s.animation.is_empty(),
+                "The scene has no keyframes to follow"
+            );
+            options.fps = s.animation.fps;
+            options.frames = s.animation.frames();
+        }
         anyhow::ensure!(options.frames > 0, "No frames to render");
         let mut v = s.clone();
         v.scale = 1.;
@@ -586,8 +607,10 @@ impl Job {
         v.rotate = false;
         v.compare = false;
         v.max_samples = options.spp.max(1);
-        v.pitch = options.pitch.clamp(-89., 89.);
-        v.distance = options.distance;
+        if !options.timeline {
+            v.pitch = options.pitch.clamp(-89., 89.);
+            v.distance = options.distance;
+        }
         // The beauty, whatever debug view is on.
         v.view = 0;
         let [w, h] = options.size();
@@ -604,8 +627,9 @@ impl Job {
             }
         };
         g.reset(true);
-        Ok(Job {
+        let mut job = Job {
             start_yaw: v.yaw,
+            base: v.clone(),
             settings: v,
             options,
             frame: 0,
@@ -615,10 +639,65 @@ impl Job {
             preview: None,
             note,
             writer,
-        })
+            geometry: crate::geometry_key(s),
+            materials: crate::material_key(s),
+            scene_changed: false,
+            pass: 0,
+        };
+        if job.options.timeline
+            && let Err(e) = job.animate(g, 0.)
+        {
+            let _ = job.finish(g, s, true);
+            return Err(e);
+        }
+        Ok(job)
     }
     pub fn settings(&self) -> &Settings {
         &self.settings
+    }
+    /// The frame's moment on the timeline.
+    fn frame_time(&self, frame: u32) -> f32 {
+        frame as f32 / self.options.fps.max(1) as f32
+    }
+    /// Motion blur: the shutter is open and something is keyed.
+    fn blur(&self) -> bool {
+        self.options.timeline && self.base.animation.shutter > 0. && !self.base.animation.is_empty()
+    }
+    /// Puts the animation at `t` into the settings and the GPU scene (new BLAS / TLAS or
+    /// materials when they changed).
+    unsafe fn animate(&mut self, g: &mut Gpu, t: f32) -> Result<()> {
+        let yaw = self.settings.yaw;
+        self.settings = self.base.animation.apply(&self.base, t);
+        if !self.options.timeline {
+            self.settings.yaw = yaw;
+        }
+        let geometry = crate::geometry_key(&self.settings);
+        let materials = crate::material_key(&self.settings);
+        if geometry != self.geometry {
+            g.rebuild_scene(&self.settings)?;
+            self.geometry = geometry;
+            self.scene_changed = true;
+        } else if materials != self.materials {
+            g.update_materials(&self.settings)?;
+            self.scene_changed = true;
+        }
+        self.materials = materials;
+        Ok(())
+    }
+    /// Before each pass. With motion blur every pass is one moment inside the open shutter,
+    /// centred on the frame (light painting's mode: scene changes keep the accumulation, and
+    /// RR, which would see only the last pass, is off).
+    pub unsafe fn before_render(&mut self, g: &mut Gpu) -> Result<()> {
+        if !self.blur() || self.pending.is_some() || self.frame >= self.options.frames {
+            return Ok(());
+        }
+        g.painting = true;
+        // Stratified over the passes of the frame, in a scrambled order (golden-ratio steps).
+        self.pass += 1;
+        let u = (self.pass as f32 * 0.618_034).fract();
+        let shutter = self.base.animation.shutter / self.options.fps.max(1) as f32;
+        let t = self.frame_time(self.frame) + (u - 0.5) * shutter;
+        self.animate(g, t)
     }
     /// Every frame rendered and handed to the writer.
     pub fn done(&self) -> bool {
@@ -648,6 +727,9 @@ impl Job {
         {
             return Ok(());
         }
+        if self.blur() {
+            g.painting = false;
+        }
         let rgba = g.read_rgba8(10)?;
         self.preview = Some(preview(&rgba, g.width, g.height));
         let frame = match self.options.format {
@@ -661,7 +743,12 @@ impl Job {
         self.pending = self.writer.try_send(frame)?;
         self.frame += 1;
         if self.frame < self.options.frames {
-            self.settings.yaw = self.start_yaw + self.options.yaw(self.frame);
+            if self.options.timeline {
+                let t = self.frame_time(self.frame);
+                self.animate(g, t)?;
+            } else {
+                self.settings.yaw = self.start_yaw + self.options.yaw(self.frame);
+            }
             g.reset(true);
             self.frame_started = Instant::now();
         }
@@ -688,8 +775,13 @@ impl Job {
     /// written; a cancelled video is deleted, cancelled frames stay.
     pub unsafe fn finish(mut self, g: &mut Gpu, s: &Settings, cancel: bool) -> Result<String> {
         let written = self.writer.finish(cancel);
+        g.painting = false;
         let [w, h] = g.swap_size;
         g.resize_output(w, h, s)?;
+        // The GPU holds the animated scene: give it the user's back.
+        if self.scene_changed {
+            g.rebuild_scene(s)?;
+        }
         g.reset(true);
         let written = written?;
         let [ew, eh] = self.options.size();
@@ -747,15 +839,18 @@ fn preview(rgba: &[u8], w: u32, h: u32) -> egui::ColorImage {
 pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<String> {
     let mut job = Job::start(g, s, options)?;
     while !job.done() {
-        let step = g
-            .render(
-                job.settings(),
-                true,
-                job.dt(),
-                &[],
-                &egui::TexturesDelta::default(),
-                1.,
-            )
+        let step = job
+            .before_render(g)
+            .and_then(|()| {
+                g.render(
+                    job.settings(),
+                    true,
+                    job.dt(),
+                    &[],
+                    &egui::TexturesDelta::default(),
+                    1.,
+                )
+            })
             .and_then(|()| job.after_render(g));
         if let Err(e) = step {
             let _ = job.finish(g, s, true);

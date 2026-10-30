@@ -875,6 +875,46 @@ scene("pool-table", "Pool table",
              **camera(-20, 32, 6.0, (0.3, -0.2, 0), 45)))
 
 
+def track(path, keys):
+    """An animation track (track 8): keys are (time, value, interp), interp one of smooth,
+    linear, ease, hold (how the segment from that key runs)."""
+    return {"path": path, "keys": [{"time": t, "value": round(v, 4), "interp": i} for t, v, i in keys]}
+
+
+def pool_break():
+    """Cook, Porter and Carpenter's 1984 pool balls: the cue strikes, the cue ball runs into the
+    rack and the front balls scatter. Indices follow pool_table(): table 0, rails 1-4, rack balls
+    5-19 (apex 5, then 6 and 7), cue ball 20, cue 21."""
+    objects = pool_table()
+    x0 = [o["position"] for o in objects]
+    tracks = []
+
+    def move(i, keys):
+        for axis in (0, 1):
+            tracks.append(track(f"objects/{i}/position/{axis}", [(t, p[axis], interp) for t, p, interp in keys]))
+
+    cue_ball, cue = 20, 21
+    move(cue, [(0.0, x0[cue], "ease"), (0.12, (x0[cue][0] + 0.45, x0[cue][1] - 0.12), "linear"),
+               (0.16, (x0[cue][0] + 0.5, x0[cue][1] - 0.13), "hold")])
+    contact = (0.82, 0.0)
+    move(cue_ball, [(0.0, x0[cue_ball], "hold"), (0.12, x0[cue_ball], "linear"), (0.45, contact, "ease"),
+                    (1.0, (1.05, -0.12), "hold")])
+    move(5, [(0.0, x0[5], "hold"), (0.45, x0[5], "ease"), (1.0, (2.45, 0.55), "hold")])
+    move(6, [(0.0, x0[6], "hold"), (0.48, x0[6], "ease"), (1.0, (2.2, -0.85), "hold")])
+    move(7, [(0.0, x0[7], "hold"), (0.48, x0[7], "ease"), (1.0, (2.0, 1.2), "hold")])
+    return objects, {"length": 1.0, "fps": 24, "shutter": 0.5, "tracks": tracks}
+
+
+_break_objects, _break_animation = pool_break()
+scene("pool-break-1984", "1984 pool break",
+      "After Cook, Porter and Carpenter's distributed ray tracing: a break shot keyed on the timeline. "
+      "K plays it; a timeline video export renders it with a 180° motion-blur shutter.",
+      ["still life", "glossy", "animation", "motion blur"],
+      studio(light_on=False, sky=0.02, base=[0.2, 0.16, 0.13], objects=_break_objects,
+             lights=[light("Lamp", (0, 2.1, 0), (2.0, 0.55), kelvin(3800), 60)],
+             animation=_break_animation, **camera(-12, 38, 5.2, (0.6, -0.2, 0), 45)))
+
+
 def candles():
     random.seed(4)
     wax = M((0.93, 0.88, 0.76), 0.6, refl=0.02)

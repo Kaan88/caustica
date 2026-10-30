@@ -1,5 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod anim;
 mod assets;
 mod browser;
 mod display;
@@ -23,6 +24,7 @@ mod scenes;
 mod stats;
 mod teapot_data;
 mod texture;
+mod timeline_ui;
 mod ui;
 mod video;
 mod video_ui;
@@ -142,6 +144,8 @@ struct App {
     remote_synced: Instant,
     /// Gamepad input (interactive runs only).
     gamepad: Option<gilrs::Gilrs>,
+    /// The animation's playhead (track 8).
+    timeline: anim::Timeline,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 285;
@@ -176,6 +180,8 @@ fn transport_key(s: &Settings) -> String {
         "temporal",
         "scene_name",
         "light_outline",
+        // Keys reach the picture through the fields they drive.
+        "animation",
     ] {
         j.as_object_mut().unwrap().remove(k);
     }
@@ -305,6 +311,13 @@ impl App {
                     } else {
                         t.spp = value
                     }
+                }
+                // Follow the scene's keyframes instead of orbiting (track 8).
+                "--turntable-timeline" => {
+                    turntable_cli
+                        .as_mut()
+                        .context("give --turntable first")?
+                        .timeline = true;
                 }
                 "--turntable-format" => {
                     let name = args.next().context("a format")?;
@@ -456,7 +469,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -548,6 +561,7 @@ impl App {
             remote: None,
             remote_synced: Instant::now(),
             gamepad: None,
+            timeline: anim::Timeline::default(),
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -663,6 +677,54 @@ impl App {
                         Some(size),
                     )?;
                     self.ui.export_format = video::ImageFormat::Png;
+                }
+                // Keyframes (track 8): object 0 keyed at 0 s and 1 s, read back at 0.5 s; then
+                // a two-frame timeline export with a 180° shutter (motion blur).
+                146 => {
+                    self.ui.selection = ui::Selection::Object(0);
+                    self.timeline.time = 0.;
+                    self.key_selection(false);
+                    self.timeline.time = 1.;
+                    self.settings.objects[0].position[0] += 0.4;
+                    self.key_selection(false);
+                    self.timeline.time = 0.5;
+                    self.ui.show_timeline = true;
+                }
+                147 => {
+                    let x = self.settings.objects[0].position[0];
+                    let start =
+                        self.settings
+                            .animation
+                            .track("objects/0/position/0")
+                            .map_or(f64::NAN, |t| t.keys[0].value) as f32;
+                    anyhow::ensure!(
+                        self.settings.animation.tracks.len() == 10
+                            && (x - start - 0.2).abs() < 1e-4,
+                        "Keyframes: {} tracks, x {x} from {start}",
+                        self.settings.animation.tracks.len()
+                    );
+                    let a = &mut self.settings.animation;
+                    (a.length, a.fps, a.shutter) = (0.2, 10, 0.5);
+                    let folder = std::env::temp_dir().join("cornell-self-test-timeline");
+                    let _ = std::fs::remove_dir_all(&folder);
+                    let mut o = video::Options::turntable(
+                        &self.settings,
+                        [160, 100],
+                        1,
+                        8,
+                        folder.with_extension("exr"),
+                    );
+                    (o.format, o.timeline) = (video::Format::Exr, true);
+                    self.ui.video_pending = Some(o);
+                }
+                149 => {
+                    anyhow::ensure!(self.export.is_none(), "The timeline export did not finish");
+                    let folder = std::env::temp_dir().join("cornell-self-test-timeline");
+                    let frames = std::fs::read_dir(&folder)?.count();
+                    anyhow::ensure!(frames == 2, "The timeline export wrote {frames} frames");
+                    self.settings.animation = Default::default();
+                    self.timeline.time = 0.;
+                    self.ui.selection = ui::Selection::None;
                 }
                 150..=157 => self.settings.view = self.rendered - 150,
                 // The other pixel filters on the native path (sample albedo and coverage too).
@@ -1322,6 +1384,12 @@ impl App {
             .as_mut()
             .unwrap()
             .handle_platform_output(&window, output.platform_output);
+        // Keyframes: the playhead moves while playing, and the animation drives its fields
+        // whenever the playhead or the keys change. An export renders its own copy.
+        if self.export.is_none() {
+            self.timeline.advance(&self.settings.animation, dt);
+            self.timeline.update(&mut self.settings);
+        }
         let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
         if self.actions.save {
             self.actions.save = false;
@@ -1600,15 +1668,18 @@ impl App {
             let empty = egui::TexturesDelta::default();
             let step = loop {
                 let pass = unsafe {
-                    g.render(
-                        job.settings(),
-                        !job.waiting(),
-                        job.dt(),
-                        &primitives,
-                        delta.take().unwrap_or(&empty),
-                        output.pixels_per_point,
-                    )
-                    .and_then(|()| job.after_render(g))
+                    job.before_render(g)
+                        .and_then(|()| {
+                            g.render(
+                                job.settings(),
+                                !job.waiting(),
+                                job.dt(),
+                                &primitives,
+                                delta.take().unwrap_or(&empty),
+                                output.pixels_per_point,
+                            )
+                        })
+                        .and_then(|()| job.after_render(g))
                 };
                 if job.waiting() {
                     // The encoder is behind: draw the UI only, and give it the CPU.
@@ -2575,6 +2646,8 @@ impl ApplicationHandler for App {
                             } else {
                                 self.ui.undo(&mut self.settings)
                             };
+                            // The restored values stay; the keys apply once the playhead moves.
+                            self.timeline.settle(&self.settings);
                             let text = match (redo, done) {
                                 (false, true) => "Undo",
                                 (true, true) => "Redo",
@@ -2600,6 +2673,11 @@ impl ApplicationHandler for App {
                         KeyCode::KeyH if self.alt => self.run_command(ui::Command::ShowAll),
                         KeyCode::KeyH if selected => self.run_command(ui::Command::Hide),
                         KeyCode::Home => self.reset_camera(),
+                        KeyCode::KeyI if self.alt => self.delete_keys(),
+                        KeyCode::KeyI if !self.ctrl => self.key_selection(self.shift),
+                        KeyCode::KeyK if !self.ctrl => self.toggle_playback(),
+                        KeyCode::ArrowLeft if self.shift => self.step_frame(-1),
+                        KeyCode::ArrowRight if self.shift => self.step_frame(1),
                         KeyCode::KeyS if self.ctrl => self.save_scene(self.shift),
                         KeyCode::KeyO if self.ctrl => self.open_scene_dialog(),
                         KeyCode::PageUp => self.step_scene(-1),
@@ -2725,6 +2803,7 @@ impl ApplicationHandler for App {
             (!self.paused && g.samples < self.settings.max_samples)
                 || self.frames.is_some()
                 || self.export.is_some()
+                || self.timeline.playing
                 || self.settings.rotate
         });
         event_loop.set_control_flow(if active {
@@ -2891,6 +2970,7 @@ mod tests {
             ("walk.rs", include_str!("walk.rs")),
             ("video.rs", include_str!("video.rs")),
             ("video_ui.rs", include_str!("video_ui.rs")),
+            ("timeline_ui.rs", include_str!("timeline_ui.rs")),
             ("prefs.rs", include_str!("prefs.rs")),
             ("remote.rs", include_str!("remote.rs")),
             ("presets.rs", include_str!("presets.rs")),

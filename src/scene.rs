@@ -415,6 +415,9 @@ pub struct Settings {
     pub hdri_rotation: f32,
     /// Camera rays see the HDRI; off, they see the background colour (it still lights).
     pub hdri_visible: bool,
+    /// Keyframes (track 8); the playhead is `anim::Timeline` in the app.
+    #[serde(skip_serializing_if = "crate::anim::Animation::is_default")]
+    pub animation: crate::anim::Animation,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -519,6 +522,7 @@ impl Default for Settings {
             hdri_strength: 1.,
             hdri_rotation: 0.,
             hdri_visible: true,
+            animation: Default::default(),
         }
     }
 }
@@ -756,6 +760,7 @@ impl Settings {
             (1..=16).contains(&self.anisotropy),
             "Invalid texture anisotropy"
         );
+        self.animation.validate()?;
         anyhow::ensure!(
             self.hdr_mode < 3
                 && (self.hdr_peak == 0. || (80. ..=10000.).contains(&self.hdr_peak))
