@@ -33,6 +33,7 @@ This agent runs as a single model in one loop; the old rule's `Explore` / `verif
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.
 - **Git:** the repo root is `cornell/` (native app at the root, the original WebGL app in `webgl/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
+  - **All work by this agent, this session and later ones, goes on the branch `agent/codearata-agent`** (created 2026-10-31 off `main`). Keep it checked out; commit edits there and push that branch, never `main`, unless the owner says to merge or rebase. If it ever falls behind `main`, rebase onto `main` rather than force-pushing.
 - The native settings JSON is not compatible with the browser's.
 
 ### Machine (recorded 2026-10-29; toolchain re-checked 2026-10-31: rustc 1.99.1, Python 3.13.15, unchanged)
