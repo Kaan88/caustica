@@ -24,6 +24,7 @@ mod teapot_data;
 mod texture;
 mod ui;
 mod video;
+mod video_ui;
 mod walk;
 use anyhow::{Context, Result, bail};
 use gpu::Gpu;
@@ -52,7 +53,9 @@ struct Actions {
     hdr_png: bool,
     reference: bool,
     high_res: bool,
-    turntable: bool,
+    /// Start a video export with `UiState::video`; cancel the running one.
+    export_video: bool,
+    cancel_export: bool,
     frame_scene: bool,
 }
 struct App {
@@ -125,8 +128,10 @@ struct App {
     keys_down: std::collections::HashSet<KeyCode>,
     /// Screensaver show mode (`/s`): cycles scenes and quits on input.
     saver: Option<saver::Saver>,
-    /// `--turntable PATH`: render the video in a headless run, then exit.
-    turntable_cli: Option<video::Turntable>,
+    /// `--turntable PATH`: render the video in a headless run, then exit (size 0 = the window's).
+    turntable_cli: Option<video::Options>,
+    /// The running video export (item 6): rendered a pass at a time in `redraw`.
+    export: Option<video::Job>,
     /// Phone remote (off by default) and when its page state was last refreshed.
     remote: Option<remote::Remote>,
     remote_synced: Instant,
@@ -134,7 +139,7 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 273;
+const SCENES_FROM: u32 = 279;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -259,7 +264,7 @@ impl App {
         } else {
             raw
         };
-        let mut turntable_cli: Option<video::Turntable> = None;
+        let mut turntable_cli: Option<video::Options> = None;
         let mut all = raw.into_iter();
         while let Some(arg) = all.next() {
             if arg == "--preset" || arg == "--settings" || arg == "--scene" {
@@ -279,13 +284,13 @@ impl App {
             match arg.as_str() {
                 "--orbit-test" => orbit_test = true,
                 "--turntable" => {
-                    turntable_cli = Some(video::Turntable {
-                        frames: 60,
-                        spp: 16,
-                        degrees: 360.,
-                        fps: 30,
-                        path: PathBuf::from(args.next().context("--turntable needs a file name")?),
-                    });
+                    turntable_cli = Some(video::Options::turntable(
+                        &Settings::default(),
+                        [0, 0],
+                        60,
+                        16,
+                        PathBuf::from(args.next().context("--turntable needs a file name")?),
+                    ));
                 }
                 "--turntable-frames" | "--turntable-spp" => {
                     let value: u32 = args.next().context("a number")?.parse()?;
@@ -294,6 +299,22 @@ impl App {
                         t.frames = value
                     } else {
                         t.spp = value
+                    }
+                }
+                "--turntable-format" => {
+                    let name = args.next().context("a format")?;
+                    let t = turntable_cli.as_mut().context("give --turntable first")?;
+                    t.format = match name.as_str() {
+                        "h264" => video::Format::H264,
+                        "h265" => video::Format::H265,
+                        "hdr10" => video::Format::Hdr10,
+                        "prores" => video::Format::ProRes,
+                        "png" => video::Format::Png,
+                        "exr" => video::Format::Exr,
+                        _ => bail!("--turntable-format h264|h265|hdr10|prores|png|exr"),
+                    };
+                    if let Some((_, _, q)) = t.format.quality_range() {
+                        t.quality = q;
                     }
                 }
                 "--drag-test" => drag_test = true,
@@ -374,6 +395,7 @@ impl App {
                 "--ui-advanced" => interface.advanced = true,
                 "--ui-scenes" => interface.show_scenes = true,
                 "--ui-assets" => interface.assets.open = true,
+                "--ui-video" => interface.show_video = true,
                 "--ui-scopes" => {
                     interface.show_scopes = true;
                     interface.zebras = true;
@@ -416,7 +438,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -501,6 +523,7 @@ impl App {
             keys_down: Default::default(),
             saver: screensaver.then(saver::Saver::new),
             turntable_cli,
+            export: None,
             remote: None,
             remote_synced: Instant::now(),
             gamepad: None,
@@ -806,15 +829,16 @@ impl App {
                     let path = std::env::temp_dir().join("cornell-self-test-turntable.mp4");
                     let folder = path.with_extension("");
                     let _ = std::fs::remove_dir_all(&folder);
-                    let t = video::Turntable {
-                        frames: 3,
-                        spp: 2,
-                        degrees: 30.,
-                        fps: 30,
-                        path: path.clone(),
-                    };
                     let g = self.gpu.as_mut().unwrap();
-                    let text = unsafe { video::render(g, &self.settings.clone(), &t)? };
+                    let mut t = video::Options::turntable(
+                        &self.settings,
+                        [g.width, g.height],
+                        3,
+                        2,
+                        path.clone(),
+                    );
+                    t.degrees = 30.;
+                    let text = unsafe { video::render(g, &self.settings.clone(), t)? };
                     let made = if video::ffmpeg_available() {
                         path.is_file()
                     } else {
@@ -985,6 +1009,53 @@ impl App {
                     self.ui.assets.open = true;
                     self.show_ui = true;
                 }
+                // Video export through the dialog: three EXR frames at their own (odd) size while
+                // the window keeps its own, then a long PNG export cancelled while it runs.
+                273 => {
+                    let folder = std::env::temp_dir().join("cornell-self-test-video");
+                    let _ = std::fs::remove_dir_all(&folder);
+                    self.open_video_dialog();
+                    let o = &mut self.ui.video;
+                    (o.format, o.width, o.height, o.frames, o.spp) =
+                        (video::Format::Exr, 201, 121, 3, 4);
+                    o.path = folder.with_extension("exr");
+                    self.actions.export_video = true;
+                }
+                276 => {
+                    anyhow::ensure!(self.export.is_none(), "The EXR export did not finish");
+                    let folder = std::env::temp_dir().join("cornell-self-test-video");
+                    for i in 1..=3 {
+                        let path = folder.join(format!("{i:05}.exr"));
+                        let size = image::image_dimensions(&path)
+                            .with_context(|| format!("{}", path.display()))?;
+                        anyhow::ensure!(size == (201, 121), "EXR frame size {size:?}");
+                    }
+                    let g = self.gpu.as_ref().unwrap();
+                    anyhow::ensure!(
+                        g.swap_size == [g.width, g.height],
+                        "The output did not return to the window size"
+                    );
+                    let o = &mut self.ui.video;
+                    (o.format, o.width, o.height, o.frames, o.spp) =
+                        (video::Format::Png, 640, 360, 100, 4096);
+                    o.path = folder.with_extension("");
+                    self.actions.export_video = true;
+                }
+                277 => {
+                    let g = self.gpu.as_ref().unwrap();
+                    anyhow::ensure!(
+                        self.export.is_some() && [g.width, g.height] == [640, 360],
+                        "The PNG export is not running at its size"
+                    );
+                    self.actions.cancel_export = true;
+                }
+                278 => {
+                    let g = self.gpu.as_ref().unwrap();
+                    anyhow::ensure!(
+                        self.export.is_none() && g.swap_size == [g.width, g.height],
+                        "Cancelling did not end the export"
+                    );
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1036,14 +1107,18 @@ impl App {
         let now = Instant::now();
         let dt = (now - self.last).as_secs_f32().min(0.1);
         self.last = now;
-        if self.settings.rotate && !self.paused {
+        if self.settings.rotate && !self.paused && self.export.is_none() {
             self.settings.yaw += self.settings.rotate_speed * dt;
         }
         let window = self.window.as_ref().unwrap().clone();
         let input = self.input.as_mut().unwrap().take_egui_input(&window);
         let ctx = self.egui.clone();
         let output = ctx.run(input, |ctx| {
-            if self.show_ui {
+            // During an export only its progress window is drawn (and takes input): the scene
+            // must not change under it.
+            if self.export.is_some() {
+                self.export_window(ctx);
+            } else if self.show_ui {
                 self.ui(ctx);
             }
         });
@@ -1134,9 +1209,12 @@ impl App {
                 &self.geom_key,
             );
         }
-        self.remote_and_gamepad(dt);
+        // The phone remote and gamepad edit the settings; they wait while a video renders.
+        if self.export.is_none() {
+            self.remote_and_gamepad(dt);
+        }
         let g = self.gpu.as_mut().unwrap();
-        g.painting = self.painting;
+        g.painting = self.painting && self.export.is_none();
         let s = &self.settings.clone();
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
         // display setup (HDR toggled, calibration rerun, SDR brightness moved).
@@ -1169,7 +1247,7 @@ impl App {
             _ => true,
         };
         self.hdr_note.clear();
-        if want != g.hdr_active && !unsafe { g.set_hdr(want, s)? } {
+        if want != g.hdr_active && self.export.is_none() && !unsafe { g.set_hdr(want, s)? } {
             self.hdr_note = "The swapchain can't present scRGB; staying SDR.".into();
         }
         g.hdr_levels = [
@@ -1187,13 +1265,14 @@ impl App {
             },
         ];
         let rw = ((g.width as f32 * s.scale).round() as u32).max(1);
-        if g.rw != rw {
+        if g.rw != rw && self.export.is_none() {
             unsafe {
-                g.resize(g.width, g.height, s)?;
+                g.resize_output(g.width, g.height, s)?;
             }
         }
-        // The keys serialize the whole scene, so only rebuild them after an edit.
-        if self.checked.as_ref() != Some(s) {
+        // The keys serialize the whole scene, so only rebuild them after an edit. An export
+        // renders its own copy; edits made meanwhile (none through the UI) wait for its end.
+        if self.checked.as_ref() != Some(s) && self.export.is_none() {
             let geometry = geometry_key(s);
             let mk = material_key(s);
             if self.geom_key != geometry {
@@ -1255,14 +1334,15 @@ impl App {
         }
         let draw = (!self.paused || g.samples == 0) && (g.samples < s.max_samples || self.painting);
         // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
-        g.zebras = self.ui.zebras;
-        g.scopes_on = self.ui.show_scopes;
+        // Zebras would be drawn into the exported frames.
+        g.zebras = self.ui.zebras && self.export.is_none();
+        g.scopes_on = self.ui.show_scopes && self.export.is_none();
         let probe_at = self.pick_point.unwrap_or(self.cursor);
         g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area())
             || self.focus_pending
             || self.pick_point.is_some())
         .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
-        if s.lut_path != self.lut_loaded {
+        if s.lut_path != self.lut_loaded && self.export.is_none() {
             self.lut_loaded = s.lut_path.clone();
             let result = if s.lut_path.is_empty() {
                 unsafe { g.set_lut(None) }
@@ -1283,7 +1363,7 @@ impl App {
                 }
             }
         }
-        if s.hdri != self.hdri_loaded {
+        if s.hdri != self.hdri_loaded && self.export.is_none() {
             self.hdri_loaded = s.hdri.clone();
             let result = if s.hdri.is_empty() {
                 unsafe { g.set_environment(None) }
@@ -1295,15 +1375,68 @@ impl App {
                 self.ui.error(format!("HDRI {}: {e:#}", s.hdri));
             }
         }
-        unsafe {
-            g.render(
-                s,
-                draw,
-                dt,
-                &primitives,
-                &output.textures_delta,
-                output.pixels_per_point,
-            )?;
+        if self.actions.cancel_export {
+            self.actions.cancel_export = false;
+            if let Some(job) = self.export.take() {
+                let text = unsafe { job.finish(g, s, true)? };
+                println!("EXPORT {text}");
+                self.ui.toast(text);
+            }
+        }
+        if let Some(job) = &mut self.export {
+            g.probe = None;
+            // Passes until about 30 ms have gone, so the UI keeps about 30 fps; each pass
+            // presents the same UI.
+            let started = Instant::now();
+            let mut delta = Some(&output.textures_delta);
+            let empty = egui::TexturesDelta::default();
+            let step = loop {
+                let pass = unsafe {
+                    g.render(
+                        job.settings(),
+                        !job.waiting(),
+                        job.dt(),
+                        &primitives,
+                        delta.take().unwrap_or(&empty),
+                        output.pixels_per_point,
+                    )
+                    .and_then(|()| job.after_render(g))
+                };
+                if job.waiting() {
+                    // The encoder is behind: draw the UI only, and give it the CPU.
+                    std::thread::sleep(Duration::from_millis(5));
+                    break pass;
+                }
+                if pass.is_err() || job.done() || started.elapsed() > Duration::from_millis(30) {
+                    break pass;
+                }
+            };
+            let job_done = job.done();
+            if step.is_err() || job_done {
+                let job = self.export.take().unwrap();
+                let result = unsafe { job.finish(g, s, step.is_err()) };
+                match step.and(result) {
+                    Ok(text) => {
+                        println!("EXPORT {text}");
+                        self.ui.toast(text);
+                    }
+                    Err(e) => {
+                        println!("EXPORT failed: {e:#}");
+                        self.ui.error(format!("Video export failed: {e:#}"));
+                    }
+                }
+            }
+        } else {
+            unsafe {
+                g.render(
+                    s,
+                    draw,
+                    dt,
+                    &primitives,
+                    &output.textures_delta,
+                    output.pixels_per_point,
+                )?;
+            }
         }
         if let (Some(point), Some(p)) = (self.pick_point.take(), g.probe_result) {
             let pixel = [point[0] as f32, point[1] as f32];
@@ -1672,18 +1805,28 @@ impl App {
         } else {
             None
         };
-        if self.actions.turntable || cli_turntable.is_some() {
-            self.actions.turntable = false;
-            let t = cli_turntable.unwrap_or_else(|| video::Turntable {
-                frames: self.ui.tt_frames,
-                spp: self.ui.tt_spp,
-                degrees: self.ui.tt_degrees,
-                fps: self.ui.tt_fps,
-                path: PathBuf::from(&self.ui.tt_path),
-            });
-            let text = unsafe { video::render(g, s, &t)? };
+        if let Some(mut t) = cli_turntable {
+            if t.width == 0 {
+                [t.width, t.height] = [g.width, g.height];
+            }
+            let text = unsafe { video::render(g, s, t)? };
             println!("TURNTABLE {text}");
             self.ui.toast(text);
+        }
+        if self.actions.export_video {
+            self.actions.export_video = false;
+            if self.export.is_none() {
+                match unsafe { video::Job::start(g, s, self.ui.video.clone()) } {
+                    Ok(job) => {
+                        // Input is ignored while it runs, so nothing may stay held.
+                        self.drag = None;
+                        self.keys_down.clear();
+                        self.ui.video_preview = None;
+                        self.export = Some(job);
+                    }
+                    Err(e) => self.ui.error(format!("Video export: {e:#}")),
+                }
+            }
         }
         if self.debug {
             let messages = unsafe { g.debug_messages() };
@@ -1999,10 +2142,29 @@ impl ApplicationHandler for App {
                 return;
             }
         }
+        // A video export takes no viewport or shortcut input: the scene must not change under it.
+        if self.export.is_some()
+            && !matches!(
+                event,
+                WindowEvent::CloseRequested
+                    | WindowEvent::Resized(_)
+                    | WindowEvent::Moved(_)
+                    | WindowEvent::ScaleFactorChanged { .. }
+                    | WindowEvent::RedrawRequested
+                    | WindowEvent::ModifiersChanged(_)
+                    | WindowEvent::CursorMoved { .. }
+            )
+        {
+            return;
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(st) = &self.stats {
                     st.save();
+                }
+                // Stops ffmpeg and deletes the unfinished video.
+                if let (Some(job), Some(g)) = (self.export.take(), &mut self.gpu) {
+                    let _ = unsafe { job.finish(g, &self.settings, true) };
                 }
                 event_loop.exit();
             }
@@ -2010,7 +2172,13 @@ impl ApplicationHandler for App {
                 if size.width > 0
                     && size.height > 0
                     && let Some(g) = &mut self.gpu
-                    && let Err(e) = unsafe { g.resize(size.width, size.height, &self.settings) }
+                    && let Err(e) = unsafe {
+                        if self.export.is_some() {
+                            g.resize_swap(size.width, size.height)
+                        } else {
+                            g.resize(size.width, size.height, &self.settings)
+                        }
+                    }
                 {
                     self.fail(event_loop, e);
                 }
@@ -2278,6 +2446,7 @@ impl ApplicationHandler for App {
         let active = self.gpu.as_ref().is_some_and(|g| {
             (!self.paused && g.samples < self.settings.max_samples)
                 || self.frames.is_some()
+                || self.export.is_some()
                 || self.settings.rotate
         });
         event_loop.set_control_flow(if active {
@@ -2430,6 +2599,7 @@ mod tests {
             ("look.rs", include_str!("look.rs")),
             ("walk.rs", include_str!("walk.rs")),
             ("video.rs", include_str!("video.rs")),
+            ("video_ui.rs", include_str!("video_ui.rs")),
             ("remote.rs", include_str!("remote.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),

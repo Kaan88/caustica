@@ -54,7 +54,7 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
   - **Light painting** (L or *Paint light* in the top bar): moving or changing lights keeps one long exposure, so moving lights leave trails. It runs progressively, with RR and temporal upscalers off.
   - **Portals:** in an object's inspector, *Portal to* pairs it with another object. Rays that hit one continue from the matching point of the other, from either side, so corridors and impossible rooms are possible. Light sampling does not see through portals.
   - **Walk mode** (` or *Walk*): WASD to move, Q / E down / up, Shift to run, drag to look, Esc to stop. You collide with the scene.
-  - **Turntable video** (Export tab, or `--turntable out.mp4 --turntable-frames N --turntable-spp N`): an orbit rendered frame by frame. It is piped to ffmpeg (H.264) when it is on PATH, otherwise written as PNG frames.
+  - **Video** (Export tab → *Export video…*): an orbit around the target (angle, elevation, distance, linear or eased) rendered frame by frame at any size up to 8192 (independent of the window), any frame rate and length, to a sample count or a time limit per frame. Formats: H.264, H.265, HDR10 HEVC (10-bit PQ, with HDR output on), ProRes, or a PNG / linear EXR sequence. The window stays responsive with a preview, progress, time left and *Cancel*. From the command line: `--turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr`.
   - **Screensaver:** `powershell -File tools/make_screensaver.ps1` builds `builds/screensaver/CornellRTX.scr`; right-click it and choose *Install*. It cycles every preset and scene with a slow orbit.
   - **Gamepad:** sticks orbit and zoom, the triggers set light intensity, the bumpers switch scenes, A pauses, B restarts, the D-pad sets exposure, Start hides the panel.
   - **Phone remote** (Menu → *Phone remote*): serves a page on the local network with a QR code. It has sliders for exposure, light, orbit, zoom and aperture, scene buttons and the tone map. It is off by default, and every request needs a random per-session token.
@@ -201,7 +201,8 @@ The integration self-test (273 scripted frames, then one per scene file: 437 fra
 | `src/display.rs` | Windows display query (HDR state, calibrated luminance, SDR white level), HDR transform reference and HDR PNG writer |
 | `src/hotreload.rs` | Debug-build shader hot reload: polls `shaders/`, recompiles with DXC |
 | `src/look.rs` | .cube LUT reader and the colour-wheel widget |
-| `src/walk.rs`, `src/video.rs`, `src/saver.rs`, `src/remote.rs` | Walk mode, turntable video, screensaver mode, phone remote |
+| `src/walk.rs`, `src/video.rs`, `src/saver.rs`, `src/remote.rs` | Walk mode, video export, screensaver mode, phone remote |
+| `src/video_ui.rs` | Video export dialog and progress window |
 | `src/stats.rs` | Lifetime statistics and achievements (`%APPDATA%\CornellRTX\stats.json`) |
 | `src/generators.rs` | Seeded scene generators (15 families) |
 | `src/environment.rs` | HDRI loading and its importance-sampling tables |

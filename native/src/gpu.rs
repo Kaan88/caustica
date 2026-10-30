@@ -271,8 +271,12 @@ pub struct Gpu {
     rr_created: bool,
     rr_failed: bool,
     pub rr_active: bool,
+    /// Output size: the size of the output textures (10, 13, 14, 18, 26). Equal to the
+    /// swapchain except during a video export (`resize_output`).
     pub width: u32,
     pub height: u32,
+    /// Swapchain (window) size.
+    pub swap_size: [u32; 2],
     pub rw: u32,
     pub rh: u32,
     pub samples: u32,
@@ -686,6 +690,7 @@ impl Gpu {
             rr_active: false,
             width,
             height,
+            swap_size: [width, height],
             rw: 0,
             rh: 0,
             samples: 0,
@@ -874,10 +879,11 @@ impl Gpu {
         }
         // Color-space support depends on the buffer format, so switch first, then check.
         self.hdr_active = on;
-        self.resize(self.width, self.height, s)?;
+        let [w, h] = self.swap_size;
+        self.resize(w, h, s)?;
         if on && !self.color_space_ok {
             self.hdr_active = false;
-            self.resize(self.width, self.height, s)?;
+            self.resize(w, h, s)?;
             return Ok(false);
         }
         Ok(true)
@@ -1275,7 +1281,14 @@ impl Gpu {
         self.reset(true);
         Ok(())
     }
+    /// Resizes the swapchain and the output to the same size.
     pub unsafe fn resize(&mut self, w: u32, h: u32, s: &Settings) -> Result<()> {
+        self.resize_swap(w, h)?;
+        self.resize_output(w, h, s)
+    }
+    /// Resizes only the swapchain. While the output has another size (a video export), each
+    /// frame clears the backbuffer instead of copying the image into it, then draws the UI.
+    pub unsafe fn resize_swap(&mut self, w: u32, h: u32) -> Result<()> {
         ensure!(
             w > 0 && h > 0 && w <= 8192 && h <= 8192,
             "Invalid viewport size"
@@ -1284,8 +1297,8 @@ impl Gpu {
         self.wait_idle()?;
         self.begin()?;
         self.list.Close()?;
-        self.release_upscalers();
         self.buffers.clear();
+        self.ui_frame = None;
         let resized = self
             .swap
             .ResizeBuffers(2, w, h, self.swap_format(), DXGI_SWAP_CHAIN_FLAG(0))
@@ -1323,10 +1336,6 @@ impl Gpu {
             }
             return Err(e.into());
         }
-        self.width = w;
-        self.height = h;
-        self.rw = ((w as f32 * s.scale).round() as u32).max(1);
-        self.rh = ((h as f32 * s.scale).round() as u32).max(1);
         let step = self
             .device
             .GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
@@ -1343,8 +1352,24 @@ impl Gpu {
             );
             self.buffers.push(b);
         }
+        self.swap_size = [w, h];
+        Ok(())
+    }
+    /// Re-creates the output and render-size textures; the swapchain keeps its size.
+    pub unsafe fn resize_output(&mut self, w: u32, h: u32, s: &Settings) -> Result<()> {
+        ensure!(
+            w > 0 && h > 0 && w <= 8192 && h <= 8192,
+            "Invalid output size"
+        );
+        self.wait_idle()?;
+        self.begin()?;
+        self.list.Close()?;
+        self.release_upscalers();
         self.textures.clear();
-        self.ui_frame = None;
+        self.width = w;
+        self.height = h;
+        self.rw = ((w as f32 * s.scale).round() as u32).max(1);
+        self.rh = ((h as f32 * s.scale).round() as u32).max(1);
         for i in 0..TEXTURES {
             let format = match i {
                 5 | 7 | 17 | 19 | 20 | 25 => DXGI_FORMAT_R32_FLOAT,
@@ -2271,31 +2296,6 @@ impl Gpu {
         let index = self.swap.GetCurrentBackBufferIndex() as usize;
         let back = &self.buffers[index];
         let shown = if self.hdr_active { 26 } else { 10 };
-        transition(
-            &self.list,
-            &self.textures[shown].resource,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            D3D12_RESOURCE_STATE_COPY_SOURCE,
-        );
-        transition(
-            &self.list,
-            back,
-            D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATE_COPY_DEST,
-        );
-        self.list.CopyResource(back, &self.textures[shown].resource);
-        transition(
-            &self.list,
-            &self.textures[shown].resource,
-            D3D12_RESOURCE_STATE_COPY_SOURCE,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-        );
-        transition(
-            &self.list,
-            back,
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_STATE_RENDER_TARGET,
-        );
         let handle = D3D12_CPU_DESCRIPTOR_HANDLE {
             ptr: self.rtv.GetCPUDescriptorHandleForHeapStart().ptr
                 + index
@@ -2304,6 +2304,45 @@ impl Gpu {
                         .GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
                         as usize,
         };
+        if self.swap_size == [self.width, self.height] {
+            transition(
+                &self.list,
+                &self.textures[shown].resource,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            transition(
+                &self.list,
+                back,
+                D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+            );
+            self.list.CopyResource(back, &self.textures[shown].resource);
+            transition(
+                &self.list,
+                &self.textures[shown].resource,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+            transition(
+                &self.list,
+                back,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+            );
+        } else {
+            // A video export renders at its own size: the window shows the UI over a plain
+            // background (the progress window has its own preview).
+            transition(
+                &self.list,
+                back,
+                D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+            );
+            let grey = if self.hdr_active { 0.02 } else { 0.1 };
+            self.list
+                .ClearRenderTargetView(handle, &[grey, grey, grey, 1.], None);
+        }
         self.list.OMSetRenderTargets(1, Some(&handle), false, None);
         self.draw_gui(primitives, pixels_per_point, &mut keep)?;
         // Freed textures go after the draw that may still use them this frame; one frame in
@@ -2319,8 +2358,8 @@ impl Gpu {
                 self.ui_frame = Some(
                     texture(
                         &self.device,
-                        self.width,
-                        self.height,
+                        self.swap_size[0],
+                        self.swap_size[1],
                         self.swap_format(),
                         D3D12_RESOURCE_FLAG_NONE,
                         D3D12_RESOURCE_STATE_COPY_DEST,
@@ -2585,8 +2624,8 @@ impl Gpu {
         self.list
             .IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         self.list.RSSetViewports(&[D3D12_VIEWPORT {
-            Width: self.width as f32,
-            Height: self.height as f32,
+            Width: self.swap_size[0] as f32,
+            Height: self.swap_size[1] as f32,
             MaxDepth: 1.,
             ..Default::default()
         }]);
@@ -2594,6 +2633,12 @@ impl Gpu {
         let mut vertices = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         let mut draws = Vec::new();
+        // gui.hlsl maps positions by the output size in the frame constants; during a video
+        // export that differs from the swapchain, so positions are scaled to match.
+        let fit = [
+            ppp * self.width as f32 / self.swap_size[0] as f32,
+            ppp * self.height as f32 / self.swap_size[1] as f32,
+        ];
         for primitive in primitives {
             if let egui::epaint::Primitive::Mesh(mesh) = &primitive.primitive
                 && !mesh.indices.is_empty()
@@ -2608,7 +2653,7 @@ impl Gpu {
                 ));
                 indices.extend_from_slice(&mesh.indices);
                 vertices.extend(mesh.vertices.iter().map(|v| GuiVertex {
-                    position: [v.pos.x * ppp, v.pos.y * ppp],
+                    position: [v.pos.x * fit[0], v.pos.y * fit[1]],
                     uv: [v.uv.x, v.uv.y],
                     color: v.color.to_array(),
                 }));
@@ -2634,10 +2679,11 @@ impl Gpu {
         }));
         let mut bound = usize::MAX;
         for (r, first, count, base, slot) in draws {
-            let left = (r.min.x * ppp).clamp(0., self.width as f32) as i32;
-            let top = (r.min.y * ppp).clamp(0., self.height as f32) as i32;
-            let right = (r.max.x * ppp).clamp(left as f32, self.width as f32) as i32;
-            let bottom = (r.max.y * ppp).clamp(top as f32, self.height as f32) as i32;
+            let [sw, sh] = self.swap_size.map(|v| v as f32);
+            let left = (r.min.x * ppp).clamp(0., sw) as i32;
+            let top = (r.min.y * ppp).clamp(0., sh) as i32;
+            let right = (r.max.x * ppp).clamp(left as f32, sw) as i32;
+            let bottom = (r.max.y * ppp).clamp(top as f32, sh) as i32;
             // Fully clipped meshes (e.g. a window outside a small swapchain) draw nothing,
             // and the debug layer warns about an empty scissor.
             if right <= left || bottom <= top {
@@ -2727,7 +2773,13 @@ impl Gpu {
         staging.Map(0, None, Some(&mut p))?;
         // A UI capture in HDR mode copies the RGBA16F scRGB backbuffer.
         let ui_hdr = include_ui && self.hdr_active;
-        let row_size = self.width as usize
+        // The UI frame has the swapchain's size, the output textures the output's.
+        let (width, height) = if include_ui {
+            (self.swap_size[0], self.swap_size[1])
+        } else {
+            (self.width, self.height)
+        };
+        let row_size = width as usize
             * if hdr {
                 16
             } else if ui_hdr {
@@ -2735,8 +2787,8 @@ impl Gpu {
             } else {
                 4
             };
-        let mut packed = Vec::with_capacity(row_size * self.height as usize);
-        for y in 0..self.height as usize {
+        let mut packed = Vec::with_capacity(row_size * height as usize);
+        for y in 0..height as usize {
             packed.extend_from_slice(std::slice::from_raw_parts(
                 (p as *const u8).add(y * layout.Footprint.RowPitch as usize),
                 row_size,
@@ -2780,17 +2832,11 @@ impl Gpu {
                 .iter()
                 .flat_map(|c| [c[0], c[1], c[2]])
                 .collect();
-            image::Rgb32FImage::from_raw(self.width, self.height, rgb)
+            image::Rgb32FImage::from_raw(width, height, rgb)
                 .unwrap()
                 .save(path)?;
         } else {
-            image::save_buffer(
-                path,
-                &packed,
-                self.width,
-                self.height,
-                image::ColorType::Rgba8,
-            )?;
+            image::save_buffer(path, &packed, width, height, image::ColorType::Rgba8)?;
         }
         Ok(())
     }

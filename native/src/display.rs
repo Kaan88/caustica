@@ -213,6 +213,24 @@ pub fn hdr_map(
 /// Writes scRGB pixels (RGBA, 1.0 = 80 nits, BT.709 primaries) as a 16-bit PNG in BT.2020 / PQ,
 /// tagged with a cICP chunk so HDR-aware viewers (Windows Photos, Chrome) show it as HDR.
 pub fn write_hdr_png(path: &std::path::Path, scrgb: &[f32], width: u32, height: u32) -> Result<()> {
+    let pixels = scrgb_to_pq(scrgb);
+    let image = image::ImageBuffer::<image::Rgb<u16>, _>::from_raw(width, height, pixels)
+        .ok_or_else(|| anyhow::anyhow!("HDR PNG size mismatch"))?;
+    let mut png = Vec::new();
+    image.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)?;
+    // cICP right after IHDR (8-byte signature + 25-byte IHDR chunk): BT.2020 primaries (9),
+    // PQ transfer (16), RGB (0), full range (1).
+    let body = [b'c', b'I', b'C', b'P', 9, 16, 0, 1];
+    let mut chunk = 4u32.to_be_bytes().to_vec();
+    chunk.extend_from_slice(&body);
+    chunk.extend_from_slice(&crc32(&body).to_be_bytes());
+    png.splice(33..33, chunk);
+    std::fs::write(path, png)?;
+    Ok(())
+}
+/// scRGB pixels (RGBA, 1.0 = 80 nits, BT.709) to 16-bit RGB in BT.2020 primaries with the PQ
+/// curve: the HDR PNG and the HDR10 video take this.
+pub fn scrgb_to_pq(scrgb: &[f32]) -> Vec<u16> {
     const TO_2020: [[f32; 3]; 3] = [
         [0.627_404, 0.329_282, 0.043_314],
         [0.069_097, 0.919_540, 0.011_361],
@@ -229,19 +247,7 @@ pub fn write_hdr_png(path: &std::path::Path, scrgb: &[f32], width: u32, height: 
             pixels.push((pq(nits) * 65535.).round() as u16);
         }
     }
-    let image = image::ImageBuffer::<image::Rgb<u16>, _>::from_raw(width, height, pixels)
-        .ok_or_else(|| anyhow::anyhow!("HDR PNG size mismatch"))?;
-    let mut png = Vec::new();
-    image.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)?;
-    // cICP right after IHDR (8-byte signature + 25-byte IHDR chunk): BT.2020 primaries (9),
-    // PQ transfer (16), RGB (0), full range (1).
-    let body = [b'c', b'I', b'C', b'P', 9, 16, 0, 1];
-    let mut chunk = 4u32.to_be_bytes().to_vec();
-    chunk.extend_from_slice(&body);
-    chunk.extend_from_slice(&crc32(&body).to_be_bytes());
-    png.splice(33..33, chunk);
-    std::fs::write(path, png)?;
-    Ok(())
+    pixels
 }
 fn crc32(bytes: &[u8]) -> u32 {
     let mut crc = !0u32;

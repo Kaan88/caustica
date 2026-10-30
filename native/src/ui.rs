@@ -123,12 +123,10 @@ pub struct UiState {
     pub search: String,
     pub export_scale: u32,
     pub export_samples: u32,
-    /// Turntable video export settings.
-    pub tt_frames: u32,
-    pub tt_spp: u32,
-    pub tt_degrees: f32,
-    pub tt_fps: u32,
-    pub tt_path: String,
+    /// Video export dialog (video_ui.rs): its options, whether it is open, the progress preview.
+    pub video: crate::video::Options,
+    pub show_video: bool,
+    pub video_preview: Option<egui::TextureHandle>,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
     /// The Assets window (item 6, browser.rs).
@@ -183,11 +181,19 @@ impl Default for UiState {
             search: String::new(),
             export_scale: 2,
             export_samples: 128,
-            tt_frames: 120,
-            tt_spp: 32,
-            tt_degrees: 360.,
-            tt_fps: 30,
-            tt_path: "cornell-turntable.mp4".into(),
+            video: crate::video::Options {
+                frames: 120,
+                spp: 32,
+                ..crate::video::Options::turntable(
+                    &Settings::default(),
+                    [1920, 1080],
+                    120,
+                    32,
+                    "cornell-turntable.mp4".into(),
+                )
+            },
+            show_video: false,
+            video_preview: None,
             show_scenes: false,
             assets: Default::default(),
             zebras: false,
@@ -337,11 +343,11 @@ pub fn more(
             .show(ui, add);
     }
 }
-fn section(ui: &mut egui::Ui, title: &str) {
+pub(crate) fn section(ui: &mut egui::Ui, title: &str) {
     ui.add_space(4.);
     ui.label(egui::RichText::new(title).strong().color(ACCENT));
 }
-fn grid(id: &str) -> egui::Grid {
+pub(crate) fn grid(id: &str) -> egui::Grid {
     egui::Grid::new(id).num_columns(2).spacing([12., 6.])
 }
 pub(crate) fn note(ui: &mut egui::Ui, text: &str) {
@@ -568,6 +574,7 @@ impl App {
         }
         self.scenes_window(ctx);
         self.assets_window(ctx);
+        self.video_window(ctx);
         self.tool_windows(ctx);
         self.overlay(ctx);
         self.toasts(ctx);
@@ -2504,40 +2511,22 @@ impl App {
                 (g.height as f32 * factor).round()
             ),
         );
-        section(ui, "Turntable video");
-        grid("turntable").show(ui, |ui| {
-            row(ui, "Frames", "Number of video frames.", |ui| {
-                ui.add(crate::slider(&mut self.ui.tt_frames, 2..=1440).logarithmic(true));
-            });
-            row(ui, "Samples per frame", "Each frame converges this far before the next.", |ui| {
-                ui.add(crate::slider(&mut self.ui.tt_spp, 1..=4096).logarithmic(true).suffix(" spp"));
-            });
-            row(ui, "Orbit", "How far the camera turns over the whole video.", |ui| {
-                ui.add(crate::slider(&mut self.ui.tt_degrees, 15. ..=1080.).suffix("°"));
-            });
-            row(ui, "Frame rate", "Frames per second of the video.", |ui| {
-                for fps in [24, 30, 60] {
-                    ui.selectable_value(&mut self.ui.tt_fps, fps, format!("{fps}"));
-                }
-            });
-            row(ui, "File", "H.264 MP4 through ffmpeg when it is on PATH; otherwise PNG frames in a folder of the same name.", |ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.ui.tt_path).desired_width(180.));
-            });
-        });
-        if ui.button("Render turntable").clicked() {
-            self.actions.turntable = true;
-        }
+        section(ui, "Video");
+        let o = &self.ui.video;
+        let [w, h] = o.size();
         note(
             ui,
             &format!(
-                "{} · the window waits until every frame is done.",
-                if crate::video::ffmpeg_available() {
-                    "ffmpeg found"
-                } else {
-                    "ffmpeg not on PATH: PNG frames"
-                }
+                "An orbit around the target: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
+                o.format.label(),
+                o.frames,
+                o.fps,
+                o.spp
             ),
         );
+        if ui.button("Export video…").clicked() {
+            self.open_video_dialog();
+        }
         section(ui, "Scene file");
         ui.horizontal(|ui| {
             if ui.button("Save settings.json").clicked() {
