@@ -129,11 +129,25 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){float3 e=throughput*environment_radiance(direction);radiance+=e;if(bounce<=1)direct+=e;break;}
             throughput*=exp(-absorption*h.t);
+            // Portal: continue from the matching point of the paired object, without a bounce.
+            // Light sampling cannot see through portals, so emission found after one has weight 1.
+            Material raw=materials[h.material];
+            if(((uint)raw.lobes.w&4u)!=0 && portal_crossings<16){
+                portal_crossings++;
+                // The map lands on the far face of the pair; inside a portal object the ray just
+                // passes through, so it leaves through the pair's near face (portals work both ways).
+                if(!h.front){origin=h.p+direction*0.001;bounce--;continue;}
+                Material pm=materials[(uint)raw.secondary.w];
+                float4 P=float4(h.p,1),D=float4(direction,0);
+                direction=normalize(float3(dot(pm.color_rough,D),dot(pm.lobes,D),dot(pm.optical,D)));
+                origin=float3(dot(pm.color_rough,P),dot(pm.lobes,P),dot(pm.optical,P))+direction*0.001;
+                previous_delta=true;bounce--;continue;
+            }
             Material m=material_at(h.material,h.p);float3 emitted=m.color_rough.rgb*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=previous_pdf/(previous_pdf+emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));

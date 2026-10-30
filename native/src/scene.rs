@@ -174,6 +174,9 @@ pub struct Object {
     pub elevation: f32,
     pub grounded: bool,
     pub material: Material,
+    /// Index of the paired portal object (roadmap 5d), -1 for none. Rays that hit this object
+    /// continue from the matching point of the pair.
+    pub portal: i32,
 }
 impl Default for Object {
     fn default() -> Self {
@@ -191,6 +194,7 @@ impl Default for Object {
             stretch: 1.7,
             rotation: 18.,
             material: Material::default(),
+            portal: -1,
         }
     }
 }
@@ -700,6 +704,15 @@ impl Settings {
                 m.secondary_color.iter().all(|v| (0. ..=1.).contains(v))
                     && (0.1..=100.).contains(&m.pattern_scale),
                 "Invalid material pattern"
+            );
+        }
+        for (i, o) in self.objects.iter().enumerate() {
+            anyhow::ensure!(
+                o.portal == -1
+                    || (o.portal >= 0
+                        && (o.portal as usize) < self.objects.len()
+                        && o.portal as usize != i),
+                "Invalid portal pair"
             );
         }
         for o in &self.objects {

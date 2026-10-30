@@ -192,6 +192,8 @@ pub struct Gpu {
     pub hdr_active: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
+    /// Light painting (roadmap 5d): progressive path only, and scene edits keep the accumulation.
+    pub painting: bool,
     /// Film-look LUT (u29, a 3D texture kept across resizes) and its edge length, 0 = none.
     lut: Texture,
     lut_size: u32,
@@ -565,6 +567,7 @@ impl Gpu {
             gui_hdr,
             hdr_active: false,
             hdr_levels: [200., 1000.],
+            painting: false,
             lut,
             lut_size: 0,
             present_count: 0,
@@ -694,6 +697,10 @@ impl Gpu {
         let kind = s.upscaler;
         if !s.perspective() {
             self.upscale_status = "Upscaling needs a perspective camera; bicubic".into();
+            return None;
+        }
+        if self.painting {
+            self.upscale_status = "Light painting accumulates at render resolution".into();
             return None;
         }
         // At 100% only DLAA / Native AA (a temporal upscaler, when asked for) runs.
@@ -1324,7 +1331,9 @@ impl Gpu {
         self.triangle_count = vertices.len() / 3;
         self.cached_vertices = vertices;
         self.update_materials(s)?;
-        self.reset(true);
+        if !self.painting {
+            self.reset(true);
+        }
         Ok(())
     }
     pub unsafe fn update_materials(&mut self, s: &Settings) -> Result<()> {
@@ -1334,7 +1343,9 @@ impl Gpu {
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&emitters))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
-        self.reset(true);
+        if !self.painting {
+            self.reset(true);
+        }
         Ok(())
     }
     unsafe fn bind(&self, offset: u64) {
@@ -1372,7 +1383,8 @@ impl Gpu {
         let vp = proj * view;
         let reset = self.rr_reset;
         // RR and the temporal upscalers need a perspective camera (motion vectors, guides).
-        self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective();
+        self.rr_active =
+            s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective() && !self.painting;
         if !s.rr && !self.ngx.is_null() {
             self.rr_status = "DLSS RR ready (disabled)".into();
         }

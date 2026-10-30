@@ -52,6 +52,7 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
     out[4].optical[3] = 1.;
     out[4].lobes[3] = 1. + if s.light_visible { 0. } else { 2. };
     out.extend(s.objects.iter().map(|o| pack(&o.material)));
+    let first_object = 5;
     out.extend(s.lights.iter().map(|l| {
         let mut m = pack(&Material {
             color: l.color,
@@ -63,7 +64,45 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
         m.lobes[3] = 1. + if l.visible { 0. } else { 2. };
         m
     }));
+    // Portals (flag bit 2): the object's record points (secondary.w) at an extra record whose
+    // first three rows hold the affine map into the paired portal.
+    for (i, o) in s.objects.iter().enumerate() {
+        let Some(pair) = usize::try_from(o.portal)
+            .ok()
+            .and_then(|p| s.objects.get(p))
+        else {
+            continue;
+        };
+        let m = portal_matrix(o, pair);
+        let row = |r: usize| [m.x_axis[r], m.y_axis[r], m.z_axis[r], m.w_axis[r]];
+        let slot = out.len();
+        out.push(PackedMaterial {
+            color_rough: row(0),
+            lobes: row(1),
+            optical: row(2),
+            secondary: [0.; 4],
+        });
+        let p = &mut out[first_object + i];
+        p.color_rough = [1., 1., 1., 0.];
+        p.lobes[3] = (p.lobes[3] as u32 | 4) as f32;
+        p.optical[1] = 0.;
+        p.optical[2] = 0.;
+        p.secondary[3] = slot as f32;
+    }
     out
+}
+/// World-to-world map from portal `a` into portal `b`: into a's local space, turned half way
+/// around the local up axis (entering a's front leaves b's front), out of b's local space.
+pub fn portal_matrix(a: &crate::scene::Object, b: &crate::scene::Object) -> glam::Mat4 {
+    let local = |o: &crate::scene::Object| {
+        let (center, rotation) = crate::geometry::object_frame(o);
+        let scale = Vec3::new(o.scale_xz[0], o.stretch, o.scale_xz[1]) * o.size * 0.35;
+        glam::Mat4::from_translation(center)
+            * glam::Mat4::from_mat3(rotation)
+            * glam::Mat4::from_scale(scale)
+    };
+    let flip = glam::Mat4::from_scale(Vec3::new(-1., 1., -1.));
+    local(b) * flip * local(a).inverse()
 }
 pub fn emitter_table(
     vertices: &[Vertex],

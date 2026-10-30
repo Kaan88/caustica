@@ -749,6 +749,28 @@ impl App {
             self.load_scene_file(i);
         }
     }
+    /// L: light painting on or off. Turning it on restarts once in the progressive mode.
+    pub fn toggle_painting(&mut self) {
+        self.painting = !self.painting;
+        self.actions.reset = true;
+        self.ui.toast(if self.painting {
+            "Light painting: move lights and they leave trails (L to stop)"
+        } else {
+            "Light painting off"
+        });
+    }
+    /// `: walk mode on or off.
+    pub fn toggle_walk(&mut self) {
+        if self.walking.take().is_some() {
+            self.keys_down.clear();
+            self.ui.toast("Walk mode off");
+        } else {
+            self.walking = Some(crate::walk::Walk::enter(&mut self.settings));
+            self.ui.toast(
+                "Walk mode: WASD move, Q / E down / up, Shift run, drag to look, Esc to stop",
+            );
+        }
+    }
     pub fn tool_mode(&self) -> gizmo::Mode {
         match self.ui.tool {
             gizmo::Tool::Rotate => gizmo::Mode::Rotate,
@@ -1361,6 +1383,20 @@ impl App {
                 {
                     self.actions.frame_scene = true;
                 }
+                if ui
+                    .selectable_label(self.painting, "Paint light")
+                    .on_hover_text("Light painting (L): lights you move leave trails in one long exposure")
+                    .clicked()
+                {
+                    self.toggle_painting();
+                }
+                if ui
+                    .selectable_label(self.walking.is_some(), "Walk")
+                    .on_hover_text("Walk mode (`): WASD, Q / E, Shift to run, drag to look")
+                    .clicked()
+                {
+                    self.toggle_walk();
+                }
                 ui.separator();
                 for (tool, label, tip) in [
                     (gizmo::Tool::Select, "Select", "Click to select, no handles"),
@@ -1685,6 +1721,39 @@ impl App {
                         s.focus_object(i, aspect);
                     }
                 });
+                // Portals pair two objects both ways.
+                let current = s.objects[i].portal;
+                let mut pick = current;
+                egui::ComboBox::from_label("Portal to")
+                    .selected_text(usize::try_from(current).ok().and_then(|p| s.objects.get(p)).map_or("None".to_string(), |o| o.name.clone()))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut pick, -1, "None");
+                        for (j, o) in s.objects.iter().enumerate().filter(|(j, _)| *j != i) {
+                            ui.selectable_value(&mut pick, j as i32, &o.name);
+                        }
+                    })
+                    .response
+                    .on_hover_text("Rays that hit this object continue from the same spot on the other one: corridors, impossible rooms.");
+                if pick != current {
+                    state.checkpoint(s);
+                    if let Some(old) = usize::try_from(current)
+                        .ok()
+                        .and_then(|p| s.objects.get_mut(p))
+                    {
+                        old.portal = -1;
+                    }
+                    s.objects[i].portal = pick;
+                    if let Some(other) = usize::try_from(pick)
+                        .ok()
+                        .and_then(|p| s.objects.get_mut(p))
+                    {
+                        if let Some(third) = usize::try_from(other.portal).ok().filter(|t| *t != i)
+                        {
+                            s.objects[third].portal = -1;
+                        }
+                        s.objects[pick as usize].portal = i as i32;
+                    }
+                }
                 if let Selection::Object(i) = state.selection {
                     editor::object_ui(ui, &mut s.objects[i], advanced);
                 }

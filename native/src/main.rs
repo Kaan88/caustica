@@ -14,6 +14,7 @@ mod scenes;
 mod stats;
 mod teapot_data;
 mod ui;
+mod walk;
 use anyhow::{Context, Result, bail};
 use gpu::Gpu;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -98,9 +99,14 @@ struct App {
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
     focus_target: Option<f32>,
+    /// Light painting (L): light edits keep the accumulation; progressive path only.
+    painting: bool,
+    /// Walk mode (`): WASD and mouse look; the keys held down right now.
+    walking: Option<walk::Walk>,
+    keys_down: std::collections::HashSet<KeyCode>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 240;
+const SCENES_FROM: u32 = 260;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -406,6 +412,9 @@ impl App {
             lut_loaded: String::new(),
             focus_pending: false,
             focus_target: None,
+            painting: false,
+            walking: None,
+            keys_down: Default::default(),
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -667,6 +676,42 @@ impl App {
                     self.cursor = [self.size[0] as f64 * 0.5, self.size[1] as f64 * 0.5];
                     self.focus_pending = true;
                 }
+                // Light painting: a light edit keeps the accumulation going.
+                240 => {
+                    self.settings.preset(0);
+                    self.toggle_painting();
+                }
+                241 => self.settings.light_position[0] += 0.1,
+                242 => self.toggle_painting(),
+                // Portals: a paired pair of boxes, then removed.
+                243 => {
+                    let mut a = editor::new_object(scene::Shape::Box, 2);
+                    a.position = [-0.5, 0.3];
+                    a.stretch = 2.;
+                    a.scale_xz = [1.2, 0.1];
+                    a.portal = 3;
+                    let mut b = a.clone();
+                    b.position = [0.5, 0.3];
+                    b.rotation = 40.;
+                    b.portal = 2;
+                    self.settings.objects.push(a);
+                    self.settings.objects.push(b);
+                }
+                246 => {
+                    self.settings.objects.truncate(2);
+                }
+                // Walk mode: hold W for a few frames.
+                247 => {
+                    // A known start: eye at z = 7.7 looking down -z, target 0.5 ahead.
+                    (
+                        self.settings.yaw,
+                        self.settings.pitch,
+                        self.settings.distance,
+                    ) = (0., 0., 4.7);
+                    self.settings.target = [0., 0., 3.];
+                    self.toggle_walk();
+                    self.keys_down.insert(KeyCode::KeyW);
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -790,6 +835,16 @@ impl App {
                 .frame_objects(g.width as f32 / g.height as f32);
             self.actions.frame_scene = false;
         }
+        if let Some(w) = &mut self.walking {
+            w.update(
+                &mut self.settings,
+                &self.keys_down,
+                dt,
+                self.shift,
+                &self.geom_key,
+            );
+        }
+        g.painting = self.painting;
         let s = &self.settings.clone();
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
         // display setup (HDR toggled, calibration rerun, SDR brightness moved).
@@ -877,7 +932,27 @@ impl App {
                     old.as_object_mut().unwrap().remove(k);
                     new.as_object_mut().unwrap().remove(k);
                 }
-                g.reset(old != new);
+                // Light painting: moving or changing lights keeps the long exposure going.
+                let camera_moved = old != new;
+                let painted = self.painting && {
+                    for k in [
+                        "light_position",
+                        "light_size",
+                        "light_aspect",
+                        "light_intensity",
+                        "light_temperature",
+                        "light_tint",
+                        "light_on",
+                        "lights",
+                    ] {
+                        old.as_object_mut().unwrap().remove(k);
+                        new.as_object_mut().unwrap().remove(k);
+                    }
+                    old == new
+                };
+                if !painted {
+                    g.reset(camera_moved);
+                }
                 self.last_key = key;
             }
             self.checked = Some(s.clone());
@@ -886,7 +961,7 @@ impl App {
             g.reset(true);
             self.actions.reset = false;
         }
-        let draw = (!self.paused || g.samples == 0) && g.samples < s.max_samples;
+        let draw = (!self.paused || g.samples == 0) && (g.samples < s.max_samples || self.painting);
         // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
         g.zebras = self.ui.zebras;
         g.scopes_on = self.ui.show_scopes;
@@ -1077,6 +1152,29 @@ impl App {
                     );
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
+                241 => anyhow::ensure!(
+                    g.samples >= 2 * s.spp,
+                    "Light painting restarted the exposure ({} samples)",
+                    g.samples
+                ),
+                244 => {
+                    let packed = lighting::materials(s);
+                    anyhow::ensure!(
+                        packed.len() == 5 + s.objects.len() + s.lights.len() + 2
+                            && (packed[7].lobes[3] as u32 & 4) != 0,
+                        "Portal records are missing"
+                    );
+                }
+                252 => {
+                    let moved = s.target[2] < 7.15;
+                    self.keys_down.clear();
+                    self.walking = None;
+                    anyhow::ensure!(
+                        moved,
+                        "Walking forward did not move the camera ({:?})",
+                        s.target
+                    );
+                }
                 218 => anyhow::ensure!(!g.rr_active, "RR must be off for a panorama camera"),
                 224 => anyhow::ensure!(
                     self.lut_loaded == s.lut_path && !s.lut_path.is_empty(),
@@ -1495,6 +1593,9 @@ impl ApplicationHandler for App {
                     let k = if self.shift { 0.1 } else { 1. };
                     t.mouse += glam::Vec2::new(dx, dy) * k;
                     self.update_transform();
+                } else if self.walking.is_some() && self.drag == Some(MouseButton::Left) {
+                    self.drag_distance += dx.abs() + dy.abs();
+                    walk::Walk::look(&mut self.settings, dx, dy);
                 } else if let Some(button) = self.drag {
                     self.drag_distance += dx.abs() + dy.abs();
                     let s = &mut self.settings;
@@ -1524,6 +1625,23 @@ impl ApplicationHandler for App {
                     };
                     self.settings.distance =
                         (self.settings.distance * (-d * 0.1).exp()).clamp(0.5, 200.);
+                }
+            }
+            // Walk mode owns WASD / Q / E while it runs; held keys are tracked for movement.
+            WindowEvent::KeyboardInput { ref event, .. }
+                if self.walking.is_some() && !self.egui.wants_keyboard_input() =>
+            {
+                if let PhysicalKey::Code(code) = event.physical_key {
+                    if event.state == ElementState::Pressed {
+                        self.keys_down.insert(code);
+                        if !event.repeat && matches!(code, KeyCode::Escape | KeyCode::Backquote) {
+                            self.walking = None;
+                            self.keys_down.clear();
+                            self.ui.toast("Walk mode off");
+                        }
+                    } else {
+                        self.keys_down.remove(&code);
+                    }
                 }
             }
             WindowEvent::KeyboardInput { event, .. }
@@ -1595,6 +1713,8 @@ impl ApplicationHandler for App {
                             self.ui.toast("Restarted");
                         }
                         KeyCode::KeyF => self.actions.frame_scene = true,
+                        KeyCode::KeyL => self.toggle_painting(),
+                        KeyCode::Backquote => self.toggle_walk(),
                         KeyCode::Delete => {
                             if let Some(name) = self.ui.delete_selected(&mut self.settings) {
                                 self.ui.toast(format!("Deleted {name}"));
@@ -1729,6 +1849,7 @@ mod tests {
             ("ui.rs", include_str!("ui.rs")),
             ("gizmo.rs", include_str!("gizmo.rs")),
             ("look.rs", include_str!("look.rs")),
+            ("walk.rs", include_str!("walk.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
         ] {
