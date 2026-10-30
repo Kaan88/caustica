@@ -4,7 +4,7 @@
     {
       "name": "cornell",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8080", "--bind", "127.0.0.1"],
+      "runtimeArgs": ["-m", "http.server", "8080", "--bind", "127.0.0.1", "--directory", "webgl"],
       "port": 8080
     }
   ]

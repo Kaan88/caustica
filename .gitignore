@@ -1,19 +1,19 @@
-# headless-browser profiles and captures from tools/ test runs
+# headless-browser profiles and captures from webgl/tools test runs
 .cdp-*/
 shot_*.png
-native/target/
-native/vendor/
-native/captures/
-native/scenes/thumbnails/
-native/builds/
-native/settings.json
-native/cornell*.png
-native/cornell*.exr
+target/
+vendor/
+captures/
+scenes/thumbnails/
+builds/
+settings.json
+cornell*.png
+cornell*.exr
 
 # Python bytecode and local Claude Code settings
 __pycache__/
 .claude/settings.local.json
-native/scenes/models/
-native/scenes/hdri/
-native/scenes/textures/
-native/scenes/assets.json
+scenes/models/
+scenes/hdri/
+scenes/textures/
+scenes/assets.json

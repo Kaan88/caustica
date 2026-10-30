@@ -223,6 +223,12 @@ Second batch (2026-10-30, after UI phases 3–5). The bigger ones extend a featu
 - **Even more accurate rendering, with a software mode if real time can't do it:** see "Accuracy mode and reference renderer" under future goals. Large.
 - **A better denoiser than RR** (low priority): see "Other denoisers" under future goals. Medium to large.
 
+Third batch (2026-10-31, owner requests):
+
+- **File format choice for the high-resolution export.** The high-res still has no format selector, unlike the normal export. Add the same choices (PNG, JPEG, EXR, and whatever the normal export offers, with quality / bit depth where they apply) to the high-res dialog and share the code path so the two stay in step. Small; extends the high-res still (core 6 / UI phase 1).
+- **Anti-aliasing when DLSS is off and the native unbiased path is used.** With RR / DLAA off there is no edge filtering beyond the pixel jitter that accumulates over time, so moving views and low sample counts show stair-steps. Options to evaluate: sub-pixel jitter with a proper reconstruction filter (Blackman-Harris / Mitchell) in the accumulation, a native TAA that reuses the native denoiser's history, supersampling via render scale above 100%, and an edge-aware post pass (SMAA / FXAA) as a cheap fallback. Measure edge shimmer with the `tools/rr_stability.py` method. Medium; extends the native denoiser.
+- **Anisotropic filtering for textures.** Textured scenes blur or shimmer at grazing angles (floors, walls). Add anisotropic sampling to the texture lookups (ray differentials or cone footprint along the path to pick the mip and the ellipse axis, 4x to 16x taps as a setting), and make sure mipmaps are used on secondary bounces too. Check on the textured floors of `scenes/materials` at grazing views. Small to medium; extends core 5 (textures).
+
 ## Medium term
 
 ### Core track
