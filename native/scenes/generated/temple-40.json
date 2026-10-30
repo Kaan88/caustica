@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Temple 40",
+ "description": "Generated scene: temple, seed 40. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "temple"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "temple",
+  "seed": 40
+ }
+}

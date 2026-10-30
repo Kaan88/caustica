@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Studio still life 42",
+ "description": "Generated scene: studio still life, seed 42. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "still-life"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "still-life",
+  "seed": 42
+ }
+}

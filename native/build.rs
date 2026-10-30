@@ -64,6 +64,22 @@ fn main() {
             "{what} missing: run powershell -File tools/setup.ps1"
         );
     }
+    // Optional: ffmpeg.exe (tools/setup.ps1) next to the exe for MP4 turntables.
+    println!("cargo:rerun-if-changed=vendor/ffmpeg/ffmpeg.exe");
+    let ffmpeg = PathBuf::from("vendor/ffmpeg/ffmpeg.exe");
+    if ffmpeg.exists() {
+        let exe_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap())
+            .ancestors()
+            .nth(3)
+            .map(PathBuf::from)
+            .unwrap();
+        let target = exe_dir.join("ffmpeg.exe");
+        let stale = std::fs::metadata(&target).and_then(|m| m.modified()).ok()
+            < std::fs::metadata(&ffmpeg).and_then(|m| m.modified()).ok();
+        if stale {
+            std::fs::copy(&ffmpeg, &target).expect("copy ffmpeg.exe");
+        }
+    }
     println!("cargo:rerun-if-changed=bridge");
     cc::Build::new()
         .cpp(true)

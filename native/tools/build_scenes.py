@@ -1203,6 +1203,42 @@ def check(slug, s):
     return [f"{slug}: {b}" for b in bad]
 
 
+# ---------------------------------------------------------------- generated pack
+# Curated seeds of the Rust generators (src/generators.rs); each file is just family + seed.
+GENERATED = {
+    "still-life": ("Studio still life", [3, 11, 17, 24, 42, 77]),
+    "material-grid": ("Material grid", [1, 2, 3, 5, 8, 13]),
+    "city": ("City blocks", [4, 7, 12, 21, 33, 58]),
+    "temple": ("Temple", [2, 6, 9, 15, 27, 40]),
+    "stairs": ("Stairs", [1, 4, 6, 10, 19, 31]),
+    "stacking": ("Stacking", [3, 5, 8, 14, 22, 35]),
+    "menger": ("Menger sponge", [1, 2, 6, 9, 16, 25]),
+    "sierpinski": ("Sierpinski tetrahedron", [2, 3, 7, 11, 18, 29]),
+    "sphereflake": ("Sphereflake", [1, 5, 9, 12, 20, 44]),
+    "kaleidoscope": ("Kaleidoscope", [4, 8, 15, 23, 38, 61]),
+    "truchet": ("Truchet maze", [2, 10, 14, 26, 39, 52]),
+}
+
+
+def write_generated():
+    out = OUT.parent / "generated"
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.json"):
+        old.unlink()
+    files = []
+    for family, (label, seeds) in GENERATED.items():
+        for seed in seeds:
+            name = f"{family}-{seed}.json"
+            data = {"format": 1, "title": f"{label} {seed}", "description": f"Generated scene: {label.lower()}, seed {seed}. Regenerated from the seed on every load.",
+                    "tags": ["generated", family], "credits": "Cornell RTX generators", "generator": {"family": family, "seed": seed}}
+            (out / name).write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+            files.append(name)
+    pack = {"name": "Generated scenes", "version": 1, "license": "Own work", "commercial_use": True, "attribution": "Cornell RTX",
+            "description": "Curated seeds of the procedural generators.", "scenes": files}
+    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
+    print(f"wrote {len(files)} generated scenes to {out}")
+
+
 # ---------------------------------------------------------------- write
 def main():
     problems = [p for slug, data in SCENES for p in check(slug, data["settings"])]
@@ -1219,6 +1255,7 @@ def main():
             "scenes": [f"{slug}.json" for slug, _ in SCENES]}
     (OUT / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {len(SCENES)} scenes to {OUT}")
+    write_generated()
 
 
 if __name__ == "__main__":

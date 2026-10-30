@@ -21,6 +21,29 @@ function Get-Sdk([string]$name, [string]$url, [string]$folder, [string]$commit, 
     & git -C $sdkPath checkout --detach $commit
     if ($LASTEXITCODE -ne 0) { throw "Could not select the pinned $name revision" }
 }
+# ffmpeg for the turntable video export: a pinned gyan.dev "essentials" build (GitHub release
+# mirror), checked against its SHA-256. Only ffmpeg.exe and its LICENSE are kept.
+function Get-Ffmpeg([string]$version, [string]$sha256) {
+    $target = Join-Path $projectRoot 'vendor/ffmpeg'
+    $exe = Join-Path $target 'ffmpeg.exe'
+    if ((Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath (Join-Path $target "VERSION-$version"))) { return }
+    New-Item -ItemType Directory -Force $target | Out-Null
+    $zip = Join-Path ([IO.Path]::GetTempPath()) "ffmpeg-$version-essentials_build.zip"
+    Invoke-WebRequest -Uri "https://github.com/GyanD/codexffmpeg/releases/download/$version/ffmpeg-$version-essentials_build.zip" -OutFile $zip
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $sha256) { Remove-Item -LiteralPath $zip; throw "ffmpeg $version checksum mismatch: $actual" }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($zip)
+    try {
+        foreach ($entry in $archive.Entries) {
+            if ($entry.FullName -like '*/bin/ffmpeg.exe') { [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $exe, $true) }
+            if ($entry.FullName -like '*/LICENSE') { [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $target 'LICENSE'), $true) }
+        }
+    } finally { $archive.Dispose() }
+    Remove-Item -LiteralPath $zip
+    Get-ChildItem $target -Filter 'VERSION-*' | Remove-Item
+    Set-Content -LiteralPath (Join-Path $target "VERSION-$version") -Value $sha256
+}
 try {
     foreach ($command in @('git','cargo')) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "$command is required. Install Rust (MSVC) and Git first." } }
     # NVIDIA DLSS 310.9.16: Ray Reconstruction and Super Resolution.
@@ -33,6 +56,8 @@ try {
     # Intel XeSS SDK 3.0.2: headers and the super-resolution DLL.
     Get-Sdk 'Intel XeSS SDK' 'https://github.com/intel/xess.git' 'xess' '8fe81bdbbaf00b3c1b733fd0d830c333dc84e6f0' `
         @('/inc/xess/', '/bin/libxess.dll', '/LICENSE.txt', '/third-party-programs.txt')
+    # ffmpeg 9.0.2 (2026-09-19) for MP4 turntables; the app falls back to PNG frames without it.
+    Get-Ffmpeg '9.0.2' '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
     if (-not $SkipBuild) {
         if ($DebugBuild) { & cargo build --locked } else { & cargo build --release --locked }
         if ($LASTEXITCODE -ne 0) { throw 'Build failed. Install Visual Studio C++ Build Tools and Windows SDK (DXC), or set DXC_PATH.' }

@@ -9,6 +9,7 @@ $dest = Join-Path $root "builds\screensaver"
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item (Join-Path $release "cornell-rtx.exe") (Join-Path $dest "CornellRTX.scr") -Force
 Get-ChildItem $release -Filter *.dll | Copy-Item -Destination $dest -Force
+if (Test-Path (Join-Path $release "ffmpeg.exe")) { Copy-Item (Join-Path $release "ffmpeg.exe") $dest -Force }
 Get-ChildItem (Join-Path $root "scenes") -Directory | Where-Object { $_.Name -ne "thumbnails" } | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $dest "scenes\$($_.Name)") -Recurse -Force
 }

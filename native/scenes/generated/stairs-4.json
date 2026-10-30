@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Stairs 4",
+ "description": "Generated scene: stairs, seed 4. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "stairs"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "stairs",
+  "seed": 4
+ }
+}

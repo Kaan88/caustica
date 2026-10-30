@@ -2,7 +2,7 @@
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
-Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) is done (2026-10-30); the medium term is next.
+Written 2026-10-30, and extended the same day with the feature brainstorm: quick wins (near-term item 5), feature tracks 7–20 (medium term) and the big ideas in future goals. The near term (items 1–5, 3b) and core track 1 (generators) are done (2026-10-30).
 
 **Shape of the plan:**
 - **Near term:** polish and plumbing, then cheap fun.
@@ -207,7 +207,7 @@ As built: `kusama-infinity-room`, `flavin-fluorescent`, `turrell-ganzfeld`, plus
 ### Core track
 
 Order is from scene-research.md section 5, unchanged:
-1. Generators.
+1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 66 curated seeds. Mesh-based generators (Mandelbulb, terrain, Menger 3+, L-system trees) wait for mesh import (item 2).
 2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split.
 3. HDRI environments with importance sampling.
 4. Multiple BLAS + TLAS instancing past 256 objects.
@@ -345,6 +345,13 @@ After thin-lens depth of field (5c).
 ## Future goals
 
 ### Vulkan backend
+
+**Linux port notes** (collected while building Windows-only pieces; check each when porting):
+- **ffmpeg:** Windows gets a pinned gyan.dev build through `tools/setup.ps1`, copied next to the exe. On Linux use the distro's `ffmpeg` from PATH (`video::ffmpeg()` already falls back to PATH); drop the `.exe` and the `CREATE_NO_WINDOW` creation flag (`std::os::windows::process::CommandExt`, also used in `hotreload.rs`, `scenes::render_thumbnails`).
+- **Shaders:** `hotreload.rs` and build.rs call the Windows SDK's `dxc.exe`; on Linux use the DirectXShaderCompiler release binary (and SPIR-V output for Vulkan).
+- **Windows-only modules:** `saver.rs` (screensaver switches and the GDI preview), `display.rs` (DXGI output description and `DisplayConfig` SDR white level; on Linux HDR comes from Wayland's colour-management protocol or not at all), the stats path (`%APPDATA%`; use `$XDG_DATA_HOME`).
+- **Upscalers:** DLSS (NGX) and XeSS have Linux/Vulkan libraries; FSR through the FidelityFX API's Vulkan backend. The loaders in `bridge/` use `LoadLibrary`; use `dlopen`.
+- **Gamepad, remote, scenes:** gilrs, the std HTTP remote and the scene files are portable as they are.
 
 - **Why:**
   - Portability: Linux, and AMD/Intel drivers where Vulkan RT is stronger.

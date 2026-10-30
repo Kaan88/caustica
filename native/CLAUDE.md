@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (307 with the built-in pack); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (373 with the built-in and generated packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -394,6 +394,23 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
   - Cards are painted at a fixed 160×100 (egui's `ImageButton` padding made the grid uneven). The selected scene shows a 256×160 preview, licence badge, tags, attribution and credits.
   - Self-test 203 loads a generated texture as entry 0's thumbnail and opens the window with it selected, so the scene-file frames draw the textured UI under the debug layer.
 - Not done: relative asset paths (nothing references assets yet).
+
+## ffmpeg (2026-10-30, owner allowed pulling the binary)
+
+- `tools/setup.ps1` `Get-Ffmpeg '9.0.2' '<sha256>'` downloads gyan.dev's essentials build from its GitHub release mirror (`GyanD/codexffmpeg`). The SHA-256 is pinned (it matched gyan.dev's published checksum on 2026-10-30). Only `ffmpeg.exe` and `LICENSE` are kept, in `vendor/ffmpeg` (gitignored with `vendor/`). A `VERSION-<ver>` marker skips repeat downloads.
+- build.rs copies it next to the exe when present (optional; builds work without it). `video::ffmpeg()` prefers that copy, then PATH. The snapshot and screensaver scripts copy it too.
+- Linux port notes are listed in docs/roadmap.md under "Vulkan backend".
+
+## Generators (core track 1, 2026-10-30)
+
+- `generators.rs`: `generate(family, seed) -> Settings` for the 11 `FAMILIES`. RNG is xorshift64* seeded by seed and a hash of the family.
+  - Helpers reuse `presets::{object, light, studio, material}` (now `pub(crate)`). `at()` places a mesh centre at a world y. `sun()` is a far quad aimed at the origin (warm 350, day 450, sky 0.2 / 0.55; brighter washed out). `frame()` is `frame_objects` × 0.78.
+  - `finish()` names the scene "<family> · seed N", truncates to 256 objects and runs `fit()` (excess stretch/scale into size, angles wrapped, as build_scenes.py does).
+- New shape **Tetrahedron** (last in `Shape::ALL`; the mesh cache is indexed by enum order): base at y = −1, apex at +1, base circumradius √2.
+- Menger level 2 merges filled cells into runs along x (fits under 256). The Sierpinski child centre is c + corner·scale/2. The sphereflake uses Haines' 6 + 3 directions, rotated per parent.
+- Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 11 families; `GENERATED` table).
+- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 113 (373 frames).
+- `tools/scene_sheet.py --pack generated` renders the pack. All 66 were checked; day cities and warm suns were dimmed, framing tightened.
 
 ## Scenes buildable today (roadmap 5e, 2026-10-30)
 

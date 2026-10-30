@@ -208,7 +208,22 @@ pub fn read(path: &Path) -> Result<Settings> {
     let bytes = std::fs::read(path).with_context(|| format!("Reading {}", path.display()))?;
     let value: serde_json::Value =
         serde_json::from_slice(&bytes).with_context(|| format!("Parsing {}", path.display()))?;
-    let mut s: Settings = if value.get("settings").is_some() {
+    let mut s: Settings = if let Some(g) = value.get("generator") {
+        // A generated scene: family and seed, regenerated exactly on every load.
+        let family = g
+            .get("family")
+            .and_then(|v| v.as_str())
+            .context("generator.family")?;
+        let seed = g
+            .get("seed")
+            .and_then(|v| v.as_u64())
+            .context("generator.seed")?;
+        let mut s = crate::generators::generate(family, seed)?;
+        if let Some(title) = value.get("title").and_then(|v| v.as_str()) {
+            s.scene_name = title.to_string();
+        }
+        s
+    } else if value.get("settings").is_some() {
         let file: SceneFile = serde_json::from_value(value)?;
         ensure!(file.format == 1, "Unsupported scene format {}", file.format);
         let mut s = file.settings;
@@ -260,6 +275,22 @@ fn slug(title: &str) -> String {
     if out.is_empty() { "scene".into() } else { out }
 }
 /// Saves the current scene to `scenes/user/<title>.json`, as a wrapper with a title.
+/// Saves a generator family and seed to `scenes/user/<title>.json` (a few bytes per scene).
+pub fn save_generated(family: &str, seed: u64, title: &str) -> Result<PathBuf> {
+    let title = title.trim();
+    ensure!(!title.is_empty(), "Give the scene a title");
+    let dir = folder()
+        .unwrap_or_else(|| PathBuf::from("scenes"))
+        .join("user");
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{}.json", slug(title)));
+    let file = serde_json::json!({
+        "format": 1, "title": title, "description": format!("Generated: {family}, seed {seed}."),
+        "tags": ["user", "generated", family], "generator": {"family": family, "seed": seed}
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&file)?)?;
+    Ok(path)
+}
 pub fn save_user(s: &Settings, title: &str, description: &str) -> Result<PathBuf> {
     let title = title.trim();
     if title.is_empty() {

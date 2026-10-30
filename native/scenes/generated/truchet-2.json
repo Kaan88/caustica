@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Truchet maze 2",
+ "description": "Generated scene: truchet maze, seed 2. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "truchet"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "truchet",
+  "seed": 2
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Sphereflake 9",
+ "description": "Generated scene: sphereflake, seed 9. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "sphereflake"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "sphereflake",
+  "seed": 9
+ }
+}

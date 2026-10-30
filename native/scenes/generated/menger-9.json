@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Menger sponge 9",
+ "description": "Generated scene: menger sponge, seed 9. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "menger"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "menger",
+  "seed": 9
+ }
+}

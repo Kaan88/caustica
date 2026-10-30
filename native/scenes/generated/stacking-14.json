@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Stacking 14",
+ "description": "Generated scene: stacking, seed 14. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "stacking"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "stacking",
+  "seed": 14
+ }
+}

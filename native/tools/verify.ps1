@@ -20,7 +20,11 @@ try {
         # Release is a GUI-subsystem executable. Explicitly wait and inspect its exit code.
         $stdout=Join-Path $projectRoot "captures/$runName.stdout.txt"
         $stderr=Join-Path $projectRoot "captures/$runName.stderr.txt"
-        $process=Start-Process -FilePath $exe -ArgumentList $options -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        # Wait for the renderer itself, not -Wait's whole process tree: NVIDIA's NGX runtime starts
+        # nvngx_update.exe children that outlive the app by minutes.
+        $process=Start-Process -FilePath $exe -ArgumentList $options -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $null=$process.Handle # keeps the exit code readable after exit
+        $process.WaitForExit()
         Get-Content -LiteralPath $stderr | ForEach-Object {Write-Host $_}
         Get-Content -LiteralPath $stdout | ForEach-Object {Write-Host $_}
         if ($process.ExitCode -ne 0) {throw "$runName failed with exit code $($process.ExitCode)"}

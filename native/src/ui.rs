@@ -153,6 +153,9 @@ pub struct UiState {
     scene_search: String,
     scene_tag: Option<String>,
     pub scene_selected: Option<usize>,
+    /// Generator section of the Scenes window: family index and seed.
+    gen_family: usize,
+    gen_seed: u64,
     save_title: String,
     save_description: String,
     toasts: Vec<Toast>,
@@ -202,6 +205,8 @@ impl Default for UiState {
             scene_search: String::new(),
             scene_tag: None,
             scene_selected: None,
+            gen_family: 0,
+            gen_seed: 1,
             save_title: String::new(),
             save_description: String::new(),
             toasts: Vec::new(),
@@ -745,6 +750,60 @@ impl App {
                     });
                 } else {
                     note(ui, "Pick a scene; double-click loads it. Your render settings (resolution, RR, upscaler, HDR) stay as they are.");
+                }
+                ui.separator();
+                ui.label(egui::RichText::new("Generate").strong());
+                let mut generate = false;
+                ui.horizontal(|ui| {
+                    let families = crate::generators::FAMILIES;
+                    egui::ComboBox::from_id_salt("generator family")
+                        .selected_text(families[state.gen_family].1)
+                        .width(170.)
+                        .show_ui(ui, |ui| {
+                            for (i, (_, label, about)) in families.iter().enumerate() {
+                                ui.selectable_value(&mut state.gen_family, i, *label).on_hover_text(*about);
+                            }
+                        });
+                    ui.label("seed");
+                    ui.add(egui::DragValue::new(&mut state.gen_seed).speed(1.));
+                    if ui.button("Generate").clicked() {
+                        generate = true;
+                    }
+                    if ui.button("Next seed").clicked() {
+                        state.gen_seed = state.gen_seed.wrapping_add(1);
+                        generate = true;
+                    }
+                    if ui.button("Random").clicked() {
+                        state.gen_seed = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.subsec_nanos() as u64 % 100_000)
+                            .unwrap_or(7);
+                        generate = true;
+                    }
+                });
+                note(ui, crate::generators::FAMILIES[state.gen_family].2);
+                if generate {
+                    let family = crate::generators::FAMILIES[state.gen_family].0;
+                    match crate::generators::generate(family, state.gen_seed) {
+                        Ok(mut g) => {
+                            state.checkpoint(&self.settings);
+                            g.keep_output(&self.settings);
+                            self.settings = g;
+                            state.selection = Selection::Stage;
+                        }
+                        Err(e) => state.error(format!("{e:#}")),
+                    }
+                }
+                if ui.button("Save this generator and seed to scenes/user").clicked() {
+                    let family = crate::generators::FAMILIES[state.gen_family].0;
+                    let title = format!("{} {}", crate::generators::FAMILIES[state.gen_family].1, state.gen_seed);
+                    match crate::scenes::save_generated(family, state.gen_seed, &title) {
+                        Ok(path) => {
+                            state.scenes = crate::scenes::list();
+                            state.toast(format!("Saved {}", path.display()));
+                        }
+                        Err(e) => state.error(format!("{e:#}")),
+                    }
                 }
                 ui.separator();
                 ui.label(egui::RichText::new("Save the current scene").strong());

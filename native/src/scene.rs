@@ -59,9 +59,10 @@ pub enum Shape {
     Octahedron,
     Pawn,
     Ring,
+    Tetrahedron,
 }
 impl Shape {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Box,
         Self::Sphere,
         Self::Cylinder,
@@ -73,6 +74,7 @@ impl Shape {
         Self::Octahedron,
         Self::Pawn,
         Self::Ring,
+        Self::Tetrahedron,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -87,6 +89,7 @@ impl Shape {
             Self::Octahedron => "Octahedron",
             Self::Pawn => "Chess pawn",
             Self::Ring => "Thin ring",
+            Self::Tetrahedron => "Tetrahedron",
         }
     }
 }

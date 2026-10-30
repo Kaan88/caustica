@@ -83,7 +83,14 @@ pub fn material(id: usize) -> Material {
     }
     m
 }
-fn object(name: impl Into<String>, shape: Shape, x: f32, z: f32, size: f32, mat: usize) -> Object {
+pub(crate) fn object(
+    name: impl Into<String>,
+    shape: Shape,
+    x: f32,
+    z: f32,
+    size: f32,
+    mat: usize,
+) -> Object {
     Object {
         name: name.into(),
         shape,
@@ -95,7 +102,13 @@ fn object(name: impl Into<String>, shape: Shape, x: f32, z: f32, size: f32, mat:
         ..Object::default()
     }
 }
-fn light(name: &str, p: [f32; 3], size: [f32; 2], color: [f32; 3], intensity: f32) -> AreaLight {
+pub(crate) fn light(
+    name: &str,
+    p: [f32; 3],
+    size: [f32; 2],
+    color: [f32; 3],
+    intensity: f32,
+) -> AreaLight {
     AreaLight {
         name: name.into(),
         position: p,
@@ -106,7 +119,7 @@ fn light(name: &str, p: [f32; 3], size: [f32; 2], color: [f32; 3], intensity: f3
         ..AreaLight::default()
     }
 }
-fn studio(s: &mut Settings) {
+pub(crate) fn studio(s: &mut Settings) {
     s.objects.clear();
     s.cornell_room = false;
     s.floor_extent = 15.;

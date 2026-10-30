@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Kaleidoscope 61",
+ "description": "Generated scene: kaleidoscope, seed 61. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "kaleidoscope"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "kaleidoscope",
+  "seed": 61
+ }
+}

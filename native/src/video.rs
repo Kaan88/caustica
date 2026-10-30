@@ -14,9 +14,17 @@ pub struct Turntable {
     pub fps: u32,
     pub path: PathBuf,
 }
-/// Whether `ffmpeg` runs from PATH.
+/// ffmpeg next to the exe (copied by build.rs from tools/setup.ps1's download), else from PATH.
+fn ffmpeg() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|d| d.join("ffmpeg.exe")))
+        .filter(|p| p.is_file())
+        .unwrap_or_else(|| PathBuf::from("ffmpeg"))
+}
+/// Whether ffmpeg runs (next to the exe or from PATH).
 pub fn ffmpeg_available() -> bool {
-    let mut c = std::process::Command::new("ffmpeg");
+    let mut c = std::process::Command::new(ffmpeg());
     c.arg("-version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
@@ -38,7 +46,7 @@ pub unsafe fn render(g: &mut Gpu, s: &Settings, t: &Turntable) -> Result<String>
     let (w, h) = (g.width, g.height);
     g.resize(w, h, &v)?;
     let mut ffmpeg = if ffmpeg_available() {
-        let mut c = std::process::Command::new("ffmpeg");
+        let mut c = std::process::Command::new(self::ffmpeg());
         c.args([
             "-y",
             "-loglevel",

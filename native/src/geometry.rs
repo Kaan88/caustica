@@ -123,6 +123,29 @@ fn make_mesh(shape: Shape) -> Mesh {
                 }
             }
         }
+        Shape::Tetrahedron => {
+            // A regular tetrahedron standing on a face: base at y = -1, apex at y = 1.
+            let r = 2f32.sqrt();
+            let base: Vec<Vec3> = (0..3)
+                .map(|i| {
+                    let a = i as f32 / 3. * tau;
+                    Vec3::new(r * a.cos(), -1., r * a.sin())
+                })
+                .collect();
+            let apex = Vec3::new(0., 1., 0.);
+            for f in [
+                [base[0], base[2], base[1]],
+                [base[0], base[1], apex],
+                [base[1], base[2], apex],
+                [base[2], base[0], apex],
+            ] {
+                let mut n = (f[1] - f[0]).cross(f[2] - f[0]).normalize();
+                if n.dot(f[0] + f[1] + f[2]) < 0. {
+                    n = -n;
+                }
+                triangle(&mut out, f, [n; 3]);
+            }
+        }
         Shape::Octahedron => {
             for y in [-1., 1.] {
                 for i in 0..4 {

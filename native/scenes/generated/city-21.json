@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "City blocks 21",
+ "description": "Generated scene: city blocks, seed 21. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "city"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "city",
+  "seed": 21
+ }
+}

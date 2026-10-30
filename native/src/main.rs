@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod display;
 mod editor;
+mod generators;
 mod geometry;
 mod gizmo;
 mod gpu;

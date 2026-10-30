@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Sierpinski tetrahedron 11",
+ "description": "Generated scene: sierpinski tetrahedron, seed 11. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "sierpinski"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "sierpinski",
+  "seed": 11
+ }
+}

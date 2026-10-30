@@ -14,6 +14,7 @@ $dest = Join-Path $root "builds\$date-$Name"
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item (Join-Path $release "cornell-rtx.exe") $dest -Force
 Get-ChildItem $release -Filter *.dll | Copy-Item -Destination $dest -Force
+if (Test-Path (Join-Path $release "ffmpeg.exe")) { Copy-Item (Join-Path $release "ffmpeg.exe") $dest -Force }
 $scenes = Join-Path $root "scenes"
 if (Test-Path $scenes) {
     Get-ChildItem $scenes -Directory | Where-Object { $_.Name -ne "thumbnails" } | ForEach-Object {

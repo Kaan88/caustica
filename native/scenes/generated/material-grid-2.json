@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Material grid 2",
+ "description": "Generated scene: material grid, seed 2. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "material-grid"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "material-grid",
+  "seed": 2
+ }
+}
