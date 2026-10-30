@@ -1,0 +1,19 @@
+{
+ "name": "Mesh scenes",
+ "version": 1,
+ "license": "Mixed: see each scene's credits",
+ "commercial_use": false,
+ "attribution": "See credits",
+ "source": "tools/fetch_models.ps1",
+ "description": "Scanned and glTF models. Run tools/fetch_models.ps1 first; without the models each object falls back to a box.",
+ "scenes": [
+  "stanford-dragon-gold.json",
+  "happy-buddha-jade.json",
+  "scan-gallery.json",
+  "spot-and-suzanne.json",
+  "beautiful-game.json",
+  "glass-dragon.json",
+  "toy-car.json",
+  "duck-and-lantern.json"
+ ]
+}

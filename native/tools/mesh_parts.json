@@ -1,0 +1,724 @@
+{
+ "armadillo.obj": [
+  {
+   "name": "armadillo",
+   "triangles": 99976,
+   "material": {
+    "color": [
+     0.7200000286102295,
+     0.699999988079071,
+     0.6600000262260437
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.550000011920929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "happy.obj": [
+  {
+   "name": "happy",
+   "triangles": 98601,
+   "material": {
+    "color": [
+     0.7200000286102295,
+     0.699999988079071,
+     0.6600000262260437
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.550000011920929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "lucy.obj": [
+  {
+   "name": "lucy",
+   "triangles": 99970,
+   "material": {
+    "color": [
+     0.7200000286102295,
+     0.699999988079071,
+     0.6600000262260437
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.550000011920929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "spot.obj": [
+  {
+   "name": "spot",
+   "triangles": 5856,
+   "material": {
+    "color": [
+     0.7200000286102295,
+     0.699999988079071,
+     0.6600000262260437
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.550000011920929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "suzanne.obj": [
+  {
+   "name": "suzanne",
+   "triangles": 968,
+   "material": {
+    "color": [
+     0.7200000286102295,
+     0.699999988079071,
+     0.6600000262260437
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.550000011920929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "xyzrgb_dragon.obj": [
+  {
+   "name": "xyzrgb_dragon",
+   "triangles": 249882,
+   "material": {
+    "color": [
+     0.7200000286102295,
+     0.699999988079071,
+     0.6600000262260437
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.550000011920929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "ABeautifulGame.glb": [
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Bishop_White",
+   "triangles": 148896,
+   "material": {
+    "color": [
+     0.38496819138526917,
+     0.33593153953552246,
+     0.25143298506736755
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.06512044370174408,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.2371598184108734,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Bishop_Black",
+   "triangles": 148896,
+   "material": {
+    "color": [
+     0.07088860124349594,
+     0.11241500824689865,
+     0.06773199141025543
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.06528936326503754,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.2741123139858246,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Knight_White",
+   "triangles": 22368,
+   "material": {
+    "color": [
+     0.2189299762248993,
+     0.18836243450641632,
+     0.15186160802841187
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.002092249458655715,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.25571468472480774,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Knight_Black",
+   "triangles": 22368,
+   "material": {
+    "color": [
+     0.025606699287891388,
+     0.03816479817032814,
+     0.0364394448697567
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.002092249458655715,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.25571468472480774,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Castle_White",
+   "triangles": 61056,
+   "material": {
+    "color": [
+     0.2330644130706787,
+     0.19897307455539703,
+     0.1478460133075714
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.14963480830192566,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.38697192072868347,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Castle_Black",
+   "triangles": 61056,
+   "material": {
+    "color": [
+     0.07063860446214676,
+     0.0743630900979042,
+     0.052870672196149826
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.14963480830192566,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.38697192072868347,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Body_Black",
+   "triangles": 377856,
+   "material": {
+    "color": [
+     0.04774715006351471,
+     0.04619655758142471,
+     0.035105034708976746
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.18129068613052368,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.23440265655517578,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Top_Black",
+   "triangles": 17664,
+   "material": {
+    "color": [
+     0.2994999885559082,
+     0.5,
+     0.44999998807907104
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.18129068613052368,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.23440265655517578,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 1.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Body_White",
+   "triangles": 377856,
+   "material": {
+    "color": [
+     0.1708277016878128,
+     0.14147555828094482,
+     0.1080395057797432
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.18129068613052368,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.23440265655517578,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Top_White",
+   "triangles": 17664,
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     0.828000009059906
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.18129068613052368,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.23440265655517578,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 1.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Chessboard",
+   "triangles": 92416,
+   "material": {
+    "color": [
+     0.0512271411716938,
+     0.05755646899342537,
+     0.05003222078084946
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.008265895769000053,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.27140361070632935,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Queen_White",
+   "triangles": 34368,
+   "material": {
+    "color": [
+     0.43148207664489746,
+     0.37521252036094666,
+     0.24716567993164062
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.29471585154533386,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.2748928368091583,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 Queen_Black",
+   "triangles": 34368,
+   "material": {
+    "color": [
+     0.21857184171676636,
+     0.22339193522930145,
+     0.1238647922873497
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.294956773519516,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.2750454246997833,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 King_White",
+   "triangles": 40480,
+   "material": {
+    "color": [
+     0.3338812291622162,
+     0.29238882660865784,
+     0.2138935923576355
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.15751037001609802,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.29168903827667236,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ABeautifulGame \u00c2\u00b7 King_Black",
+   "triangles": 40480,
+   "material": {
+    "color": [
+     0.10430070012807846,
+     0.14766345918178558,
+     0.0905143991112709
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.15732577443122864,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.37771302461624146,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "DragonAttenuation.glb": [
+  {
+   "name": "DragonAttenuation \u00c2\u00b7 Dragon with Attenuation",
+   "triangles": 91216,
+   "material": {
+    "color": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.0,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 1.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "DragonAttenuation \u00c2\u00b7 Cloth Backdrop",
+   "triangles": 43779,
+   "material": {
+    "color": [
+     0.4018023610115051,
+     0.4018023610115051,
+     0.4018023610115051
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.4934999942779541,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "Duck.glb": [
+  {
+   "name": "Duck",
+   "triangles": 4212,
+   "material": {
+    "color": [
+     0.9147471785545349,
+     0.6007971167564392,
+     0.06001228466629982
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 1.0,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "Lantern.glb": [
+  {
+   "name": "Lantern",
+   "triangles": 5392,
+   "material": {
+    "color": [
+     0.27084705233573914,
+     0.24639543890953064,
+     0.22472494840621948
+    ],
+    "emission": 0.027136920019984245,
+    "ior": 1.5,
+    "metallic": 0.19994992017745972,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.6151609420776367,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ],
+ "ToyCar.glb": [
+  {
+   "name": "ToyCar \u00c2\u00b7 Glass",
+   "triangles": 2494,
+   "material": {
+    "color": [
+     0.30000001192092896,
+     0.800000011920929,
+     0.30000001192092896
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.0,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 1.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ToyCar \u00c2\u00b7 Fabric",
+   "triangles": 17605,
+   "material": {
+    "color": [
+     0.016730520874261856,
+     0.0011081600096076727,
+     0.0012194316368550062
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 1.0,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "ToyCar \u00c2\u00b7 ToyCar",
+   "triangles": 88591,
+   "material": {
+    "color": [
+     0.3074786365032196,
+     0.2932281494140625,
+     0.2037549614906311
+    ],
+    "emission": 0.029238717630505562,
+    "ior": 1.5,
+    "metallic": 0.5907844305038452,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.26978981494903564,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
+ ]
+}

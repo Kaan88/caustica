@@ -207,9 +207,10 @@ As built: `kusama-infinity-room`, `flavin-fluorescent`, `turrell-ganzfeld`, plus
 ### Core track
 
 Order is from scene-research.md section 5, unchanged:
-1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 66 curated seeds. Mesh-based generators (Mandelbulb, terrain, Menger 3+, L-system trees) wait for mesh import (item 2).
+1. Generators. — done 2026-10-30: 11 families in `src/generators.rs`, a Generate section in the Scenes window, and a `scenes/generated` pack of 90 curated seeds. The mesh-based generators (Mandelbulb, terrain, Menger 3–4, L-system trees) followed mesh import, as `gen:` procedural meshes.
 2. Mesh import (OBJ, then glTF) with an opaque/non-opaque geometry split. — done 2026-10-30: `src/mesh.rs` reads OBJ (tobj, MTL diffuse) and glTF/GLB (node transforms, PBR base colour, roughness, metallic, emissive strength, transmission, IOR) into the same −1..1 box as the built-in shapes. *+ Mesh…* in the Scene tab opens a file picker; `Object.mesh` keeps the path (relative to `scenes/` when inside it). The BLAS has two geometries: lights hidden from the camera and glass first (any-hit loop), everything else flagged opaque. Vertices moved to a DEFAULT-heap buffer. Clicks pick on the GPU (object-id readback), so big meshes cost nothing to click.
-   - Not done: a pinned test-asset fetch script (no large models are checked yet), texture maps (track 5), one BLAS per mesh so moving a big mesh doesn't rebuild everything (track 4), the mesh-based generators listed in item 1, and a perf comparison of the opaque split (the GPU was busy with the screensaver; both builds measured the same under that load).
+   - Follow-ups done the same day: `tools/fetch_models.ps1` (11 pinned models) and a `scenes/meshes` pack; multi-material files split into one object per material; texture averages as colours; the mesh-based generators; the opaque split measured 3–8% faster.
+   - Still open: texture maps (track 5), one BLAS per mesh so moving a big mesh doesn't rebuild everything, and moving a split file's parts together (track 4 instancing; multi-select from 3b).
 3. HDRI environments with importance sampling.
 4. Multiple BLAS + TLAS instancing past 256 objects.
 5. Textures.

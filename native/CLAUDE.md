@@ -53,7 +53,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (373 with the built-in and generated packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 260 scripted frames (`SCENES_FROM`), then one frame per scene file (405 with the built-in, generated and mesh packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -403,14 +403,14 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 ## Generators (core track 1, 2026-10-30)
 
-- `generators.rs`: `generate(family, seed) -> Settings` for the 11 `FAMILIES`. RNG is xorshift64* seeded by seed and a hash of the family.
+- `generators.rs`: `generate(family, seed) -> Settings` for the 15 `FAMILIES` (the last four use procedural meshes, see "Mesh import"). RNG is xorshift64* seeded by seed and a hash of the family.
   - Helpers reuse `presets::{object, light, studio, material}` (now `pub(crate)`). `at()` places a mesh centre at a world y. `sun()` is a far quad aimed at the origin (warm 350, day 450, sky 0.2 / 0.55; brighter washed out). `frame()` is `frame_objects` × 0.78.
   - `finish()` names the scene "<family> · seed N", truncates to 256 objects and runs `fit()` (excess stretch/scale into size, angles wrapped, as build_scenes.py does).
 - New shape **Tetrahedron** (last in `Shape::ALL`; the mesh cache is indexed by enum order): base at y = −1, apex at +1, base circumradius √2.
 - Menger level 2 merges filled cells into runs along x (fits under 256). The Sierpinski child centre is c + corner·scale/2. The sphereflake uses Haines' 6 + 3 directions, rotated per parent.
-- Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 11 families; `GENERATED` table).
-- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 113 (373 frames).
-- `tools/scene_sheet.py --pack generated` renders the pack. All 66 were checked; day cities and warm suns were dimmed, framing tightened.
+- Scene files with `"generator": {"family", "seed"}` regenerate in `scenes::read` (the title overrides the name). `scenes::save_generated` writes such a file to scenes/user. `tools/build_scenes.py` also writes `scenes/generated` (6 curated seeds × 15 families; `GENERATED` table).
+- Tests: every family × 24 seeds validates and is non-empty; generation is deterministic; Menger fits. The self-test sweeps every scene file, now 145 (405 frames).
+- `tools/scene_sheet.py --pack generated` renders the pack. All 90 were checked; day cities and warm suns were dimmed, framing tightened.
 
 ## Scenes buildable today (roadmap 5e, 2026-10-30)
 
@@ -431,7 +431,13 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - The vertex buffer is a DEFAULT-heap buffer created COMMON (creating it COPY_DEST warned), filled by a copy from a staging upload, then NON_PIXEL_SHADER_RESOURCE.
 - **GPU picking:** a click stores `pick_point`; that frame's probe also copies u19 (object id) to `probe_albedo + 768`, so `Probe` has `id`. `gizmo::pick_from_probe` maps id − 1 (4 main light, 5..5+N objects, then area lights) and still tests light quads on the CPU, nearer than the GPU hit (lights hidden from the camera are not in u19). `gizmo::pick` (CPU, every triangle) stays for tests.
 - Self-test 257–259: GPU pick of object 0's projected centre; 258 imports an OBJ pyramid from the temp folder (asserts 6 triangles) plus an object with a missing mesh file.
-- Unit tests: OBJ quad, glTF triangle with an embedded base64 buffer.
+- Unit tests: OBJ quad, glTF triangle with an embedded base64 buffer, an OBJ with two materials split into parts.
+- **Parts:** a file is read as one part per material (glTF material index, OBJ `material_id`), all normalised by the file's box. `Object.mesh` = `file#n` picks part n; plain `file` is every part merged (`Imported::whole`, built lazily). `mesh::ground(o)` grounds a part by the whole file, so the parts of one file stay together. Empty parts are kept so indices never shift (terrain bands can be empty). `import_objects` (used by *+ Mesh…*) makes one object per non-empty part, named `<stem> · <material>`.
+- **glTF textures are averaged** (track 5 will sample them): base colour (sRGB → linear) and emissive multiply their factors; the metallic-roughness map's B and G multiply metallic and roughness (unaveraged, chess pieces came out fully metallic). 8-bit RGB/RGBA images only.
+- `--mesh-info files…` prints each file's parts as JSON `Object`s plus triangle counts and exits. `tools/mesh_parts.json` is that output for the test models; `tools/build_scenes.py` reads it for the `scenes/meshes` pack (8 scenes: gold dragon in the Cornell box, jade Buddha, scan gallery, Spot and Suzanne, the ASWF chess set, glass dragon, toy car, duck and lantern).
+- **Test models:** `tools/fetch_models.ps1` downloads 11 models into `scenes/models/` (gitignored), pinned to a commit and SHA-256: 6 OBJ scans from alecjacobson/common-3d-test-models (xyzrgb dragon, happy Buddha, armadillo, Lucy, Spot, Suzanne) and 5 GLBs from KhronosGroup/glTF-Sample-Assets (DragonAttenuation, Duck, Lantern, ABeautifulGame, ToyCar). Lucy is Z-up (tilt −90). Without them the mesh scenes fall back to boxes. The snapshot script copies them with the scenes (about 95 MB).
+- **Procedural meshes** (`procedural.rs`): `mesh: "gen:<kind>/<seed>[#part]"` builds in `mesh::read` and caches like a file (`resolve` leaves `gen:` paths alone). Kinds: `mandelbulb` (surface nets over the distance estimator, 240³ release / 80³ debug, sampled on all cores; power 5–9 and a phase twist per seed), `terrain` (384² fBm heightfield, ridged half the time, island falloff; parts sand / grass / rock / snow by height and slope, rock below normal.y 0.62), `menger` (voxels with exposed faces only; level 4 when seed % 3 == 0 in release, else 3), `tree` (recursive branching: 6-sided frusta, double-sided leaf cards; parts bark / leaves). The generator families `mandelbulb`, `terrain` (plus a sea box: stretch 0.065 puts it at height 0), `deep-menger` and `tree` (1–7 trees, summer or autumn) use them.
+- **Perf of the opaque split** (2026-10-30, 1440×900, 300 frames, median of 3 alternating runs vs the core1 snapshot): Classic −7% RR / −8% native, bunny −7 / −8%, mirror corridor −3 / −3%, chess −7 / −4%, neon −3 / −4%.
 
 ## Toys (roadmap 5d, 2026-10-30)
 

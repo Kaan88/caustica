@@ -1,0 +1,166 @@
+{
+ "format": 1,
+ "title": "Jade Buddha",
+ "description": "The Happy Buddha scan in green glass on a dark stage, lit from behind so the thin parts glow.",
+ "tags": [
+  "mesh",
+  "glass",
+  "scan"
+ ],
+ "credits": "Happy Buddha: Stanford 3D Scanning Repository (free for research use; credit Stanford Computer Graphics Laboratory), via common-3d-test-models",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.05,
+   0.05,
+   0.055
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Back",
+    "position": [
+     0,
+     3.2,
+     -3
+    ],
+    "rotation": [
+     43.152,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     2.4,
+     2.4
+    ],
+    "color": [
+     1.0,
+     0.8116,
+     0.6709
+    ],
+    "intensity": 14,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Fill",
+    "position": [
+     2.6,
+     2,
+     2.6
+    ],
+    "rotation": [
+     61.457,
+     45.0,
+     0.0
+    ],
+    "size": [
+     1.2,
+     1.2
+    ],
+    "color": [
+     1.0,
+     0.6241,
+     0.3893
+    ],
+    "intensity": 3,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 20,
+  "yaw": 0,
+  "pitch": 10,
+  "distance": 6.5,
+  "target": [
+   0,
+   0.1,
+   0
+  ],
+  "fov": 36.0,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "happy",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 3.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.8,
+      0.5
+     ],
+     "roughness": 0.08,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1.0,
+     "ior": 1.55,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/happy.obj"
+   }
+  ]
+ }
+}

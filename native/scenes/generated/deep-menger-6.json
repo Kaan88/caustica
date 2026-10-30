@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Deep Menger sponge 6",
+ "description": "Generated scene: deep menger sponge, seed 6. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "deep-menger"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "deep-menger",
+  "seed": 6
+ }
+}

@@ -11,6 +11,7 @@ mod lighting;
 mod look;
 mod mesh;
 mod presets;
+mod procedural;
 mod remote;
 mod saver;
 mod scene;
@@ -388,7 +389,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -2071,6 +2072,22 @@ fn run() -> Result<()> {
                 Ok(path) => println!("THUMBNAIL {}", path.display()),
                 Err(title) => println!("THUMBNAIL FAILED {title}"),
             }
+        }
+        return Ok(());
+    }
+    // Prints each mesh file's parts (one per material) as JSON objects and exits: what
+    // tools/build_scenes.py's mesh pack is written from.
+    if let Some(i) = args.iter().position(|a| a == "--mesh-info") {
+        for path in &args[i + 1..] {
+            let objects = mesh::import_objects(std::path::Path::new(path))?;
+            let triangles: Vec<usize> = objects
+                .iter()
+                .map(|o| mesh::of(o).map_or(0, |m| m.len() / 3))
+                .collect();
+            println!(
+                "{}",
+                serde_json::json!({"file": path, "triangles": triangles, "objects": objects})
+            );
         }
         return Ok(());
     }

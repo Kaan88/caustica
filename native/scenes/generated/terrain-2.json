@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Terrain island 2",
+ "description": "Generated scene: terrain island, seed 2. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "terrain"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "terrain",
+  "seed": 2
+ }
+}

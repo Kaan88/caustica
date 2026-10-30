@@ -1,0 +1,180 @@
+{
+ "format": 1,
+ "title": "Spot and Suzanne",
+ "description": "Keenan Crane's cow Spot in red lacquer meets Blender's monkey in chrome.",
+ "tags": [
+  "mesh",
+  "material"
+ ],
+ "credits": "Spot: Keenan Crane (CC0). Suzanne: the Blender Foundation's test monkey. Both via common-3d-test-models",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.08,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Cool rim",
+    "position": [
+     2.5,
+     3,
+     -2.5
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2,
+     2
+    ],
+    "color": [
+     0.42,
+     0.65,
+     1.0
+    ],
+    "intensity": 10,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 10,
+  "distance": 6.5,
+  "target": [
+   0,
+   -0.3,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "spot",
+    "shape": "box",
+    "position": [
+     -0.9,
+     0
+    ],
+    "size": 2.0,
+    "stretch": 1.0,
+    "rotation": -150,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.06,
+      0.05
+     ],
+     "roughness": 0.12,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/spot.obj"
+   },
+   {
+    "name": "suzanne",
+    "shape": "box",
+    "position": [
+     1.0,
+     -0.2
+    ],
+    "size": 1.5,
+    "stretch": 1.0,
+    "rotation": -20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.95
+     ],
+     "roughness": 0.05,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/suzanne.obj"
+   }
+  ]
+ }
+}

@@ -155,8 +155,10 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                     "Mesh",
                     "An imported mesh, scaled into the same box as the built-in shapes.",
                     |ui| {
-                        let name = std::path::Path::new(&o.mesh)
-                            .file_name()
+                        let name = Some(&o.mesh)
+                            .filter(|m| m.starts_with(crate::procedural::PREFIX))
+                            .map(std::ffi::OsStr::new)
+                            .or_else(|| std::path::Path::new(&o.mesh).file_name())
                             .map_or(o.mesh.clone(), |n| n.to_string_lossy().to_string());
                         ui.label(name).on_hover_text(&o.mesh);
                         if let Err(e) = crate::mesh::load(&o.mesh) {

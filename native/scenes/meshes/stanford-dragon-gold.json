@@ -1,0 +1,62 @@
+{
+ "format": 1,
+ "title": "Gold dragon",
+ "description": "The XYZ RGB Asian dragon scan (7.2M triangles in the original; 250k here), in gold in the Cornell box.",
+ "tags": [
+  "mesh",
+  "cornell",
+  "metal",
+  "scan"
+ ],
+ "credits": "XYZ RGB dragon: Stanford 3D Scanning Repository (free for research use; credit Stanford Computer Graphics Laboratory), via common-3d-test-models",
+ "settings": {
+  "cornell_room": true,
+  "objects": [
+   {
+    "name": "xyzrgb_dragon",
+    "shape": "box",
+    "position": [
+     0,
+     0.05
+    ],
+    "size": 2.2,
+    "stretch": 1.0,
+    "rotation": -30,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.77,
+      0.34
+     ],
+     "roughness": 0.18,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/xyzrgb_dragon.obj"
+   }
+  ]
+ }
+}

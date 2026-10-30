@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Trees 7",
+ "description": "Generated scene: trees, seed 7. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "tree"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "tree",
+  "seed": 7
+ }
+}

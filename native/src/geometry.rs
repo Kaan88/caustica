@@ -294,7 +294,7 @@ pub fn object_frame(o: &Object) -> (Vec3, glam::Mat3) {
         o.tilt[1].to_radians(),
     );
     let y = if o.grounded {
-        let imported = crate::mesh::of(o);
+        let imported = crate::mesh::ground(o);
         let source: &Mesh = imported.as_deref().unwrap_or_else(|| mesh(o.kind()));
         let ymin = source
             .iter()
@@ -322,7 +322,10 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
     );
     let imported = crate::mesh::of(o);
     let source: &Mesh = imported.as_deref().unwrap_or_else(|| mesh(o.kind()));
-    let ymin = source
+    let ground = crate::mesh::ground(o);
+    let ymin = ground
+        .as_deref()
+        .unwrap_or(source)
         .iter()
         .map(|(p, _)| r.transform_vector3(*p * scale).y)
         .fold(f32::INFINITY, f32::min);

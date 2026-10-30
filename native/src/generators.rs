@@ -6,7 +6,7 @@ use crate::scene::{MAX_OBJECTS, Material, Object, Pattern, Settings, Shape};
 use std::f32::consts::{PI, TAU};
 
 /// (id, label, what it makes)
-pub const FAMILIES: [(&str, &str, &str); 11] = [
+pub const FAMILIES: [(&str, &str, &str); 15] = [
     (
         "still-life",
         "Studio still life",
@@ -57,6 +57,26 @@ pub const FAMILIES: [(&str, &str, &str); 11] = [
         "truchet",
         "Truchet maze",
         "Diagonal tiles in random orientations (10 PRINT)",
+    ),
+    (
+        "mandelbulb",
+        "Mandelbulb",
+        "The 3D Mandelbrot set (power 5–9) as a mesh, in metal, glass or lacquer",
+    ),
+    (
+        "terrain",
+        "Terrain island",
+        "A noise heightfield island in sand, grass, rock and snow, with a sea",
+    ),
+    (
+        "deep-menger",
+        "Deep Menger sponge",
+        "A level 3 or 4 Menger sponge as one mesh",
+    ),
+    (
+        "tree",
+        "Trees",
+        "A grove of branching trees (an L-system), in summer or autumn",
     ),
 ];
 
@@ -217,6 +237,10 @@ pub fn generate(family: &str, seed: u64) -> anyhow::Result<Settings> {
         "sphereflake" => sphereflake(&mut r),
         "kaleidoscope" => kaleidoscope(&mut r),
         "truchet" => truchet(&mut r),
+        "mandelbulb" => mandelbulb(&mut r, seed),
+        "terrain" => terrain(&mut r, seed),
+        "deep-menger" => deep_menger(&mut r, seed),
+        "tree" => trees(&mut r, seed),
         _ => anyhow::bail!("Unknown generator family {family}"),
     };
     Ok(finish(s, family, seed))
@@ -1135,6 +1159,174 @@ fn truchet(r: &mut Rng) -> Settings {
     s.base = b;
     sun(&mut s, r, true);
     s.pitch = r.range(40., 65.);
+    frame(&mut s);
+    s
+}
+
+/// An object showing a procedural mesh (see procedural.rs).
+fn procedural(name: &str, spec: String, size: f32, material: Material) -> Object {
+    Object {
+        name: name.into(),
+        shape: Shape::Box,
+        mesh: format!("{}{spec}", crate::procedural::PREFIX),
+        position: [0., 0.],
+        size,
+        stretch: 1.,
+        rotation: 0.,
+        material,
+        ..Object::default()
+    }
+}
+fn mandelbulb(r: &mut Rng, seed: u64) -> Settings {
+    let mut s = base(r);
+    let h = r.next();
+    let m = match (r.next() * 3.) as u32 {
+        0 => Material {
+            color: hue(h, r.range(0.2, 0.6), 0.95),
+            metallic: 1.,
+            roughness: r.range(0.08, 0.3),
+            ..Material::default()
+        },
+        1 => Material {
+            color: hue(h, r.range(0.1, 0.4), 0.95),
+            transmission: 1.,
+            roughness: 0.,
+            ..Material::default()
+        },
+        _ => Material {
+            color: hue(h, r.range(0.5, 0.9), r.range(0.5, 0.85)),
+            roughness: r.range(0.1, 0.35),
+            reflectivity: 0.5,
+            ..Material::default()
+        },
+    };
+    let mut o = procedural("Mandelbulb", format!("mandelbulb/{seed}"), 6., m);
+    o.rotation = r.range(-180., 180.);
+    s.objects.push(o);
+    s.bounces = 16;
+    frame(&mut s);
+    s
+}
+fn terrain(r: &mut Rng, seed: u64) -> Settings {
+    let mut s = base(r);
+    let warm = r.chance(0.35);
+    sun(&mut s, r, warm);
+    let size = 16.;
+    let bands = [
+        ([0.62, 0.52, 0.36], 0.9),
+        (
+            hue(r.range(0.2, 0.32), r.range(0.4, 0.7), r.range(0.3, 0.5)),
+            0.85,
+        ),
+        ([0.28, 0.26, 0.24], 0.8),
+        ([0.9, 0.92, 0.95], 0.5),
+    ];
+    for (i, (color, roughness)) in bands.into_iter().enumerate() {
+        let mut o = procedural(
+            "Terrain",
+            format!("terrain/{seed}#{i}"),
+            size,
+            Material {
+                color,
+                roughness,
+                ..Material::default()
+            },
+        );
+        o.name = ["Sand", "Grass", "Rock", "Snow"][i].into();
+        s.objects.push(o);
+    }
+    // Sea level (height 0) sits 0.12 mesh units above the clamped sea bed.
+    s.objects.push(Object {
+        name: "Sea".into(),
+        shape: Shape::Box,
+        position: [0., 0.],
+        size,
+        stretch: 0.065,
+        scale_xz: [1.2, 1.2],
+        rotation: 0.,
+        material: Material {
+            color: [0.01, 0.05, 0.08],
+            roughness: 0.12,
+            reflectivity: 0.25,
+            ..Material::default()
+        },
+        ..Object::default()
+    });
+    s.floor_extent = 30.;
+    s.floor.color = [0.05, 0.09, 0.12];
+    s.bounces = 8;
+    frame(&mut s);
+    s.distance *= 0.75;
+    s.pitch = r.range(18., 35.);
+    s
+}
+fn deep_menger(r: &mut Rng, seed: u64) -> Settings {
+    let mut s = base(r);
+    let m = Material {
+        color: hue(r.next(), r.range(0.2, 0.7), r.range(0.6, 0.9)),
+        roughness: r.range(0.2, 0.6),
+        metallic: if r.chance(0.3) { 1. } else { 0. },
+        ..Material::default()
+    };
+    let mut o = procedural("Sponge", format!("menger/{seed}"), 5., m);
+    o.rotation = r.range(-45., 45.);
+    s.objects.push(o);
+    s.light_size = 2.;
+    s.light_intensity = 16.;
+    s.bounces = 12;
+    frame(&mut s);
+    s
+}
+fn trees(r: &mut Rng, seed: u64) -> Settings {
+    let mut s = base(r);
+    let autumn = r.chance(0.4);
+    let count = r.pick(&[1, 3, 5, 7]);
+    let warm = autumn || r.chance(0.3);
+    sun(&mut s, r, warm);
+    s.floor.color = hue(r.range(0.22, 0.3), 0.5, 0.35);
+    s.floor.roughness = 0.95;
+    for i in 0..count {
+        let (angle, radius) = (r.range(0., TAU), if i == 0 { 0. } else { r.range(1.5, 4.) });
+        let position = [angle.cos() * radius, angle.sin() * radius];
+        let size = r.range(4., 6.5);
+        let rotation = r.range(-180., 180.);
+        let leaves = if autumn {
+            hue(r.range(0.0, 0.12), r.range(0.7, 0.95), r.range(0.6, 0.9))
+        } else {
+            hue(r.range(0.22, 0.36), r.range(0.5, 0.8), r.range(0.35, 0.6))
+        };
+        for (part, name, material) in [
+            (
+                0,
+                "Bark",
+                Material {
+                    color: [0.16, 0.11, 0.07],
+                    roughness: 0.9,
+                    ..Material::default()
+                },
+            ),
+            (
+                1,
+                "Leaves",
+                Material {
+                    color: leaves,
+                    roughness: 0.6,
+                    ..Material::default()
+                },
+            ),
+        ] {
+            let mut o = procedural(
+                name,
+                format!("tree/{}#{part}", seed * 16 + i),
+                size,
+                material,
+            );
+            o.position = position;
+            o.rotation = rotation;
+            s.objects.push(o);
+        }
+    }
+    s.bounces = 8;
     frame(&mut s);
     s
 }

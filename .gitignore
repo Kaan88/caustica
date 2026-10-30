@@ -13,3 +13,4 @@ native/cornell*.exr
 # Python bytecode and local Claude Code settings
 __pycache__/
 .claude/settings.local.json
+native/scenes/models/

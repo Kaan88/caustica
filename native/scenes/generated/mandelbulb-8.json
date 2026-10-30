@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Mandelbulb 8",
+ "description": "Generated scene: mandelbulb, seed 8. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "mandelbulb"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "mandelbulb",
+  "seed": 8
+ }
+}

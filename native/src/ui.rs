@@ -1883,11 +1883,19 @@ impl App {
                     .set_directory(crate::scenes::folder().unwrap_or_default())
                     .pick_file()
             {
-                match crate::mesh::import_object(&path) {
-                    Ok(o) => {
+                match crate::mesh::import_objects(&path) {
+                    Ok(parts) => {
                         state.checkpoint(s);
-                        s.objects.push(o);
-                        state.selection = Selection::Object(s.objects.len() - 1);
+                        let first = s.objects.len();
+                        let room = scene::MAX_OBJECTS - first;
+                        if parts.len() > room {
+                            state.error(format!(
+                                "Only {room} of {} parts fit (256 objects)",
+                                parts.len()
+                            ));
+                        }
+                        s.objects.extend(parts.into_iter().take(room));
+                        state.selection = Selection::Object(first);
                     }
                     Err(e) => state.error(format!("{e:#}")),
                 }

@@ -1217,6 +1217,10 @@ GENERATED = {
     "sphereflake": ("Sphereflake", [1, 5, 9, 12, 20, 44]),
     "kaleidoscope": ("Kaleidoscope", [4, 8, 15, 23, 38, 61]),
     "truchet": ("Truchet maze", [2, 10, 14, 26, 39, 52]),
+    "mandelbulb": ("Mandelbulb", [1, 2, 4, 5, 6, 8]),
+    "terrain": ("Terrain island", [1, 2, 3, 4, 6, 8]),
+    "deep-menger": ("Deep Menger sponge", [1, 3, 4, 6, 7, 8]),
+    "tree": ("Trees", [1, 3, 4, 6, 7, 8]),
 }
 
 
@@ -1239,6 +1243,104 @@ def write_generated():
     print(f"wrote {len(files)} generated scenes to {out}")
 
 
+# ---------------------------------------------------------------- mesh pack
+# Scenes built on the models of tools/fetch_models.ps1 (scenes/models, gitignored). Part names and
+# file materials come from tools/mesh_parts.json, written by `cornell-rtx.exe --mesh-info`.
+PARTS = json.loads((Path(__file__).resolve().parent / "mesh_parts.json").read_text(encoding="utf-8"))
+MESH_SCENES = []
+
+
+def mesh(file, x, z, size, material=None, *, part=None, **kw):
+    """An imported mesh object; material None takes the file's (per part)."""
+    info = PARTS[file][part or 0]
+    o = obj(info["name"], "box", x, z, size, material or info["material"], **kw)
+    o["mesh"] = f"models/{file}" + (f"#{part}" if part is not None else "")
+    return o
+
+
+def whole(file, x, z, size, overrides=None, **kw):
+    """Every part of a multi-material file, with the same transform so they line up."""
+    overrides = overrides or {}
+    return [mesh(file, x, z, size, overrides.get(PARTS[file][i]["name"].split(" · ")[-1]), part=i, **kw)
+            for i in range(len(PARTS[file]))]
+
+
+def mesh_scene(slug, title, description, tags, credits, settings):
+    MESH_SCENES.append((slug, {"format": 1, "title": title, "description": description, "tags": ["mesh", *tags],
+                               "credits": credits, "settings": settings}))
+
+
+STANFORD = "Stanford 3D Scanning Repository (free for research use; credit Stanford Computer Graphics Laboratory), via common-3d-test-models"
+KHRONOS = "Khronos glTF-Sample-Assets (licence in the model's README)"
+
+mesh_scene("stanford-dragon-gold", "Gold dragon",
+           "The XYZ RGB Asian dragon scan (7.2M triangles in the original; 250k here), in gold in the Cornell box.",
+           ["cornell", "metal", "scan"], "XYZ RGB dragon: " + STANFORD,
+           cornell(objects=[mesh("xyzrgb_dragon.obj", 0, 0.05, 2.2, M((1.0, 0.77, 0.34), 0.18, metal=1.0), rotation=-30)]))
+mesh_scene("happy-buddha-jade", "Jade Buddha",
+           "The Happy Buddha scan in green glass on a dark stage, lit from behind so the thin parts glow.",
+           ["glass", "scan"], "Happy Buddha: " + STANFORD,
+           dark_stage(lights=[light("Back", (0, 3.2, -3), (2.4, 2.4), kelvin(5200), 14, target=(0, 0, 0)),
+                              light("Fill", (2.6, 2, 2.6), (1.2, 1.2), kelvin(4000), 3, target=(0, 0, 0))],
+                      bounces=20, objects=[mesh("happy.obj", 0, 0, 3.4, M((0.35, 0.8, 0.5), 0.08, trans=1.0, ior=1.55))],
+                      **camera(0, 10, 6.5, (0, 0.1, 0))))
+mesh_scene("scan-gallery", "Scan gallery",
+           "The Stanford armadillo and Lucy on plinths, in plaster and bronze.",
+           ["museum", "scan"], "Armadillo and Lucy: " + STANFORD,
+           studio(objects=[obj("Plinth", "box", -1.3, 0, 1.6, M((0.85, 0.84, 0.8), 0.6), stretch=0.6),
+                           obj("Plinth", "box", 1.3, 0, 1.6, M((0.85, 0.84, 0.8), 0.6), stretch=0.6),
+                           mesh("armadillo.obj", -1.3, 0, 2.0, M((0.9, 0.88, 0.84), 0.75), rotation=180, elevation=0.56),
+                           mesh("lucy.obj", 1.3, 0, 2.4, M((0.8, 0.5, 0.28), 0.32, metal=1.0), tilt=(-90, 0), rotation=180, elevation=0.56)],
+                  **camera(0, 8, 8.5, (0, 0.2, 0))))
+mesh_scene("spot-and-suzanne", "Spot and Suzanne",
+           "Keenan Crane's cow Spot in red lacquer meets Blender's monkey in chrome.",
+           ["material"], "Spot: Keenan Crane (CC0). Suzanne: the Blender Foundation's test monkey. Both via common-3d-test-models",
+           studio(objects=[mesh("spot.obj", -0.9, 0, 2.0, lacquer((0.75, 0.06, 0.05)), rotation=210),
+                           mesh("suzanne.obj", 1.0, -0.2, 1.5, M((0.95, 0.95, 0.95), 0.05, metal=1.0), rotation=-20)],
+                  **camera(0, 10, 6.5, (0, -0.3, 0))))
+mesh_scene("beautiful-game", "A beautiful game",
+           "The ASWF chess set mid-game: wood, glass pawn tops and the board, one object per material.",
+           ["chess", "glass", "gltf"], "A Beautiful Game: " + KHRONOS,
+           studio(light_position=[-2.0, 5.0, 3.0], light_size=2.0, light_intensity=14.0, light_temperature=4200.0, bounces=16,
+                  exposure=1.5, objects=whole("ABeautifulGame.glb", 0, 0, 5),
+                  **camera(25, 30, 5.5, (0, -0.8, 0))))
+mesh_scene("glass-dragon", "Glass dragon",
+           "The Stanford dragon in clear glass on a cloth backdrop, from the Khronos attenuation sample.",
+           ["glass", "caustics", "gltf"], "Dragon Attenuation: " + KHRONOS,
+           studio(bounces=20, objects=whole("DragonAttenuation.glb", 0, 0, 4,
+                                            {"Dragon with Attenuation": M((0.95, 0.75, 0.45), 0.0, trans=1.0, ior=1.5)}),
+                  **camera(0, 6, 4.6, (0, -0.4, 0))))
+mesh_scene("toy-car", "Toy car",
+           "The Khronos toy car on its cloth: clearcoat paint, fabric and green glass.",
+           ["vehicle", "gltf"], "Toy Car: " + KHRONOS,
+           studio(bounces=16, objects=whole("ToyCar.glb", 0, 0, 4), **camera(-30, 16, 4.2, (0, -0.4, 0))))
+mesh_scene("duck-and-lantern", "Duck and lantern",
+           "The glTF duck under a lamp post at dusk.",
+           ["dusk", "gltf"], "Duck and Lantern: " + KHRONOS,
+           studio(light_position=[0.7, 2.4, 0.4], light_size=0.5, light_intensity=40.0, light_temperature=2700.0,
+                  sky=0.12, base=[0.18, 0.2, 0.32], lights=[],
+                  objects=[mesh("Lantern.glb", 0, 0, 4.0, rotation=90), mesh("Duck.glb", 1.2, 0.6, 0.9, rotation=-40)],
+                  **camera(15, 10, 7.5, (0.3, 0.4, 0))))
+
+
+def write_meshes():
+    problems = [p for slug, data in MESH_SCENES for p in check(slug, data["settings"])]
+    if problems:
+        raise SystemExit("; ".join(problems))
+    out = OUT.parent / "meshes"
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.json"):
+        old.unlink()
+    for slug, data in MESH_SCENES:
+        (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    pack = {"name": "Mesh scenes", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
+            "attribution": "See credits", "source": "tools/fetch_models.ps1",
+            "description": "Scanned and glTF models. Run tools/fetch_models.ps1 first; without the models each object falls back to a box.",
+            "scenes": [f"{slug}.json" for slug, _ in MESH_SCENES]}
+    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
+    print(f"wrote {len(MESH_SCENES)} mesh scenes to {out}")
+
+
 # ---------------------------------------------------------------- write
 def main():
     problems = [p for slug, data in SCENES for p in check(slug, data["settings"])]
@@ -1256,6 +1358,7 @@ def main():
     (OUT / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {len(SCENES)} scenes to {OUT}")
     write_generated()
+    write_meshes()
 
 
 if __name__ == "__main__":
