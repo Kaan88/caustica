@@ -1318,7 +1318,7 @@ impl App {
         } else {
             self.walking = Some(crate::walk::Walk::enter(&mut self.settings));
             self.ui.toast(
-                "Walk mode: WASD move, Q / E down / up, Shift run, drag to look, Esc to stop",
+                "Walk mode: WASD, Space jump, C crouch, Shift run, F fly, wheel body size, drag to look, Esc to stop",
             );
         }
     }
@@ -2177,7 +2177,9 @@ impl App {
                 }
                 if ui
                     .selectable_label(self.walking.is_some(), "Walk")
-                    .on_hover_text("Walk mode (`): WASD, Q / E, Shift to run, drag to look")
+                    .on_hover_text(
+                        "Walk mode (`): WASD, Space jump, C or Ctrl crouch, Shift run, F fly                          (Q / E down / up), B head bob, wheel body size, drag to look",
+                    )
                     .clicked()
                 {
                     self.toggle_walk();
@@ -3469,6 +3471,10 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("Ctrl+click", "Focus the lens there"),
             ("A", "Auto orbit"),
             ("`", "Walk mode (WASD, Esc to leave)"),
+            (
+                "Walking",
+                "Space jump, C crouch, Shift run, F fly, B head bob, wheel body size",
+            ),
         ],
     ),
     (

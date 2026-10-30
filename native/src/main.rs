@@ -1340,6 +1340,9 @@ impl App {
                 self.shift,
                 &self.geom_key,
             );
+            if let Some(note) = w.message() {
+                self.ui.toast(note);
+            }
         }
         // The phone remote and gamepad edit the settings; they wait while a video renders.
         if self.export.is_none() {
@@ -2469,8 +2472,13 @@ impl ApplicationHandler for App {
                         MouseScrollDelta::LineDelta(_, y) => y,
                         MouseScrollDelta::PixelDelta(p) => p.y as f32 / 60.,
                     };
-                    self.settings.distance =
-                        (self.settings.distance * (-d * 0.1).exp()).clamp(0.5, 200.);
+                    if let Some(w) = &mut self.walking {
+                        // Walking, the wheel sizes the body instead of zooming.
+                        w.zoom(d);
+                    } else {
+                        self.settings.distance =
+                            (self.settings.distance * (-d * 0.1).exp()).clamp(0.5, 200.);
+                    }
                 }
             }
             // Walk mode owns WASD / Q / E while it runs; held keys are tracked for movement.
@@ -2484,6 +2492,28 @@ impl ApplicationHandler for App {
                             self.walking = None;
                             self.keys_down.clear();
                             self.ui.toast("Walk mode off");
+                        } else if !event.repeat
+                            && let Some(w) = &mut self.walking
+                        {
+                            match code {
+                                KeyCode::KeyF => {
+                                    w.toggle_fly();
+                                    self.ui.toast(if w.fly {
+                                        "Fly: Q / E down / up (F to walk)"
+                                    } else {
+                                        "Walking (F to fly)"
+                                    });
+                                }
+                                KeyCode::KeyB => {
+                                    w.bob = !w.bob;
+                                    self.ui.toast(if w.bob {
+                                        "Head bob on"
+                                    } else {
+                                        "Head bob off"
+                                    });
+                                }
+                                _ => {}
+                            }
                         }
                     } else {
                         self.keys_down.remove(&code);

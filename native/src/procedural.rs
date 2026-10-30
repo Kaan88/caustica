@@ -336,6 +336,7 @@ fn menger(seed: u64) -> Geometry {
 fn tree(r: &mut Rng) -> Vec<(String, Geometry)> {
     let mut bark = vec![];
     let mut leaves = vec![];
+    let mut tinted = vec![];
     let depth = r.pick(&[6, 7, 7, 8]);
     let spread = r.range(22., 42.).to_radians();
     let children = r.pick(&[2, 2, 3]);
@@ -359,22 +360,25 @@ fn tree(r: &mut Rng) -> Vec<(String, Geometry)> {
         let tip_radius = b.radius * 0.72;
         frustum(&mut bark, b.base, tip, b.radius, tip_radius);
         if b.depth + 1 >= depth {
-            // Leaf cards around the twig tip, double-sided.
+            // Leaves around the twig tip, about a third of them in the second leaf part
+            // (its own colour).
             for _ in 0..6 {
                 let centre =
                     tip + Vec3::new(r.range(-1., 1.), r.range(-0.5, 1.), r.range(-1., 1.)) * 0.12;
                 let n = Vec3::new(r.range(-1., 1.), r.range(0.2, 1.), r.range(-1., 1.)).normalize();
-                let u = n.any_orthonormal_vector() * leaf_size;
-                let v = n.cross(u);
-                let quad = [
-                    centre - u - v,
-                    centre + u - v,
-                    centre + u + v,
-                    centre - u + v,
-                ];
-                for (side, order) in [(n, [0, 1, 2, 0, 2, 3]), (-n, [0, 2, 1, 0, 3, 2])] {
-                    leaves.extend(order.map(|i| (quad[i], side)));
-                }
+                let out = if r.chance(0.35) {
+                    &mut tinted
+                } else {
+                    &mut leaves
+                };
+                leaf(
+                    out,
+                    centre,
+                    n,
+                    n.any_orthonormal_vector(),
+                    leaf_size * r.range(1.1, 1.5),
+                    r.range(0.1, 0.35),
+                );
             }
             continue;
         }
@@ -398,7 +402,33 @@ fn tree(r: &mut Rng) -> Vec<(String, Geometry)> {
     vec![
         ("Bark".into(), Geometry::Flat(bark)),
         ("Leaves".into(), Geometry::Flat(leaves)),
+        ("Leaves (tint)".into(), Geometry::Flat(tinted)),
     ]
+}
+/// One leaf: a pointed oval along `along` (petiole at `centre − along·size`, tip at
+/// `centre + along·size`) in the plane facing `n`, folded along its midrib by `fold` (the
+/// edges drop by fold × half width). Single-sided: the shader turns normals toward the ray.
+fn leaf(out: &mut Vec<(Vec3, Vec3)>, centre: Vec3, n: Vec3, along: Vec3, size: f32, fold: f32) {
+    let side = n.cross(along);
+    let mid = |t: f32| centre + along * size * (2. * t - 1.);
+    // Midrib at t = 0, ⅓, ⅔, 1; edges at ⅓ and ⅔, wider toward the base.
+    let m = [0., 1. / 3., 2. / 3., 1.].map(mid);
+    let edge = |t: f32, s: f32| {
+        let w = size * if t < 0.5 { 0.55 } else { 0.4 };
+        mid(t) + side * (s * w) - n * (fold * w)
+    };
+    for s in [-1., 1.] {
+        let (e1, e2) = (edge(1. / 3., s), edge(2. / 3., s));
+        for tri in [
+            [m[0], m[1], e1],
+            [m[1], m[2], e2],
+            [m[1], e2, e1],
+            [m[2], m[3], e2],
+        ] {
+            let normal = (tri[1] - tri[0]).cross(tri[2] - tri[0]).normalize_or(n);
+            out.extend(tri.map(|p| (p, normal)));
+        }
+    }
 }
 /// A six-sided tapered cylinder from `a` to `b` with smooth side normals (open ends: each
 /// rests inside its parent).

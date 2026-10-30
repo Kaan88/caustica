@@ -1307,6 +1307,7 @@ fn trees(r: &mut Rng, seed: u64) -> Settings {
         } else {
             hue(r.range(0.22, 0.36), r.range(0.5, 0.8), r.range(0.35, 0.6))
         };
+        let tint = leaf_tint(r, autumn);
         for (part, name, material) in [
             (
                 0,
@@ -1322,6 +1323,15 @@ fn trees(r: &mut Rng, seed: u64) -> Settings {
                 "Leaves",
                 Material {
                     color: leaves,
+                    roughness: 0.6,
+                    ..Material::default()
+                },
+            ),
+            (
+                2,
+                "Leaves (tint)",
+                Material {
+                    color: tint,
                     roughness: 0.6,
                     ..Material::default()
                 },
@@ -1342,6 +1352,14 @@ fn trees(r: &mut Rng, seed: u64) -> Settings {
     frame(&mut s);
     s
 }
+/// The second leaf colour of a tree: yellower and lighter in summer, any autumn hue.
+fn leaf_tint(r: &mut Rng, autumn: bool) -> [f32; 3] {
+    if autumn {
+        hue(r.range(0.0, 0.14), r.range(0.6, 0.95), r.range(0.5, 0.9))
+    } else {
+        hue(r.range(0.16, 0.26), r.range(0.5, 0.8), r.range(0.4, 0.65))
+    }
+}
 /// Many trees from a handful of tree meshes: each mesh is one BLAS, every tree an instance.
 fn forest(r: &mut Rng, seed: u64) -> Settings {
     let mut s = base(r);
@@ -1352,7 +1370,8 @@ fn forest(r: &mut Rng, seed: u64) -> Settings {
     s.floor.roughness = 0.95;
     s.floor_extent = 40.;
     let species = 6;
-    let count = r.pick(&[400, 800, 1200, 1800]);
+    // Three objects per tree (bark and two leaf colours) within MAX_OBJECTS.
+    let count = r.pick(&[400, 800, 1100, 1350]);
     let radius = (count as f32).sqrt() * 0.55;
     for _ in 0..count {
         let (angle, d) = (r.range(0., TAU), radius * r.next().sqrt());
@@ -1364,9 +1383,11 @@ fn forest(r: &mut Rng, seed: u64) -> Settings {
         } else {
             hue(r.range(0.2, 0.36), r.range(0.5, 0.8), r.range(0.3, 0.55))
         };
+        let tint = leaf_tint(r, autumn);
         for (part, name, color, roughness) in [
             (0, "Bark", [0.16, 0.11, 0.07], 0.9),
             (1, "Leaves", leaves, 0.6),
+            (2, "Leaves (tint)", tint, 0.6),
         ] {
             let mut o = procedural(
                 name,
