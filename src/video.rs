@@ -7,7 +7,7 @@ use crate::gpu::Gpu;
 use crate::scene::Settings;
 use anyhow::{Context, Result};
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -63,6 +63,128 @@ impl Format {
         }
     }
 }
+/// Still image formats, shared by *Save the current image*, the high-resolution still and the
+/// image sequences, so they write the same files.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ImageFormat {
+    /// 8-bit sRGB, tone-mapped (texture 10).
+    Png,
+    /// 8-bit sRGB, tone-mapped, at the JPEG quality (1–100).
+    Jpeg,
+    /// Linear scene light, 32-bit float RGB (texture 18).
+    Exr,
+    /// What the HDR screen shows: 16-bit PQ / BT.2020 with a cICP chunk (texture 26, HDR only).
+    HdrPng,
+}
+impl ImageFormat {
+    pub const ALL: [ImageFormat; 4] = [
+        ImageFormat::Png,
+        ImageFormat::Jpeg,
+        ImageFormat::Exr,
+        ImageFormat::HdrPng,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "PNG",
+            ImageFormat::Jpeg => "JPEG",
+            ImageFormat::Exr => "HDR EXR",
+            ImageFormat::HdrPng => "HDR PNG",
+        }
+    }
+    pub fn description(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "The tone-mapped image, 8-bit sRGB, lossless.",
+            ImageFormat::Jpeg => "The tone-mapped image, 8-bit sRGB, at the JPEG quality.",
+            ImageFormat::Exr => "Linear scene light, 32-bit float.",
+            ImageFormat::HdrPng => {
+                "What the HDR screen shows, 16-bit PQ / BT.2020 (HDR output only)."
+            }
+        }
+    }
+    pub fn extension(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "png",
+            ImageFormat::Jpeg => "jpg",
+            ImageFormat::Exr => "exr",
+            ImageFormat::HdrPng => "hdr.png",
+        }
+    }
+    /// `stem` plus this format's extension (`hdr.png` keeps the PQ PNG apart from the plain one).
+    pub fn file(self, stem: &str) -> PathBuf {
+        PathBuf::from(format!("{stem}.{}", self.extension()))
+    }
+    pub fn needs_hdr(self) -> bool {
+        self == ImageFormat::HdrPng
+    }
+}
+/// Reads the texture `format` is written from.
+unsafe fn read_image(g: &mut Gpu, format: ImageFormat) -> Result<Frame> {
+    Ok(match format {
+        ImageFormat::Png | ImageFormat::Jpeg => Frame::Rgba8(g.read_rgba8(10)?),
+        ImageFormat::Exr => Frame::Linear(g.read_floats(18)?),
+        ImageFormat::HdrPng => {
+            anyhow::ensure!(g.hdr_active, "HDR PNG needs HDR output");
+            Frame::Scrgb(g.read_floats(26)?)
+        }
+    })
+}
+/// Writes one image; `quality` is the JPEG quality.
+fn write_image(
+    path: &Path,
+    format: ImageFormat,
+    quality: u32,
+    frame: &Frame,
+    w: u32,
+    h: u32,
+) -> Result<()> {
+    let rgb = |pixels: &[f32]| -> Vec<f32> {
+        pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(|c| [c[0], c[1], c[2]])
+            .collect()
+    };
+    match (format, frame) {
+        (ImageFormat::Png, Frame::Rgba8(rgba)) => image::save_buffer_with_format(
+            path,
+            rgba,
+            w,
+            h,
+            image::ColorType::Rgba8,
+            image::ImageFormat::Png,
+        )?,
+        (ImageFormat::Jpeg, Frame::Rgba8(rgba)) => {
+            let pixels: Vec<u8> = rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .flat_map(|c| [c[0], c[1], c[2]])
+                .collect();
+            let file = std::io::BufWriter::new(std::fs::File::create(path)?);
+            image::codecs::jpeg::JpegEncoder::new_with_quality(file, quality.clamp(1, 100) as u8)
+                .encode(&pixels, w, h, image::ExtendedColorType::Rgb8)?;
+        }
+        (ImageFormat::Exr, Frame::Linear(f)) => image::Rgb32FImage::from_raw(w, h, rgb(f))
+            .context("EXR size")?
+            .save_with_format(path, image::ImageFormat::OpenExr)?,
+        (ImageFormat::HdrPng, Frame::Scrgb(f)) => crate::display::write_hdr_png(path, f, w, h)?,
+        _ => anyhow::bail!("{format:?} got the wrong pixels"),
+    }
+    Ok(())
+}
+/// Saves the image on screen (without the UI) at the output size.
+pub unsafe fn save_current(
+    g: &mut Gpu,
+    format: ImageFormat,
+    quality: u32,
+    path: &Path,
+) -> Result<()> {
+    let frame = read_image(g, format)?;
+    write_image(path, format, quality, &frame, g.width, g.height)
+}
+pub const JPEG_QUALITY: u32 = 92;
+
 pub const PRORES_PROFILES: [&str; 4] = ["Proxy", "LT", "422", "422 HQ"];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -94,6 +216,9 @@ pub struct Options {
     /// One image written to `path` itself (the high-resolution still) instead of a folder of
     /// numbered frames.
     pub still: bool,
+    /// The still's format and the JPEG quality (sequences take theirs from `format`).
+    pub image: ImageFormat,
+    pub jpeg_quality: u32,
 }
 impl Options {
     /// The turntable of older builds: the current camera turning, H.264 at CRF 16.
@@ -113,6 +238,8 @@ impl Options {
             easing: Easing::Linear,
             path,
             still: false,
+            image: ImageFormat::Png,
+            jpeg_quality: JPEG_QUALITY,
         }
     }
     /// Output size: video encoders take 4:2:x chroma, so their sizes round down to even.
@@ -150,16 +277,20 @@ impl Options {
             self.folder()
         }
     }
+    /// The image format of the still or of a sequence's frames.
+    pub fn image_format(&self) -> ImageFormat {
+        match self.format {
+            _ if self.still => self.image,
+            Format::Exr => ImageFormat::Exr,
+            _ => ImageFormat::Png,
+        }
+    }
     /// The file of frame `number` (from 1) of an image export.
     fn frame_path(&self, number: u32) -> PathBuf {
         if self.still {
             self.path.clone()
         } else {
-            let ext = if self.format == Format::Exr {
-                "exr"
-            } else {
-                "png"
-            };
+            let ext = self.image_format().extension();
             self.folder().join(format!("{number:05}.{ext}"))
         }
     }
@@ -353,29 +484,14 @@ impl Writer {
                         }
                         .map_err(anyhow::Error::from)
                     }
-                    (None, Frame::Rgba8(rgba)) => image::save_buffer(
-                        options.frame_path(number),
-                        &rgba,
+                    (None, frame) => write_image(
+                        &options.frame_path(number),
+                        options.image_format(),
+                        options.jpeg_quality,
+                        &frame,
                         w,
                         h,
-                        image::ColorType::Rgba8,
-                    )
-                    .map_err(anyhow::Error::from),
-                    (None, Frame::Linear(f)) => {
-                        let rgb = f
-                            .as_chunks::<4>()
-                            .0
-                            .iter()
-                            .flat_map(|c| [c[0], c[1], c[2]])
-                            .collect();
-                        image::Rgb32FImage::from_raw(w, h, rgb)
-                            .context("EXR size")
-                            .and_then(|i| {
-                                i.save(options.frame_path(number))
-                                    .map_err(anyhow::Error::from)
-                            })
-                    }
-                    (None, Frame::Scrgb(_)) => Ok(()),
+                    ),
                 };
                 if let Err(e) = result {
                     failed = Some(e);
@@ -457,6 +573,10 @@ impl Job {
             options.format != Format::Hdr10 || g.hdr_active,
             "HDR10 video needs HDR output"
         );
+        anyhow::ensure!(
+            options.format.video() || !options.image_format().needs_hdr() || g.hdr_active,
+            "HDR PNG needs HDR output"
+        );
         anyhow::ensure!(options.frames > 0, "No frames to render");
         let mut v = s.clone();
         v.scale = 1.;
@@ -532,8 +652,11 @@ impl Job {
         self.preview = Some(preview(&rgba, g.width, g.height));
         let frame = match self.options.format {
             Format::Hdr10 => Frame::Scrgb(g.read_floats(26)?),
-            Format::Exr => Frame::Linear(g.read_floats(18)?),
-            _ => Frame::Rgba8(rgba),
+            f if f.video() => Frame::Rgba8(rgba),
+            _ => match self.options.image_format() {
+                ImageFormat::Png | ImageFormat::Jpeg => Frame::Rgba8(rgba),
+                format => read_image(g, format)?,
+            },
         };
         self.pending = self.writer.try_send(frame)?;
         self.frame += 1;

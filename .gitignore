@@ -9,6 +9,7 @@ builds/
 settings.json
 cornell*.png
 cornell*.exr
+cornell*.jpg
 
 # Python bytecode and local Claude Code settings
 __pycache__/

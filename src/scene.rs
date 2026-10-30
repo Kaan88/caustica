@@ -52,6 +52,8 @@ pub const MAX_OBJECTS: usize = 4096;
 pub const MAX_LIGHTS: usize = 32;
 /// DLSS Super Resolution presets offered by SDK 310.9.16 (`NVSDK_NGX_DLSS_Hint_Render_Preset`).
 /// A–D are removed, E/F deprecated, and G–I, N, O revert to the default.
+/// Pixel reconstruction filters of the progressive path (`Settings::pixel_filter`).
+pub const PIXEL_FILTERS: [&str; 3] = ["Box", "Gaussian", "Blackman-Harris"];
 pub const DLSS_PRESETS: [(u32, &str); 5] = [
     (0, "NVIDIA default"),
     (10, "J · transformer, less ghosting"),
@@ -357,6 +359,12 @@ pub struct Settings {
     /// At 100% resolution, run the temporal upscaler as anti-aliasing (DLAA / Native AA)
     /// instead of the progressive native path.
     pub native_aa: bool,
+    /// Pixel reconstruction filter of the progressive path (RR and the temporal upscalers set
+    /// their own jitter): 0 box, 1 Gaussian, 2 Blackman-Harris; `filter_width` in pixels.
+    pub pixel_filter: u32,
+    pub filter_width: f32,
+    /// Most texture taps along a grazing footprint (1 = isotropic, up to 16).
+    pub anisotropy: u32,
     /// Display output: 0 follows Windows HDR, 1 always SDR, 2 forces the scRGB HDR path.
     pub hdr_mode: u32,
     /// HDR peak and paper white in nits; 0 takes the values Windows reports.
@@ -473,6 +481,9 @@ impl Default for Settings {
             upscaler: Upscaler::Dlss,
             dlss_preset: 0,
             native_aa: false,
+            pixel_filter: 2,
+            filter_width: 1.5,
+            anisotropy: 16,
             hdr_mode: 0,
             hdr_peak: 0.,
             hdr_white: 0.,
@@ -582,6 +593,9 @@ impl Settings {
         self.upscaler = from.upscaler;
         self.dlss_preset = from.dlss_preset;
         self.native_aa = from.native_aa;
+        self.pixel_filter = from.pixel_filter;
+        self.filter_width = from.filter_width;
+        self.anisotropy = from.anisotropy;
         self.hdr_mode = from.hdr_mode;
         self.hdr_peak = from.hdr_peak;
         self.hdr_white = from.hdr_white;
@@ -599,6 +613,7 @@ impl Settings {
             self.upscaler,
             (self.dlss_preset, self.native_aa),
             (self.hdr_mode, self.hdr_peak, self.hdr_white),
+            (self.pixel_filter, self.filter_width, self.anisotropy),
         );
         *self = Self::default();
         match id {
@@ -704,6 +719,7 @@ impl Settings {
             self.upscaler,
             (self.dlss_preset, self.native_aa),
             (self.hdr_mode, self.hdr_peak, self.hdr_white),
+            (self.pixel_filter, self.filter_width, self.anisotropy),
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {
@@ -730,6 +746,15 @@ impl Settings {
         anyhow::ensure!(
             DLSS_PRESETS.iter().any(|(id, _)| *id == self.dlss_preset),
             "Invalid DLSS Super Resolution preset"
+        );
+        anyhow::ensure!(
+            (self.pixel_filter as usize) < PIXEL_FILTERS.len()
+                && (0.5..=4.).contains(&self.filter_width),
+            "Invalid pixel filter"
+        );
+        anyhow::ensure!(
+            (1..=16).contains(&self.anisotropy),
+            "Invalid texture anisotropy"
         );
         anyhow::ensure!(
             self.hdr_mode < 3

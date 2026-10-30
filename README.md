@@ -39,6 +39,7 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
   - With **Ray Reconstruction** on, RR denoises and upscales in one step. Models: NVIDIA default, Transformer D, Transformer E and RR2/F (default).
   - With RR off at 100%, Quality mode offers **Native** (progressive accumulation, the unbiased path) or the selected temporal upscaler as anti-aliasing: **DLAA**, **FSR Native AA** or **XeSS Native AA**.
   - With RR off and a mode below 100%, the native denoiser runs at render resolution and an **upscaler** brings it to the window: **NVIDIA DLSS Super Resolution** (default), **AMD FSR** (FidelityFX API; FSR 3.1, or FSR 4 on supported AMD GPUs), **Intel XeSS** (runs on any recent DX12 GPU), or the spatial **bicubic** (Catmull-Rom, clamped to stop ringing) and **bilinear** filters.
+  - Without RR the native denoiser keeps edges anti-aliased: it demodulates by the albedo averaged over each pixel's own samples and leaves pixels whose samples hit several surfaces mostly unfiltered. The progressive path spreads samples with a Blackman-Harris pixel filter (1.5 px) by default.
   - The three temporal upscalers get fresh jittered samples every frame (Halton, 64 phases), device depth and render-resolution motion vectors. The native denoiser's history and the upscaler then do the accumulation, as in a real-time renderer, so detail resolves above the render resolution. Motionless pixels keep a longer denoiser history, so a still image keeps getting cleaner. An unavailable upscaler falls back to bicubic and says so in the panel.
   - DLSS Super Resolution has its own **preset** choice: NVIDIA default (K for DLAA/Quality/Balanced, M for Performance, L for Ultra Performance), or J, K, L or M forced for every mode.
   - Changing the model, preset, quality mode or upscaler recreates the feature with completed GPU work.
@@ -60,7 +61,7 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
   - **Gamepad:** sticks orbit and zoom, the triggers set light intensity, the bumpers switch scenes, A pauses, B restarts, the D-pad sets exposure, Start hides the panel.
   - **Phone remote** (Menu → *Phone remote*): serves a page on the local network with a QR code. It has sliders for exposure, light, orbit, zoom and aperture, scene buttons and the tone map. It is off by default, and every request needs a random per-session token.
 - **Look tools** (Look tab → Tools): zebras on clipped areas; scopes (RGB and luma histogram, luma waveform, vectorscope of the displayed image); a light meter that shows luminance (nits, 1.0 = 80 nits as in HDR) and illuminance (lux, assuming a Lambertian surface) under the cursor; and a convergence graph that plots RMSE against a reference EXR, or against the current image once converged, as samples grow. Menu → *Statistics and achievements* shows lifetime totals (paths traced, GPU time, images saved, record sample count, presets and scenes visited) and eight achievements.
-- **Captures:** PNG and linear RGB32F OpenEXR. *Render high-resolution image* (Export tab) renders fresh paths at up to 8192 on the longest side with a chosen sample budget, as PNG or linear EXR, while the window stays responsive (progress, Cancel). Saved files get a toast with *Show in folder*.
+- **Captures:** PNG, JPEG (with a quality setting), linear RGB32F OpenEXR, and a 16-bit PQ / BT.2020 HDR PNG while HDR output is on. *Render high-resolution image* (Export tab) renders fresh paths at up to 8192 on the longest side with a chosen sample budget, in any of those formats, while the window stays responsive (progress, Cancel). Saved files get a toast with *Show in folder*.
 - **Quality** (top bar): Best / Balanced / Fast / Fastest (DLSS Ray Reconstruction at 100 / 67 / 50 / 33%), Native denoiser, Native upscaled (with the best temporal upscaler available) and Reference (no denoiser). It picks the Render tab's settings in one go and shows *Custom quality* when they match no bundle. The status bar shows the time left to the sample cap and, on hover (or inline with advanced settings), GPU time per pass.
 - **Scene files and preferences:** Menu → *Open scene…* (Ctrl+O), *Save scene* (Ctrl+S), *Save scene as…* (Ctrl+Shift+S); the Scenes window lists Favorites and Recent. Favorites, recent scenes, the UI size (Ctrl +/−) and *Show advanced settings* are remembered in `%APPDATA%\CornellRTX\prefs.json`. `--preset` takes a name such as `mirror-corridor`. While comparing A/B, drag the split line.
 
@@ -69,11 +70,11 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
 The window has a **top bar** (Menu, scene picker grouped into Cornell box / Studios / Build your own with ◀ ▶, Randomize, view, Pause, Restart, Frame, the gizmo tools Select / Move / Rotate / Scale with Global or Local axes, Hide panel), a **side panel** with four tabs and a **status bar** (state, samples and progress, GPU time, the denoiser and upscaler in words, render and output resolution, HDR).
 
 - **Scene:** an outliner (Stage, Camera, Main light, area lights, objects with visibility toggles) with add buttons, and an inspector for the selection.
-- **Render:** DLSS Ray Reconstruction, RR model, quality mode, upscaler and DLSS preset, native denoiser, sampling.
+- **Render:** DLSS Ray Reconstruction, RR model, quality mode, upscaler and DLSS preset, native denoiser, pixel filter (Box, Gaussian or Blackman-Harris, with a width) for the native path, sampling, texture filtering (anisotropic, 1–16×).
 - **Look:** view, exposure in EV, tone map, display output and HDR levels, A/B compare.
 
 Selecting an object or light shows a **Blender-style gizmo**: red / green / blue arrows and plane squares to move, rings to rotate, axis handles and a center circle to scale. Lights are outlined in the viewport even when hidden from the camera, and can be clicked. The main light moves and scales; area lights also rotate.
-- **Export:** PNG, HDR EXR, HDR PNG, high-resolution render, scene file.
+- **Export:** PNG, JPEG, HDR EXR, HDR PNG, high-resolution render (same formats), scene file.
 
 Rarely used rows sit under **More**; Menu → *Show advanced settings* shows them all inline. Labels name what a control does and show units; hover a label for a one-line explanation. Short confirmations (saved files, key toggles, errors) appear as toasts at the bottom right.
 
@@ -124,7 +125,7 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 - `--scene NAME` loads a scene by file name, title or path on the command line; `--help` lists them.
 - `tools/build_scenes.py` generates the built-in pack (edit scenes there, then rerun it); `tools/scene_sheet.py` renders every scene into a labelled contact sheet in `captures/scenes/`.
 
-Save/load uses `settings.json` in the working directory. PNG/EXR buttons write `cornell.png` / `cornell.exr`; high-resolution export writes `cornell-high-res.png`. These are native settings; the browser JSON schema is separate. All material colors are linear RGB. Lighting temperature is normalized to unit luminance, then multiplied by the gel and intensity.
+Save/load uses `settings.json` in the working directory. The image buttons write `cornell.png` / `.jpg` / `.exr` / `.hdr.png`; high-resolution export writes `cornell-high-res` with the chosen format's extension. These are native settings; the browser JSON schema is separate. All material colors are linear RGB. Lighting temperature is normalized to unit luminance, then multiplied by the gel and intensity.
 
 ## Offline rendering and verification
 

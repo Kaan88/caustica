@@ -35,12 +35,30 @@ float4 sample_map(uint slot,float2 uv){return maps[NonUniformResourceIndex(slot-
 // and its spread per unit length. Camera rays start at one pixel's angle; each rough bounce
 // widens the cone (a crude stand-in for the lobe's width), so indirect hits read small mips.
 static float cone_width,cone_spread;
-// footprint: the cone's width at the hit in texture units (uv), so the level is
-// log2(footprint · texels across).
-float4 sample_map_lod(uint slot,float2 uv,float footprint){
-    uint w,h;maps[NonUniformResourceIndex(slot-1)].GetDimensions(w,h);
-    float lod=log2(max(footprint*max(w,h),1e-8));
-    return maps[NonUniformResourceIndex(slot-1)].SampleLevel(map_sampler,uv,max(lod,0));
+// The footprint is an ellipse in uv: its axis across the ray (the cone's width) and along it
+// (stretched by the grazing angle). The anisotropic sampler takes both as gradients: the mip
+// follows the short axis and up to lights.w taps run along the long one. Past that ratio the short
+// axis grows, as hardware does; at 1 both axes are the long one (isotropic, the old behaviour).
+struct Footprint{float2 minor;float2 major;};
+float4 sample_map_lod(uint slot,float2 uv,Footprint f){
+    float lm=length(f.minor),lM=length(f.major),n=max(lights.w,1);
+    if(lM>n*lm)f.minor=(lm>1e-20?f.minor/lm:float2(-f.major.y,f.major.x)/max(lM,1e-20))*lM/n;
+    return maps[NonUniformResourceIndex(slot-1)].SampleGrad(map_sampler,uv,f.minor,f.major);
+}
+// The ray cone at a hit (width w, direction d, normal n facing the ray) as uv axes, with T and B
+// the world-space dP/du and dP/dv (zero T: an isotropic footprint of w · uv_scale).
+Footprint footprint(float3 d,float3 n,float w,float3 T,float3 B,float uv_scale){
+    float c=max(abs(dot(d,n)),0.05);Footprint f;
+    float tt=dot(T,T),tb=dot(T,B),bb=dot(B,B),det=tt*bb-tb*tb;
+    if(tt==0 || det<=1e-20*tt*bb){f.minor=float2(w*uv_scale,0);f.major=float2(0,w*uv_scale/c);return f;}
+    float3 across=cross(n,d);float len=length(across);
+    across=len>1e-6?across/len:normalize(T-n*dot(n,T));
+    float3 along=cross(across,n);
+    // A world vector X in the tangent plane moves uv by G⁻¹ (X·T, X·B), G the Gram matrix of T, B.
+    float2x2 inv=float2x2(bb,-tb,-tb,tt)/det;
+    f.minor=mul(inv,float2(dot(across,T),dot(across,B)))*w;
+    f.major=mul(inv,float2(dot(along,T),dot(along,B)))*(w/c);
+    return f;
 }
 // Material flag bits (lobes.w): 1 unlit, 2 hidden from the camera, 4 portal, 8 masked texture
 // maps, 16 any texture maps. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
@@ -72,7 +90,7 @@ float tangent_sign(float3 n,float3 t,float3 bt){return dot(cross(n,t),bt)<0?1:-1
 // Texture maps (core track 5): base colour, metallic-roughness (G, B) and a tangent-space normal
 // map (+Y up, as glTF), at uv with world tangent (bitangent sign in w; 0 = no tangent frame).
 // Each map is scaled by value / average, so the sliders still steer it.
-void sample_maps(inout Hit h,float2 uv,float4 tangent,float footprint){
+void sample_maps(inout Hit h,float2 uv,float4 tangent,Footprint footprint){
     Material m=materials[h.material];uint4 mp=m.maps;h.textured=true;
     h.albedo=mp.x!=0?saturate(sample_map_lod(mp.x,uv,footprint).rgb*m.base_scale.rgb):m.color_rough.rgb;
     h.rough_metal=float2(m.color_rough.a,m.lobes.x);
@@ -100,15 +118,16 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     h=(Hit)0;
     if(q.CommittedStatus()!=COMMITTED_TRIANGLE_HIT)return false;
     Instance inst=instances[q.CommittedInstanceID()];uint prim=q.CommittedPrimitiveIndex();float2 b=q.CommittedTriangleBarycentrics();
-    // uv_scale: texture units per world unit at the hit, for the mip level.
-    h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;
+    // uv_scale: texture units per world unit at the hit; T, B: world dP/du and dP/dv (both for
+    // the footprint; T zero when only uv_scale is known).
+    h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;float3 T=0,B=0;
     if(inst.material==0xffffffffu){
         // Static geometry: geometry 1 is the opaque range; its primitive indices restart at 0.
         prim+=q.CommittedGeometryIndex()!=0?(uint)environment.w:0;uint idx=prim*3;
         Vertex a=static_vertices[idx],v=static_vertices[idx+1],c=static_vertices[idx+2];
         h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.material=a.material;
         mapped=flagged(h.material,16u);
-        if(mapped){uv_scale=materials[h.material].base_scale.w;float3 t,bt;box_map(h.p,h.n,uv_scale,uv,t,bt);tangent=float4(t,tangent_sign(h.n,t,bt));}
+        if(mapped){uv_scale=materials[h.material].base_scale.w;float3 t,bt;box_map(h.p,h.n,uv_scale,uv,t,bt);tangent=float4(t,tangent_sign(h.n,t,bt));T=t/uv_scale;B=bt/uv_scale;}
     }else{
         // An object: object-space normal to world by the inverse transpose (row vector × W2O).
         uint idx=inst.vertex_base+prim*3;Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];
@@ -122,17 +141,19 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
             float3 size=float3(length(m2w._m00_m10_m20),length(m2w._m01_m11_m21),length(m2w._m02_m12_m22));
             float3 op=q.CommittedObjectRayOrigin()+q.CommittedObjectRayDirection()*h.t,t,bt;
             box_map(op*size,n,scale,uv,t,bt);tangent=float4(mul(m2w,float4(t,0)),tangent_sign(n,t,bt));uv_scale=scale;
+            T=normalize(mul(m2w,float4(t,0)))/scale;B=normalize(mul(m2w,float4(bt,0)))/scale;
         }else if(mapped){
             uv=a.uv*(1-b.x-b.y)+v.uv*b.x+c.uv*b.y;
             // Per-triangle tangent from the UV derivatives (glTF's MikkTSpace tangents are not read).
             float3 e1=v.position-a.position,e2=c.position-a.position;float2 d1=v.uv-a.uv,d2=c.uv-a.uv;float det=d1.x*d2.y-d1.y*d2.x;
-            if(abs(det)>1e-12){float3 t=(e1*d2.y-e2*d1.y)/det,bt=(e2*d1.x-e1*d2.x)/det;tangent=float4(mul(m2w,float4(t,0)),tangent_sign(n,t,bt));}
+            if(abs(det)>1e-12){float3 t=(e1*d2.y-e2*d1.y)/det,bt=(e2*d1.x-e1*d2.x)/det;tangent=float4(mul(m2w,float4(t,0)),tangent_sign(n,t,bt));T=tangent.xyz;B=mul(m2w,float4(bt,0));}
             float world_area=length(cross(mul(m2w,float4(e1,0)),mul(m2w,float4(e2,0))));uv_scale=sqrt(abs(det)/max(world_area,1e-20));
         }
     }
     h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
-    // Footprint: the cone's width at the hit, stretched by the grazing angle (capped at 20×).
-    if(mapped)sample_maps(h,uv,tangent,(cone_width+cone_spread*h.t)/max(abs(dot(d,h.ng)),0.05)*uv_scale);
+    // Footprint: the cone's width at the hit, stretched along the ray by the grazing angle
+    // (capped at 20×).
+    if(mapped)sample_maps(h,uv,tangent,footprint(d,h.ng,cone_width+cone_spread*h.t,T,B,uv_scale));
     h.emitter=inst.emitter_base==0xffffffffu?0:emitter_lookup[inst.emitter_base+prim];return true;
 }
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
@@ -253,11 +274,46 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
     if(camera_model.y>0 && length(l-ndc*float2(aspect,1)*camera_model.y*0.7)>1){valid=false;return;}
     o=eye.xyz+(right*l.x+up*l.y)*lens.x;d=normalize(focal-o);
 }
+// Giles' single-precision inverse error function.
+float erfinv(float x){
+    float w=-log(max((1-x)*(1+x),1e-30)),p;
+    if(w<5){w-=2.5;p=2.81022636e-08;p=3.43273939e-07+p*w;p=-3.5233877e-06+p*w;p=-4.39150654e-06+p*w;p=0.00021858087+p*w;p=-0.00125372503+p*w;p=-0.00417768164+p*w;p=0.246640727+p*w;p=1.50140941+p*w;}
+    else{w=sqrt(w)-3;p=-0.000200214257;p=0.000100950558+p*w;p=0.00134934322+p*w;p=-0.00367342844+p*w;p=0.00573950773+p*w;p=-0.0076224613+p*w;p=0.00943887047+p*w;p=1.00167406+p*w;p=2.83297682+p*w;}
+    return p*x;
+}
+// Blackman-Harris window on [0,1]: the inverse of its CDF by bisection (the window is ~0 at the
+// ends, so Newton steps would stall there).
+float blackman_harris_inverse(float u){
+    float lo=0,hi=1;
+    for(int i=0;i<16;i++){
+        float t=0.5*(lo+hi);
+        float c=(0.35875*t-0.48829*sin(2*PI*t)/(2*PI)+0.14128*sin(4*PI*t)/(4*PI)-0.01168*sin(6*PI*t)/(6*PI))/0.35875;
+        if(c<u)lo=t;else hi=t;
+    }
+    return 0.5*(lo+hi);
+}
+// Progressive path: a sub-pixel offset distributed as the pixel filter (filter importance
+// sampling: every sample has weight 1, so the mean converges to the filtered image).
+// lights.y: 0 box, 1 Gaussian (sigma = width / 6, cut at 3 sigma), 2 Blackman-Harris;
+// lights.z: the filter's full width in pixels. Each axis on its own keeps the 2D stratification.
+float2 filter_offset(float2 u){
+    float width=lights.z;
+    if(lights.y==1)return clamp(width/6*1.41421356*float2(erfinv(2*u.x-1),erfinv(2*u.y-1)),-0.5*width,0.5*width);
+    if(lights.y==2)return (float2(blackman_harris_inverse(u.x),blackman_harris_inverse(u.y))-0.5)*width;
+    return (u-0.5)*width;
+}
 [numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy;if(any(p>=dimensions.xy))return;
     pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
+    // Without RR the albedo guides are the mean first-hit albedo of the samples themselves, read
+    // before the guide ray overwrites them: the native denoiser divides by and multiplies back the
+    // albedo, so a pixel-centre albedo would snap an edge pixel's mixed colour to one surface.
+    // diffuse_albedo.a is then the coverage: the share of samples whose first hit is the guide's
+    // surface (below 1 on edges, where the denoiser's surface stops don't hold).
+    bool sample_albedo=modes.w==0;
+    float4 damean=sample_albedo && sampling.x>0?diffuse_albedo[p]:0;float3 samean=sample_albedo && sampling.x>0?specular_albedo[p].rgb:0;
     // Guides come from the pinhole ray through the lens center (RR and the denoiser).
     // Ray cones: one pixel's angle (orthographic: one pixel's width, no spread).
     float pixel_angle=camera_model.x==1?0:2*environment.z/dimensions.y,pixel_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;
@@ -276,16 +332,16 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         // Only RR reads it; the native path skips the extra ray.
         Hit reflected;float3 reflected_direction=reflect(gd,guide.n);
         specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
-    }else{normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
+    }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
     float3 batch=0;
     for(uint sample_id=0;sample_id<sampling.y;sample_id++){
         // The base changes on every reset, so a moving camera never reuses the previous frame's points.
         sequence_index=scene_info.z+sampling.x+sample_id;dimension_index=0;
         // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
-        float2 subpixel=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
+        float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             uint mis=(scene_info.w>>4)&3;
@@ -293,6 +349,7 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
             float p_env=env_nee?(tri_nee?0.5:1):0;
             Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){
+                if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
                 float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
@@ -327,6 +384,7 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
             emitted*=spot(m,-dot(direction,h.n));
             // Emission keeps the flat colour: light sampling has no texture lookup.
             apply_maps(h,m);
+            if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=fresnel(abs(dot(-direction,h.n)),f0_of(m));}
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
@@ -383,7 +441,9 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         radiance=max(radiance,0);if(options.x>0 && sampling.x>4){float l=luminance(radiance);float scale=min(1,options.x*max(luminance(mean),0.05)/max(l,1e-6));radiance*=scale;direct*=scale;}
         float count=sampling.x+sample_id+1;float delta_l=luminance(radiance)-luminance(mean);mean+=(radiance-mean)/count;m2+=delta_l*(luminance(radiance)-luminance(mean));
         dmean+=(direct-dmean)/count;smean+=((first_spec?radiance:0)-smean)/count;batch+=radiance/sampling.y;
+        damean+=(first_diffuse-damean)/count;samean+=(first_specular-samean)/count;
     }
+    if(sample_albedo){diffuse_albedo[p]=damean;specular_albedo[p]=float4(samean,1);}
     trace_stats[p]=float2(bounces_used/max(1,sampling.y),proceed_steps);
     noisy[p]=float4(batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);
 }

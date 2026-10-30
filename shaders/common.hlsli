@@ -9,7 +9,7 @@ cbuffer Frame:register(b0) {
     float4 eye;
     uint4 dimensions; // render w,h,output w,h
     uint4 sampling; // accumulated samples,spp,bounces,frame
-    float4 lights; // suns at the start of the emitter table (track 7)
+    float4 lights; // suns at the start of the emitter table (track 7), pixel filter (0 box, 1 Gaussian, 2 Blackman-Harris), its width in pixels, texture anisotropy (1-16)
     float4 light_color_aspect;
     float4 background;
     float4 display_settings; // exposure,gamma,direct,indirect

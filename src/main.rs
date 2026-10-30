@@ -49,9 +49,8 @@ struct Actions {
     reset: bool,
     save: bool,
     load: bool,
-    png: bool,
-    exr: bool,
-    hdr_png: bool,
+    /// Save the current image (Export tab, F12) in this format.
+    save_image: Option<video::ImageFormat>,
     reference: bool,
     high_res: bool,
     /// Start a video export with `UiState::video`; cancel the running one.
@@ -556,6 +555,22 @@ impl App {
         self.failed = Some(format!("{error:#}"));
         event_loop.exit();
     }
+    /// Self-test: an image file was written, is not stale and decodes (at `size` when given).
+    fn expect_image(&self, path: PathBuf, size: Option<[u32; 2]>) -> Result<()> {
+        let decoded = if path.extension().is_some_and(|e| e == "exr") {
+            // The image crate reads EXRs back as float RGBA.
+            image::open(&path).map(|i| [i.width(), i.height()])
+        } else {
+            image::image_dimensions(&path).map(|(w, h)| [w, h])
+        };
+        let got = decoded.with_context(|| format!("{} was not written", path.display()))?;
+        anyhow::ensure!(
+            got[0] > 0 && size.is_none_or(|s| s == got),
+            "{} is {got:?}, expected {size:?}",
+            path.display()
+        );
+        Ok(())
+    }
     fn redraw(&mut self) -> Result<()> {
         if self.orbit_test && self.rendered >= 64 {
             self.settings.yaw = (self.rendered - 64) as f32 * 0.25;
@@ -619,13 +634,58 @@ impl App {
                     self.settings.randomize(0x2545f491);
                     self.settings.validate()?;
                 }
+                // Every image format through the shared writer: the quick saves, then a JPEG
+                // high-resolution still (one pass, so it ends within the next frame).
+                141 => {
+                    for f in video::ImageFormat::ALL {
+                        let _ = std::fs::remove_file(f.file("cornell"));
+                        let _ = std::fs::remove_file(f.file("cornell-high-res"));
+                    }
+                    self.actions.save_image = Some(video::ImageFormat::Jpeg);
+                }
+                142 => {
+                    self.expect_image(video::ImageFormat::Jpeg.file("cornell"), None)?;
+                    self.actions.save_image = Some(video::ImageFormat::Exr);
+                }
+                143 => {
+                    self.expect_image(video::ImageFormat::Exr.file("cornell"), None)?;
+                    self.ui.export_scale = 1;
+                    self.ui.export_samples = 4;
+                    self.ui.export_format = video::ImageFormat::Jpeg;
+                    self.actions.high_res = true;
+                }
+                145 => {
+                    anyhow::ensure!(self.export.is_none(), "The JPEG still did not finish");
+                    let g = self.gpu.as_ref().unwrap();
+                    let size = [g.width, g.height];
+                    self.expect_image(
+                        video::ImageFormat::Jpeg.file("cornell-high-res"),
+                        Some(size),
+                    )?;
+                    self.ui.export_format = video::ImageFormat::Png;
+                }
                 150..=157 => self.settings.view = self.rendered - 150,
+                // The other pixel filters on the native path (sample albedo and coverage too).
+                158 => {
+                    self.settings.view = 0;
+                    self.settings.rr = false;
+                    self.settings.pixel_filter = 1;
+                    self.settings.filter_width = 3.;
+                }
+                159 => {
+                    self.settings.pixel_filter = 0;
+                    self.settings.filter_width = 1.;
+                }
                 160 => {
                     self.settings.view = 0;
                     self.settings.rr = false;
                     self.settings.denoise = false;
                 }
-                161 => self.settings.denoise = true,
+                161 => {
+                    self.settings.denoise = true;
+                    self.settings.pixel_filter = 2;
+                    self.settings.filter_width = 1.5;
+                }
                 162 => self.settings.rr = true,
                 163 => self.settings.temporal = false,
                 164 => self.settings.temporal = true,
@@ -680,7 +740,11 @@ impl App {
                     self.settings.hdr_peak = 1000.;
                     self.settings.hdr_white = 200.;
                 }
-                188 => self.settings.hdr_mode = 1,
+                187 => self.actions.save_image = Some(video::ImageFormat::HdrPng),
+                188 => {
+                    self.expect_image(video::ImageFormat::HdrPng.file("cornell"), None)?;
+                    self.settings.hdr_mode = 1;
+                }
                 189 => {
                     self.settings.hdr_mode = 0;
                     self.settings.hdr_peak = 0.;
@@ -1895,47 +1959,19 @@ impl App {
             self.settings.compare = true;
             self.actions.reference = false;
         }
-        if self.actions.png {
-            self.actions.png = false;
-            unsafe {
-                g.capture(std::path::Path::new("cornell.png"), false, false)?;
-            }
-            self.ui
-                .toast_file("Saved cornell.png", "cornell.png".into());
-            if let Some(st) = &mut self.stats {
-                st.images_saved += 1;
-            }
-        }
-        if self.actions.exr {
-            self.actions.exr = false;
-            unsafe {
-                g.capture(std::path::Path::new("cornell.exr"), true, false)?;
-            }
-            self.ui
-                .toast_file("Saved linear HDR cornell.exr", "cornell.exr".into());
-            if let Some(st) = &mut self.stats {
-                st.images_saved += 1;
-            }
-        }
-        if self.actions.hdr_png {
-            self.actions.hdr_png = false;
-            if g.hdr_active {
-                let pixels = unsafe { g.read_floats(26)? };
-                display::write_hdr_png(
-                    std::path::Path::new("cornell-hdr.png"),
-                    &pixels,
-                    g.width,
-                    g.height,
-                )?;
-                self.ui.toast_file(
-                    "Saved cornell-hdr.png (PQ / BT.2020)",
-                    "cornell-hdr.png".into(),
-                );
-                if let Some(st) = &mut self.stats {
-                    st.images_saved += 1;
+        if let Some(format) = self.actions.save_image.take() {
+            let path = format.file("cornell");
+            match unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) } {
+                Ok(()) => {
+                    self.ui.toast_file(
+                        format!("Saved {} ({})", path.display(), format.label()),
+                        path,
+                    );
+                    if let Some(st) = &mut self.stats {
+                        st.images_saved += 1;
+                    }
                 }
-            } else {
-                self.ui.error("HDR PNG needs HDR output");
+                Err(e) => self.ui.error(format!("{e:#}")),
             }
         }
         // The high-resolution still is a one-frame export job (UI phase 4): the window stays
@@ -1945,25 +1981,19 @@ impl App {
             let (w, h) = (g.width, g.height);
             let factor = (self.ui.export_scale as f32).min(8192. / w.max(h) as f32);
             let size = [w, h].map(|v| ((v as f32 * factor).round() as u32).max(1));
-            let exr = self.ui.export_exr;
+            let format = self.ui.export_format;
             let mut o = video::Options::turntable(
                 s,
                 size,
                 1,
                 self.ui.export_samples,
-                PathBuf::from(if exr {
-                    "cornell-high-res.exr"
-                } else {
-                    "cornell-high-res.png"
-                }),
+                format.file("cornell-high-res"),
             );
             o.still = true;
             o.degrees = 0.;
-            o.format = if exr {
-                video::Format::Exr
-            } else {
-                video::Format::Png
-            };
+            o.format = video::Format::Png;
+            o.image = format;
+            o.jpeg_quality = self.ui.jpeg_quality;
             self.ui.video_pending = Some(o);
         }
         let cli_turntable = if self.rendered == 2 {
@@ -2650,7 +2680,7 @@ impl ApplicationHandler for App {
                             self.ui
                                 .toast("Reference frozen: turn on Show split in the Look tab");
                         }
-                        KeyCode::F12 => self.actions.png = true,
+                        KeyCode::F12 => self.actions.save_image = Some(video::ImageFormat::Png),
                         KeyCode::Digit1
                         | KeyCode::Digit2
                         | KeyCode::Digit3

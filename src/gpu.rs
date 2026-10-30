@@ -55,7 +55,8 @@ struct Constants {
     eye: [f32; 4],
     dimensions: [u32; 4],
     sampling: [u32; 4],
-    /// x: suns at the start of the emitter table (track 7); yzw unused.
+    /// x: suns at the start of the emitter table (track 7); y: pixel filter (0 box, 1 Gaussian,
+    /// 2 Blackman-Harris), z: its width in pixels; w: texture anisotropy (1–16).
     lights: [f32; 4],
     light_color_aspect: [f32; 4],
     background: [f32; 4],
@@ -520,10 +521,13 @@ impl Gpu {
             ComparisonFunc: D3D12_COMPARISON_FUNC_ALWAYS,
             ..Default::default()
         };
-        // Texture maps repeat (glTF's default wrap mode).
+        // Texture maps repeat (glTF's default wrap mode) and are filtered anisotropically; the
+        // shader limits the ratio to Settings::anisotropy through the gradients it passes.
         let samplers = [
             gui_sampler,
             D3D12_STATIC_SAMPLER_DESC {
+                Filter: D3D12_FILTER_ANISOTROPIC,
+                MaxAnisotropy: 16,
                 AddressU: D3D12_TEXTURE_ADDRESS_MODE_WRAP,
                 AddressV: D3D12_TEXTURE_ADDRESS_MODE_WRAP,
                 AddressW: D3D12_TEXTURE_ADDRESS_MODE_WRAP,
@@ -2071,7 +2075,12 @@ impl Gpu {
             eye: [eye.x, eye.y, eye.z, 1.],
             dimensions: [self.rw, self.rh, self.width, self.height],
             sampling: [self.samples, n, s.bounces, self.frame],
-            lights: [self.sun_count as f32, 0., 0., 0.],
+            lights: [
+                self.sun_count as f32,
+                s.pixel_filter as f32,
+                s.filter_width,
+                s.anisotropy as f32,
+            ],
             light_color_aspect: [lc[0], lc[1], lc[2], s.light_aspect],
             background: [s.background[0], s.background[1], s.background[2], 0.],
             display: [s.exposure, s.gamma, s.direct, s.indirect],

@@ -52,7 +52,12 @@ void integrate(uint2 p){
     filter_guide[p]=float4(oct_encode(normal_roughness[p].xyz),depth[p],id);
 }
 float4 source(int2 q,uint pass){return pass==2?float4(integrated[q].rgb,moments[q].z):((pass&1)==1?ping[q]:pong[q]);}
-void store(uint2 p,uint pass,float4 v){if(pass==6)v.rgb*=albedo_at(int2(p));if((pass&1)==0)ping[p]=v;else pong[p]=v;}
+// The last pass gives edge pixels (coverage below 1: their samples hit several surfaces, which
+// the surface stops can't tell apart) back their unfiltered share, then restores albedo.
+void store(uint2 p,uint pass,float4 v){
+    if(pass==6)v.rgb=lerp(integrated[p].rgb,v.rgb,saturate(diffuse_albedo[p].a))*albedo_at(int2(p));
+    if((pass&1)==0)ping[p]=v;else pong[p]=v;
+}
 [numthreads(8,8,1)]void filter(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy;if(any(p>=dimensions.xy))return;uint pass=filter_settings.x;
     if(pass==0){reproject(p);return;}

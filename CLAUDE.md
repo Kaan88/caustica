@@ -4,6 +4,16 @@ Reference for future sessions. Written 2026-10-29 after a full read of the sourc
 `README.md` is the user-facing doc.
 Paths here are relative to the repo root unless noted.
 
+## Delegation (owner rule, mandatory)
+
+The owner wants routine work on cheaper models. This rule is the owner's explicit request for subagents, so it overrides the default of not spawning them.
+
+- **Searches** across more than one file: the `Explore` agent with model `haiku`.
+- **Runs:** builds, `cargo fmt/test/clippy`, `--self-test`, benchmarks, `tools/*.py` and `tools/verify.ps1` go to the `verifier` agent (haiku, `.claude/agents/verifier.md`). Long runs go in the background, so design work continues meanwhile.
+- **Reviews:** every review of a finished change before a commit goes to the `reviewer` agent (sonnet, `.claude/agents/reviewer.md`). Check each finding before acting on it.
+- **Main session:** design, shaders, GPU and engine code, perf analysis and fixes stay here.
+- **Exception:** a single quick command with short output (one grep, `git status`) runs inline.
+
 ## What it is
 
 - A Windows-only port of the WebGL Cornell box in `webgl/` (`index.html`, `app.js`, `shaders.js`).
@@ -17,7 +27,7 @@ Paths here are relative to the repo root unless noted.
   - `vendor/fsr`: AMD FSR SDK 2.3.0, commit `60f4ea8…`. FidelityFX API headers plus signed `amd_fidelityfx_loader_dx12.dll` and `amd_fidelityfx_upscaler_dx12.dll`.
   - `vendor/xess`: Intel XeSS SDK 3.0.2, commit `8fe81bd…`. Headers plus `libxess.dll`.
   - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
-- Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap.
+- Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap, Blackman-Harris 1.5 px pixel filter (native path), 16× texture anisotropy.
 - **Personal project, never published:** license terms don't limit assets or SDK use. The ordered plan is `docs/roadmap.md`:
   - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
@@ -193,8 +203,8 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
 | 0 | noisy (this frame's batch) | RR color input |
 | 1 | accumulation (rgb mean, a = Welford M2 of luminance) | |
 | 2 | normal_roughness | RR input |
-| 3 | diffuse_albedo | RR input |
-| 4 | specular_albedo | RR input |
+| 3 | diffuse_albedo (RR: the guide's; native: mean of the samples, a = coverage) | RR input |
+| 4 | specular_albedo (as u3) | RR input |
 | 5 | depth (linear view z) | R32F, RR input |
 | 6 | motion (prev − curr, pixels) | RG32F, RR input |
 | 7 | specular hit distance | R32F, RR input |
@@ -520,6 +530,13 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 - **Perf** (1440×900, 300 frames, median of alternating runs vs the item-6 snapshot): untextured scenes unchanged (classic −0.1%, gold dragon +0.3%); the chess set with its 33 maps +16% (it rendered flat averages before; +33% before mips and ray cones); the textured showroom +12%.
 - **Assets:** `tools/fetch_assets.ps1` adds 6 ambientCG sets (2K JPG zips pinned by SHA-256, only Color / NormalGL / Roughness / Metalness extracted: Bricks097, Fabric062, Marble016, Metal032, Tiles074, WoodFloor041) and 2 Poly Haven sets (laminate_floor_02, rock_wall_08, with ARM maps) into `scenes/textures/<id>/` (gitignored, hard-linked by the snapshot script, now recursively). `tools/build_scenes.py` `textured(folder, scale)` reads the averages with PIL; `scenes/materials` has 4 scenes (showroom, brick Cornell box, rock garden, duck on wood).
 - **Tests:** unit tests for a textured glTF quad written by `mesh::write_test_gltf` (UVs, maps, averages, cutoff, flag), mips and halving, map names and prefixes, a folder set with a DirectX normal map. Self-test 269–271: the quad uploads 2 maps; switching *Texture maps* off releases them. (272 is the Assets window.)
+
+## Third batch (2026-10-31): image formats, native AA, anisotropic filtering
+
+- **Image formats** (`video.rs`): `ImageFormat` (Png, Jpeg, Exr, HdrPng; `file(stem)` adds `.png` / `.jpg` / `.exr` / `.hdr.png`), `read_image` (texture 10, 18 or 26 by format), `write_image` (one writer for everything) and `save_current`. *Save the current image* has one button per format (`Actions::save_image`, F12 = PNG, written as `cornell.<ext>`); the high-resolution still takes `Options::image` and `jpeg_quality` (`UiState::export_format`, `jpeg_quality`, shared by every JPEG save); image sequences map `Format::Png` / `Exr` through `Options::image_format()`. HDR PNG needs `hdr_active` (checked in `Job::start` and `read_image`). `--capture` still uses `Gpu::capture`. Self-test 141–145: JPEG and EXR quick saves, a JPEG high-res still (size checked by `App::expect_image`); 187–188 the HDR PNG save.
+- **Native AA** (RR off; `modes.w == 0`): the trace writes u3 / u4 as the running mean of the samples' first-hit diffuse / specular albedo (read before the guide ray), and u3.a as coverage, the share of samples whose first hit is the guide's material (misses count when the guide missed). `post.hlsl` `store` (pass 6) lerps from `integrated` to the filtered value by coverage before restoring albedo. With RR on, u3 / u4 stay the guide's (RR inputs). `Settings::pixel_filter` (0 Box, 1 Gaussian σ = width/6 cut at 3σ via `erfinv`, 2 Blackman-Harris by 16-step bisection of its CDF; default 2) and `filter_width` (0.5–4 px, default 1.5) go to `lights.y` / `lights.z`; `filter_offset` replaces the uniform sub-pixel offset of the progressive path only (jittered frames keep `jitter.xy`). Box at width 1 is bit-identical to the old path. Both are in `keep_output` and kept across `preset()`. `tools/native_aa.py` measures it (see the roadmap entry for the numbers). Self-test 158–161 runs the Gaussian (width 3) and Box filters on the native path.
+- **Anisotropic filtering:** sampler s1 is `D3D12_FILTER_ANISOTROPIC`, `MaxAnisotropy` 16. `intersect` keeps world dP/du, dP/dv (`T`, `B`; static box maps t/scale, object box maps the rotated axes / scale, mesh UVs from the UV derivatives) and `footprint()` turns the cone (width across the ray, width/|cos| along it, cos ≥ 0.05) into uv gradients through the inverse Gram matrix; `sample_map_lod` clamps the ratio to `Settings::anisotropy` (`lights.w`, 1–16, default 16) and calls `SampleGrad`. No T (degenerate UVs) falls back to an isotropic `uv_scale` footprint.
+- **Build gotcha:** after the repo restructure, a target dir built before the move keeps build.rs's old `native\vendor` link path (no rerun trigger fires). `cargo clean -p cornell-rtx` in that target dir fixes the `nvsdk_ngx_d.lib` link error.
 
 ## Owner requests (item 6, 2026-10-30)
 

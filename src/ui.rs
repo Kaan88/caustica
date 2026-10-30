@@ -131,8 +131,9 @@ pub struct UiState {
     pub video_preview: Option<egui::TextureHandle>,
     /// An export to start this frame (the dialog's video, or the high-resolution still).
     pub video_pending: Option<crate::video::Options>,
-    /// The high-resolution still as linear EXR instead of PNG.
-    pub export_exr: bool,
+    /// The high-resolution still's format, and the JPEG quality of every JPEG save.
+    pub export_format: crate::video::ImageFormat,
+    pub jpeg_quality: u32,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
     /// The Assets window (item 6, browser.rs).
@@ -219,7 +220,8 @@ impl Default for UiState {
             show_video: false,
             video_preview: None,
             video_pending: None,
-            export_exr: false,
+            export_format: crate::video::ImageFormat::Png,
+            jpeg_quality: crate::video::JPEG_QUALITY,
             show_scenes: false,
             assets: Default::default(),
             zebras: false,
@@ -2701,6 +2703,38 @@ impl App {
             row(ui, "Native denoiser (D)", "SVGF-style denoiser, used when Ray Reconstruction is off. Off shows raw samples.", |ui| {
                 ui.checkbox(&mut s.denoise, "");
             });
+            row(
+                ui,
+                "Pixel filter",
+                "How the progressive path spreads each pixel's samples. Box is the old sharp, slightly jagged look; Blackman-Harris and Gaussian give smoother edges. Ray Reconstruction and the temporal upscalers use their own jitter instead.",
+                |ui| {
+                    ui.add_enabled_ui(!s.rr, |ui| {
+                        egui::ComboBox::from_id_salt("pixel_filter")
+                            .selected_text(
+                                *scene::PIXEL_FILTERS
+                                    .get(s.pixel_filter as usize)
+                                    .unwrap_or(&"?"),
+                            )
+                            .show_ui(ui, |ui| {
+                                for (i, name) in scene::PIXEL_FILTERS.iter().enumerate() {
+                                    ui.selectable_value(&mut s.pixel_filter, i as u32, *name);
+                                }
+                            });
+                    });
+                },
+            );
+            if advanced || (s.filter_width - 1.5).abs() > 1e-3 {
+                row(
+                    ui,
+                    "Filter width",
+                    "Full width of the pixel filter: wider is softer and hides more aliasing. 1.5 pixels matches Cycles.",
+                    |ui| {
+                        ui.add_enabled_ui(!s.rr, |ui| {
+                            ui.add(crate::slider(&mut s.filter_width, 0.5..=4.).suffix(" px"));
+                        });
+                    },
+                );
+            }
             if advanced || !RESOLUTIONS.iter().any(|(v, _)| (v - s.scale).abs() < 0.005) {
                 row(ui, "Render scale", "Any render scale from 25% to 100%.", |ui| {
                     ui.add(
@@ -2749,6 +2783,20 @@ impl App {
                 "How many times a path may bounce. More brightens deep corners and glass.",
                 |ui| {
                     ui.add(crate::slider(&mut s.bounces, 1..=32));
+                },
+            );
+            row(
+                ui,
+                "Texture filtering",
+                "Anisotropic filtering keeps textures sharp on floors and walls seen at grazing angles: up to this many taps along the stretched footprint. 1× is plain trilinear mipmapping, which blurs them.",
+                |ui| {
+                    egui::ComboBox::from_id_salt("anisotropy")
+                        .selected_text(format!("{}×", s.anisotropy))
+                        .show_ui(ui, |ui| {
+                            for n in [1, 2, 4, 8, 16] {
+                                ui.selectable_value(&mut s.anisotropy, n, format!("{n}×"));
+                            }
+                        });
                 },
             );
         });
@@ -3055,31 +3103,26 @@ impl App {
     }
     fn export_tab(&mut self, ui: &mut egui::Ui) {
         let g = self.gpu.as_ref().unwrap();
+        use crate::video::ImageFormat;
         section(ui, "Save the current image");
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .button("PNG (F12)")
-                .on_hover_text("cornell.png: the tone-mapped image, without the UI")
-                .clicked()
-            {
-                self.actions.png = true;
-            }
-            if ui
-                .button("HDR EXR")
-                .on_hover_text("cornell.exr: linear scene light, 32-bit float")
-                .clicked()
-            {
-                self.actions.exr = true;
-            }
-            if g.hdr_active
-                && ui
-                    .button("HDR PNG")
-                    .on_hover_text(
-                        "cornell-hdr.png: what the HDR screen shows, 16-bit PQ / BT.2020",
-                    )
+            for format in ImageFormat::ALL {
+                if format.needs_hdr() && !g.hdr_active {
+                    continue;
+                }
+                let label = if format == ImageFormat::Png {
+                    "PNG (F12)".to_string()
+                } else {
+                    format.label().to_string()
+                };
+                let file = format.file("cornell");
+                if ui
+                    .button(label)
+                    .on_hover_text(format!("{}: {}", file.display(), format.description()))
                     .clicked()
-            {
-                self.actions.hdr_png = true;
+                {
+                    self.actions.save_image = Some(format);
+                }
             }
         });
         note(
@@ -3105,26 +3148,52 @@ impl App {
             });
             row(
                 ui,
-                "Linear EXR",
-                "32-bit float scene light instead of the tone-mapped PNG.",
+                "Format",
+                "The same formats as Save the current image.",
                 |ui| {
-                    ui.checkbox(&mut self.ui.export_exr, "");
+                    egui::ComboBox::from_id_salt("export_format")
+                        .selected_text(self.ui.export_format.label())
+                        .show_ui(ui, |ui| {
+                            for format in ImageFormat::ALL {
+                                ui.add_enabled_ui(!format.needs_hdr() || g.hdr_active, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.ui.export_format,
+                                        format,
+                                        format.label(),
+                                    )
+                                    .on_hover_text(format.description())
+                                    .on_disabled_hover_text("Needs HDR output");
+                                });
+                            }
+                        });
+                },
+            );
+        });
+        // HDR output may have been turned off since the format was picked.
+        if self.ui.export_format.needs_hdr() && !g.hdr_active {
+            self.ui.export_format = ImageFormat::Png;
+        }
+        grid("export_quality").show(ui, |ui| {
+            row(
+                ui,
+                "JPEG quality",
+                "Used by every JPEG save: 100 is the largest file and the fewest artefacts.",
+                |ui| {
+                    ui.add(crate::slider(&mut self.ui.jpeg_quality, 50..=100));
                 },
             );
         });
         let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
-        let name = if self.ui.export_exr {
-            "cornell-high-res.exr"
-        } else {
-            "cornell-high-res.png"
-        };
+        let name = self.ui.export_format.file("cornell-high-res");
         if ui.button("Render high-resolution image").clicked() {
             self.actions.high_res = true;
         }
         note(
             ui,
             &format!(
-                "{name}, {} × {}, traced fresh at 100% resolution. The window stays responsive, with progress and Cancel.",
+                "{} ({}), {} × {}, traced fresh at 100% resolution. The window stays responsive, with progress and Cancel.",
+                name.display(),
+                self.ui.export_format.description().trim_end_matches('.'),
                 (g.width as f32 * factor).round(),
                 (g.height as f32 * factor).round()
             ),
