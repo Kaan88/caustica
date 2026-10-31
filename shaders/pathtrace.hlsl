@@ -173,7 +173,9 @@ Material material_at(uint id,float3 p){
     if(pattern==2)t=step(0,sin((p.x+p.z)*m.secondary.w*PI));
     // Marble: soft veins where a turbulent sine crosses zero, at most 75% secondary color.
     if(pattern==3){float s=m.secondary.w;float vein=sin((p.x+p.z)*s*0.6+3*sin(p.y*3+p.z*2)+1.5*sin(p.x*5-p.z*2)+0.6*sin(p.x*13+p.y*11)+0.3*sin(p.z*27-p.y*21));t=0.75*pow(1-abs(vein),6);}
-    m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);return m;
+    m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);
+    if(pattern&&((uint)m.lobes.w&4u)==0u)m.secondary.w=t; // stash for layered reads; portals keep the pair id in this slot
+    return m;
 }
 // The textured surface values intersect sampled (sample_maps).
 void apply_maps(Hit h,inout Material m){if(h.textured){m.color_rough.rgb=h.albedo;m.color_rough.a=h.rough_metal.x;m.lobes.x=h.rough_metal.y;}}
@@ -224,11 +226,81 @@ float ggx_d(float nh,float a){float d=nh*nh*(a*a-1)+1;return a*a/(PI*d*d);}
 float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
 float3 f0_of(Material m){float f=pow((m.optical.x-1)/(m.optical.x+1),2);return lerp(lerp(f.xxx,1.0.xxx,m.lobes.y),m.color_rough.rgb,m.lobes.x);}
 float spec_probability(Material m){return clamp(0.25+0.5*m.lobes.x+0.25*m.lobes.y,0.1,0.95);}
-float3 eval_bsdf(Material m,float3 n,float3 v,float3 l,out float pdf){
+// Track 11 (roadmap 11): layered and exotic materials. Material fields (common.hlsli):
+// coating=(clearcoat, coat roughness, sheen, sheen roughness) with the two roughness values
+// perceptual like color_rough.a; effects=(thin-film IOR, film thickness nm, diffraction period
+// nm, 0); weave=(anisotropy, groove rotation degrees, 0, 0). Layer order follows glTF: the thin
+// film and the grating ride on the base specular, then sheen, then clearcoat; the transmittance
+// pairs below attenuate each deeper layer. With every field zero the guarded branch is skipped
+// and the arithmetic above is exactly what the old path was (bit-identical).
+float ggx_s(float mu,float a){ // Kulla-Conty complement albedo 1 - E, from the 32x32 lattice table
+  // (tools/build_ggx_e_data.py integrates the shader's own D * G1 * G1 / (4 no nv) form; rows are
+  // alpha, columns mu, both in [0.02,1], bilinear). Only the layered branch reads the table.
+  float A=(clamp(a,0.02,1.0)-0.02)*31.0/0.98,M=(clamp(mu,0.02,1.0)-0.02)*31.0/0.98;
+  int j0=(int)A,j1=min(j0+1,31),i0=(int)M,i1=min(i0+1,31);float f=M-(float)i0,g=A-(float)j0;
+  return lerp(lerp(ggx_table[j0*32+i0],ggx_table[j0*32+i1],f),lerp(ggx_table[j1*32+i0],ggx_table[j1*32+i1],f),g);
+}
+float ggx_eavg(float a){return PI+a*(-0.446898+a*(-5.72019+a*(6.61848-2.41727*a)));} // published E_avg fit
+float3 ggx_ms(float nv,float nl,float a,float3 f0){ // multiple scattering recovers lost energy
+  float3 fm=(0.04+f0*(0.66+0.3*f0))*f0;return ggx_s(nv,a)*ggx_s(nl,a)*fm/max(PI-ggx_eavg(a),1e-3);}
+float ggx_da(float3 h,float3 T,float3 B,float3 n,float at,float ab){ // aniso GGX (Burley via Filament);
+  // at=ab=a reduces it to ggx_d exactly, which is what keeps the isotropic family consistent.
+  float x=dot(h,T),y=dot(h,B),z=dot(h,n);float b=x*x/(at*at)+y*y/(ab*ab)+z*z;return 1.0/max(PI*at*ab*b*b,1e-20);}
+float g1a(float3 v,float3 T,float3 B,float3 n,float at,float ab){ // slope-space Smith G1: the sqrt
+  // equals g1's when at=ab=a (a^2 x^2 + a^2 y^2 + z^2 = a^2 + (1-a^2) z^2 for unit v).
+  float x=dot(v,T),y=dot(v,B),z=saturate(dot(v,n));return 2.0*z/max(1e-6,z+sqrt(at*at*x*x+ab*ab*y*y+z*z));}
+// Charlie sheen (Estevez and Kulla's 2017 production-friendly CC sheen; the log-lambda V fit
+// coefficients are the published set quoted by Patapom's GodComplex BRDF.cs). a = alpha again.
+float charlie_d(float nh,float a){float s=max(1e-4,1.0-nh*nh);return (1.0/a+2.0)*pow(s,0.5/a)/(2.0*PI);}
+float charlie_l(float x,float a){ // log lambda; mirrored above x = 0.5
+  float r=1.0-a*a,t=x<0.5?x:1.0-x;
+  float A=lerp(25.3245,21.5473,r),B=lerp(3.32435,3.82987,r),C=lerp(0.16801,0.19823,r),D=lerp(-1.27393,-1.97760,r),E=lerp(-4.85967,-4.32054,r);
+  float h=A/(1.0+B*pow(0.5,C))+0.5*D+E,lt=A/(1.0+B*pow(t,C))+D*t+E;return x<0.5?lt:2.0*h-lt;}
+// Thin-film interference (Belcour 2017, the form glTF KHR_materials_iridescence adopted):
+// per-channel cos^2 envelope of optical depth over wavelength, phase flipped when exactly one
+// boundary enters a denser medium; the film sits on the base, so its incidence is the macro
+// normal's view cosine. Grooves: the diffraction grating equation OPD = p (v.T - l.T) riding
+// the same per-channel machinery, with wavelength peaks at integer multiples of the period.
+float3 film_env(float nv,float ior,float d,float base_ior){
+  float s2=(1.0-nv*nv)/(ior*ior),ct=sqrt(max(0.0,1.0-s2)),opd=2.0*ior*d*ct; // optical depth, nm
+  float ph=((ior>1.0)!=(base_ior>ior))?0.5:0.0;
+  float3 o=opd*float3(0.0015384615,0.0019607843,0.0021052632)+ph; // 1/650, 1/510, 1/475 per nm
+  float3 c=cos(PI*o);return c*c;}
+float3 grating_env(float3 v,float3 l,float3 T,float3 n,float p){
+  float opd=p*(dot(v,T)-dot(l,T));float3 o=opd*float3(0.0015384615,0.0019607843,0.0021052632);
+  float3 c=cos(PI*o);return c*c;}
+float film_favg(float ior){return clamp((ior-1.0)/(4.08567+1.00071*ior),0.0,1.0);} // mean reflectance
+float3 eval_bsdf(Material m,float3 n,float3 v,float3 l,float3 p,out float pdf){
     float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f=fresnel(vh,f0_of(m));float ps=spec_probability(m);
     pdf=(1-m.lobes.z)*((1-ps)*nl/PI+ps*d*nh/max(4*vh,1e-6));
     float3 diff=(1-f)*(1-m.lobes.x)*m.color_rough.rgb/PI;
-    return (1-m.lobes.z)*(diff+f*d*g1(nv,a)*g1(nl,a)/max(4*nv*nl,1e-6));
+    if(((uint)m.lobes.w&64u)!=0u&&m.lobes.z<0.5){ // bit6 from pack: a layer field is set (track 11)
+        float pc=m.coating.x,sh=m.coating.z,an=m.weave.x,ft=m.effects.y,gp=m.effects.z;
+        float ac=max(1e-3,m.coating.y*m.coating.y),as=max(1e-3,m.coating.w*m.coating.w),wbase=(1.0-pc)*(1.0-sh);
+        float3 fs0=f0_of(m);
+        float3 cpair=(1.0-pc*fresnel(nv,0.04.xxx))*(1.0-pc*fresnel(nl,0.04.xxx)); // through the coat
+        float3 spair=(1.0-sh*fresnel(nv,fs0))*(1.0-sh*fresnel(nl,fs0));            // through the sheen
+        float3 env=1.0.xxx; // per-channel film / grating envelope
+        float d_b=d,g_b=g1(nv,a)*g1(nl,a),a_geo=a,ink=1.0,difffac=1.0;
+        if(an>0.0||gp>0.0){ // groove frame: recomputed from the box map at the hit (registers: not stored in Hit)
+            float2 du;float3 tb,bb;box_map(p,n,1.0,du,tb,bb);
+            tb=normalize(tb);bb=normalize(bb);
+            float rot=radians(m.weave.y),cr=cos(rot),sr=sin(rot);
+            float3 Tr=cr*tb+sr*bb;float3 Br=cross(n,Tr);
+            if(an>0.0){
+                float asp=sqrt(max(0.01,1.0-0.9*an)),at=a/asp,ab=a*asp;a_geo=sqrt(at*ab);
+                d_b=ggx_da(h,Tr,Br,n,at,ab);g_b=g1a(v,Tr,Br,n,at,ab)*g1a(l,Tr,Br,n,at,ab);
+            }
+            if(gp>0.0){float opd=gp*(dot(v,Tr)-dot(l,Tr));float3 c=cos(PI*opd*float3(0.0015384615,0.0019607843,0.0021052632));env*=c*c;ink=(m.optical.z>0.5?m.secondary.w:0.0);} // grooves: diffuse only under ink
+        }
+        if(ft>0.0){env*=film_env(nv,m.effects.x,ft*(m.optical.z>0.5?lerp(0.5,1.5,m.secondary.w):1.0),m.optical.x);difffac=1.0-film_favg(m.effects.x);}
+        float dc=ggx_d(nh,ac);
+        float3 coat=fresnel(vh,0.04.xxx)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6)+ggx_ms(nv,nl,ac,0.04.xxx);
+        float3 sheen=fresnel(nh,fs0)*charlie_d(nh,as)/max((1.0+exp(charlie_l(nv,as))+exp(charlie_l(nl,as)))*4.0*max(nv,1e-3)*max(nl,1e-3),1e-6);
+        pdf=(1-m.lobes.z)*(wbase*((1-ps)*nl/PI+ps*d_b*nh/max(4*vh,1e-6))+pc*dc*nh/max(4*vh,1e-6)+sh*(1.0-pc)*nl/PI);
+        return pc*coat+sh*cpair*sheen+wbase*(cpair*spair)*(diff*(ink*difffac)+f*env*d_b*g_b/max(4*nv*nl,1e-6)+ggx_ms(nv,nl,a_geo,fs0)*env);
+    }
+    return (1-m.lobes.z)*(diff+f*d*g1(nv,a)*g1(nl,a)/max(4*nv*nl,1e-6)); // old text verbatim: layer-free scenes stay bit-identical
 }
 // Track 7: analytic emitters have a negative position_area.w: −1 a sphere (centre, radius in
 // edge1_cdf.x), −2 a sun (unit direction to it, 1 − cos of its angular radius in edge1_cdf.x).
@@ -322,9 +394,21 @@ float2 filter_offset(float2 u){
     cone_width=pixel_width;cone_spread=pixel_angle;
     Hit guide;float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
     if(intersect(go,gd,1e4,guide,false,true)){
-        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
-        diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
-        specular_albedo[p]=float4(fresnel(abs(dot(-gd,guide.n)),f0_of(m)),1);
+        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);object_id[p]=guide.material+1;
+        if(((uint)m.lobes.w&64u)!=0u){ // layered coverage guide (track 11); else keeps the original writes verbatim
+            float pc=m.coating.x,sh=m.coating.z,wb=(1.0-pc)*(1.0-sh);
+            normal_roughness[p]=float4(guide.n,pc>0.0?m.coating.y:m.color_rough.a);
+            float3 dalb=m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z)*wb;
+            if(m.effects.y>0.0)dalb*=1.0-film_favg(m.effects.x);
+            if(m.effects.z>0.0)dalb*=(m.optical.z>0.5?m.secondary.w:0.0);
+            diffuse_albedo[p]=float4(dalb,1);
+            float nvg=abs(dot(-gd,guide.n));
+            specular_albedo[p]=float4(pc*fresnel(nvg,0.04.xxx)+sh*fresnel(nvg,f0_of(m))+wb*fresnel(nvg,f0_of(m)),1);
+        }else{
+            normal_roughness[p]=float4(guide.n,m.color_rough.a);
+            diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
+            specular_albedo[p]=float4(fresnel(abs(dot(-gd,guide.n)),f0_of(m)),1);
+        }
         depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
         float4 projected=mul(current_vp,float4(guide.p,1));device_depth[p]=projected.z/projected.w;
         float4 prev=mul(previous_vp,float4(guide.p,1)),curr=mul(current_vp,float4(guide.p,1));
@@ -396,13 +480,26 @@ float2 filter_offset(float2 u){
             emitted*=spot(m,-dot(direction,h.n));
             // Emission keeps the flat colour: light sampling has no texture lookup.
             apply_maps(h,m);
-            if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=fresnel(abs(dot(-direction,h.n)),f0_of(m));}
+            if(bounce==0 && sample_albedo){
+                if(((uint)m.lobes.w&64u)!=0u){ // same layer coverage as the layered eval (track 11)
+                    float pc=m.coating.x,sh=m.coating.z,wb=(1.0-pc)*(1.0-sh);
+                    float3 dalb=m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z)*wb;
+                    if(m.effects.y>0.0)dalb*=1.0-film_favg(m.effects.x);
+                    if(m.effects.z>0.0)dalb*=(m.optical.z>0.5?m.secondary.w:0.0);
+                    float ng=abs(dot(-direction,h.n));
+                    first_diffuse=float4(dalb,h.material==guide.material?1:0);
+                    first_specular=pc*fresnel(ng,0.04.xxx)+sh*fresnel(ng,f0_of(m))+wb*fresnel(ng,f0_of(m));
+                }else{
+                    first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);
+                    first_specular=fresnel(abs(dot(-direction,h.n)),f0_of(m));
+                }
+            }
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             if(((uint)m.lobes.w&1u)!=0)break;
             if(env_nee && random()<p_env){
-                float pe;float3 ld=sample_env(pe);float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
+                float pe;float3 ld=sample_env(pe);float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,h.p,pdf);
                 if(nl>0 && pe>0 && !occluded(h.p+h.ng*0.0003,ld,1e4)){
                     float3 e=throughput*f*nl*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
@@ -416,14 +513,14 @@ float2 filter_offset(float2 u){
                     float3 c=light.position_area.xyz-h.p;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
                     if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);limit=b-sqrt(max(0,r*r-(d2-b*b)));}
                 }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
-                float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
+                float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,h.p,pdf);
                 if(pc>0 && nl>0 && !occluded(h.p+h.ng*0.0003,ld,max(0.0002,limit-0.0006))){
                     float pl=(1-p_env)*light.edge2_probability.w*pc;float3 e=throughput*f*nl*light.emission_material.rgb/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }else{
             float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
-            float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
+            float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,h.p,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
                 if(!occluded(h.p+h.ng*0.0003,ld,max(0.0002,len-0.0006))){
                     float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld)))/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
@@ -466,11 +563,41 @@ float2 filter_offset(float2 u){
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;
             }else{
-                float ps=spec_probability(m);if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 hvec=basis(h.n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));next=reflect(direction,hvec);if(bounce==0)first_spec=true;
+                bool layered=((uint)m.lobes.w&64u)!=0u&&m.lobes.z<0.5; // pack bit6: branch guard without extra loads
+                float ps=spec_probability(m);
+                if(layered){
+                    // Lobe mixture matching eval_bsdf's weights (track 11): coat, then sheen, then
+                    // the base pair under (1-pc)(1-ps); the anisotropic base GGX samples the
+                    // stretched-hemisphere sampler (the disk projection of the (at,ab,1) ellipsoid,
+                    // which at at=ab=a is the sampler below rewritten).
+                    float pc=m.coating.x,sh=m.coating.z,wbase=(1.0-pc)*(1.0-sh),an=m.weave.x;
+                    float3 Tr,Br;
+                    if(an>0.0||m.effects.z>0.0){
+                        float2 du;float3 tb,bb;box_map(h.p,h.n,1.0,du,tb,bb);
+                        tb=normalize(tb);bb=normalize(bb);
+                        float rot=radians(m.weave.y),cr=cos(rot),sr=sin(rot);
+                        Tr=cr*tb+sr*bb;Br=cross(h.n,Tr);
+                    }
+                    float sel=random();
+                    if(sel<pc){
+                        float ac=max(1e-3,m.coating.y*m.coating.y);float u=random(),phi=2*PI*random();float r=sqrt(u/(1.0-u));
+                        float3 hv=normalize(basis(h.n,float3(ac*r*cos(phi),ac*r*sin(phi),1.0)));next=reflect(direction,hv);if(bounce==0)first_spec=true;cone_spread+=0.5*ac;
+                    }else if(sel<pc+sh*(1.0-pc)){
+                        next=cosine_sample(h.n);if(bounce==0)first_spec=true;cone_spread+=0.5;
+                    }else if(sel<pc+sh*(1.0-pc)+wbase*ps){
+                        if(an>0.0){
+                            float a=max(0.001,m.color_rough.a*m.color_rough.a),asp=sqrt(max(0.01,1.0-0.9*an)),at=a/asp,ab=a*asp;
+                            float u=random(),phi=2*PI*random();float r=sqrt(u/(1.0-u));
+                            float3 hv=normalize(at*r*cos(phi)*Tr+ab*r*sin(phi)*Br+h.n);next=reflect(direction,hv);if(bounce==0)first_spec=true;cone_spread+=0.5*(at*ab+1.0)*0.5;
+                        }else{
+                            float a=max(0.001,m.color_rough.a*m.color_rough.a);float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 hvec=basis(h.n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));next=reflect(direction,hvec);if(bounce==0)first_spec=true;cone_spread+=0.5*a;
+                        }
+                    }else{next=cosine_sample(h.n);cone_spread+=0.5;}
+                }else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 hvec=basis(h.n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));next=reflect(direction,hvec);if(bounce==0)first_spec=true;
                     cone_spread+=0.5*a;
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}
                 if(dot(h.n,next)<=0)break;
-                float3 bsdf=eval_bsdf(m,h.n,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
+                float3 bsdf=eval_bsdf(m,h.n,-direction,next,h.p,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
             }
             if(bounce==0 && delta)first_spec=true;
             previous_pdf=bsdf_pdf;previous_delta=delta;previous_position=h.p;

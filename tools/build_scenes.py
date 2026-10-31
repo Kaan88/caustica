@@ -16,11 +16,23 @@ OUT = Path(__file__).resolve().parent.parent / "scenes" / "builtin"
 
 # ---------------------------------------------------------------- materials
 def M(color=(0.72, 0.70, 0.66), rough=0.55, metal=0.0, refl=0.05, trans=0.0, ior=1.5,
-      emit=0.0, pattern="solid", second=(0.04, 0.04, 0.04), pscale=3.0, unlit=False):
-    return {"color": [round(c, 4) for c in color], "roughness": rough, "metallic": metal,
+      emit=0.0, pattern="solid", second=(0.04, 0.04, 0.04), pscale=3.0, unlit=False,
+      cc=0.0, cc_rough=0.03, sh=0.0, sh_rough=0.3, aniso=0.0, aniso_rot=0.0,
+      film_ior=1.3, film=0.0, grating=0.0):
+    out = {"color": [round(c, 4) for c in color], "roughness": rough, "metallic": metal,
             "reflectivity": refl, "transmission": trans, "ior": ior, "emission": emit,
             "pattern": pattern, "secondary_color": [round(c, 4) for c in second],
             "pattern_scale": pscale, "unlit": unlit}
+    # The new layered lobes stay out of the JSON until a scene asks for them, so the existing
+    # files keep their old bytes.
+    for key, value, default in (("clearcoat", cc, 0.0), ("clearcoat_roughness", cc_rough, 0.03),
+                                ("sheen", sh, 0.0), ("sheen_roughness", sh_rough, 0.3),
+                                ("anisotropy", aniso, 0.0), ("anisotropy_rotation", aniso_rot, 0.0),
+                                ("film_ior", film_ior, 1.3), ("film_thickness", film, 0.0),
+                                ("grating", grating, 0.0)):
+        if value != default:
+            out[key] = value
+    return out
 
 
 PORCELAIN = M((0.88, 0.87, 0.83), 0.2)
@@ -1230,6 +1242,12 @@ def check(slug, s):
         rng(label + " emission", m["emission"], 0, 20)
         rng(label + " pattern_scale", m["pattern_scale"], 0.1, 100)
         rng(label + " texture_scale", m.get("texture_scale", 0.5), 0.01, 100)
+        for k in ("clearcoat", "clearcoat_roughness", "sheen", "sheen_roughness", "anisotropy"):
+            rng(label + " " + k, m.get(k, 0.0), 0, 1)
+        rng(label + " anisotropy_rotation", abs(m.get("anisotropy_rotation", 0.0)), 0, 180)
+        rng(label + " film_ior", m.get("film_ior", 1.3), 1, 2.5)
+        rng(label + " film_thickness", m.get("film_thickness", 0.0), 0, 4000)
+        rng(label + " grating", m.get("grating", 0.0), 0, 4000)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)
@@ -1689,6 +1707,43 @@ scene("aquarium", "Aquarium",
              objects=aquarium(), bounces=16, exposure=1.0,
              **camera(11, 3, 2.4, (0, -0.6, 0), 44)))
 
+
+# ---------------------------------------------------------------- track 11: layered and exotic materials
+# The material library gained five lobed entries (presets.rs 12-16); this scene shows them off in
+# the same order. Layer order and attenuation follow the glTF spec (docs/research/
+# track-11-layered-materials.md): the film and the grating ride the base specular, sheen sits
+# above that, and the clearcoat is outermost. The film over marble shows thickness modulation:
+# the pattern value pushes the film 0.5x..1.5x, so the interference bands follow the veins.
+CARPAINT = M((0.02, 0.12, 0.4), 0.4, cc=1.0, cc_rough=0.06)
+STEEL = M((0.55, 0.56, 0.58), 0.3, metal=1.0, aniso=0.85, aniso_rot=90.0)
+VELVET = M((0.35, 0.05, 0.12), 0.6, sh=0.7, sh_rough=0.35)
+OILSLICK = M((0.04, 0.04, 0.05), 0.25, film=420.0)
+CD = M((0.7, 0.71, 0.73), 0.06, metal=1.0, grating=1600.0)
+FILMMARBLE = M((0.85, 0.84, 0.79), 0.25, pattern="marble", second=(0.05, 0.07, 0.1), pscale=5,
+               film=300.0)
+
+
+def layered_stage():
+    """A row of six spheres, left to right through the new lobes."""
+    names = [("Car paint", CARPAINT), ("Brushed steel", STEEL), ("Velvet", VELVET),
+             ("Oil slick", OILSLICK), ("CD grooves", CD), ("Film over marble", FILMMARBLE)]
+    return [obj(name, "sphere", -1.5 + i * 0.6, 0, 0.8, mat)
+            for i, (name, mat) in enumerate(names)]
+
+
+scene("layered-materials", "Layered materials",
+      "The five material-library lobed entries on one dark stage: car paint under a clearcoat, "
+      "brushed steel with vertical anisotropic grooves, velvet with sheen, an oil slick as "
+      "thin-film interference, a CD as a diffraction grating, and a film over marble whose "
+      "thickness rides the pattern.",
+      ["layered materials", "studio", "material"],
+      dark_stage(lights=[light("Key", (0.0, 4.0, 1.6), (3.0, 3.0), kelvin(5200), 50.0,
+                              target=(0, -0.6, 0)),
+                      light("Cool rim", (-2.6, 1.4, -1.8), (1.6, 1.6), (0.42, 0.65, 1.0), 20.0,
+                            target=(0, -0.6, 0))],
+              floor=M((0.1, 0.11, 0.12), 0.4, refl=0.2), base=[0.06, 0.06, 0.07],
+              objects=layered_stage(), bounces=10, exposure=1.3,
+              **camera(0, 9, 4.4, (0, -0.55, 0), 50)))
 
 # ---------------------------------------------------------------- environments pack
 # HDRI-lit scenes (core track 3); the HDRIs come from tools/fetch_assets.ps1 (scenes/hdri).

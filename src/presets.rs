@@ -1,7 +1,7 @@
 //! Built-in rendering studies. Every object and light remains editable.
 use crate::scene::{AreaLight, Material, Object, Pattern, Settings, Shape};
 use std::f32::consts::TAU;
-pub const MATERIAL_NAMES: [&str; 12] = [
+pub const MATERIAL_NAMES: [&str; 17] = [
     "Porcelain",
     "Chrome",
     "Gold",
@@ -14,6 +14,11 @@ pub const MATERIAL_NAMES: [&str; 12] = [
     "Marble",
     "Warm emitter",
     "Cool emitter",
+    "Car paint",
+    "Brushed steel",
+    "Velvet",
+    "Oil slick",
+    "CD grooves",
 ];
 pub fn material(id: usize) -> Material {
     let mut m = Material::default();
@@ -78,6 +83,37 @@ pub fn material(id: usize) -> Material {
             m.color = [0.08, 0.5, 1.];
             m.emission = 8.;
             m.roughness = 0.4;
+        }
+        // Track 11's layered lobes, so the inspector combo can show each one off.
+        12 => {
+            m.color = [0.02, 0.12, 0.4];
+            m.roughness = 0.4;
+            m.clearcoat = 1.;
+            m.clearcoat_roughness = 0.06;
+        }
+        13 => {
+            m.color = [0.55, 0.56, 0.58];
+            m.metallic = 1.;
+            m.roughness = 0.3;
+            m.anisotropy = 0.85;
+            m.anisotropy_rotation = 90.;
+        }
+        14 => {
+            m.color = [0.35, 0.05, 0.12];
+            m.roughness = 0.6;
+            m.sheen = 0.7;
+            m.sheen_roughness = 0.35;
+        }
+        15 => {
+            m.color = [0.04, 0.04, 0.05];
+            m.roughness = 0.25;
+            m.film_thickness = 420.;
+        }
+        16 => {
+            m.color = [0.7, 0.71, 0.73];
+            m.metallic = 1.;
+            m.roughness = 0.06;
+            m.grating = 1600.;
         }
         _ => {}
     }

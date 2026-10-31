@@ -1,6 +1,6 @@
 // maps: heap slot + 1 of base colour, normal, metallic-roughness (0 = none), alpha cutoff bits.
 // base_scale.rgb and surface_scale.xy (roughness, metallic) = value / map average (core track 5).
-struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;};
+struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;float4 coating;float4 effects;float4 weave;};
 cbuffer Frame:register(b0) {
     float4x4 inverse_vp;
     float4x4 current_vp;
@@ -37,6 +37,10 @@ RaytracingAccelerationStructure scene:register(t0);
 struct Vertex {float3 position;uint material;float3 normal;uint pad;float2 uv;};
 StructuredBuffer<Vertex> vertices:register(t1); // every mesh in use, object space (core track 4)
 StructuredBuffer<Vertex> static_vertices:register(t6); // floor, room and lights, world space
+// Kulla-Conty GGX complement albedo S(mu, alpha) = 1 - E for the shader's GGX form, 32x32
+// (row-major [alpha][mu], mu/alpha in [0.02,1]); uploaded once from src/ggx_e_data.rs
+// (tools/build_ggx_e_data.py), read only by the layered-material branch (root SRV t8).
+StructuredBuffer<float> ggx_table:register(t8);
 // One per TLAS instance (InstanceID). material 0xffffffff = the static instance (per-vertex ids).
 struct Instance{uint vertex_base;uint material;uint emitter_base;uint object;};
 StructuredBuffer<Instance> instances:register(t7);

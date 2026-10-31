@@ -176,6 +176,85 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 }
             });
     });
+    more(ui, (id, "material layers"), advanced, |ui| {
+        egui::Grid::new((id, "material layers"))
+                .num_columns(2)
+                .spacing([12., 6.])
+                .show(ui, |ui| {
+                    row(
+                        ui,
+                        "Clearcoat",
+                        "A clear lacquer over everything (car paint, varnish); it covers the surface beneath.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.clearcoat, 0. ..=1.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Coat roughness",
+                        "Roughness of the coat itself: 0 is a wet look, 1 a dusty one.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.clearcoat_roughness, 0. ..=1.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Sheen",
+                        "Micro-fibres facing out (cloth, velvet, peach fuzz): a grazing-angle highlight.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.sheen, 0. ..=1.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Sheen roughness",
+                        "How wide the sheen highlight is; the fibre direction.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.sheen_roughness, 0. ..=1.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Anisotropy",
+                        "Brushed-metal stretch of the highlight along the grooves.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.anisotropy, 0. ..=1.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Groove rotation",
+                        "The groove direction, degrees in the surface plane.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.anisotropy_rotation, 0. ..=180.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Film thickness",
+                        "Thin-film interference: the oil/film thickness in nanometres (a soap film is ~400; 0 turns it off); a pattern varies it across the surface.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.film_thickness, 0. ..=4000.).suffix(" nm"));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Film IOR",
+                        "Refractive index of the interfering film above the surface.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.film_ior, 1. ..=2.5));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Grating period",
+                        "Diffraction grating: the groove spacing in nanometres (a CD is 1600); 0 turns it off.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.grating, 0. ..=4000.).suffix(" nm"));
+                        },
+                    );
+                });
+    });
 }
 pub fn shape_combo(ui: &mut egui::Ui, id: &str, shape: &mut Shape) {
     egui::ComboBox::from_id_salt(id)

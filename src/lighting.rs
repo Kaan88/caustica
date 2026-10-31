@@ -16,6 +16,15 @@ pub struct PackedMaterial {
     pub base_scale: [f32; 4],
     /// Roughness and metallic value / map average (G and B channels); z, w unused.
     pub surface_scale: [f32; 4],
+    /// Layered lobes (track 11): [clearcoat share, clearcoat roughness, sheen share, sheen
+    /// roughness]. The shares attenuate everything below them, so all-zero is exactly the old
+    /// surface and stays bit-identical.
+    pub coating: [f32; 4],
+    /// Wave optics: [film IOR, film thickness in nm (0 = none), grating period in nm
+    /// (0 = none), unused]. A CD's grooves are about 1600 nm.
+    pub effects: [f32; 4],
+    /// [anisotropy stretch 0..1, groove rotation in the tangent plane in degrees, unused, unused]
+    pub weave: [f32; 4],
 }
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -26,7 +35,7 @@ pub struct Emitter {
     pub emission_material: [f32; 4],
 }
 fn pack(m: &Material) -> PackedMaterial {
-    PackedMaterial {
+    let mut packed = PackedMaterial {
         color_rough: [m.color[0], m.color[1], m.color[2], m.roughness],
         lobes: [
             m.metallic,
@@ -54,7 +63,29 @@ fn pack(m: &Material) -> PackedMaterial {
             },
         ],
         surface_scale: [0.; 4],
+        coating: [
+            m.clearcoat,
+            m.clearcoat_roughness,
+            m.sheen,
+            m.sheen_roughness,
+        ],
+        effects: [m.film_ior, m.film_thickness, m.grating, 0.],
+        weave: [m.anisotropy, m.anisotropy_rotation, 0., 0.],
+    };
+    // Flag bit6: this material has a layered lobe, so the shader may read coating/effects/weave.
+    // The trace is register-bound (track 10's lesson): guarding that read by a bit test on the
+    // uint4 every path already loads keeps those float4 loads scoped inside the branch, so a
+    // scene without layer fields pays nothing for the new fields. Amounts only: a lone roughness
+    // (default clearcoat_roughness 0.03) with all amounts 0 behaves exactly like the old path.
+    let layered = m.clearcoat != 0.
+        || m.sheen != 0.
+        || m.anisotropy != 0.
+        || m.film_thickness != 0.
+        || m.grating != 0.;
+    if layered {
+        packed.lobes[3] = (packed.lobes[3] as u32 | 64) as f32;
     }
+    packed
 }
 pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
     let mut out = vec![pack(&s.walls); 5];

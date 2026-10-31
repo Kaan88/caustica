@@ -25,6 +25,24 @@ pub struct Material {
     pub texture: String,
     /// Repeats of the texture set per scene unit (the Cornell box is 2 wide).
     pub texture_scale: f32,
+    /// Track 11's layered lobes (see docs/research/track-11-layered-materials.md): the share of
+    /// the surface the clearcoat covers and its own perceptual roughness.
+    pub clearcoat: f32,
+    pub clearcoat_roughness: f32,
+    /// The share of the surface the sheen (micro-fibres, Charlie lobe) covers and its roughness.
+    pub sheen: f32,
+    pub sheen_roughness: f32,
+    /// Anisotropic stretch of the base specular (0 isotropic, 1 brushed): the groove direction
+    /// comes from the tangent basis, rotated by anisotropy_rotation degrees in the tangent plane.
+    pub anisotropy: f32,
+    pub anisotropy_rotation: f32,
+    /// Thin-film interference (wave optics over the base specular): the film's IOR and its
+    /// thickness in nanometres (0 = no film; the procedural pattern modulates the thickness).
+    pub film_ior: f32,
+    pub film_thickness: f32,
+    /// Diffraction grating (a reflection grating riding the groove direction): the groove period
+    /// in nanometres, 0 = none; a CD is about 1600.
+    pub grating: f32,
 }
 impl Default for Material {
     fn default() -> Self {
@@ -43,6 +61,15 @@ impl Default for Material {
             textures: true,
             texture: String::new(),
             texture_scale: 0.5,
+            clearcoat: 0.,
+            clearcoat_roughness: 0.03,
+            sheen: 0.,
+            sheen_roughness: 0.3,
+            anisotropy: 0.,
+            anisotropy_rotation: 0.,
+            film_ior: 1.3,
+            film_thickness: 0.,
+            grating: 0.,
         }
     }
 }
@@ -887,6 +914,22 @@ impl Settings {
                     && (1. ..=2.5).contains(&m.ior)
                     && (0. ..=20.).contains(&m.emission),
                 "Invalid material"
+            );
+            anyhow::ensure!(
+                [
+                    m.clearcoat,
+                    m.clearcoat_roughness,
+                    m.sheen,
+                    m.sheen_roughness,
+                    m.anisotropy
+                ]
+                .iter()
+                .all(|v| (0. ..=1.).contains(v))
+                    && m.anisotropy_rotation.abs() <= 180.
+                    && (1. ..=2.5).contains(&m.film_ior)
+                    && (0. ..=4000.).contains(&m.film_thickness)
+                    && (0. ..=4000.).contains(&m.grating),
+                "Invalid layered material"
             );
             anyhow::ensure!(
                 m.secondary_color.iter().all(|v| (0. ..=1.).contains(v))

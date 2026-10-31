@@ -8,6 +8,7 @@ mod editor;
 mod environment;
 mod generators;
 mod geometry;
+mod ggx_e_data;
 mod gizmo;
 mod gpu;
 mod hotreload;
