@@ -21,6 +21,7 @@ mod remote;
 mod saver;
 mod scene;
 mod scenes;
+mod sky;
 mod stats;
 mod teapot_data;
 mod texture;
@@ -121,7 +122,8 @@ struct App {
     last_samples: u32,
     /// The .cube file now on the GPU (compared with `Settings::lut_path` each frame).
     lut_loaded: String,
-    /// The HDRI now on the GPU (compared with `Settings::hdri` each frame).
+    /// The environment now on the GPU (`sky::environment_key`: an HDRI path or the physical
+    /// sky's map key), compared each frame.
     hdri_loaded: String,
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
@@ -616,6 +618,13 @@ impl App {
                 8 => self.settings.rr = false,
                 9 => self.settings.rr = true,
                 // Frames 10–125 cycle all presets; 23 is the empty stage.
+                // Physical sky (track 9): noon, then night, then off.
+                126 => {
+                    self.settings.physical_sky.on = true;
+                    self.settings.physical_sky.time = 12.;
+                }
+                127 => self.settings.physical_sky.time = 1.,
+                128 => self.settings.physical_sky.on = false,
                 130 => {
                     self.settings.light_on = false;
                     self.settings.lights.clear();
@@ -1638,16 +1647,16 @@ impl App {
                 }
             }
         }
-        if s.hdri != self.hdri_loaded && self.export.is_none() {
-            self.hdri_loaded = s.hdri.clone();
-            let result = if s.hdri.is_empty() {
-                unsafe { g.set_environment(None) }
-            } else {
-                environment::load(&s.hdri).and_then(|env| unsafe { g.set_environment(Some(&env)) })
-            };
-            if let Err(e) = result {
+        let environment = sky::environment_key(s);
+        if environment != self.hdri_loaded && self.export.is_none() {
+            self.hdri_loaded = environment;
+            if let Err(e) = unsafe { sky::upload_environment(g, s) } {
                 unsafe { g.set_environment(None)? };
-                self.ui.error(format!("HDRI {}: {e:#}", s.hdri));
+                self.ui.error(if s.physical_sky.on {
+                    format!("Sky: {e:#}")
+                } else {
+                    format!("HDRI {}: {e:#}", s.hdri)
+                });
             }
         }
         if self.actions.cancel_export {
@@ -1867,6 +1876,12 @@ impl App {
                 emitters.len()
             );
             let emitters = g.emitter_count;
+            let suns = |s: &Settings| {
+                s.lights
+                    .iter()
+                    .filter(|l| l.enabled && l.kind == scene::LightKind::Sun)
+                    .count() as u32
+            };
             match self.rendered {
                 2 | 3 => anyhow::ensure!(
                     g.samples == 3 * s.spp,
@@ -1877,6 +1892,15 @@ impl App {
                     "Scene/camera edit failed to reset accumulation"
                 ),
                 125 => anyhow::ensure!(s.objects.is_empty(), "Empty stage has objects"),
+                126 => anyhow::ensure!(
+                    g.environment_loaded() && g.sun_count == 1 + suns(s),
+                    "The physical sky's map or sun is missing"
+                ),
+                127 => anyhow::ensure!(
+                    g.environment_loaded() && g.sun_count == suns(s),
+                    "The night sky must load without a sun"
+                ),
+                128 => anyhow::ensure!(!g.environment_loaded(), "The sky stayed loaded"),
                 130 | 133 | 136 => anyhow::ensure!(emitters == 0, "Expected no emitters"),
                 132 => anyhow::ensure!(
                     emitters > 0 && g.samples == s.spp,

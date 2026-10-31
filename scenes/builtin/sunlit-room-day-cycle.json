@@ -1,0 +1,887 @@
+{
+ "format": 1,
+ "title": "Sunlit room · day cycle",
+ "description": "A room with an east window under the physical sky; its time of day is keyed from 06:30 to 19:30, so playing the timeline (K) is a time-lapse of the sun crossing the floor.",
+ "tags": [
+  "physical sky",
+  "interior",
+  "animation",
+  "daylight"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 20.0,
+  "sky": 0.0,
+  "base": [
+   0.5,
+   0.48,
+   0.45
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 12,
+  "yaw": 40,
+  "pitch": 12,
+  "distance": 2.4,
+  "target": [
+   -0.6,
+   -0.2,
+   0
+  ],
+  "fov": 62,
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -3.1
+    ],
+    "size": 1.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     0.2857
+    ],
+    "elevation": 0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Front wall",
+    "shape": "box",
+    "position": [
+     0,
+     3.1
+    ],
+    "size": 1.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     0.2857
+    ],
+    "elevation": 0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "West wall",
+    "shape": "box",
+    "position": [
+     -3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": 0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     9.1429
+    ],
+    "elevation": 2.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "East wall (below)",
+    "shape": "box",
+    "position": [
+     3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 1.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": -0.55,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "East wall (above)",
+    "shape": "box",
+    "position": [
+     3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     8.5714
+    ],
+    "elevation": 1.7,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "East wall (side)",
+    "shape": "box",
+    "position": [
+     3.1,
+     -2.1
+    ],
+    "size": 1.0,
+    "stretch": 2.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     2.5714
+    ],
+    "elevation": 0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "East wall (side)",
+    "shape": "box",
+    "position": [
+     3.1,
+     2.1
+    ],
+    "size": 1.0,
+    "stretch": 2.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     2.5714
+    ],
+    "elevation": 0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.77,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Mullion",
+    "shape": "box",
+    "position": [
+     3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 2.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.0857
+    ],
+    "elevation": 0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.18,
+      0.16
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Transom",
+    "shape": "box",
+    "position": [
+     3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.0857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     3.4286
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.18,
+      0.16
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Table top",
+    "shape": "box",
+    "position": [
+     0.4,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.0857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.2857,
+     1.2857
+    ],
+    "elevation": -0.25,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.26,
+      0.15
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.06,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Table leg",
+    "shape": "box",
+    "position": [
+     -0.3,
+     -0.98
+    ],
+    "size": 1.0,
+    "stretch": 1.0286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.64,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.26,
+      0.15
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.06,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Table leg",
+    "shape": "box",
+    "position": [
+     -0.3,
+     -0.22
+    ],
+    "size": 1.0,
+    "stretch": 1.0286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.64,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.26,
+      0.15
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.06,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Table leg",
+    "shape": "box",
+    "position": [
+     1.1,
+     -0.98
+    ],
+    "size": 1.0,
+    "stretch": 1.0286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.64,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.26,
+      0.15
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.06,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Table leg",
+    "shape": "box",
+    "position": [
+     1.1,
+     -0.22
+    ],
+    "size": 1.0,
+    "stretch": 1.0286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.64,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.26,
+      0.15
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.06,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vase",
+    "shape": "sphere",
+    "position": [
+     0.1,
+     -0.75
+    ],
+    "size": 0.33,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.07,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      1.0
+     ],
+     "roughness": 0.02,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Orange",
+    "shape": "sphere",
+    "position": [
+     0.7,
+     -0.45
+    ],
+    "size": 0.22,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.38,
+      0.05
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rug",
+    "shape": "box",
+    "position": [
+     -0.6,
+     0.6
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     6.0,
+     4.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.12,
+      0.1
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 2.0,
+  "physical_sky": {
+   "on": true,
+   "time": 8.0,
+   "day": 80.0,
+   "latitude": 40.0
+  },
+  "animation": {
+   "length": 12.0,
+   "fps": 24,
+   "shutter": 0.0,
+   "tracks": [
+    {
+     "path": "physical_sky/time",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 6.5,
+       "interp": "linear"
+      },
+      {
+       "time": 12.0,
+       "value": 19.5,
+       "interp": "linear"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

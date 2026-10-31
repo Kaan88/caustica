@@ -2067,6 +2067,16 @@ impl Gpu {
             0
         };
         let lc = s.light_color();
+        // The physical sky (track 9) is baked at strength 1 with north at −z.
+        let (env_strength, env_rotation, env_visible) = if s.physical_sky.on {
+            (1., s.physical_sky.rotation(), s.physical_sky.visible)
+        } else {
+            (
+                s.hdri_strength,
+                s.hdri_rotation.to_radians(),
+                s.hdri_visible,
+            )
+        };
         let mut c = Constants {
             inverse_vp: vp.inverse().to_cols_array(),
             current_vp: vp.to_cols_array(),
@@ -2160,10 +2170,10 @@ impl Gpu {
                 (self.present_count % 4096) as f32,
             ],
             environment_map: [
-                s.hdri_strength * self.env_scale,
-                s.hdri_rotation.to_radians(),
+                env_strength * self.env_scale,
+                env_rotation,
                 if self.env_inv_norm > 0. {
-                    1. + if s.hdri_visible { 2. } else { 0. }
+                    1. + if env_visible { 2. } else { 0. }
                 } else {
                     0.
                 },

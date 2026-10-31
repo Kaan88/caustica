@@ -569,6 +569,10 @@ pub struct Job {
     geometry: String,
     materials: Vec<u8>,
     scene_changed: bool,
+    /// The environment on the GPU (`sky::environment_key`; a keyed physical sky re-bakes it),
+    /// and whether the job changed it.
+    environment: String,
+    environment_changed: bool,
     /// Passes rendered (motion blur's shutter samples).
     pass: u32,
 }
@@ -642,6 +646,8 @@ impl Job {
             geometry: crate::geometry_key(s),
             materials: crate::material_key(s),
             scene_changed: false,
+            environment: crate::sky::environment_key(s),
+            environment_changed: false,
             pass: 0,
         };
         if job.options.timeline
@@ -682,6 +688,12 @@ impl Job {
             self.scene_changed = true;
         }
         self.materials = materials;
+        let environment = crate::sky::environment_key(&self.settings);
+        if environment != self.environment {
+            crate::sky::upload_environment(g, &self.settings)?;
+            self.environment = environment;
+            self.environment_changed = true;
+        }
         Ok(())
     }
     /// Before each pass. With motion blur every pass is one moment inside the open shutter,
@@ -782,8 +794,14 @@ impl Job {
         if self.scene_changed {
             g.rebuild_scene(s)?;
         }
+        let environment = if self.environment_changed {
+            crate::sky::upload_environment(g, s)
+        } else {
+            Ok(())
+        };
         g.reset(true);
         let written = written?;
+        environment?;
         let [ew, eh] = self.options.size();
         let secs = self.started.elapsed().as_secs_f32();
         if self.options.still && !cancel {

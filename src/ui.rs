@@ -3245,6 +3245,143 @@ impl App {
         });
     }
 }
+/// Physical sky rows of the Stage grid (track 9).
+fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
+    row(
+        ui,
+        "Physical sky",
+        "A sun and an Earth sky computed from the time, date and latitude. Replaces the sky light and the HDRI while on.",
+        |ui| {
+            ui.checkbox(&mut s.physical_sky.on, "");
+        },
+    );
+    if !s.physical_sky.on {
+        return;
+    }
+    let p = &mut s.physical_sky;
+    row(
+        ui,
+        "Time of day",
+        "Solar time: 12:00 is when the sun is highest.",
+        |ui| {
+            ui.add(
+                crate::slider(&mut p.time, 0. ..=24.).custom_formatter(|v, _| {
+                    let minutes = (v * 60.).round() as u32;
+                    format!("{:02}:{:02}", minutes / 60 % 24, minutes % 60)
+                }),
+            );
+        },
+    );
+    row(
+        ui,
+        "Date",
+        "Day of the year: the sun is highest at the June solstice in the north.",
+        |ui| {
+            ui.add(
+                crate::slider(&mut p.day, 1. ..=366.).custom_formatter(|v, _| day_name(v as f32)),
+            );
+        },
+    );
+    row(ui, "Latitude", "Degrees north (negative: south).", |ui| {
+        ui.add(crate::slider(&mut p.latitude, -90. ..=90.).suffix("°"));
+    });
+    row(
+        ui,
+        "North",
+        "Turns the sky (and the sun's path) about the vertical axis. 0: north is −z.",
+        |ui| {
+            ui.add(crate::slider(&mut p.north, -180. ..=180.).suffix("°"));
+        },
+    );
+    row(
+        ui,
+        "Turbidity",
+        "Haze: 1 is pure air, 2 a clear day, 10 very hazy.",
+        |ui| {
+            ui.add(crate::slider(&mut p.turbidity, 1. ..=10.));
+        },
+    );
+    row(
+        ui,
+        "Sun intensity",
+        "The sun above the atmosphere lights a white surface facing it to this; the sky follows.",
+        |ui| {
+            ui.add(
+                crate::slider(&mut p.intensity, 0. ..=1000.)
+                    .logarithmic(true)
+                    .suffix("×"),
+            );
+        },
+    );
+    row(
+        ui,
+        "Sun size",
+        "Angular diameter. The real sun is 0.53°; larger gives softer shadows.",
+        |ui| {
+            ui.add(
+                crate::slider(&mut p.sun_size, 0.05..=20.)
+                    .logarithmic(true)
+                    .suffix("°"),
+            );
+        },
+    );
+    row(
+        ui,
+        "Ground",
+        "Albedo of the ground below the horizon.",
+        |ui| {
+            ui.add(crate::slider(&mut p.ground, 0. ..=1.));
+        },
+    );
+    row(
+        ui,
+        "Seen by camera",
+        "Off: the camera sees the background colour while the sky still lights.",
+        |ui| {
+            ui.checkbox(&mut p.visible, "");
+        },
+    );
+    row(
+        ui,
+        "Day cycle",
+        "Keys the time of day from 06:00 at the start of the timeline to 20:00 at its end (linear).",
+        |ui| {
+            if ui.small_button("Key a day").clicked() {
+                let a = &mut s.animation;
+                let path = "physical_sky/time";
+                let length = a.length;
+                a.key(path, 0., 6.);
+                a.key(path, length, 20.);
+                a.set_interp(&[path.into()], 0., crate::anim::Interp::Linear);
+            }
+        },
+    );
+}
+/// "21 Jun" for a day of the year (a non-leap year).
+fn day_name(day: f32) -> String {
+    const MONTHS: [(&str, u32); 12] = [
+        ("Jan", 31),
+        ("Feb", 28),
+        ("Mar", 31),
+        ("Apr", 30),
+        ("May", 31),
+        ("Jun", 30),
+        ("Jul", 31),
+        ("Aug", 31),
+        ("Sep", 30),
+        ("Oct", 31),
+        ("Nov", 30),
+        ("Dec", 31),
+    ];
+    let mut d = (day.round() as u32).clamp(1, 365);
+    for (name, len) in MONTHS {
+        if d <= len {
+            return format!("{d} {name}");
+        }
+        d -= len;
+    }
+    "31 Dec".into()
+}
 fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
     section(ui, "Stage");
     grid("stage").show(ui, |ui| {
@@ -3276,6 +3413,7 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 ui.add(crate::slider(&mut s.sky, 0. ..=4.).suffix("×"));
             },
         );
+        physical_sky_ui(ui, s);
         row(
             ui,
             "HDRI",
@@ -3304,7 +3442,7 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 }
             },
         );
-        if !s.hdri.is_empty() {
+        if !s.hdri.is_empty() && !s.physical_sky.on {
             row(ui, "HDRI strength", "Multiplier on the HDRI's light.", |ui| {
                 ui.add(
                     crate::slider(&mut s.hdri_strength, 0. ..=1000.)

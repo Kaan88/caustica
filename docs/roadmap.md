@@ -291,9 +291,13 @@ As built: keyframes on any float in the scene (camera, object transforms, lights
   - Recreate Cook's 1984 pool-ball scene as the showcase.
 - **Unlocks:** Newton's cradle, flickering candles, day-cycle time-lapses (item 9) and turntables with keyframed lights.
 
-#### 9. Physical sky and day cycle
+#### 9. Physical sky and day cycle — done 2026-10-31
 
-Needs the sun from item 7 and the importance-sampled environment from core 3.
+As built: *Physical sky* in the Stage section (time of day, date, latitude, north, turbidity, sun intensity and size, ground albedo, seen by camera, *Key a day*). Instead of Hosek–Wilkie (fitted coefficient tables, weak at twilight) the sky is a ray-marched Earth atmosphere after Bruneton / Hillaire: Rayleigh, Mie and ozone, a transmittance table, single scattering plus Hillaire's 2020 isotropic multiple-scattering term, earth shadow, a ground below the horizon lit by sun and sky. It is baked on the CPU (1024 × 512, all cores) into the environment map and reuses the HDRI path (CDFs, MIS); the sun is not in the map but an analytic sun light (track 7) coloured by the atmosphere's transmittance, so its shadows stay sharp. Sun and sky share one unit (the sun above the atmosphere lights a white surface to *Sun intensity*). Every field is keyable (track 8), timeline exports re-bake per moment; `scenes/builtin` gained *Sunlit room · day cycle* (a keyed 06:30–19:30 time-lapse through an east window) and *Sky garden at dusk*. See CLAUDE.md "Physical sky".
+
+- Not done: stars, moon and night sky (night is a faint constant floor); solar time only (no time zone / longitude / clock time); single wavelength-triplet RGB, not spectral; no aerial perspective on scene geometry (distant objects get no haze; that is volumes, track 12); the sky does not follow the camera's altitude (the observer is 50 m up); clouds; the sky's ozone and aerosol profiles are fixed (turbidity scales the aerosol density only); the bake blocks the main thread (about 60–70 ms in release on this machine at 1024 × 512, so dragging the time slider or playing a keyed day hitches; about 640 ms in debug at 512 × 256); a cache of recent bakes or a 2D (view cosine × sun angle) table would make scrubbing smooth; the viewport re-bakes on every edit of a map field while the export re-bakes per motion-blur pass.
+
+Original plan:
 
 - **Sky model:** Hosek–Wilkie, or the Prague model for more accurate sunsets. Bake it into the environment map on change and reuse the HDRI CDF path.
 - **Controls:** time of day, latitude and turbidity. With item 8, a time-lapse through a window.

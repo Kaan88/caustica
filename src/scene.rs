@@ -415,6 +415,9 @@ pub struct Settings {
     pub hdri_rotation: f32,
     /// Camera rays see the HDRI; off, they see the background colour (it still lights).
     pub hdri_visible: bool,
+    /// Physical sky and sun (track 9); replaces the HDRI and the sky light while on.
+    #[serde(skip_serializing_if = "crate::sky::PhysicalSky::is_default")]
+    pub physical_sky: crate::sky::PhysicalSky,
     /// Keyframes (track 8); the playhead is `anim::Timeline` in the app.
     #[serde(skip_serializing_if = "crate::anim::Animation::is_default")]
     pub animation: crate::anim::Animation,
@@ -522,6 +525,7 @@ impl Default for Settings {
             hdri_strength: 1.,
             hdri_rotation: 0.,
             hdri_visible: true,
+            physical_sky: Default::default(),
             animation: Default::default(),
         }
     }
@@ -761,6 +765,7 @@ impl Settings {
             "Invalid texture anisotropy"
         );
         self.animation.validate()?;
+        self.physical_sky.validate()?;
         anyhow::ensure!(
             self.hdr_mode < 3
                 && (self.hdr_peak == 0. || (80. ..=10000.).contains(&self.hdr_peak))

@@ -98,6 +98,28 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
         }
         m
     }));
+    // The physical sky's sun (track 9), right after the lights (`sun_material`); black while
+    // it is below the horizon, so the record count only follows `on`.
+    if s.physical_sky.on {
+        let sun = s.physical_sky.sun().filter(|(_, l)| l.max_element() > 0.);
+        let (color, emission) = match sun {
+            Some((_, l)) => ((l / l.max_element()).to_array(), l.max_element()),
+            None => ([1.; 3], 0.),
+        };
+        let mut m = pack(&Material {
+            color,
+            emission,
+            unlit: true,
+            ..Material::default()
+        });
+        m.optical[3] = 1.;
+        m.lobes[3] = 1. + if s.physical_sky.visible { 0. } else { 2. };
+        // Unused by the shader (no surface has this material): the direction, so that turning
+        // the sky alone changes the material key and the emitter table follows.
+        let d = s.physical_sky.sun_direction();
+        m.secondary = [d.x, d.y, d.z, 0.];
+        out.push(m);
+    }
     // Portals (flag bit 2): the object's record points (secondary.w) at an extra record whose
     // first three rows hold the affine map into the paired portal.
     for (i, o) in s.objects.iter().enumerate() {
@@ -169,9 +191,26 @@ pub fn analytic(s: &Settings) -> Vec<Analytic> {
                 },
             })
     };
-    lights(LightKind::Sun)
+    let sky = &s.physical_sky;
+    let sky_sun = sky
+        .on
+        .then(|| sky.sun())
+        .flatten()
+        .map(|(direction, _)| Analytic {
+            material: sun_material(s),
+            kind: LightKind::Sun,
+            at: direction,
+            extent: sky.sun_extent(),
+        });
+    sky_sun
+        .into_iter()
+        .chain(lights(LightKind::Sun))
         .chain(lights(LightKind::Sphere))
         .collect()
+}
+/// The material record of the physical sky's sun.
+pub fn sun_material(s: &Settings) -> u32 {
+    (5 + s.objects.len() + s.lights.len()) as u32
 }
 fn luminance(c: Vec3) -> f32 {
     c.dot(Vec3::new(0.2126, 0.7152, 0.0722))

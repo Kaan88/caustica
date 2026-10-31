@@ -1185,6 +1185,74 @@ scene("bigger-on-the-inside", "Bigger on the inside",
              **camera(10, 6, 5.0, (0, 0.2, 0), 45)))
 
 
+# ---------------------------------------------------------------- physical sky (track 9)
+def sky(time, **kw):
+    """A physical sky (src/sky.rs); omitted fields take PhysicalSky::default()."""
+    return {"on": True, "time": time, **kw}
+
+
+def sunlit_room():
+    """A plaster room with a window in its east wall (+x): the sun's patch crosses the floor."""
+    plaster = matte((0.8, 0.77, 0.72), 0.85)
+    w, d, h, t = 6.0, 6.0, 3.0, 0.2
+    y0 = -1.0
+    o = []
+
+    def slab(name, x, y, z, sx, sy, sz, m=plaster):
+        o.append(float_at(name, "box", x, y, z, 1, m, stretch=sy / 0.7, scale=(sx / 0.7, sz / 0.7)))
+
+    slab("Back wall", 0, y0 + h / 2, -d / 2 - t / 2, w + 2 * t, h, t)
+    slab("Front wall", 0, y0 + h / 2, d / 2 + t / 2, w + 2 * t, h, t)
+    slab("West wall", -w / 2 - t / 2, y0 + h / 2, 0, t, h, d)
+    slab("Ceiling", 0, y0 + h + t / 2, 0, w + 2 * t, t, d + 2 * t)
+    # East wall around a window 2.4 wide, 1.5 high, its sill 0.9 above the floor.
+    ex = w / 2 + t / 2
+    sill, top, half = y0 + 0.9, y0 + 2.4, 1.2
+    slab("East wall (below)", ex, (y0 + sill) / 2, 0, t, sill - y0, d)
+    slab("East wall (above)", ex, (top + y0 + h) / 2, 0, t, y0 + h - top, d)
+    for side in (-1, 1):
+        zc = side * (half + (d / 2 - half) / 2)
+        slab("East wall (side)", ex, (sill + top) / 2, zc, t, top - sill, d / 2 - half)
+    slab("Mullion", ex, (sill + top) / 2, 0, t * 0.6, top - sill, 0.06, matte((0.2, 0.18, 0.16), 0.6))
+    slab("Transom", ex, y0 + 1.75, 0, t * 0.6, 0.06, 2 * half, matte((0.2, 0.18, 0.16), 0.6))
+    wood = M((0.42, 0.26, 0.15), 0.45, refl=0.06)
+    slab("Table top", 0.4, y0 + 0.75, -0.6, 1.6, 0.06, 0.9, wood)
+    for dx in (-0.7, 0.7):
+        for dz in (-0.38, 0.38):
+            slab("Table leg", 0.4 + dx, y0 + 0.36, -0.6 + dz, 0.06, 0.72, 0.06, wood)
+    o.append(float_at("Vase", "sphere", 0.1, y0 + 0.93, -0.75, 0.33, M((0.85, 0.9, 1.0), 0.02, trans=1, ior=1.5)))
+    o.append(float_at("Orange", "sphere", 0.7, y0 + 0.84, -0.45, 0.22, matte((0.9, 0.38, 0.05), 0.6)))
+    o.append(obj("Rug", "box", -0.6, 0.6, 1, matte((0.55, 0.12, 0.1), 0.95), stretch=0.02 / 0.7, scale=(2.4 / 0.7, 1.6 / 0.7)))
+    return o
+
+
+# Half past six to half past seven in the evening over 12 s; the window faces east, so the
+# morning sun comes in low across the floor, and the room glows from the sky after noon.
+scene("sunlit-room-day-cycle", "Sunlit room · day cycle",
+      "A room with an east window under the physical sky; its time of day is keyed from 06:30 to "
+      "19:30, so playing the timeline (K) is a time-lapse of the sun crossing the floor.",
+      ["physical sky", "interior", "animation", "daylight"],
+      studio(light_on=False, lights=[], sky=0.0, floor_extent=20.0, base=[0.5, 0.48, 0.45],
+             objects=sunlit_room(), bounces=12, exposure=2.0,
+             physical_sky=sky(8.0, day=80.0, latitude=40.0),
+             animation={"length": 12.0, "fps": 24, "shutter": 0.0,
+                        "tracks": [track("physical_sky/time", [(0.0, 6.5, "linear"), (12.0, 19.5, "linear")])]},
+             **camera(40, 12, 2.4, (-0.6, -0.2, 0), 62)))
+
+scene("sky-garden-dusk", "Sky garden at dusk",
+      "Glass, chrome and clay on an open floor under the physical sky, a little before sunset: the low "
+      "sun is orange and the shadows are blue from the sky.",
+      ["physical sky", "outdoor", "glass", "daylight"],
+      studio(light_on=False, lights=[], sky=0.0, floor_extent=40.0, base=[0.6, 0.58, 0.55],
+             floor=M((0.6, 0.58, 0.55), 0.7, refl=0.04),
+             objects=[obj("Glass sphere", "sphere", -1.2, 0.3, 1.1, M((0.95, 0.97, 1.0), 0.0, trans=1, ior=1.5)),
+                      obj("Chrome torus", "torus", 0.4, -0.6, 1.0, M((0.95, 0.95, 0.95), 0.05, metal=1), tilt=(70, 0)),
+                      obj("Clay block", "box", 1.4, 0.8, 1.0, matte((0.75, 0.4, 0.28), 0.8), stretch=1.6, rotation=20),
+                      obj("Clay cone", "cone", -0.2, 1.4, 0.8, matte((0.85, 0.82, 0.75), 0.8))],
+             physical_sky=sky(18.9, day=172.0, latitude=45.0, turbidity=3.0, north=40.0),
+             exposure=1.6, **camera(30, 10, 6.5, (0, -0.1, 0), 40)))
+
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1270,6 +1338,11 @@ def check(slug, s):
     for k in ("walls", "floor"):
         if k in s:
             material(k, s[k])
+    sky = s.get("physical_sky", {})
+    for k, lo, hi in [("time", 0, 24), ("day", 1, 366), ("latitude", -90, 90), ("north", -360, 360),
+                      ("turbidity", 1, 10), ("intensity", 0, 1000), ("sun_size", 0.05, 20), ("ground", 0, 1)]:
+        if k in sky:
+            rng("physical_sky " + k, sky[k], lo, hi)
     return [f"{slug}: {b}" for b in bad]
 
 
