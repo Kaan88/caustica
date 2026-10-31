@@ -415,6 +415,20 @@ pub struct Settings {
     pub hdri_rotation: f32,
     /// Camera rays see the HDRI; off, they see the background colour (it still lights).
     pub hdri_visible: bool,
+    /// Physical sky (track 9): 0 = off, 1 = the Hosek–Wilkie fitted atmosphere, baked by
+    /// `sky.rs` into the same equirect map (and CDF) the HDRI pipeline uses. The model needs
+    /// a ground albedo; it comes from the floor's colour.
+    pub sky_model: u32,
+    /// Local solar time, hours.
+    pub sky_time: f32,
+    /// Degrees from the equator.
+    pub sky_latitude: f32,
+    /// Day of year, 1 = January 1st.
+    pub sky_day: f32,
+    /// Atmospheric haze, 1 clean to 10 turbid.
+    pub sky_turbidity: f32,
+    /// Multiplier on the baked sky and its sun disc.
+    pub sky_strength: f32,
     /// Keyframes (track 8); the playhead is `anim::Timeline` in the app.
     #[serde(skip_serializing_if = "crate::anim::Animation::is_default")]
     pub animation: crate::anim::Animation,
@@ -522,6 +536,12 @@ impl Default for Settings {
             hdri_strength: 1.,
             hdri_rotation: 0.,
             hdri_visible: true,
+            sky_model: 0,
+            sky_time: 13.5,
+            sky_latitude: 47.,
+            sky_day: 210.,
+            sky_turbidity: 3.,
+            sky_strength: 1.,
             animation: Default::default(),
         }
     }
@@ -834,6 +854,15 @@ impl Settings {
                 && (0. ..=1000.).contains(&self.hdri_strength)
                 && (-360. ..=360.).contains(&self.hdri_rotation),
             "Invalid HDRI"
+        );
+        anyhow::ensure!(
+            self.sky_model < 2
+                && (0. ..=24.).contains(&self.sky_time)
+                && self.sky_latitude.abs() <= 85.
+                && (1. ..=365.).contains(&self.sky_day)
+                && (1. ..=10.).contains(&self.sky_turbidity)
+                && (0. ..=100.).contains(&self.sky_strength),
+            "Invalid physical sky"
         );
         for c in [
             &self.left,

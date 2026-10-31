@@ -21,6 +21,7 @@ mod remote;
 mod saver;
 mod scene;
 mod scenes;
+mod sky;
 mod stats;
 mod teapot_data;
 mod texture;
@@ -123,6 +124,8 @@ struct App {
     lut_loaded: String,
     /// The HDRI now on the GPU (compared with `Settings::hdri` each frame).
     hdri_loaded: String,
+    /// The physical-sky bake now on the GPU (`sky_bake_key` each frame; empty = not baked).
+    sky_loaded: String,
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
     focus_target: Option<f32>,
@@ -148,7 +151,7 @@ struct App {
     timeline: anim::Timeline,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 285;
+const SCENES_FROM: u32 = 289;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -195,6 +198,22 @@ fn transport_key(s: &Settings) -> String {
         }
     }
     j.to_string()
+}
+/// Physical sky: what re-baking depends on; empty when the model is off.
+fn sky_bake_key(s: &Settings) -> String {
+    if s.sky_model == 0 {
+        String::new()
+    } else {
+        serde_json::json!([
+            s.sky_time,
+            s.sky_latitude,
+            s.sky_day,
+            s.sky_turbidity,
+            s.sky_strength,
+            s.floor.color
+        ])
+        .to_string()
+    }
 }
 fn geometry_key(s: &Settings) -> String {
     serde_json::json!([
@@ -549,6 +568,7 @@ impl App {
             last_samples: 0,
             lut_loaded: String::new(),
             hdri_loaded: String::new(),
+            sky_loaded: String::new(),
             focus_pending: false,
             focus_target: None,
             pick_point: None,
@@ -1314,6 +1334,71 @@ impl App {
                     self.settings.cornell_room = false;
                     self.ui.selection = ui::Selection::Light(0);
                 }
+                // Roadmap track 9: the physical sky bakes into the environment map on its own
+                // key; the CPU checks the sun against the clock, the GPU the bake arriving.
+                285 => {
+                    self.settings.sky_model = 1;
+                    self.settings.sky_time = 13.5;
+                    self.settings.sky_latitude = 47.;
+                    self.settings.sky_day = 210.;
+                    self.settings.sky_turbidity = 3.;
+                    let sun = crate::sky::sun(
+                        self.settings.sky_day,
+                        self.settings.sky_latitude,
+                        self.settings.sky_time,
+                    );
+                    anyhow::ensure!(
+                        sun.elevation > 25. && sun.elevation < 62.,
+                        "Sun elevation off: {}",
+                        sun.elevation
+                    );
+                }
+                286 => {
+                    let g = self.gpu.as_ref().unwrap();
+                    anyhow::ensure!(
+                        g.environment_loaded(),
+                        "The physical sky did not reach the environment map"
+                    );
+                    self.settings.sky_time = 3.5;
+                }
+                287 => {
+                    let sun = crate::sky::sun(
+                        self.settings.sky_day,
+                        self.settings.sky_latitude,
+                        self.settings.sky_time,
+                    );
+                    anyhow::ensure!(
+                        sun.elevation < -5.,
+                        "The sun did not set: {}",
+                        sun.elevation
+                    );
+                    self.settings.sky_time = 6.;
+                    self.settings.sky_turbidity = 8.;
+                }
+                288 => {
+                    let g = self.gpu.as_ref().unwrap();
+                    anyhow::ensure!(g.environment_loaded(), "The night sky did not bake");
+                    let sun = crate::sky::sun(
+                        self.settings.sky_day,
+                        self.settings.sky_latitude,
+                        self.settings.sky_time,
+                    );
+                    anyhow::ensure!(
+                        sun.elevation > 5. && sun.elevation < 24.,
+                        "Morning sun height off: {}",
+                        sun.elevation
+                    );
+                    let st = crate::sky::model(
+                        sun.elevation,
+                        self.settings.sky_turbidity,
+                        std::array::from_fn(|c| self.settings.floor.color[c].clamp(0., 1.)),
+                    );
+                    anyhow::ensure!(
+                        st.solar[0] > st.solar[2] * 1.2,
+                        "Low morning sun is not warm: {:?}",
+                        st.solar
+                    );
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1638,16 +1723,27 @@ impl App {
                 }
             }
         }
-        if s.hdri != self.hdri_loaded && self.export.is_none() {
+        // Environment: the physical sky replaces the HDRI map; re-bake when its own parameters
+        // change (the transport key already restarts the render for those same fields).
+        let sky_key = sky_bake_key(s);
+        if (s.hdri != self.hdri_loaded || sky_key != self.sky_loaded) && self.export.is_none() {
+            let baked = !sky_key.is_empty();
             self.hdri_loaded = s.hdri.clone();
-            let result = if s.hdri.is_empty() {
+            self.sky_loaded = sky_key;
+            let result = if baked {
+                crate::sky::bake(s).and_then(|env| unsafe { g.set_environment(Some(&env)) })
+            } else if s.hdri.is_empty() {
                 unsafe { g.set_environment(None) }
             } else {
                 environment::load(&s.hdri).and_then(|env| unsafe { g.set_environment(Some(&env)) })
             };
             if let Err(e) = result {
                 unsafe { g.set_environment(None)? };
-                self.ui.error(format!("HDRI {}: {e:#}", s.hdri));
+                self.ui.error(if baked {
+                    format!("Physical sky: {e:#}")
+                } else {
+                    format!("HDRI {}: {e:#}", s.hdri)
+                });
             }
         }
         if self.actions.cancel_export {

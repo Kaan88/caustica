@@ -3324,6 +3324,50 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 },
             );
         }
+        row(
+            ui,
+            "Physical sky",
+            "Hosek–Wilkie's fitted atmosphere: the sun and sky are baked into the environment map as if it were an HDRI (it replaces one), and importance-sampled the same way. The ground albedo comes from the floor colour; below the horizon the map blends to a night hemisphere.",
+            |ui| {
+                if s.sky_model != 0 {
+                    ui.label("Hosek–Wilkie");
+                    if ui.small_button("Off").clicked() {
+                        s.sky_model = 0;
+                    }
+                } else {
+                    ui.label("Off");
+                    if ui.small_button("Hosek–Wilkie").clicked() {
+                        s.sky_model = 1;
+                    }
+                }
+            },
+        );
+        if s.sky_model != 0 {
+            row(
+                ui,
+                "Time of day",
+                "Local solar time, hours. Keys on this track give day-cycle time-lapses.",
+                |ui| {
+                    ui.add(crate::slider(&mut s.sky_time, 0. ..=24.).suffix(" h"));
+                },
+            );
+            row(ui, "Latitude", "Degrees from the equator.", |ui| {
+                ui.add(crate::slider(&mut s.sky_latitude, -85. ..=85.).suffix("°"));
+            });
+            row(ui, "Day of year", "1 is January 1st; the solstices sit at 17 and 355.", |ui| {
+                ui.add(crate::slider(&mut s.sky_day, 1. ..=365.).suffix(" day"));
+            });
+            row(ui, "Turbidity", "Haze and aerosols: 1 clean, 10 turbid. Changes sunset colours.", |ui| {
+                ui.add(crate::slider(&mut s.sky_turbidity, 1. ..=10.));
+            });
+            row(ui, "Sky strength", "Multiplier on the baked sky and its sun disc.", |ui| {
+                ui.add(
+                    crate::slider(&mut s.sky_strength, 0. ..=100.)
+                        .logarithmic(true)
+                        .suffix("×"),
+                );
+            });
+        }
         row(ui, "Left wall", "Linear RGB.", |ui| {
             ui.color_edit_button_rgb(&mut s.left);
         });
