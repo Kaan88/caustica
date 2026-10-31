@@ -1247,7 +1247,7 @@ scene("golden-bulb", "Golden bulb",
       "A Mandelbulb (power 8.5) in polished gold under the physical sky: the whole form comes "
       "from one distance-estimate iteration, not a mesh.",
       ["sdf", "fractal", "bulb"],
-      dark_stage(objects=[float_at("Bulb", "sphere", 0, 0, 0, 3.2, M((1.0, 0.72, 0.32), 0.12, metal=1),
+      dark_stage(sky_model=1, sky_time=17.4, sky_strength=0.05, exposure=1.4, objects=[float_at("Bulb", "sphere", 0, 0, 0, 3.2, M((1.0, 0.72, 0.32), 0.12, metal=1),
                                    procedural="bulb/8.5")]))
 
 scene("lava-lamp", "Lava lamp",

@@ -489,8 +489,9 @@ pub fn bulb(q: Vec3, power: f32) -> f32 {
     if r0 > 2.0 {
         // The set fits the bailout ball (radius 2 in c-space); outside it that bound is
         // the only DE that lets the march cross the empty gap (the orbit DE degenerates
-        // there). Inside the ball the orbit DE below is a proper underestimate.
-        return (r0 - 2.0) * BULB_SCALE;
+        // there). Floor it above the march epsilon: the ball guides the march but is
+        // never a commit surface (matches the PROCEDURALS shader branch).
+        return ((r0 - 2.0) * BULB_SCALE).max(0.0011);
     }
     let mut z = c;
     let mut r = 0.0;

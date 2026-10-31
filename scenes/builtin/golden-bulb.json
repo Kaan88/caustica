@@ -64,6 +64,10 @@
    0.0,
    0.0
   ],
+  "sky_model": 1,
+  "sky_time": 17.4,
+  "sky_strength": 0.05,
+  "exposure": 1.4,
   "objects": [
    {
     "name": "Bulb",

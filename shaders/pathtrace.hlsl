@@ -130,7 +130,7 @@ float proc_menger(float3 p,float level){
 }
 float proc_bulb(float3 q,float power){
     float3 c=q*(1.0/0.74);float r0=length(c);
-    if(r0>2.0)return (r0-2.0)*0.74;
+    if(r0>2.0)return max((r0-2.0)*0.74,0.00005); // the bailout sphere guides the march but is
     float3 z=c;float r=0.0;float dch=1.0;
     for(int i=0;i<11;i++){
         r=length(z);
@@ -183,16 +183,19 @@ float proc_chain_at(uint base,float3 q){
     return proc_join(d,proc_atom(A2,B2,C2,q),B2.w,C2.x);
 }
 // Object-space march from the candidate's box entry; step is scaled by |od| so world t
-// advances evenly (safety keeps smooth/fractal chains conservative). HIT_EPS mirrors sdf.rs.
-float proc_hit(uint base,float3 oo,float od,float t0,float tmax){
+// advances evenly (safety keeps smooth/fractal chains conservative). The stop epsilon is
+// far tighter than sdf.rs HIT_EPS (1e-3, picks only): the commit lands on the true
+// surface, inside the 0.0003-world secondary-ray offset — a commit short of the surface
+// self-hits the next ray at t~0 (moiré rings and self-occlusion on every surface).
+float proc_hit(uint base,float3 oo,float3 od,float t0,float tmax){
     float4 C0=procedurals[base+2];float safety=C0.x,budget=C0.y;
     float speed=length(od);if(speed<1e-9)return -1.0;
     float t=max(t0,0.0001);
     for(float it=0.0;it<budget;it+=1.0){
         float d=proc_chain_at(base,oo+od*t);
-        if(d<0.001)return t;
-        t+=max(d,1e-4)*safety/speed;
-        if(t>tmax)return -1.0;
+        if(d<0.00001)return d>0.0?t+d/speed:t; // land on the true surface when approached from
+        t+=max(d,1e-4)*safety/speed;   // the secondary-ray offset (0.0003 world), so a shadow ray
+        if(t>tmax)return -1.0;         // restarted from a surface point never re-hits at t~0
     }
     return -1.0;
 }
