@@ -413,7 +413,7 @@ course), volume NEE reusing the existing emitter walk.
   writing the three Settings fields; they already sit in `transport_key`, so slider edits restart
   accumulation cleanly, and glass-against-water bending follows automatically from the IOR pair.
 
-#### 13. Procedural primitives and SDFs — done 2026-10-31
+#### 13. Procedural primitives and SDFs — done 2026-10-31, showcase fix 2026-11-01
 
 Needs instancing (core 4): procedural AABBs go in their own BLAS. As built: an
 `Object.procedural` shape spec (≤256 chars, parse-checked by `validate()` and in
@@ -445,6 +445,8 @@ finial), `golden-bulb`, `lava-lamp` (blob inside a hollow glass cylinder shell) 
 (bagel pick, smooth subtraction, bulb, blob + drop-back). "Menger at any level" is the
 SDF loop (grammar 1–5), not voxel soup; the `gen:` marching-cubes meshes stay for
 scenes that need real triangles.
+
+**Update 2026-11-01 — done but broken: the owner saw all four showcases render "nothing"** (the self-test and scene sweep assert counts, picks and geometry keys — pixels were never looked at, so "done" only meant it built). The wiring (BLAS, instance flags, root SRV t9, PSO variants) was fine; three march defects plus one scene-setup mistake, found by rendering the showcases: (1) `proc_hit`'s direction parameter was declared a scalar `float od` — DXC implicitly truncated the `float3` argument (warning at both call sites), so the march walked a garbage diagonal and camera rays missed every SDF while CPU picks kept working; now `float3 od`. (2) The GPU stop epsilon was sdf.rs's pick tolerance 1e-3 **object** units — wider than the 3e-4 world secondary-ray offset, so commits sat in an inflated shell and every bounce/NEE ray re-hit the surface at t≈0: concentric rings on every matte SDF and zeroed direct light (the plain torus−cylinder bagel rings too — this, not a Menger gradient flip, was the ring cause; the box-minus-sphere chain test renders clean). GPU-only now: stop at 1e-5 and refine the commit onto the true surface (`t+d/‖od‖`; origins already inside the solid commit at t, keeping the commit ≥ TMin); CPU picking keeps 1e-3. (3) The bulb's outside branch `(r0−2)·0.74` is exact on the bailout sphere, so every ray merely entering the ball committed on it — the fractal wore a glass-like bounding ball; the branch is now floored above the stop eps on both sides (shader 0.00005, CPU `.max(0.0011)`) — the ball guides the march but never commits. (4) `golden-bulb` had no light source at all (dark_stage with `sky: 0`, no lights or emissives → pure black even after the fixes); the generator now puts it under the physical sky (17.4 h, strength 0.05, exposure 1.4, matching the other day scenes). Gates green (fmt/test 62/clippy/build), 472-frame self-test exit 0, snapshot build `builds/2026-11-01-track-13-fix`. Honest costs with the correct march at 1440×900 DLAA RR 4 spp: `procedural-studio` 8.2, `lava-lamp` 36.2, `golden-bulb` 46.3, `sponge-hall` 97.4 ms — the 2026-10-31 numbers (8.1/13.3/21.0/61.5) timed the broken march; the level-4 sponge now loses to its `gen:` mesh (26–28 ms) by more, and the bulb is no longer a clear win (46 vs 35–56) — prefer `gen:` meshes when the frame budget matters. Full detail in CLAUDE.md's Procedural shapes section (moved verbatim to `docs/claude-archive.md` 2026-11-01).
 
 - Not done: an emissive procedural surface is not in the NEE triangle table (`h.emitter`
   is 0 — it lights the path from BSDF hits only, so the lava lamp needs a helper light);
