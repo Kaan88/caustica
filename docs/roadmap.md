@@ -405,6 +405,13 @@ course), volume NEE reusing the existing emitter walk.
   units) instead of true per-medium segments, volume AOV (depth of first scatter / god-ray mask —
   the research notes' open question, lands with the debug-views track), and the carried track-10
   list items (priority-based nested list, inside test, shadow-ray attenuation for plain dielectrics).
+- **UI volumetrics (later implementation — owner asked 2026-10-31):** the room-wide medium has no
+  editor/UI rows today: fog/underwater density, extinction colour and IOR (`Settings.medium_scatter`,
+  `medium_absorb`, `medium_ior`) adjust only through scene files or `--set` (the per-material Absorb/Scatter
+  sliders exist; the ambient medium does not). Plan when implemented: a Render-tab "Fog" section —
+  *Density* (σs per metre, scalar with an optional tint), *Absorption colour* (σa rgb), *Medium IOR* —
+  writing the three Settings fields; they already sit in `transport_key`, so slider edits restart
+  accumulation cleanly, and glass-against-water bending follows automatically from the IOR pair.
 
 #### 13. Procedural primitives and SDFs
 
