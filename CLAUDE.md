@@ -14,6 +14,19 @@ This agent runs as a single model in one loop; the old rule's `Explore` / `verif
 - **Main-session work unchanged:** design, shaders, GPU and engine code, perf analysis and fixes.
 - A separate subagent is only used when the person explicitly asks for one; routine work never spawns one.
 
+## Resume ritual after a context condense (anti-derail; written 2026-10-31 after a bad one)
+
+The harness condenses the conversation mid-task. A checkpoint summary is a **narrative, not disk truth**; treating its pending lists as tasks to redo is what caused this session's loops (re-fixing fixes that had landed → old_string / stale-read churn, old logs read as current, builds racing own edits). Rules that would have prevented it:
+
+- **Re-derive before any edit:** `git status --short`, `git log --oneline -3`, `git diff --stat` (vs the pre-change commit), one gate re-run. A summary "pending" item is a **hypothesis**: grep it once against disk; if already applied, move past it, don't touch it.
+- Keep a **live WIP block** while working (this file or `docs/wip.md`): done (file:line evidence) | pending (file:line + exact command) | last gate result stamped with a time. Disk beats notes, notes beat memory.
+- Chunk work at coherent boundaries; **WIP-commit to the agent branch** after each (push still only on request). After a resume, `git log` is compaction-proof position.
+- After every source write, **dump the touched bytes** (`Get-Content f | ForEach-Object { "$n|$_" }`) and author every edit's `old_string` from dumped bytes — never from memory or summary prose (the generator sometimes writes Rust from its own description: literal `var` for `let`, ternaries, stray `;` — the dump catches it).
+- **Never edit a file a background build is compiling** — collect the job first, then edit. A gate that raced an edit compiled a third state; re-run rather than interpret the stale log.
+- Transient state (`git stash`, scratch trees) must not straddle a resume boundary — open and close it inside one uninterrupted block (the 2026-10-31 differential stash survived one; a resumed session met a half-truth about it).
+- Stamp key observations with a time ("as of 21:44"), so stale-vs-current contradictions order themselves instead of looping.
+- The gates line is idempotent — re-run the whole line, don't hand-verify from old logs.
+
 ## What it is
 
 - A Windows-only port of the WebGL Cornell box in `webgl/` (`index.html`, `app.js`, `shaders.js`).
