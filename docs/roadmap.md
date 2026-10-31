@@ -399,8 +399,12 @@ course), volume NEE reusing the existing emitter walk.
   (the roadmap's own line; the RR showcase captures were visually stable at 96 frames), `vol_nee`'s
   balance partner uses the phase pdf 1/2π (heuristic; exactness only proven where events cannot
   fire), HG phase, heterogeneous ratio tracking, overlapping-media Σ, boundary emission, carving
-  (track 13's SDFs), and the carried track-10 list items (priority-based nested list, inside test,
-  shadow-ray attenuation for plain dielectrics).
+  (track 13's SDFs), shadow attenuation across mesh-media boundaries keeps one medium's extinction
+  along the whole segment (Test B measures the direct AOV ratio exactly 1.0 — the crossing-boundary
+  shadow march is future work), env/sun miss attenuation uses nominal reaches (far plane / sun 50
+  units) instead of true per-medium segments, volume AOV (depth of first scatter / god-ray mask —
+  the research notes' open question, lands with the debug-views track), and the carried track-10
+  list items (priority-based nested list, inside test, shadow-ray attenuation for plain dielectrics).
 
 #### 13. Procedural primitives and SDFs
 
