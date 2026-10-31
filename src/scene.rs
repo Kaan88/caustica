@@ -30,9 +30,35 @@ pub struct Material {
     /// of the shader's medium stack).
     #[serde(skip_serializing_if = "is_zero")]
     pub priority: u32,
+    /// Layers (track 11, as glTF's KHR_materials_clearcoat and _sheen): a clear coat (IOR 1.5)
+    /// over everything, strength 0–1, with its own roughness.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub clearcoat: f32,
+    #[serde(skip_serializing_if = "is_default_coat_roughness")]
+    pub clearcoat_roughness: f32,
+    /// A sheen (velvet, cloth, dust) over the base: strength 0–1 times a colour, with its own
+    /// roughness (a wide rim at 1, a thin grazing one near 0).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub sheen: f32,
+    #[serde(skip_serializing_if = "is_white")]
+    pub sheen_color: [f32; 3],
+    #[serde(skip_serializing_if = "is_default_sheen_roughness")]
+    pub sheen_roughness: f32,
 }
 fn is_zero(v: &u32) -> bool {
     *v == 0
+}
+fn is_zero_f32(v: &f32) -> bool {
+    *v == 0.
+}
+fn is_white(v: &[f32; 3]) -> bool {
+    *v == [1.; 3]
+}
+fn is_default_coat_roughness(v: &f32) -> bool {
+    *v == Material::default().clearcoat_roughness
+}
+fn is_default_sheen_roughness(v: &f32) -> bool {
+    *v == Material::default().sheen_roughness
 }
 impl Default for Material {
     fn default() -> Self {
@@ -52,6 +78,11 @@ impl Default for Material {
             texture: String::new(),
             texture_scale: 0.5,
             priority: 0,
+            clearcoat: 0.,
+            clearcoat_roughness: 0.03,
+            sheen: 0.,
+            sheen_color: [1.; 3],
+            sheen_roughness: 0.5,
         }
     }
 }
@@ -871,7 +902,16 @@ impl Settings {
                         .all(|v| (0. ..=1.).contains(v))
                     && (1. ..=2.5).contains(&m.ior)
                     && (0. ..=20.).contains(&m.emission)
-                    && m.priority <= 7,
+                    && m.priority <= 7
+                    && [
+                        m.clearcoat,
+                        m.clearcoat_roughness,
+                        m.sheen,
+                        m.sheen_roughness
+                    ]
+                    .iter()
+                    .chain(&m.sheen_color)
+                    .all(|v| (0. ..=1.).contains(v)),
                 "Invalid material"
             );
             anyhow::ensure!(

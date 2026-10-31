@@ -16,6 +16,10 @@ pub struct PackedMaterial {
     pub base_scale: [f32; 4],
     /// Roughness and metallic value / map average (G and B channels); z, w unused.
     pub surface_scale: [f32; 4],
+    /// Track 11: clear coat, coat roughness, sheen roughness; w unused.
+    pub layers: [f32; 4],
+    /// Sheen colour times its strength; w unused.
+    pub sheen: [f32; 4],
 }
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -55,6 +59,13 @@ fn pack(m: &Material) -> PackedMaterial {
             },
         ],
         surface_scale: [0.; 4],
+        layers: [m.clearcoat, m.clearcoat_roughness, m.sheen_roughness, 0.],
+        sheen: [
+            m.sheen_color[0] * m.sheen,
+            m.sheen_color[1] * m.sheen,
+            m.sheen_color[2] * m.sheen,
+            0.,
+        ],
     }
 }
 pub fn materials(s: &Settings) -> Vec<PackedMaterial> {

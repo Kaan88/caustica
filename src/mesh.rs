@@ -578,6 +578,55 @@ fn rgba8(image: &gltf::image::Data) -> Option<Vec<u8>> {
     }
     Some(out)
 }
+/// KHR_materials_clearcoat and _sheen factors (track 11) over the default material; their
+/// texture maps are not read. gltf 1.4 has no typed access, so they come from the raw JSON.
+fn layers(m: &gltf::Material) -> Material {
+    let number = |ext: &str, key: &str| {
+        m.extension_value(ext)
+            .and_then(|e| e.get(key))
+            .and_then(|v| v.as_f64())
+            .map(|v| (v as f32).clamp(0., 1.))
+    };
+    // A key missing from a present extension takes glTF's default (0); without the extension
+    // the fields keep the app's defaults, for when the coat or sheen is turned on later.
+    let factor = |ext: &str, key: &str, default: f32| {
+        number(ext, key).unwrap_or(if m.extension_value(ext).is_some() {
+            0.
+        } else {
+            default
+        })
+    };
+    let d = Material::default();
+    let mut out = Material {
+        clearcoat: number("KHR_materials_clearcoat", "clearcoatFactor").unwrap_or(0.),
+        clearcoat_roughness: factor(
+            "KHR_materials_clearcoat",
+            "clearcoatRoughnessFactor",
+            d.clearcoat_roughness,
+        ),
+        sheen_roughness: factor(
+            "KHR_materials_sheen",
+            "sheenRoughnessFactor",
+            d.sheen_roughness,
+        ),
+        ..d
+    };
+    // The sheen colour splits into a strength (its largest channel) and a normalised colour.
+    if let Some(c) = m
+        .extension_value("KHR_materials_sheen")
+        .and_then(|e| e.get("sheenColorFactor"))
+        .and_then(|v| v.as_array())
+        .filter(|c| c.len() == 3)
+    {
+        let c = [0, 1, 2].map(|i| (c[i].as_f64().unwrap_or(0.) as f32).clamp(0., 1.));
+        let s = c[0].max(c[1]).max(c[2]);
+        if s > 0. {
+            out.sheen = s;
+            out.sheen_color = c.map(|v| v / s);
+        }
+    }
+    out
+}
 fn read_gltf(path: &Path) -> Result<Vec<RawPart>> {
     let gltf = gltf::Gltf::open(path).with_context(|| format!("Reading {}", path.display()))?;
     let buffers = gltf::import_buffers(&gltf.document, path.parent(), gltf.blob.clone())
@@ -701,7 +750,7 @@ fn read_gltf(path: &Path) -> Result<Vec<RawPart>> {
                             .map_or(0., |t| t.transmission_factor())
                             .clamp(0., 1.),
                         ior: m.ior().unwrap_or(1.5).clamp(1., 2.5),
-                        ..Material::default()
+                        ..layers(&m)
                     };
                     (name, Some(material), maps)
                 });
@@ -796,6 +845,25 @@ mod tests {
         let p = std::env::temp_dir().join(name);
         std::fs::write(&p, text).unwrap();
         p
+    }
+    /// Khronos' ToyCar has a clear-coated body and a sheen fabric (track 11); skipped when the
+    /// asset browser has not downloaded it.
+    #[test]
+    fn gltf_layers_import() {
+        let Some(path) = crate::scenes::folder().map(|f| f.join("models/ToyCar.glb")) else {
+            return;
+        };
+        if !path.exists() {
+            return;
+        }
+        let parts = &read(&path).unwrap().parts;
+        let materials: Vec<&Material> = parts.iter().filter_map(|p| p.material.as_ref()).collect();
+        assert!(
+            materials.iter().any(|m| m.clearcoat > 0.),
+            "a clear-coated part"
+        );
+        assert!(materials.iter().any(|m| m.sheen > 0.), "a sheen part");
+        assert!(materials.iter().all(|m| (0. ..=1.).contains(&m.sheen)));
     }
     #[test]
     fn obj_files_load_and_normalize() {

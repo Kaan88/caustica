@@ -1300,6 +1300,39 @@ scene("glass-of-water", "Glass of water",
              floor=M((0.62, 0.6, 0.57), 0.35, refl=0.06), base=[0.62, 0.6, 0.57], sky=0.15,
              objects=glass_of_water(), bounces=24, **camera(0, 12, 3.2, (0, -0.35, 0), 34)))
 
+
+def layered():
+    """Track 11: clear coat and sheen on shapes, with the same red paint bare and coated."""
+    def coat(m, amount=1.0, rough=0.02):
+        return {**m, "clearcoat": amount, "clearcoat_roughness": rough}
+    def sheen(m, color, amount=1.0, rough=0.4):
+        return {**m, "sheen": amount, "sheen_color": [round(c, 4) for c in color], "sheen_roughness": rough}
+    paint = M((0.55, 0.02, 0.03), 0.38, metal=0.6, refl=0.1)
+    return [
+        obj("Paint, bare", "sphere", -2.7, -0.5, 1.25, paint),
+        obj("Paint, clear coat", "sphere", -1.5, -0.5, 1.25, coat(paint)),
+        obj("Velvet cushion", "sphere", -0.05, -0.6, 1.5, sheen(matte((0.07, 0.006, 0.035), 1.0), (0.85, 0.3, 0.55), rough=0.35),
+            stretch=0.42, scale=(1.25, 1.0), rotation=18),
+        obj("Glazed teapot", "teapot", 1.55, -0.55, 1.35, coat(M((0.86, 0.85, 0.8), 0.7, refl=0.02), rough=0.05), rotation=-30),
+        obj("Dusty bronze", "torus", 2.85, -0.6, 1.0, sheen(M((0.8, 0.5, 0.25), 0.35, metal=1), (0.6, 0.58, 0.55), 0.5, rough=1.0),
+            tilt=(80, 0), rotation=-15),
+        obj("Lacquered pawn", "pawn", -1.6, 0.75, 1.1, coat(matte((0.02, 0.09, 0.3), 0.9), rough=0.08)),
+        obj("Peach", "sphere", 0.0, 0.75, 0.85, sheen(M((0.8, 0.28, 0.08), 0.75, refl=0.02), (1.0, 0.8, 0.7), 0.7, rough=0.9)),
+        obj("Felt cone", "cone", 1.6, 0.75, 0.85, sheen(matte((0.08, 0.25, 0.08), 1.0), (0.5, 0.9, 0.5), 0.8, rough=0.6)),
+    ]
+
+
+scene("layered-materials", "Layered materials",
+      "Clear coat and sheen (track 11): red paint bare and under a clear coat, a velvet cushion, a peach, a "
+      "glazed teapot, dusty bronze, a lacquered pawn and a felt cone, rim-lit so the sheen glows at the edges.",
+      ["material", "clearcoat", "sheen", "validation"],
+      studio(light_position=[-2.0, 4.0, 3.0], light_size=2.5, light_intensity=10.0,
+             lights=[light("Rim", (1.0, 2.0, -4.0), (3.0, 1.5), (0.9, 0.95, 1.0), 14.0, target=(0, -0.6, 0)),
+                     light("Fill", (4.0, 1.5, 3.0), (2.0, 2.0), (1.0, 0.9, 0.8), 2.5, target=(0, -0.6, 0))],
+             floor=M((0.16, 0.15, 0.14), 0.5, refl=0.05), base=[0.16, 0.15, 0.14], sky=0.04,
+             objects=layered(), bounces=12, **camera(0, 13, 6.4, (0.1, -0.5, 0.1), 40)))
+
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1346,6 +1379,10 @@ def check(slug, s):
         rng(label + " pattern_scale", m["pattern_scale"], 0.1, 100)
         rng(label + " texture_scale", m.get("texture_scale", 0.5), 0.01, 100)
         rng(label + " priority", m.get("priority", 0), 0, 7)
+        for k in ("clearcoat", "clearcoat_roughness", "sheen", "sheen_roughness"):
+            rng(label + " " + k, m.get(k, 0), 0, 1)
+        for c in m.get("sheen_color", []):
+            rng(label + " sheen_color", c, 0, 1)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)

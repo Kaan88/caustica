@@ -1,0 +1,503 @@
+{
+ "format": 1,
+ "title": "Layered materials",
+ "description": "Clear coat and sheen (track 11): red paint bare and under a clear coat, a velvet cushion, a peach, a glazed teapot, dusty bronze, a lacquered pawn and a felt cone, rim-lit so the sheen glows at the edges.",
+ "tags": [
+  "material",
+  "clearcoat",
+  "sheen",
+  "validation"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.04,
+  "base": [
+   0.16,
+   0.15,
+   0.14
+  ],
+  "floor": {
+   "color": [
+    0.16,
+    0.15,
+    0.14
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -2.0,
+   4.0,
+   3.0
+  ],
+  "light_size": 2.5,
+  "light_intensity": 10.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Rim",
+    "position": [
+     1.0,
+     2.0,
+     -4.0
+    ],
+    "rotation": [
+     57.765,
+     165.964,
+     0.0
+    ],
+    "size": [
+     3.0,
+     1.5
+    ],
+    "color": [
+     0.9,
+     0.95,
+     1.0
+    ],
+    "intensity": 14.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Fill",
+    "position": [
+     4.0,
+     1.5,
+     3.0
+    ],
+    "rotation": [
+     67.218,
+     53.13,
+     0.0
+    ],
+    "size": [
+     2.0,
+     2.0
+    ],
+    "color": [
+     1.0,
+     0.9,
+     0.8
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 12,
+  "yaw": 0,
+  "pitch": 13,
+  "distance": 6.4,
+  "target": [
+   0.1,
+   -0.5,
+   0.1
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Paint, bare",
+    "shape": "sphere",
+    "position": [
+     -2.7,
+     -0.5
+    ],
+    "size": 1.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.02,
+      0.03
+     ],
+     "roughness": 0.38,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Paint, clear coat",
+    "shape": "sphere",
+    "position": [
+     -1.5,
+     -0.5
+    ],
+    "size": 1.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.02,
+      0.03
+     ],
+     "roughness": 0.38,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Velvet cushion",
+    "shape": "sphere",
+    "position": [
+     -0.05,
+     -0.6
+    ],
+    "size": 1.5,
+    "stretch": 0.42,
+    "rotation": 18,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.25,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.07,
+      0.006,
+      0.035
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.85,
+      0.3,
+      0.55
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glazed teapot",
+    "shape": "teapot",
+    "position": [
+     1.55,
+     -0.55
+    ],
+    "size": 1.35,
+    "stretch": 1.0,
+    "rotation": -30,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.86,
+      0.85,
+      0.8
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dusty bronze",
+    "shape": "torus",
+    "position": [
+     2.85,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": -15,
+    "tilt": [
+     80,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.5,
+      0.25
+     ],
+     "roughness": 0.35,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.5,
+     "sheen_color": [
+      0.6,
+      0.58,
+      0.55
+     ],
+     "sheen_roughness": 1.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lacquered pawn",
+    "shape": "pawn",
+    "position": [
+     -1.6,
+     0.75
+    ],
+    "size": 1.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02,
+      0.09,
+      0.3
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.08
+    },
+    "portal": -1
+   },
+   {
+    "name": "Peach",
+    "shape": "sphere",
+    "position": [
+     0.0,
+     0.75
+    ],
+    "size": 0.85,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.28,
+      0.08
+     ],
+     "roughness": 0.75,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.7,
+     "sheen_color": [
+      1.0,
+      0.8,
+      0.7
+     ],
+     "sheen_roughness": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Felt cone",
+    "shape": "cone",
+    "position": [
+     1.6,
+     0.75
+    ],
+    "size": 0.85,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.25,
+      0.08
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.8,
+     "sheen_color": [
+      0.5,
+      0.9,
+      0.5
+     ],
+     "sheen_roughness": 0.6
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

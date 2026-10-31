@@ -263,6 +263,7 @@ Order is from scene-research.md section 5, unchanged:
 - **Native denoiser:** faint low-frequency blotches on flat walls at very low spp, typical of SVGF (found in the 2026-10-29 review, not started).
 - **Gamepad:** untested, no controller here (5d).
 - **Hidden lights occlude:** see core 3 above.
+- **BSDF-only vs MIS offset:** on the tea set, `mis_mode` 2 (BSDF sampling only) is 1.6% brighter than MIS and light sampling only, which agree (320×240, 8192 spp; mean l/(1+l) +0.00116, 9×9-blurred RMSE×1000 2.9). Present before the track 11 layers (found 2026-10-31 while checking them); not investigated. Suspects: the hidden main light or the uniform sky term on the BSDF side.
 
 ### Feature tracks
 
@@ -310,7 +311,14 @@ As built: priority-based nesting after Schmidt and Budge (2002). Each path carri
 
 Original plan: unlocks the glass of water, ice in a drink, the **snow globe** and the **aquarium** (with item 12 for murky water).
 
-#### 11. Layered and exotic materials (I)
+#### 11. Layered and exotic materials (I) — clear coat and sheen done 2026-10-31
+
+As built (part 1): glTF's clear coat and sheen layers. A coat (GGX, IOR 1.5, its own roughness, its own sampled lobe) over a Charlie sheen (Estevez–Kulla visibility) over the base; each layer dims what lies below by the energy it takes from the view direction, with the sheen's albedo in a generated constant table (`tools/fit_layers.py`). Material sliders, glTF import of both extensions' factors, and `scenes/builtin/layered-materials`. Checked in the white furnace (every layered sphere matches the bare white base, 0.95–0.98, none above 1) and with MIS against light-sampling-only (agree to noise). Cost on unlayered scenes: none to 3–5% (tea-set, gem-display with RR). See docs/engine-notes.md, "Layered materials".
+
+- Not done (part 1): the layers drop reciprocity (view-only dimming, as glTF); the coat has no tint, thickness absorption or normal map of its own, and refracts nothing (the base sees light undisturbed); glTF clearcoat / sheen texture maps and the coat normal map are not read; the RR guides (diffuse / specular albedo) ignore both layers; the rough coat and rough metals still lose energy (single-scatter GGX, below); layers on glass (transmission) do nothing; the sheen is sampled with cosine directions only, so a strong, thin sheen at low roughness is noisy.
+- Still to do in this track: anisotropy for brushed metal, thin film, diffraction grating, Kulla–Conty.
+
+Original list:
 
 - Clearcoat and sheen first. Then anisotropy for brushed metal.
 - **Thin-film interference:** soap bubbles, oil slicks, anodized titanium and beetle shells. Belcour and Barla (2017) give an RGB form that doesn't need spectral rendering.

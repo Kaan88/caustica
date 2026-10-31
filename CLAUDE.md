@@ -84,7 +84,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `src/scene.rs` | `Settings`, `Material`, `Object`, `AreaLight`, `Shape` (11) and `Pattern` (4). `PRESETS` holds 24 names. `randomize()` (l.318). `preset()` (l.352) builds 0–8 inline and sends 9+ to `presets::apply`; it keeps the camera only when moving between Cornell presets 0–8. `validate()` (l.456) bounds every field. `camera()` returns `look_at_rh` and `perspective_rh` with near 0.01 and far 500. `light_color()` converts Kelvin to linear RGB at unit luminance, times tint and intensity. |
 | `src/presets.rs` | 12-entry material library (`material(i)`), `studio()` base stage, `apply()` for presets 9–23, `description()`. |
 | `src/geometry.rs` | Unit meshes cached in a `LazyLock`. `object_geometry()` applies scale (size·0.35), YXZ Euler rotation and floor grounding (floor at y = −1). `geometry()` builds one triangle soup. Also frame, focus and CPU pick (Möller–Trumbore over every object, every click). |
-| `src/lighting.rs` | `PackedMaterial` (112 B) and `Emitter` (64 B), `materials()` ordering, `analytic()` and `emitter_table()` (suns, spheres, then triangles; power-weighted CDF plus a per-triangle lookup, 1-based, 0 = not an emitter; see "Analytic lights"). |
+| `src/lighting.rs` | `PackedMaterial` (144 B) and `Emitter` (64 B), `materials()` ordering, `analytic()` and `emitter_table()` (suns, spheres, then triangles; power-weighted CDF plus a per-triangle lookup, 1-based, 0 = not an emitter; see "Analytic lights"). |
 | `src/display.rs` | `Monitor::query(hwnd)`: the DXGI output holding most of the window, `GetDesc1` (HDR on, peak/full-frame/min nits) and the SDR white level via `DisplayConfigGetDeviceInfo`; `current()` = `IDXGIFactory1::IsCurrent`. Also `hdr_map` (CPU copy of the shader transform, for tests) and `write_hdr_png` (16-bit PQ/BT.2020 with a cICP chunk). |
 | `src/ui.rs` | UI plan phase 1 (2026-10-30). `UiState` (tab, advanced, panel_hidden, selection, toasts, export size/samples): never in `Settings`. `impl App { fn ui }` draws top bar, status bar, right `SidePanel` with Scene / Render / Look / Export tabs, toasts. Helpers `row` (2-column grid row, label carries the tooltip), `more` (inline when advanced, else a "More" header), `theme`. `UiState::delete_selected`, `toast`, `error`. |
 | `src/gizmo.rs` | Roadmap 3b (2026-10-30). `View` (camera in physical pixels: project, ray, world-per-pixel), `frame()` (pivot + rotation of the selection; lights are `flat`), `Transform` (mode, constraint, typed value, snap, original settings; `apply` restores the target then transforms; `restore` cancels), `layout`/`hit`/`draw`, `draw_lights`, `pick` (objects via `pick_object_hit` plus light quads). Unit tests cover typed values, arrow drags, screen-angle rotation, Blender's axis toggling and light scaling. |
@@ -162,6 +162,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7). Bits 3 and 4 are set in `Gpu::attach_maps`. |
 | `optical` | IOR, emission, pattern id, one-sided emitter (1 for lights) |
 | `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
+| `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, −; sheen colour × strength, −. |
 | `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
 | `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
 | `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled). |
@@ -239,7 +240,7 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
   - Specular hit distance comes from a deterministic mirror-reflection ray, not the sampled lobe. This was the RR stability fix.
 - **Transport:**
   - NEE picks an emissive triangle by power. MIS uses the balance heuristic on both the NEE and the BSDF-hit side.
-  - The BSDF is Lambert + GGX (Smith G1·G1 form) as a mixture chosen by `spec_probability`.
+  - The BSDF is Lambert + GGX (Smith G1·G1 form) as a mixture chosen by `spec_probability`, under an optional sheen and clear coat (track 11, see "Layered materials").
   - Dielectrics: stochastic choice by the exact Fresnel term (TIR included). Rough glass is an approximation (refracted direction lerped toward a cosine sample).
   - Nested dielectrics (track 10): a per-path stack of up to 4 media (one 64-bit word) ranked by `Material::priority`; surfaces that don't bound the current medium are false hits (skipped, no bounce). See "Nested dielectrics".
   - Beer–Lambert absorption inside glass. Russian roulette after bounce 3. The firefly clamp is off by default.

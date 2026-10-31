@@ -1,4 +1,5 @@
 #include "common.hlsli"
+#include "layers.hlsli"
 uint hash(uint x){x^=x>>16;x*=0x7feb352d;x^=x>>15;x*=0x846ca68b;x^=x>>16;return x;}
 static uint rng_state,sequence_index,dimension_index,pixel_seed;
 uint permute(uint x,uint seed){x^=x*0x3d20adea;x+=seed;x*=(seed>>16)|1;x^=x*0x05526c56;x^=x*0x53a22864;return x;}
@@ -248,11 +249,44 @@ float ggx_d(float nh,float a){float d=nh*nh*(a*a-1)+1;return a*a/(PI*d*d);}
 float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
 float3 f0_of(Material m){float f=pow((m.optical.x-1)/(m.optical.x+1),2);return lerp(lerp(f.xxx,1.0.xxx,m.lobes.y),m.color_rough.rgb,m.lobes.x);}
 float spec_probability(Material m){return clamp(0.25+0.5*m.lobes.x+0.25*m.lobes.y,0.1,0.95);}
+// Layers (track 11, glTF's KHR_materials_clearcoat / _sheen model): a sheen over the base and
+// a clear coat over both. layers = (coat, coat roughness, sheen roughness, -), sheen.rgb = the
+// sheen colour (times its strength). Each layer dims what lies below by the energy it takes
+// from the view direction, as glTF's spec has it: the coat by its Fresnel, the sheen by its
+// directional albedo (layers.hlsli). Dimming by both directions (reciprocal) lost 8–12% of a
+// white base in the furnace; the view-only form keeps it, and NEE and BSDF sampling still
+// evaluate the same function, so MIS stays consistent.
+float max3(float3 c){return max(c.r,max(c.g,c.b));}
+// Charlie sheen (Estevez and Kulla 2017) with their fitted visibility; divided by its albedo
+// where that passes 1 (grazing views at low roughness), so it never adds energy.
+float sheen_lambda_l(float x,float a){float t=(1-a)*(1-a);return lerp(21.5473,25.3245,t)/(1+lerp(3.82987,3.32435,t)*pow(x,lerp(0.19823,0.16801,t)))+lerp(-1.97760,-1.27393,t)*x+lerp(-4.32054,-4.85967,t);}
+float sheen_lambda(float c,float a){return c<0.5?exp(sheen_lambda_l(c,a)):exp(2*sheen_lambda_l(0.5,a)-sheen_lambda_l(1-c,a));}
+float sheen_lobe(float r,float nh,float nv,float nl){
+    float a=max(r,SHEEN_MIN_ROUGHNESS);a*=a;
+    float d=(2+1/a)*pow(saturate(1-nh*nh),0.5/a)/(2*PI);
+    float vis=saturate(1/((1+sheen_lambda(nv,a)+sheen_lambda(nl,a))*4*max(nv*nl,1e-6)));
+    return d*vis/max(1,sheen_albedo(nv,r));
+}
+float coat_fresnel(float c){return 0.04+0.96*pow(1-saturate(c),5);}
+// Share of BSDF samples the coat's own lobe takes (0 without a coat: no extra random number).
+float coat_probability(Material m){return 0.3*m.layers.x;}
+// A GGX half vector around n (roughness a = alpha), reflected: the sampled direction.
+float3 ggx_sample(float3 n,float3 d,float a){float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 h=basis(n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));return reflect(d,h);}
 float3 eval_bsdf(Material m,float3 n,float3 v,float3 l,out float pdf){
     float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f=fresnel(vh,f0_of(m));float ps=spec_probability(m);
-    pdf=(1-m.lobes.z)*((1-ps)*nl/PI+ps*d*nh/max(4*vh,1e-6));
+    pdf=(1-ps)*nl/PI+ps*d*nh/max(4*vh,1e-6);
     float3 diff=(1-f)*(1-m.lobes.x)*m.color_rough.rgb/PI;
-    return (1-m.lobes.z)*(diff+f*d*g1(nv,a)*g1(nl,a)/max(4*nv*nl,1e-6));
+    float3 r=diff+f*d*g1(nv,a)*g1(nl,a)/max(4*nv*nl,1e-6);
+    // The sheen is sampled with the diffuse lobe's cosine directions (it adds no pdf term).
+    float s=max3(m.sheen.rgb);
+    if(s>0){float sr=m.layers.z;r=r*(1-s*min(1,sheen_albedo(nv,sr)))+m.sheen.rgb*sheen_lobe(sr,nh,nv,nl);}
+    float cc=m.layers.x;
+    if(cc>0){
+        float ac=max(0.001,m.layers.y*m.layers.y),dc=ggx_d(nh,ac);
+        r=r*(1-cc*coat_fresnel(nv))+cc*coat_fresnel(vh)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6);
+        pdf=lerp(pdf,dc*nh/max(4*vh,1e-6),coat_probability(m));
+    }
+    pdf*=1-m.lobes.z;return (1-m.lobes.z)*r;
 }
 // Track 7: analytic emitters have a negative position_area.w: −1 a sphere (centre, radius in
 // edge1_cdf.x), −2 a sun (unit direction to it, 1 − cos of its angular radius in edge1_cdf.x).
@@ -473,7 +507,9 @@ float2 filter_offset(float2 u){
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;
             }else{
-                float ps=spec_probability(m);if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 hvec=basis(h.n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));next=reflect(direction,hvec);if(bounce==0)first_spec=true;
+                float pc=coat_probability(m),ps=spec_probability(m);
+                if(pc>0 && random()<pc){float a=max(0.001,m.layers.y*m.layers.y);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;cone_spread+=0.5*a;}
+                else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;
                     cone_spread+=0.5*a;
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}
                 if(dot(h.n,next)<=0)break;

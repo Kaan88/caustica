@@ -141,6 +141,40 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 );
                 row(
                     ui,
+                    "Clear coat",
+                    "A clear varnish over the surface (car paint, lacquer): a sharp reflection on top.",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.clearcoat, 0. ..=1.));
+                    },
+                );
+                if m.clearcoat > 0. {
+                    row(ui, "Coat roughness", "0 is a mirror-sharp varnish.", |ui| {
+                        ui.add(crate::slider(&mut m.clearcoat_roughness, 0. ..=1.));
+                    });
+                }
+                row(
+                    ui,
+                    "Sheen",
+                    "A soft glow at grazing angles from fibres or dust (velvet, felt, peach skin).",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.sheen, 0. ..=1.));
+                    },
+                );
+                if m.sheen > 0. {
+                    row(ui, "Sheen color", "Linear RGB colour of the sheen.", |ui| {
+                        ui.color_edit_button_rgb(&mut m.sheen_color);
+                    });
+                    row(
+                        ui,
+                        "Sheen roughness",
+                        "1 spreads the sheen over the whole silhouette; near 0 it hugs the edge.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.sheen_roughness, 0. ..=1.));
+                        },
+                    );
+                }
+                row(
+                    ui,
                     "Priority",
                     "Where glass, water or ice overlap, the higher priority owns the overlap: \
                      model water reaching into the glass wall and rank the glass above it.",
