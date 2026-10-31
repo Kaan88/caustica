@@ -25,6 +25,14 @@ pub struct Material {
     pub texture: String,
     /// Repeats of the texture set per scene unit (the Cornell box is 2 wide).
     pub texture_scale: f32,
+    /// Nested dielectrics (track 10): where transmissive objects overlap, the higher priority
+    /// owns the overlap (glass 2 over the water 1 that reaches into its wall). 0–7 (3 bits
+    /// of the shader's medium stack).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub priority: u32,
+}
+fn is_zero(v: &u32) -> bool {
+    *v == 0
 }
 impl Default for Material {
     fn default() -> Self {
@@ -43,6 +51,7 @@ impl Default for Material {
             textures: true,
             texture: String::new(),
             texture_scale: 0.5,
+            priority: 0,
         }
     }
 }
@@ -861,7 +870,8 @@ impl Settings {
                         .iter()
                         .all(|v| (0. ..=1.).contains(v))
                     && (1. ..=2.5).contains(&m.ior)
-                    && (0. ..=20.).contains(&m.emission),
+                    && (0. ..=20.).contains(&m.emission)
+                    && m.priority <= 7,
                 "Invalid material"
             );
             anyhow::ensure!(

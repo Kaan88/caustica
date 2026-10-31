@@ -141,6 +141,15 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 );
                 row(
                     ui,
+                    "Priority",
+                    "Where glass, water or ice overlap, the higher priority owns the overlap: \
+                     model water reaching into the glass wall and rank the glass above it.",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.priority, 0..=7));
+                    },
+                );
+                row(
+                    ui,
                     "Glow only",
                     "The surface only emits light; rays stop there.",
                     |ui| {

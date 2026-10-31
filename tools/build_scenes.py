@@ -1253,6 +1253,53 @@ scene("sky-garden-dusk", "Sky garden at dusk",
              exposure=1.6, **camera(30, 10, 6.5, (0, -0.1, 0), 40)))
 
 
+
+def glass_of_water():
+    """Track 10: a tumbler of water (gen:glass/2, two parts sharing one transform) with ice, a
+    straw and air bubbles. Priorities: bubbles 4 > ice 3 > glass 2 > water 1, so the water may
+    reach into the glass wall and the ice may poke out of the water."""
+    def ranked(m, priority):
+        return {**m, "priority": priority}
+    glass = ranked(M((0.88, 0.97, 0.94), 0.0, trans=1, ior=1.52), 2)
+    water = ranked(M((0.9, 0.97, 0.99), 0.0, trans=1, ior=1.33), 1)
+    ice = ranked(M((0.95, 0.98, 1.0), 0.03, trans=1, ior=1.31), 3)
+    air = ranked(M((1, 1, 1), 0.0, trans=1, ior=1.0), 4)
+    # Size 2: 1.4 tall from the floor (y = -1); the water's surface is near y = 0.03 and the
+    # glass's inner floor at y = -0.86; the cavity is at least 0.35 across in radius.
+    out = []
+    for part, name, m in [(0, "Glass", glass), (1, "Water", water)]:
+        o = obj(name, "box", 0, 0, 2.0, m)
+        o["mesh"] = f"gen:glass/2#{part}"
+        out.append(o)
+    out.append(float_at("Straw", "cylinder", 0.05, 0.03, 0.06, 1.0, lacquer((0.75, 0.05, 0.04), 0.3),
+                        stretch=2.7, scale=(0.075, 0.075), tilt=(6, 20)))
+    for i, (x, y, z, rot, tilt) in enumerate([(0.12, -0.06, 0.1, 20, (10, 15)),
+                                               (-0.14, -0.07, -0.06, 50, (-12, 8)),
+                                               (-0.02, -0.08, -0.2, 75, (6, -14))]):
+        out.append(float_at(f"Ice {i + 1}", "box", x, y, z, 0.34, ice, rotation=rot, tilt=tilt))
+    r = random.Random(10)
+    for i in range(28):
+        a, d = r.uniform(0, 2 * math.pi), 0.3 * math.sqrt(r.random())
+        k = r.uniform(0.25, 0.6)  # size 0.1 at scale k: validate() keeps size >= 0.05
+        out.append(float_at(f"Bubble {i + 1}", "sphere", d * math.cos(a), r.uniform(-0.82, -0.1),
+                            d * math.sin(a), 0.1, air, stretch=k, scale=(k, k)))
+    # Vertical bars behind the glass (a checker varies along x only on a board facing +z).
+    out.append(obj("Bars", "box", 0, -1.4, 1.0, matte((0.85, 0.83, 0.78), 0.8),
+                   stretch=8.0, scale=(14.0, 0.2)) | {"material": M((0.85, 0.83, 0.78), 0.8, refl=0.0,
+                   pattern="checker", second=(0.05, 0.05, 0.06), pscale=6.0)})
+    return out
+
+
+scene("glass-of-water", "Glass of water",
+      "A tumbler of water with ice, a straw and air bubbles: nested dielectrics, so light crosses "
+      "water–glass, ice–water and water–air interfaces with the right ratio of indices; the straw "
+      "breaks at the surface and the bars behind flip through the water.",
+      ["glass", "nested dielectrics", "caustics", "mesh"],
+      studio(light_position=[-2.5, 3.0, -1.0], light_size=1.2, light_intensity=30.0,
+             lights=[light("Fill", (2.5, 2.0, 3.0), (2.5, 2.5), (1.0, 0.95, 0.9), 3.0, target=(0, -0.5, 0))],
+             floor=M((0.62, 0.6, 0.57), 0.35, refl=0.06), base=[0.62, 0.6, 0.57], sky=0.15,
+             objects=glass_of_water(), bounces=24, **camera(0, 12, 3.2, (0, -0.35, 0), 34)))
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1298,6 +1345,7 @@ def check(slug, s):
         rng(label + " emission", m["emission"], 0, 20)
         rng(label + " pattern_scale", m["pattern_scale"], 0.1, 100)
         rng(label + " texture_scale", m.get("texture_scale", 0.5), 0.01, 100)
+        rng(label + " priority", m.get("priority", 0), 0, 7)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)

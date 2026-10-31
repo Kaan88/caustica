@@ -2,7 +2,7 @@
 //! uses one as `mesh: "gen:<kind>/<seed>"` (`#n` picks a part, as for files); `mesh.rs` builds
 //! it on first use, normalises it and caches it like a file. Deterministic per seed.
 use crate::generators::Rng;
-use glam::{Mat3, Vec3};
+use glam::{Mat3, Vec2, Vec3};
 
 pub const PREFIX: &str = "gen:";
 
@@ -23,6 +23,7 @@ pub fn build(spec: &str) -> anyhow::Result<Vec<(String, Geometry)>> {
         "terrain" => terrain(&mut r),
         "menger" => vec![("Sponge".into(), menger(seed))],
         "tree" => tree(&mut r),
+        "glass" => glass(&mut r),
         _ => anyhow::bail!("Unknown procedural mesh {kind}"),
     })
 }
@@ -452,9 +453,156 @@ fn frustum(out: &mut Vec<(Vec3, Vec3)>, a: Vec3, b: Vec3, ra: f32, rb: f32) {
     }
 }
 
+/// A tumbler and the water in it (track 10, nested dielectrics): two lathed solids. The water
+/// reaches into the glass wall and base instead of stopping at its inner surface, so with the
+/// glass ranked above the water (`Material::priority`) the renderer sees one water–glass
+/// interface and no air gap. Seeds vary the radius, taper and fill level.
+fn glass(r: &mut Rng) -> Vec<(String, Geometry)> {
+    let (height, base, wall) = (2., 0.2, 0.045);
+    let bottom = r.range(0.55, 0.65);
+    let top = bottom + r.range(0., 0.15);
+    let fill = r.range(0.55, 0.8) * height;
+    // The outer radius at y; the cavity is `wall` inside it.
+    let outer = |y: f32| bottom + (top - bottom) * y / height;
+    let inner = |y: f32| outer(y) - wall;
+    let arc = |p: &mut Vec<(Vec2, bool)>, c: Vec2, radius: f32, a0: f32, a1: f32| {
+        for k in 1..8 {
+            let a = (a0 + (a1 - a0) * k as f32 / 8.).to_radians();
+            p.push((c + Vec2::new(a.cos(), a.sin()) * radius, true));
+        }
+    };
+    // Outlines run with the solid on their left, from the axis back to the axis.
+    let mut cup = vec![(Vec2::ZERO, false)];
+    let chamfer = 0.03;
+    cup.push((Vec2::new(bottom - chamfer, 0.), false));
+    cup.push((Vec2::new(outer(chamfer), chamfer), false));
+    cup.push((Vec2::new(top, height), true));
+    // A rounded rim, then down the inside to a filleted inner corner.
+    arc(
+        &mut cup,
+        Vec2::new(top - wall * 0.5, height),
+        wall * 0.5,
+        0.,
+        180.,
+    );
+    let fillet = 0.08;
+    cup.push((Vec2::new(inner(height), height), true));
+    cup.push((Vec2::new(inner(base + fillet), base + fillet), true));
+    arc(
+        &mut cup,
+        Vec2::new(inner(base + fillet) - fillet, base + fillet),
+        fillet,
+        0.,
+        -90.,
+    );
+    cup.push((Vec2::new(inner(base + fillet) - fillet, base), true));
+    cup.push((Vec2::new(0., base), false));
+    // The water's side and floor lie inside the glass; the top climbs the wall in a meniscus.
+    let reach = wall * 0.4;
+    let floor = base - reach;
+    let (rise, width) = (0.03, 0.04);
+    let mut water = vec![(Vec2::new(0., floor), false)];
+    water.push((Vec2::new(inner(floor) + reach, floor), false));
+    water.push((Vec2::new(inner(fill + rise) + reach, fill + rise), false));
+    let edge = inner(fill + rise);
+    water.push((Vec2::new(edge, fill + rise), true));
+    // Dense near the wall, where the surface bends.
+    for k in 1..12 {
+        let x = edge * (1. - (k as f32 / 12.).powi(2));
+        water.push((
+            Vec2::new(x, fill + rise * (-(edge - x) / width).exp()),
+            true,
+        ));
+    }
+    water.push((Vec2::new(0., fill), true));
+    vec![
+        ("Glass".into(), Geometry::Flat(lathe(&cup, 96))),
+        ("Water".into(), Geometry::Flat(lathe(&water, 96))),
+    ]
+}
+/// Revolves an outline in the (radius, y) plane about the y axis. The solid lies on the left of
+/// the outline, so (dy, -dx) points out; smooth points average their two edges' normals.
+fn lathe(outline: &[(Vec2, bool)], segments: usize) -> Vec<(Vec3, Vec3)> {
+    let normal = |i: usize| {
+        let d = outline[i + 1].0 - outline[i].0;
+        Vec2::new(d.y, -d.x).normalize_or(Vec2::Y)
+    };
+    let mut out = vec![];
+    for e in 0..outline.len() - 1 {
+        let (a, b) = (outline[e].0, outline[e + 1].0);
+        if a.x <= 0. && b.x <= 0. {
+            continue;
+        }
+        let vertex_normal = |i: usize| {
+            let smooth = outline[i].1 && i > 0 && i + 1 < outline.len();
+            if smooth {
+                (normal(i - 1) + normal(i)).normalize_or(normal(e))
+            } else {
+                normal(e)
+            }
+        };
+        let (na, nb) = (vertex_normal(e), vertex_normal(e + 1));
+        let at = |p: Vec2, n: Vec2, k: usize| {
+            let t = k as f32 * std::f32::consts::TAU / segments as f32;
+            let (s, c) = t.sin_cos();
+            (
+                Vec3::new(p.x * c, p.y, p.x * s),
+                Vec3::new(n.x * c, n.y, n.x * s),
+            )
+        };
+        for k in 0..segments {
+            let q = [
+                at(a, na, k),
+                at(a, na, k + 1),
+                at(b, nb, k + 1),
+                at(b, nb, k),
+            ];
+            // A band touching the axis is a fan of single triangles.
+            if a.x <= 0. {
+                out.extend([q[0], q[2], q[3]]);
+            } else if b.x <= 0. {
+                out.extend([q[0], q[1], q[2]]);
+            } else {
+                out.extend([0, 1, 2, 0, 2, 3].map(|i| q[i]));
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Volume by the divergence theorem with each face oriented by its stored normals: positive
+    /// only when they point out of the solid.
+    fn volume(tris: &[(Vec3, Vec3)]) -> f32 {
+        tris.as_chunks::<3>()
+            .0
+            .iter()
+            .map(|[a, b, c]| {
+                let n = a.1 + b.1 + c.1;
+                let area = (b.0 - a.0).cross(c.0 - a.0) * 0.5;
+                (a.0 + b.0 + c.0).dot(n.normalize()) / 3. * area.length() / 3.
+            })
+            .sum()
+    }
+    #[test]
+    fn glass_and_water_are_outward_and_nested() {
+        for seed in 0..6 {
+            let parts = build(&format!("glass/{seed}")).unwrap();
+            let [(_, Geometry::Flat(glass)), (_, Geometry::Flat(water))] = &parts[..] else {
+                unreachable!()
+            };
+            let (vg, vw) = (volume(glass), volume(water));
+            // A cylinder r 0.55..0.8, h 2: the wall and base hold about a fifth of it.
+            assert!(vg > 0.1 && vg < 1.2, "glass volume {vg}");
+            assert!(vw > 0.4 && vw < 3.5, "water volume {vw}");
+            let top = water.iter().map(|v| v.0.y).fold(f32::MIN, f32::max);
+            let rim = glass.iter().map(|v| v.0.y).fold(f32::MIN, f32::max);
+            println!("seed {seed}: water top {top:.3} of {rim:.3}, volumes {vg:.3} {vw:.3}");
+            assert!(top < rim);
+        }
+    }
     #[test]
     fn surface_nets_make_a_closed_outward_sphere() {
         let Geometry::Indexed(p, idx) = surface_nets(24, 1.2, |q| q.length() - 1.) else {

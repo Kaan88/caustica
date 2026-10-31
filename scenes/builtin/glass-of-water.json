@@ -1,0 +1,1667 @@
+{
+ "format": 1,
+ "title": "Glass of water",
+ "description": "A tumbler of water with ice, a straw and air bubbles: nested dielectrics, so light crosses water–glass, ice–water and water–air interfaces with the right ratio of indices; the straw breaks at the surface and the bars behind flip through the water.",
+ "tags": [
+  "glass",
+  "nested dielectrics",
+  "caustics",
+  "mesh"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.15,
+  "base": [
+   0.62,
+   0.6,
+   0.57
+  ],
+  "floor": {
+   "color": [
+    0.62,
+    0.6,
+    0.57
+   ],
+   "roughness": 0.35,
+   "metallic": 0.0,
+   "reflectivity": 0.06,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -2.5,
+   3.0,
+   -1.0
+  ],
+  "light_size": 1.2,
+  "light_intensity": 30.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Fill",
+    "position": [
+     2.5,
+     2.0,
+     3.0
+    ],
+    "rotation": [
+     57.373,
+     39.806,
+     0.0
+    ],
+    "size": [
+     2.5,
+     2.5
+    ],
+    "color": [
+     1.0,
+     0.95,
+     0.9
+    ],
+    "intensity": 3.0,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 24,
+  "yaw": 0,
+  "pitch": 12,
+  "distance": 3.2,
+  "target": [
+   0,
+   -0.35,
+   0
+  ],
+  "fov": 34,
+  "objects": [
+   {
+    "name": "Glass",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 2.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.97,
+      0.94
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 2
+    },
+    "portal": -1,
+    "mesh": "gen:glass/2#0"
+   },
+   {
+    "name": "Water",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 2.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.97,
+      0.99
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.33,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1,
+    "mesh": "gen:glass/2#1"
+   },
+   {
+    "name": "Straw",
+    "shape": "cylinder",
+    "position": [
+     0.05,
+     0.06
+    ],
+    "size": 1.0,
+    "stretch": 2.7,
+    "rotation": 0.0,
+    "tilt": [
+     6,
+     20
+    ],
+    "scale_xz": [
+     0.075,
+     0.075
+    ],
+    "elevation": 0.03,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.05,
+      0.04
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ice 1",
+    "shape": "box",
+    "position": [
+     0.12,
+     0.1
+    ],
+    "size": 0.34,
+    "stretch": 1.0,
+    "rotation": 20,
+    "tilt": [
+     10,
+     15
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.06,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      1.0
+     ],
+     "roughness": 0.03,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ice 2",
+    "shape": "box",
+    "position": [
+     -0.14,
+     -0.06
+    ],
+    "size": 0.34,
+    "stretch": 1.0,
+    "rotation": 50,
+    "tilt": [
+     -12,
+     8
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.07,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      1.0
+     ],
+     "roughness": 0.03,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ice 3",
+    "shape": "box",
+    "position": [
+     -0.02,
+     -0.2
+    ],
+    "size": 0.34,
+    "stretch": 1.0,
+    "rotation": 75,
+    "tilt": [
+     6,
+     -14
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.08,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      1.0
+     ],
+     "roughness": 0.03,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.31,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 1",
+    "shape": "sphere",
+    "position": [
+     -0.177,
+     -0.0852
+    ],
+    "size": 0.1,
+    "stretch": 0.4523,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4523,
+     0.4523
+    ],
+    "elevation": -0.6716,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 2",
+    "shape": "sphere",
+    "position": [
+     0.1055,
+     -0.251
+    ],
+    "size": 0.1,
+    "stretch": 0.4787,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4787,
+     0.4787
+    ],
+    "elevation": -0.7046,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 3",
+    "shape": "sphere",
+    "position": [
+     -0.1703,
+     -0.0222
+    ],
+    "size": 0.1,
+    "stretch": 0.3375,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3375,
+     0.3375
+    ],
+    "elevation": -0.134,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 4",
+    "shape": "sphere",
+    "position": [
+     0.0633,
+     -0.0014
+    ],
+    "size": 0.1,
+    "stretch": 0.5511,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5511,
+     0.5511
+    ],
+    "elevation": -0.3857,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 5",
+    "shape": "sphere",
+    "position": [
+     -0.1176,
+     0.1082
+    ],
+    "size": 0.1,
+    "stretch": 0.4862,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4862,
+     0.4862
+    ],
+    "elevation": -0.4911,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 6",
+    "shape": "sphere",
+    "position": [
+     -0.0957,
+     -0.2245
+    ],
+    "size": 0.1,
+    "stretch": 0.2965,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2965,
+     0.2965
+    ],
+    "elevation": -0.2672,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 7",
+    "shape": "sphere",
+    "position": [
+     0.2936,
+     -0.0326
+    ],
+    "size": 0.1,
+    "stretch": 0.4647,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4647,
+     0.4647
+    ],
+    "elevation": -0.7881,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 8",
+    "shape": "sphere",
+    "position": [
+     0.1098,
+     0.0028
+    ],
+    "size": 0.1,
+    "stretch": 0.5794,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5794,
+     0.5794
+    ],
+    "elevation": -0.6019,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 9",
+    "shape": "sphere",
+    "position": [
+     -0.1896,
+     0.2119
+    ],
+    "size": 0.1,
+    "stretch": 0.36,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.36,
+     0.36
+    ],
+    "elevation": -0.4247,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 10",
+    "shape": "sphere",
+    "position": [
+     -0.0704,
+     0.0299
+    ],
+    "size": 0.1,
+    "stretch": 0.4546,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4546,
+     0.4546
+    ],
+    "elevation": -0.2123,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 11",
+    "shape": "sphere",
+    "position": [
+     0.0788,
+     0.1182
+    ],
+    "size": 0.1,
+    "stretch": 0.3945,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3945,
+     0.3945
+    ],
+    "elevation": -0.7934,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 12",
+    "shape": "sphere",
+    "position": [
+     -0.2713,
+     0.0058
+    ],
+    "size": 0.1,
+    "stretch": 0.4803,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4803,
+     0.4803
+    ],
+    "elevation": -0.4359,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 13",
+    "shape": "sphere",
+    "position": [
+     0.0712,
+     -0.0917
+    ],
+    "size": 0.1,
+    "stretch": 0.4485,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4485,
+     0.4485
+    ],
+    "elevation": -0.5506,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 14",
+    "shape": "sphere",
+    "position": [
+     -0.0811,
+     -0.0599
+    ],
+    "size": 0.1,
+    "stretch": 0.5214,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5214,
+     0.5214
+    ],
+    "elevation": -0.7504,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 15",
+    "shape": "sphere",
+    "position": [
+     0.1352,
+     0.2332
+    ],
+    "size": 0.1,
+    "stretch": 0.5817,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5817,
+     0.5817
+    ],
+    "elevation": -0.5081,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 16",
+    "shape": "sphere",
+    "position": [
+     -0.1275,
+     0.0764
+    ],
+    "size": 0.1,
+    "stretch": 0.3461,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3461,
+     0.3461
+    ],
+    "elevation": -0.3756,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 17",
+    "shape": "sphere",
+    "position": [
+     0.0451,
+     0.0934
+    ],
+    "size": 0.1,
+    "stretch": 0.4095,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4095,
+     0.4095
+    ],
+    "elevation": -0.7012,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 18",
+    "shape": "sphere",
+    "position": [
+     -0.1615,
+     -0.2186
+    ],
+    "size": 0.1,
+    "stretch": 0.5221,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5221,
+     0.5221
+    ],
+    "elevation": -0.4743,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 19",
+    "shape": "sphere",
+    "position": [
+     -0.1138,
+     0.1618
+    ],
+    "size": 0.1,
+    "stretch": 0.2518,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2518,
+     0.2518
+    ],
+    "elevation": -0.3069,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 20",
+    "shape": "sphere",
+    "position": [
+     -0.0832,
+     0.1477
+    ],
+    "size": 0.1,
+    "stretch": 0.278,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.278,
+     0.278
+    ],
+    "elevation": -0.4974,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 21",
+    "shape": "sphere",
+    "position": [
+     -0.1627,
+     -0.0933
+    ],
+    "size": 0.1,
+    "stretch": 0.5543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5543,
+     0.5543
+    ],
+    "elevation": -0.3352,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 22",
+    "shape": "sphere",
+    "position": [
+     0.0117,
+     0.2171
+    ],
+    "size": 0.1,
+    "stretch": 0.5687,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5687,
+     0.5687
+    ],
+    "elevation": -0.4455,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 23",
+    "shape": "sphere",
+    "position": [
+     -0.0602,
+     -0.045
+    ],
+    "size": 0.1,
+    "stretch": 0.4213,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4213,
+     0.4213
+    ],
+    "elevation": -0.4878,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 24",
+    "shape": "sphere",
+    "position": [
+     -0.1582,
+     0.1132
+    ],
+    "size": 0.1,
+    "stretch": 0.4547,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4547,
+     0.4547
+    ],
+    "elevation": -0.4322,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 25",
+    "shape": "sphere",
+    "position": [
+     -0.1219,
+     0.0077
+    ],
+    "size": 0.1,
+    "stretch": 0.4045,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4045,
+     0.4045
+    ],
+    "elevation": -0.1226,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 26",
+    "shape": "sphere",
+    "position": [
+     -0.0486,
+     0.0286
+    ],
+    "size": 0.1,
+    "stretch": 0.251,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.251,
+     0.251
+    ],
+    "elevation": -0.4345,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 27",
+    "shape": "sphere",
+    "position": [
+     0.0868,
+     0.0285
+    ],
+    "size": 0.1,
+    "stretch": 0.2881,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2881,
+     0.2881
+    ],
+    "elevation": -0.4931,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bubble 28",
+    "shape": "sphere",
+    "position": [
+     0.2087,
+     -0.0096
+    ],
+    "size": 0.1,
+    "stretch": 0.4105,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4105,
+     0.4105
+    ],
+    "elevation": -0.5057,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bars",
+    "shape": "box",
+    "position": [
+     0,
+     -1.4
+    ],
+    "size": 1.0,
+    "stretch": 8.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     14.0,
+     0.2
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.83,
+      0.78
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "checker",
+     "secondary_color": [
+      0.05,
+      0.05,
+      0.06
+     ],
+     "pattern_scale": 6.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

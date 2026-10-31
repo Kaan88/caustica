@@ -32,7 +32,8 @@ fn pack(m: &Material) -> PackedMaterial {
             m.metallic,
             m.reflectivity,
             m.transmission,
-            m.unlit as u32 as f32,
+            // Flag bits 8–10: the nested-dielectric priority.
+            (m.unlit as u32 | m.priority.min(7) << 8) as f32,
         ],
         optical: [m.ior, m.emission, m.pattern as u32 as f32, 0.],
         secondary: [

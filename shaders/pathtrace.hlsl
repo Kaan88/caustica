@@ -218,6 +218,32 @@ float3 environment_radiance(float3 d){
     return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));
 }
 float3 fresnel(float c,float3 f0){return f0+(1-f0)*pow(1-saturate(c),5);}
+// Exact unpolarised Fresnel reflectance between media with eta = n1 / n2 (1 at total internal
+// reflection). Schlick's form is poor between two dense media (water against glass) and still
+// reflects at grazing angles when n1 = n2.
+float fresnel_dielectric(float cosi,float eta){
+    float s2=eta*eta*(1-cosi*cosi);if(s2>=1)return 1;float cost=sqrt(1-s2);
+    float rs=(eta*cosi-cost)/(eta*cosi+cost),rp=(cosi-eta*cost)/(cosi+eta*cost);
+    return 0.5*(rs*rs+rp*rp);
+}
+// Nested dielectrics (track 10, Schmidt and Budge 2002): each path keeps the transmissive
+// materials it is inside, up to 4 deep, in one 64-bit word: 16 bits per entry from the bottom,
+// (material id + 1) | priority << 13, 0 = empty. The current medium is the one with the highest
+// priority (flag bits 8–10), the latest on ties; -1 is air. A dielectric surface that does not
+// bound the current medium is a false hit: the path passes straight through and only the stack
+// changes, so water may overlap a glass wall (glass ranked higher) without an air gap. The word
+// is small on purpose: the stack is live across every RayQuery, and a uint4 cost glass scenes
+// about 0.4 ms at 1440×900 in occupancy.
+uint medium_entry(uint id,float flags){return ((id+1)&0x1fffu)|(((uint)flags>>8)&7u)<<13;}
+uint medium_at(uint64_t s,uint i){return (uint)(s>>(16*i))&0xffffu;}
+int medium_top(uint64_t s){int best=-1;uint bp=0;[unroll]for(uint i=0;i<4;i++){uint e=medium_at(s,i);if(e!=0 && (best<0 || (e>>13)>=bp)){best=i;bp=e>>13;}}return best;}
+int medium_find(uint64_t s,uint e){int j=-1;[unroll]for(uint i=0;i<4;i++)if(medium_at(s,i)==e)j=i;return j;}
+// A full stack drops the push; leaving that material later then counts as leaving into the rest.
+uint64_t medium_push(uint64_t s,uint e){[unroll]for(uint i=0;i<4;i++)if(medium_at(s,i)==0)return s|((uint64_t)e<<(16*i));return s;}
+uint64_t medium_remove(uint64_t s,uint e){int j=medium_find(s,e);if(j<0)return s;uint64_t low=j>0?s&((1ull<<(16*j))-1):0;return low|((s>>(16*(j+1)))<<(16*j));}
+Material medium_material(uint64_t s,int top){return materials[(medium_at(s,top)&0x1fffu)-1];}
+float medium_ior(uint64_t s,int top){return top>=0?medium_material(s,top).optical.x:1;}
+float3 medium_absorption(uint64_t s,int top){return top>=0?-log(max(medium_material(s,top).color_rough.rgb,0.001)):float3(0,0,0);}
 float ggx_d(float nh,float a){float d=nh*nh*(a*a-1)+1;return a*a/(PI*d*d);}
 float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
 float3 f0_of(Material m){float f=pow((m.optical.x-1)/(m.optical.x+1),2);return lerp(lerp(f.xxx,1.0.xxx,m.lobes.y),m.color_rough.rgb,m.lobes.x);}
@@ -341,14 +367,31 @@ float2 filter_offset(float2 u){
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             uint mis=(scene_info.w>>4)&3;
             // Light selection: the HDRI and the emissive triangles share NEE half and half.
             bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
             float p_env=env_nee?(tri_nee?0.5:1):0;
-            Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){
+            // False hits on dielectrics (see medium_top): entering one ranked below the current
+            // medium, or leaving one that is not the current medium. The ray goes on in the same
+            // direction without a bounce, so the MIS state of the last real vertex stays. Kept in
+            // this small loop rather than as a `continue` of the bounce loop: that cost glass
+            // scenes about 0.5 ms more at 1440×900.
+            Hit h;bool found;
+            for(;;){
+                found=intersect(origin,direction,1e4,h,false,bounce==0);
+                if(!found || false_hits>=32 || materials[h.material].lobes.z<=0)break;
+                int top=medium_top(media);uint e=medium_entry(h.material,materials[h.material].lobes.w);bool skip;
+                if(h.front)skip=top>=0 && (e>>13)<(medium_at(media,top)>>13);
+                else skip=medium_find(media,e)>=0 && medium_at(media,top)!=e;
+                if(!skip)break;
+                media=h.front?medium_push(media,e):medium_remove(media,e);
+                throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
+                false_hits++;origin=h.p-h.ng*0.0003;
+            }
+            if(!found){
                 if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
                 float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
@@ -419,10 +462,14 @@ float2 filter_offset(float2 u){
             }}}
             float3 next;bool delta=false;float bsdf_pdf=0;
             if(random()<m.lobes.z){
-                float eta=h.front?1/m.optical.x:m.optical.x;float cosi=saturate(dot(-direction,h.n));float cost2=1-eta*eta*(1-cosi*cosi);float f=pow((m.optical.x-1)/(m.optical.x+1),2);float fr=f+(1-f)*pow(1-(h.front?cosi:sqrt(max(0,cost2))),5);
-                bool reflected=cost2<=0 || random()<fr;
+                // The media on both sides: entering, the current one and this; leaving, this and
+                // the one the stack falls back to (air when empty, as before nesting).
+                uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);
+                float n1=h.front?medium_ior(media,medium_top(media)):m.optical.x,n2=h.front?m.optical.x:medium_ior(after,medium_top(after));
+                float eta=n1/n2;float fr=fresnel_dielectric(saturate(dot(-direction,h.n)),eta);
+                bool reflected=random()<fr;
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
-                if(!reflected){absorption=h.front?-log(max(m.color_rough.rgb,0.001)):0;throughput*=eta*eta;}
+                if(!reflected){media=after;absorption=medium_absorption(media,medium_top(media));throughput*=eta*eta;}
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;
             }else{
