@@ -315,6 +315,11 @@ pub struct Object {
     /// An imported mesh file (OBJ, glTF, GLB) used instead of `shape`; relative paths are
     /// relative to the scenes folder. Empty for built-in shapes.
     pub mesh: String,
+    /// Procedural shape spec (roadmap track 13): `sphere`, `torus/0.72/0.28`, `blob/7`,
+    /// `menger/3`, `bulb`, `box/1/1/1-torus/0.6/0.25@0.08` (union/subtract/intersect chains
+    /// with smooth radii). When non-empty the object has no triangles at all: the shape is
+    /// an analytic SDF chain whose AABB is a procedural primitive in its own BLAS.
+    pub procedural: String,
 }
 impl Default for Object {
     fn default() -> Self {
@@ -334,6 +339,7 @@ impl Default for Object {
             material: Material::default(),
             portal: -1,
             mesh: String::new(),
+            procedural: String::new(),
         }
     }
 }
@@ -994,7 +1000,9 @@ impl Settings {
                     && o.tilt.iter().all(|v| v.abs() <= 360.)
                     && o.scale_xz.iter().all(|v| (0.01..=20.).contains(v))
                     && o.name.len() <= 128
-                    && o.mesh.len() <= 1024,
+                    && o.mesh.len() <= 1024
+                    && o.procedural.len() <= 256
+                    && (o.procedural.is_empty() || crate::sdf::parse(&o.procedural).is_ok()),
                 "Invalid object"
             );
         }

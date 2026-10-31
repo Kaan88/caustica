@@ -107,22 +107,164 @@ void sample_maps(inout Hit h,float2 uv,float4 tangent,Footprint footprint){
         if(dot(T,T)>1e-12){T=normalize(T);float3 B=cross(n,T)*tangent.w;h.n=normalize(T*t.x+B*t.y+n*max(t.z,1e-3));}
     }
 }
+#ifdef PROCEDURALS
+// ---- Procedural SDF chains (roadmap track 13), a mirror of src/sdf.rs -----------------
+float proc_smin(float a,float b,float k){if(k<=1e-4)return min(a,b);float h=saturate(0.5+0.5*(b-a)/k);return b*(1.0-h)+a*h-k*h*(1.0-h);}
+float proc_smax(float a,float b,float k){if(k<=1e-4)return max(a,b);float h=saturate(0.5+0.5*(a-b)/k);return a*h+b*(1.0-h)+k*h*(1.0-h);}
+float proc_join(float a,float b,float op,float k){if(op==0.0)return proc_smin(a,b,k);if(op==1.0)return proc_smax(a,-b,k);return proc_smax(a,b,k);}
+float proc_box3(float3 e){return length(max(e,0.0))+min(max(max(e.x,e.y),e.z),0.0);}
+float proc_rect2(float a,float b){return length(max(float2(a,b),0.0))+min(max(a,b),0.0);}
+float proc_wrap2(float v){return v-floor(v*0.5)*2.0;}
+float proc_capped2(float ex,float ey){return length(max(float2(ex,ey),0.0))+min(max(ex,ey),0.0);}
+float proc_menger(float3 p,float level){
+    float bd=proc_box3(abs(p)-1.0);float rem=1e9,sc=1.0,li=0.0;
+    while(li+0.5<level){
+        float sx=(abs(proc_wrap2(p.x*sc+1.0)-1.0)-1.0/3.0)/sc;
+        float sy=(abs(proc_wrap2(p.y*sc+1.0)-1.0)-1.0/3.0)/sc;
+        float sz=(abs(proc_wrap2(p.z*sc+1.0)-1.0)-1.0/3.0)/sc;
+        float t1=proc_rect2(sx,sy),t2=proc_rect2(sx,sz),t3=proc_rect2(sy,sz);
+        float best=min(min(t1,t2),t3);if(best<rem)rem=best;
+        sc*=3.0;li+=1.0;
+    }
+    return max(bd,-rem);
+}
+float proc_bulb(float3 q,float power){
+    float3 c=q*(1.0/0.74);float r0=length(c);
+    if(r0>2.0)return (r0-2.0)*0.74;
+    float3 z=c;float r=0.0;float dch=1.0;
+    for(int i=0;i<11;i++){
+        r=length(z);
+        if(r>2.0)break;
+        dch*=power*(r>1.0?pow(r,power-1.0):1.0);
+        if(z.y<0.0)z.y=-z.y;
+        float inv=r>1e-9?1.0/r:0.0;
+        float th=acos(clamp(z.y*inv,-1.0,1.0));
+        float ph=atan2(z.x,z.z);
+        float rn=pow(r,power),th2=th*power,ph2=ph*power;
+        float s=rn*sin(th2);
+        z=float3(s*sin(ph2),rn*cos(th2),s*cos(ph2))+c;
+    }
+    if(r>2.0)return min((r-2.0)/dch,0.5)*0.74;
+    return -r*0.74;
+}
+uint proc_hash(uint x){x^=x>>16;x*=0x7feb352du;x^=x>>15;x*=0x846ca68bu;return x^x>>16;}
+float proc_unit(uint x){return float(x>>8)*(1.0/16777216.0);}
+float proc_blob(float3 q,float seed){
+    uint s=asuint(seed);float acc=1e9;
+    for(int i=0;i<6;i++){
+        uint h=proc_hash(s*0x9E3779B1u+uint(i)*0x85EBCA6Bu+0x27D4EB2Fu);
+        float3 c=float3(proc_unit(h),proc_unit(h+1u),proc_unit(h+2u))-0.5;
+        float r=0.16+0.22*proc_unit(h+3u);
+        acc=proc_smin(acc,length(q-c*0.66)-r,0.16);
+    }
+    return acc;
+}
+float proc_atom(float4 A,float4 B,float4 C,float3 q){
+    float kind=A.x;
+    if(kind==0.0){float3 w=q-float3(A.z,A.w,B.x);return length(w)-A.y;}
+    if(kind==1.0){float3 w=q-float3(A.w,B.x,B.y);float t=sqrt(w.x*w.x+w.z*w.z)-A.y;return sqrt(t*t+w.y*w.y)-A.z;}
+    if(kind==2.0){float3 w=q-float3(A.w,B.x,B.y);return proc_capped2(sqrt(w.x*w.x+w.z*w.z)-A.y,abs(w.y)-A.z);}
+    if(kind==3.0){float3 w=q-float3(B.x,B.y,B.z);return proc_box3(abs(w)-float3(A.y,A.z,A.w));}
+    if(kind==4.0)return proc_bulb(q,A.y);
+    if(kind==5.0)return proc_menger(q,A.y);
+    if(kind==6.0)return proc_blob(q,A.y);
+    return 1e9;
+}
+float proc_chain_at(uint base,float3 q){
+    float4 A0=procedurals[base],B0=procedurals[base+1];
+    float d=proc_atom(A0,B0,procedurals[base+2],q);
+    float4 A1=procedurals[base+3];
+    if(A1.x<0.0)return d;
+    float4 B1=procedurals[base+4],C1=procedurals[base+5];
+    d=proc_join(d,proc_atom(A1,B1,C1,q),B1.w,C1.x);
+    float4 A2=procedurals[base+6];
+    if(A2.x<0.0)return d;
+    float4 B2=procedurals[base+7],C2=procedurals[base+8];
+    return proc_join(d,proc_atom(A2,B2,C2,q),B2.w,C2.x);
+}
+// Object-space march from the candidate's box entry; step is scaled by |od| so world t
+// advances evenly (safety keeps smooth/fractal chains conservative). HIT_EPS mirrors sdf.rs.
+float proc_hit(uint base,float3 oo,float od,float t0,float tmax){
+    float4 C0=procedurals[base+2];float safety=C0.x,budget=C0.y;
+    float speed=length(od);if(speed<1e-9)return -1.0;
+    float t=max(t0,0.0001);
+    for(float it=0.0;it<budget;it+=1.0){
+        float d=proc_chain_at(base,oo+od*t);
+        if(d<0.001)return t;
+        t+=max(d,1e-4)*safety/speed;
+        if(t>tmax)return -1.0;
+    }
+    return -1.0;
+}
+// Whole-chain gradient at the hit (central differences, GRAD_STEP as sdf.rs) — analytic
+// normals for every chain kind, fractal included.
+float3 proc_grad(uint base,float3 p){
+    float3 g=0.0;
+    for(int a=0;a<3;a++){
+        for(float s=-1.0;s<=1.0;s+=2.0){
+            float3 d=0.0;
+            if(a==0)d.x=s*0.015;else if(a==1)d.y=s*0.015;else d.z=s*0.015;
+            g+=proc_chain_at(base,p+d)*d;
+        }
+    }
+    return dot(g,g)<1e-8?float3(0.0,1.0,0.0):g;
+}
+#endif
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
     RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
         uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+#ifdef PROCEDURALS
+        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+            Instance ci=instances[q.CandidateInstanceID()];
+            if(ci.procedural==0u)continue;
+            float tt=proc_hit((ci.procedural-1u)*9u,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),0.0001,limit);
+            if(tt<0.0)continue;
+            if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
+            if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitProceduralPrimitiveHit(tt);
+            continue;
+        }
+#endif
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
         if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();
     }
     h=(Hit)0;
-    if(q.CommittedStatus()!=COMMITTED_TRIANGLE_HIT)return false;
+    uint status=q.CommittedStatus();
+    if(status!=COMMITTED_TRIANGLE_HIT
+#ifdef PROCEDURALS
+        &&status!=COMMITTED_PROCEDURAL_PRIMITIVE_HIT
+#endif
+    )return false;
     Instance inst=instances[q.CommittedInstanceID()];uint prim=q.CommittedPrimitiveIndex();float2 b=q.CommittedTriangleBarycentrics();
     // uv_scale: texture units per world unit at the hit; T, B: world dP/du and dP/dv (both for
     // the footprint; T zero when only uv_scale is known).
     h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;float3 T=0,B=0;
+#ifdef PROCEDURALS
+    if(status==COMMITTED_PROCEDURAL_PRIMITIVE_HIT){
+        uint slot=(inst.procedural-1u)*9u;
+        h.material=inst.material;
+        float3 po=q.CommittedObjectRayOrigin()+q.CommittedObjectRayDirection()*h.t;
+        float3 g=proc_grad(slot,po);
+        h.n=normalize(mul(g,(float3x3)q.CommittedWorldToObject3x4()));
+        // Procedural surfaces only take a texture set (world box mapping); a mesh-style
+        // map with own UVs has no UVs to read and keeps the plain albedo (not done).
+        uv_scale=materials[h.material].base_scale.w;
+        mapped=flagged(h.material,16u)&&uv_scale>0;
+        if(mapped){
+            float3 t,bt;
+            box_map(h.p,h.n,uv_scale,uv,t,bt);
+            tangent=float4(t,tangent_sign(h.n,t,bt));T=t/uv_scale;B=bt/uv_scale;
+        }
+        // Analytic surfaces are not in the triangle NEE table: h.emitter=0, but emission
+        // on a BSDF hit still lights the path through the material.
+        h.emitter=0;h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
+        if(mapped)sample_maps(h,uv,tangent,footprint(d,h.ng,cone_width+cone_spread*h.t,T,B,uv_scale));
+        return true;
+    }
+#endif
     if(inst.material==0xffffffffu){
         // Static geometry: geometry 1 is the opaque range; its primitive indices restart at 0.
         prim+=q.CommittedGeometryIndex()!=0?(uint)environment.w:0;uint idx=prim*3;
@@ -163,9 +305,23 @@ bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+#ifdef PROCEDURALS
+        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+            Instance ci=instances[q.CandidateInstanceID()];
+            if(ci.procedural==0u)continue;
+            float tt=proc_hit((ci.procedural-1u)*9u,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),0.0001,limit);
+            if(tt<0.0)continue;
+            if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitProceduralPrimitiveHit(tt);
+            continue;
+        }
+#endif
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
+#ifdef PROCEDURALS
+    uint st=q.CommittedStatus();return st==COMMITTED_TRIANGLE_HIT||st==COMMITTED_PROCEDURAL_PRIMITIVE_HIT;
+#else
     return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT;
+#endif
 }
 Material material_at(uint id,float3 p){
     Material m=materials[id];uint pattern=(uint)m.optical.z;float t=0;

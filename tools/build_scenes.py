@@ -78,7 +78,7 @@ def kelvin(k):
 
 # ---------------------------------------------------------------- objects and lights
 def obj(name, shape, x, z, size, material, *, stretch=1.0, rotation=0.0, tilt=(0, 0),
-        scale=(1, 1), elevation=0.0, grounded=True, visible=True, portal=-1):
+        scale=(1, 1), elevation=0.0, grounded=True, visible=True, portal=-1, procedural=""):
     # validate() bounds stretch (0.05..10) and scale (0.01..20) separately from size (0.05..30);
     # move any excess into size, which keeps the world dimensions (0.35 * size * factor).
     sx, sz = scale
@@ -91,7 +91,8 @@ def obj(name, shape, x, z, size, material, *, stretch=1.0, rotation=0.0, tilt=(0
             "size": round(size, 4), "stretch": round(stretch, 4), "rotation": round(rotation, 3),
             "tilt": [round(tilt[0], 3), round(tilt[1], 3)], "scale_xz": [round(scale[0], 4), round(scale[1], 4)],
             "elevation": round(elevation, 4), "grounded": grounded, "visible": visible,
-            "material": material, "portal": portal}
+            "material": material, "portal": portal,
+            **({"procedural": procedural} if procedural else {})}
 
 
 def float_at(name, shape, x, y, z, size, material, **kw):
@@ -1229,6 +1230,49 @@ def textured(folder, scale=0.5, **kw):
     return m
 
 
+# ================================================================ procedural chains (track 13)
+scene("procedural-studio", "Procedural primitives studio",
+      "Exact analytic shapes with no triangles at all: a chrome ball, a bagel (torus minus "
+      "cylinder) and a capped cylinder with a ball finial - each one AABB procedural primitive "
+      "marched by the SDF shader.",
+      ["sdf", "procedural", "studio"],
+      studio(objects=[
+          obj("Chrome ball", "sphere", -1.15, 0.1, 1.7, M((0.88, 0.88, 0.9), 0.08, metal=1), procedural="sphere/0.9"),
+          obj("Bagel", "torus", 0.15, -0.4, 1.8, matte((0.85, 0.32, 0.12), 0.55), procedural="torus/0.55/0.24-cylinder/0.18/1.0"),
+          obj("Column", "cylinder", 1.4, 0.45, 1.6, matte((0.75, 0.72, 0.66), 0.45),
+              procedural="cylinder/0.34/0.95/0/0/0+sphere/0.4/0/0.95/0"),
+      ]))
+
+scene("golden-bulb", "Golden bulb",
+      "A Mandelbulb (power 8.5) in polished gold under the physical sky: the whole form comes "
+      "from one distance-estimate iteration, not a mesh.",
+      ["sdf", "fractal", "bulb"],
+      dark_stage(objects=[float_at("Bulb", "sphere", 0, 0, 0, 3.2, M((1.0, 0.72, 0.32), 0.12, metal=1),
+                                   procedural="bulb/8.5")]))
+
+scene("lava-lamp", "Lava lamp",
+      "Glowing metaballs (seed 11, unioned with a core sphere) inside a hollow procedural glass "
+      "cylinder; glass runs the any-hit march, so shadow rays see through the shell.",
+      ["sdf", "procedural", "glass", "blob"],
+      studio(objects=[
+          float_at("Shell", "cylinder", 0, 0.1, 0, 2.3, GLASS, stretch=1.0,
+                   procedural="cylinder/0.55/1.15/0/0/0-cylinder/0.45/1.05/0/0/0"),
+          float_at("Glow", "sphere", 0, 0.0, 0, 1.2, M((0.9, 0.25, 0.1), 0.6, emit=6.0),
+                   procedural="blob/11+sphere/0.5"),
+      ]))
+
+scene("sponge-hall", "Sponge hall",
+      "Level-4 Menger columns; the middle one is bitten by a smooth-cut sphere. The fractal "
+      "comes from the distance loop, so any level costs the same shader code.",
+      ["sdf", "menger", "procedural"],
+      studio(objects=[
+          obj("Sponge left", "box", -1.6, 0.0, 3.8, matte((0.72, 0.7, 0.66), 0.6), procedural="menger/4"),
+          obj("Sponge bite", "box", 0.0, -0.7, 3.2, matte((0.7, 0.68, 0.62), 0.55),
+              procedural="menger/4-sphere/0.75/0/0.35/0@0.18"),
+          obj("Sponge right", "box", 1.6, 0.5, 3.8, matte((0.72, 0.7, 0.66), 0.6), procedural="menger/4"),
+      ]))
+
+
 def check(slug, s):
     """The ranges of Settings::validate, so a bad scene fails here with a readable message."""
     bad = []
@@ -1255,6 +1299,7 @@ def check(slug, s):
                 rng(label + " volume", v, 0, 1e4)
     for o in s.get("objects", []):
         n = o["name"]
+        rng(n + " procedural", len(o.get("procedural", "")), 0, 256)
         rng(n + " size", o["size"], 0.05, 30)
         rng(n + " stretch", o["stretch"], 0.05, 10)
         rng(n + " rotation", abs(o["rotation"]), 0, 360)

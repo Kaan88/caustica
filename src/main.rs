@@ -22,6 +22,7 @@ mod remote;
 mod saver;
 mod scene;
 mod scenes;
+mod sdf;
 mod sky;
 mod stats;
 mod teapot_data;
@@ -152,7 +153,7 @@ struct App {
     timeline: anim::Timeline,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 289;
+const SCENES_FROM: u32 = 293; // four scripted track-13 frames added (289-292)
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -235,7 +236,9 @@ fn geometry_key(s: &Settings) -> String {
                 o.tilt,
                 o.scale_xz,
                 o.elevation,
-                o.grounded
+                o.grounded,
+                // Procedural shape spec changes rebuild the BLAS (track 13).
+                &o.procedural
             ))
             .collect::<Vec<_>>(),
         s.light_on,
@@ -1413,6 +1416,77 @@ impl App {
                     }
                     self.ui.show_scenes = true;
                     self.ui.scene_selected = Some(0);
+                }
+                // Procedural shapes (roadmap track 13): AABB BLAS + SDF march, one edit per
+                // frame; the count checks prove the chain contributes no triangles, and CPU
+                // picking exercises the same grammar and march the GPU shader mirrors.
+                289 => {
+                    // Bagel: torus minus its axis cylinder (exact subtraction, no smoothing).
+                    let mut o = crate::scene::Object {
+                        name: "Self-test bagel".to_string(),
+                        ..crate::scene::Object::default()
+                    };
+                    let (_, _, eye) = self.settings.camera(1.);
+                    let tg = glam::Vec3::from(self.settings.target);
+                    let side = (eye - tg).normalize().cross(glam::Vec3::Y).normalize();
+                    o.position = [
+                        (tg + (eye - tg) * 0.5 + side * 0.3).x,
+                        (tg + (eye - tg) * 0.5 + side * 0.3).z,
+                    ];
+                    o.elevation = (tg + (eye - tg) * 0.5 + side * 0.3).y;
+                    o.grounded = false;
+                    o.size = 1.8;
+                    o.procedural = "torus/0.5/0.22-cylinder/0.15/1.0".to_string();
+                    self.settings.objects.push(o);
+                    let idx = self.settings.objects.len() - 1;
+                    anyhow::ensure!(
+                        self.settings
+                            .pick_object_hit([500., 500.], [1000, 1000])
+                            .map(|(i, t)| i == idx && t < 100.)
+                            .unwrap_or(false),
+                        "The bagel torus was not picked at screen center"
+                    );
+                }
+                290 => {
+                    // Smooth CSG: a sphere bites the level-3 sponge with a 0.12 blend radius;
+                    // the march stays conservative around the smoothed cut.
+                    let idx = self.settings.objects.len() - 1;
+                    self.settings.objects[idx].procedural =
+                        "menger/3-sphere/0.62/0/0/0@0.12".to_string();
+                    anyhow::ensure!(
+                        self.settings
+                            .pick_object_hit([500., 500.], [1000, 1000])
+                            .map(|(i, t)| i == idx && t < 100.)
+                            .unwrap_or(false),
+                        "The smooth-cut sponge was not picked"
+                    );
+                }
+                291 => {
+                    // Mandelbulb (power 8.5): spherical power iteration with the wider budget
+                    // and safety factor the parser picks for fractal chains.
+                    let idx = self.settings.objects.len() - 1;
+                    self.settings.objects[idx].procedural = "bulb/8.5".to_string();
+                    anyhow::ensure!(
+                        self.settings
+                            .pick_object_hit([500., 500.], [1000, 1000])
+                            .map(|(i, t)| i == idx && t < 100.)
+                            .unwrap_or(false),
+                        "The mandelbulb was not picked"
+                    );
+                }
+                292 => {
+                    // Metaball blob unioned with a sphere (guarantees the center pick), then
+                    // the object drops and the plain mesh-BLAS set comes back (proc_active off).
+                    let idx = self.settings.objects.len() - 1;
+                    self.settings.objects[idx].procedural = "blob/11+sphere/0.55".to_string();
+                    anyhow::ensure!(
+                        self.settings
+                            .pick_object_hit([500., 500.], [1000, 1000])
+                            .map(|(i, t)| i == idx && t < 100.)
+                            .unwrap_or(false),
+                        "The blob lamp was not picked"
+                    );
+                    self.settings.objects.remove(idx);
                 }
                 // Every scene file, one per frame; the per-frame checks compare GPU triangle and
                 // emitter counts with the loaded settings.

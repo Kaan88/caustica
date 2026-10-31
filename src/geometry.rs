@@ -25,6 +25,14 @@ impl std::ops::Deref for Source {
 /// The mesh an object instances (core track 4): a key shared by every object with the same
 /// triangles, which names its BLAS, and the triangles.
 pub fn object_source(o: &Object) -> (String, Source) {
+    if !o.procedural.is_empty() {
+        // Track 13: the key is the spec (gpu.rs builds an AABB BLAS per distinct spec,
+        // never from this Source); callers that touch triangles check first and skip.
+        return (
+            format!("proc:{}", o.procedural),
+            Source::Shape(mesh(o.kind())),
+        );
+    }
     match crate::mesh::of(o) {
         Some(m) => (o.mesh.clone(), Source::File(m)),
         None => (
@@ -48,6 +56,22 @@ fn scale_rotation(o: &Object) -> (Vec3, Mat4) {
 /// Lowest y of the object's grounding mesh after scale and rotation. Cached: it scans every
 /// vertex (a whole file for a part), and instancing asks for it on every rebuild.
 fn lowest_y(o: &Object, scale: Vec3, r: Mat4) -> f32 {
+    if !o.procedural.is_empty() {
+        let (lo, hi) = local_bounds(o);
+        let mut y = f32::INFINITY;
+        for k in 0..8 {
+            let p = Vec3::new(
+                if k & 1 == 0 { lo.x } else { hi.x },
+                if k & 2 == 0 { lo.y } else { hi.y },
+                if k & 4 == 0 { lo.z } else { hi.z },
+            );
+            let v = r.transform_vector3(p * scale).y;
+            if v < y {
+                y = v;
+            }
+        }
+        return y;
+    }
     type Key = (usize, [u32; 7]);
     static CACHE: LazyLock<std::sync::Mutex<std::collections::HashMap<Key, f32>>> =
         LazyLock::new(Default::default);
@@ -80,9 +104,15 @@ fn lowest_y(o: &Object, scale: Vec3, r: Mat4) -> f32 {
     cache.insert(key, y);
     y
 }
-/// The eight corners of an object's local bounding box, in the world (selection outlines).
-/// The local box is cached per mesh; a part of a file gets its own, tighter box.
-pub fn object_corners(o: &Object) -> [Vec3; 8] {
+/// The cache box in object space: the bounds of the procedural chain, or the box of the mesh
+/// itself (cached per source, because scanning an entire imported file on every drag was too costly).
+pub fn local_bounds(o: &Object) -> (Vec3, Vec3) {
+    if !o.procedural.is_empty() {
+        return match crate::sdf::parse(&o.procedural) {
+            Ok(c) => (c.lo, c.hi),
+            Err(_) => (Vec3::splat(-1.0), Vec3::splat(1.0)),
+        };
+    }
     static CACHE: LazyLock<std::sync::Mutex<std::collections::HashMap<usize, (Vec3, Vec3)>>> =
         LazyLock::new(Default::default);
     let (_, source) = object_source(o);
@@ -92,7 +122,7 @@ pub fn object_corners(o: &Object) -> [Vec3; 8] {
         .unwrap_or_else(|e| e.into_inner())
         .get(&key)
         .copied();
-    let (lo, hi) = cached.unwrap_or_else(|| {
+    cached.unwrap_or_else(|| {
         let b = source.iter().fold(
             (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
             |(lo, hi), (p, _)| (lo.min(*p), hi.max(*p)),
@@ -103,7 +133,11 @@ pub fn object_corners(o: &Object) -> [Vec3; 8] {
         }
         cache.insert(key, b);
         b
-    });
+    })
+}
+/// The eight corners of an object's local bounding box, transformed to the world (selection outlines).
+pub fn object_corners(o: &Object) -> [Vec3; 8] {
+    let (lo, hi) = local_bounds(o);
     let (scale, r) = scale_rotation(o);
     let (center, _) = object_frame(o);
     let m = Mat4::from_translation(center) * r * Mat4::from_scale(scale);
@@ -419,6 +453,10 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
     if !o.visible {
         return vec![];
     }
+    if !o.procedural.is_empty() {
+        // Track 13: procedural objects contribute no triangles (the AABB + SDF is gpu.rs's).
+        return vec![];
+    }
     let (scale, r) = scale_rotation(o);
     let (_, source) = object_source(o);
     let ymin = lowest_y(o, scale, r);
@@ -605,7 +643,10 @@ impl Settings {
         // a 3600-object forest from transforming millions of vertices.
         let exact = self.objects.len() <= 256;
         for o in &self.objects {
-            if exact {
+            if !o.visible {
+                continue;
+            }
+            if exact && o.procedural.is_empty() {
                 for v in object_geometry(o, 0) {
                     let p = Vec3::from(v.position);
                     min = min.min(p);
@@ -613,14 +654,7 @@ impl Settings {
                 }
                 continue;
             }
-            if !o.visible {
-                continue;
-            }
-            let (_, source) = object_source(o);
-            let (lo, hi) = source.iter().fold(
-                (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
-                |(lo, hi), (p, _)| (lo.min(*p), hi.max(*p)),
-            );
+            let (lo, hi) = local_bounds(o);
             let m = object_transform(o);
             let m = Mat4::from_cols_array_2d(&[
                 [m[0], m[4], m[8], 0.],
@@ -675,6 +709,27 @@ impl Settings {
         let d = (p.truncate() / p.w - eye).normalize();
         let (mut closest, mut selected) = (f32::INFINITY, None);
         for (i, o) in self.objects.iter().enumerate() {
+            if !o.procedural.is_empty() {
+                if o.visible {
+                    let (scale, r) = scale_rotation(o);
+                    let (center, _) = object_frame(o);
+                    let m = Mat4::from_translation(center) * r * Mat4::from_scale(scale);
+                    let w2o = m.inverse();
+                    if let Ok(c) = crate::sdf::parse(&o.procedural) {
+                        let t = crate::sdf::march(
+                            &c,
+                            w2o.transform_point3(eye),
+                            w2o.transform_vector3(d),
+                            1.0e4,
+                        );
+                        if t > 0.0001 && t < closest {
+                            closest = t;
+                            selected = Some((i, t));
+                        }
+                    }
+                }
+                continue;
+            }
             let g = object_geometry(o, 0);
             for t in g.as_chunks::<3>().0 {
                 let a = Vec3::from(t[0].position);

@@ -413,14 +413,48 @@ course), volume NEE reusing the existing emitter walk.
   writing the three Settings fields; they already sit in `transport_key`, so slider edits restart
   accumulation cleanly, and glass-against-water bending follows automatically from the IOR pair.
 
-#### 13. Procedural primitives and SDFs
+#### 13. Procedural primitives and SDFs — done 2026-10-31
 
-Needs instancing (core 4): procedural AABBs go in their own BLAS.
+Needs instancing (core 4): procedural AABBs go in their own BLAS. As built: an
+`Object.procedural` shape spec (≤256 chars, parse-checked by `validate()` and in
+`geometry_key`): `sphere/0.9`, `torus/0.55/0.24`, `cylinder/0.34/0.95`, `box`,
+`bulb/8.5`, `menger/4`, `blob/11` — up to three atoms joined by `+` union, `-`
+subtract and `*` intersect, each join with an optional `@k` smooth radius after the
+atom's args (`menger/4-sphere/0.75/0/0.35/0@0.18`). `src/sdf.rs` parses, clamps and
+bounds the chain and evaluates it on the CPU (picking, grounding, outlines); every
+distinct spec gets its own single-AABB `PROCEDURAL_PRIMITIVE_AABBS` BLAS (cached beside
+the mesh BLASes in `rebuild_scene`), instanced always FORCE_NON_OPAQUE — DXR auto-commits
+the first candidate without running the loop, and the march needs the test — with `Instance.procedural`
+carrying the record slot (+1), read from a new root SRV t9 (36 floats per slot: three
+atoms as `(kind, p0..p2)`, `(p3..p5, op)`, `(k / safety, budget)`). Only the `trace_proc`
+and `trace_maps_proc` PSO variants (`-D PROCEDURALS` in build.rs and hotreload.rs)
+carry the march, so the plain variants keep their measured register budget. In the
+candidate loop the shader marches the candidate ray in object space (the transform is
+affine and the chain fits its AABB, so world t is the shared parameter; stepping is
+`sd·safety/|od|` — 0.75 for smooth chains, 0.55 for bulbs). The bulb's DE needs a bounding-ball
+branch outside |q| = 1.48 (its box is ±1.5, not ±1: the bailout ball sticks out of the unit box)
+and divides the escape radius by the accumulated orbit derivative — the naive `(r−2)/(pw·r^(pw−1))`
+collapses to ~1e-8 outside and the march stalls a few steps past the box) — commits with
+`CommitProceduralPrimitiveHit(t)`, and reconstructs normals as a central-difference
+gradient of the whole chain at the hit (analytic for spheres/tori/cylinders, fractals
+included). CPU `geometry.rs::pick_object_hit` marches the same grammar so editor picks
+agree. Four showcase scenes in the built-in pack (62 files now): `procedural-studio`
+(exact chrome ball, torus bagel minus its axis cylinder, capped cylinder with a ball
+finial), `golden-bulb`, `lava-lamp` (blob inside a hollow glass cylinder shell) and
+`sponge-hall` (level-4 sponges, one smooth-cut by a sphere). Self-test frames 289–292
+(bagel pick, smooth subtraction, bulb, blob + drop-back). "Menger at any level" is the
+SDF loop (grammar 1–5), not voxel soup; the `gen:` marching-cubes meshes stay for
+scenes that need real triangles.
 
-- **Intersection:** inline `RayQuery` reports `CANDIDATE_PROCEDURAL_PRIMITIVE` in the existing `Proceed()` loop. The shader intersects or ray-marches there and calls `CommitProceduralPrimitiveHit(t)`.
-- **Exact analytic shapes:** spheres, tori and cylinders, with no tessellation facets. Today a sphere costs 4,096 triangles.
-- **SDFs by sphere tracing:** the Mandelbulb, a Menger sponge at any level, metaballs (a **lava lamp**) and smooth CSG subtraction. Normals come from the SDF gradient.
-- This replaces scene-research.md's "SDF → marching cubes → mesh" route for anything that doesn't need to be a mesh.
+- Not done: an emissive procedural surface is not in the NEE triangle table (`h.emitter`
+  is 0 — it lights the path from BSDF hits only, so the lava lamp needs a helper light);
+  the alpha-cutout map test is skipped for procedural candidates (committed maps are
+  box-mapped when the material has a texture set, plain albedo otherwise); no per-parameter
+  sliders in the inspector yet (the spec is a string); the selection outline is the
+  chain AABB through the transform (loose for fractals); chains cap at three atoms;
+  media membership against procedural glass is untested; dual-number/analytic fractal
+  normals (gradient steps are good enough at 400–600 px); curved-space or non-affine
+  instance transforms would break the object-space march by design.
 
 #### 14. Path visualizer and light path expressions
 

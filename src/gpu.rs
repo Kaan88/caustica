@@ -198,6 +198,11 @@ pub struct Gpu {
     trace: ID3D12PipelineState,
     /// The path tracer with texture-map code (core track 5), used while any material has maps.
     trace_maps: ID3D12PipelineState,
+    /// Procedural variants (roadmap track 13): the SDF march is compiled in only when the
+    /// scene has procedural objects, so the plain variants keep their old register budget.
+    trace_proc: ID3D12PipelineState,
+    trace_maps_proc: ID3D12PipelineState,
+    proc_active: bool,
     textured: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
@@ -249,6 +254,11 @@ pub struct Gpu {
     /// One record per TLAS instance (t7, indexed by InstanceID).
     instances: Vec<InstanceRecord>,
     instance_table: ID3D12Resource,
+    /// Procedural shape records (root SRV t9, `procedurals`): 36 floats per spec slot
+    /// (three float4s per atom; atom 0's C carries the march safety and budget).
+    proc_table: ID3D12Resource,
+    /// One single-AABB BLAS per distinct procedural spec, cached like the mesh BLASes.
+    proc_blasts: std::collections::HashMap<String, ID3D12Resource>,
     material_buffer: ID3D12Resource,
     emitter_buffer: ID3D12Resource,
     emitter_lookup: ID3D12Resource,
@@ -516,6 +526,7 @@ impl Gpu {
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
             root_srv(8),
+            root_srv(9),
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -566,6 +577,17 @@ impl Gpu {
         let compute = |code: &[u8]| create_compute_pipeline(&device, &root, code);
         let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
         let trace_maps = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps.dxil")))?;
+        let trace_proc = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_proc.dxil")))?;
+        let trace_maps_proc = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/trace_maps_proc.dxil"
+        )))?;
+        // A zero-filled record slot (36 floats) keeps root parameter 12 bound even when no
+        // scene has procedural objects (every root parameter must be bound).
+        let proc_table = upload(
+            &device,
+            bytemuck::cast_slice(&std::array::repeat::<f32, 36>(0.0)),
+        )?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
         let (vs, ps): (&[u8], &[u8]) = (
@@ -657,6 +679,9 @@ impl Gpu {
             root,
             trace,
             trace_maps,
+            trace_proc,
+            trace_maps_proc,
+            proc_active: false,
             textured: false,
             filter,
             display,
@@ -694,6 +719,8 @@ impl Gpu {
             mesh_vertices: geometry.clone(),
             static_vertices: geometry.clone(),
             instance_table: geometry,
+            proc_table,
+            proc_blasts: Default::default(),
             static_cache: vec![],
             static_blas: None,
             meshes: Default::default(),
@@ -1281,6 +1308,9 @@ impl Gpu {
     pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
         let trace = create_compute_pipeline(&self.device, &self.root, &sh.trace)?;
         let trace_maps = create_compute_pipeline(&self.device, &self.root, &sh.trace_maps)?;
+        let trace_proc = create_compute_pipeline(&self.device, &self.root, &sh.trace_proc)?;
+        let trace_maps_proc =
+            create_compute_pipeline(&self.device, &self.root, &sh.trace_maps_proc)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
         let gui = create_gui_pipeline(
@@ -1301,11 +1331,22 @@ impl Gpu {
         (
             self.trace,
             self.trace_maps,
+            self.trace_proc,
+            self.trace_maps_proc,
             self.filter,
             self.display,
             self.gui,
             self.gui_hdr,
-        ) = (trace, trace_maps, filter, display, gui, gui_hdr);
+        ) = (
+            trace,
+            trace_maps,
+            trace_proc,
+            trace_maps_proc,
+            filter,
+            display,
+            gui,
+            gui_hdr,
+        );
         self.integrated_valid = false;
         self.reset(true);
         Ok(())
@@ -1523,7 +1564,12 @@ impl Gpu {
                 (i, key, source)
             })
             .collect();
-        let mut wanted: Vec<&str> = visible.iter().map(|v| v.1.as_str()).collect();
+        // Procedural specs get their own single-AABB BLAS below (roadmap track 13).
+        let mut wanted: Vec<&str> = visible
+            .iter()
+            .map(|v| v.1.as_str())
+            .filter(|k| !k.starts_with("proc:"))
+            .collect();
         wanted.sort_unstable();
         wanted.dedup();
         let mut have: Vec<&str> = self.meshes.keys().map(String::as_str).collect();
@@ -1532,7 +1578,7 @@ impl Gpu {
             let mut local: Vec<Vertex> = vec![];
             let mut bases = std::collections::HashMap::new();
             for (i, key, source) in &visible {
-                if bases.contains_key(key) {
+                if bases.contains_key(key) || key.starts_with("proc:") {
                     continue;
                 }
                 bases.insert(key.clone(), (local.len() as u32, source.len() / 3));
@@ -1568,6 +1614,65 @@ impl Gpu {
             }
             self.meshes = meshes;
         }
+        // Procedural objects (roadmap track 13): each distinct spec gets its own single-AABB
+        // BLAS keyed by the same "proc:spec" string. Slots are alphabetical; the record table
+        // uploaded for root SRV t9 below uses the same order. The AABB holds the chain bounds
+        // in object space (the shape always fits its box), so the march runs in object space
+        // and commits in world t — the shared ray parameter under an affine transform.
+        let mut proc_wanted: Vec<String> = visible
+            .iter()
+            .map(|v| v.1.clone())
+            .filter(|k| k.starts_with("proc:"))
+            .collect();
+        proc_wanted.sort_unstable();
+        proc_wanted.dedup();
+        if proc_wanted.is_empty() {
+            self.proc_blasts.clear();
+            self.proc_active = false;
+        } else {
+            self.proc_active = true;
+            let mut have_proc: Vec<&str> = self.proc_blasts.keys().map(String::as_str).collect();
+            have_proc.sort_unstable();
+            let proc_keys: Vec<&str> = proc_wanted.iter().map(String::as_str).collect();
+            if proc_keys != have_proc {
+                let mut aabbs: Vec<u8> = vec![];
+                for key in &proc_wanted {
+                    let (lo, hi) = match crate::sdf::parse(&key[5..]) {
+                        Ok(c) => (c.lo, c.hi),
+                        Err(_) => (glam::Vec3::splat(-1.0), glam::Vec3::splat(1.0)),
+                    };
+                    // D3D12_RAYTRACING_AABB layout: MinX, MinY, MinZ, MaxX, MaxY, MaxZ.
+                    for v in [lo.x, lo.y, lo.z, hi.x, hi.y, hi.z] {
+                        aabbs.extend(v.to_bits().to_le_bytes());
+                    }
+                }
+                let aabb_buf = self.gpu_buffer(&aabbs, &mut keep)?;
+                let aabb_base = aabb_buf.GetGPUVirtualAddress();
+                keep.push(aabb_buf.clone());
+                let mut procs = std::collections::HashMap::new();
+                for (slot, key) in proc_wanted.iter().enumerate() {
+                    let blas = match self.proc_blasts.remove(key) {
+                        Some(old) => old,
+                        None => {
+                            self.build_blas(&[proc_aabb(aabb_base + slot as u64 * 24)], &mut keep)?
+                        }
+                    };
+                    procs.insert(key.clone(), blas);
+                }
+                self.proc_blasts = procs;
+            }
+            // Record table: each spec slot's 9 float4s (three atoms; atom 0's C carries the
+            // march safety factor and budget). Rebuilt with the BLASes whenever a spec edits
+            // in, so `proc_table` and the TLAS always agree on slot indices.
+            let mut proc_floats: Vec<f32> = vec![];
+            for key in &proc_wanted {
+                match crate::sdf::parse(&key[5..]) {
+                    Ok(c) => proc_floats.extend(crate::sdf::table(&c)),
+                    Err(_) => proc_floats.extend(std::array::repeat::<f32, 36>(0.0)),
+                }
+            }
+            self.proc_table = upload(&self.device, bytemuck::cast_slice(&proc_floats))?;
+        }
         // Instances: the static BLAS (InstanceID 0), then one per visible object. Flags decide
         // opacity per object: glass runs the any-hit loop so shadow rays may pass it.
         let cull = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32;
@@ -1577,6 +1682,7 @@ impl Gpu {
             material: u32::MAX,
             emitter_base: 0,
             object: u32::MAX,
+            procedural: 0,
         }];
         let identity = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
         let mut push = |transform: &[f32; 12], id: u32, flags: u32, blas: &ID3D12Resource| {
@@ -1587,11 +1693,34 @@ impl Gpu {
         };
         push(&identity, 0, cull, self.static_blas.as_ref().unwrap());
         let mut triangle_count = self.static_cache.len() / 3;
+        let proc_slot: std::collections::HashMap<String, u32> = proc_wanted
+            .iter()
+            .enumerate()
+            .map(|(k, key)| (key.clone(), k as u32))
+            .collect();
         for (i, key, _) in &visible {
-            let mesh = &self.meshes[key];
             let material = 5 + *i as u32;
-            // Masked maps (alpha cutoff) are tested in the any-hit loop as well.
             let o = &s.objects[*i];
+            if key.starts_with("proc:") {
+                // Procedural instances are always non-opaque: DXR auto-commits the first
+                // candidate without running the loop, and the SDF march needs the test.
+                push(
+                    &crate::geometry::object_transform(o),
+                    table.len() as u32,
+                    cull | D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0 as u32,
+                    &self.proc_blasts[key],
+                );
+                table.push(InstanceRecord {
+                    vertex_base: 0,
+                    material,
+                    emitter_base: u32::MAX,
+                    object: *i as u32,
+                    procedural: proc_slot[key] + 1,
+                });
+                continue;
+            }
+            let mesh = &self.meshes[key];
+            // Masked maps (alpha cutoff) are tested in the any-hit loop as well.
             let masked = o.material.texture.is_empty()
                 && crate::mesh::maps(o).is_some_and(|m| m.cutoff > 0.);
             let opacity = if needs_any_hit(material) || masked {
@@ -1600,7 +1729,7 @@ impl Gpu {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
             } as u32;
             push(
-                &crate::geometry::object_transform(&s.objects[*i]),
+                &crate::geometry::object_transform(o),
                 table.len() as u32,
                 cull | opacity,
                 &mesh.blas,
@@ -1610,6 +1739,7 @@ impl Gpu {
                 material,
                 emitter_base: u32::MAX,
                 object: *i as u32,
+                procedural: 0,
             });
             triangle_count += mesh.count;
         }
@@ -1797,6 +1927,8 @@ impl Gpu {
             .SetComputeRootDescriptorTable(10, self.gpu(HEAP_SIZE));
         self.list
             .SetComputeRootShaderResourceView(11, self.ggx_table.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootShaderResourceView(12, self.proc_table.GetGPUVirtualAddress());
     }
     /// Points each visible object's material at its texture maps (core track 5), uploading
     /// maps that are new and releasing ones no object uses any more.
@@ -2211,7 +2343,13 @@ impl Gpu {
         }
         if n > 0 {
             self.bind(0);
-            self.list.SetPipelineState(if self.textured {
+            self.list.SetPipelineState(if self.proc_active {
+                if self.textured {
+                    &self.trace_maps_proc
+                } else {
+                    &self.trace_proc
+                }
+            } else if self.textured {
                 &self.trace_maps
             } else {
                 &self.trace
@@ -3120,6 +3258,25 @@ struct InstanceRecord {
     material: u32,
     emitter_base: u32,
     object: u32,
+    /// Procedural record slot + 1 in `procedurals` (root SRV t9); 0 for none (track 13).
+    procedural: u32,
+}
+/// A procedural geometry of one AABB: the object-space box of a chain (roadmap track 13);
+/// the 24-byte AABBs live in the staging buffer `rebuild_scene` fills.
+fn proc_aabb(address: u64) -> D3D12_RAYTRACING_GEOMETRY_DESC {
+    D3D12_RAYTRACING_GEOMETRY_DESC {
+        Type: D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS,
+        Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+        Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
+            AABBs: D3D12_RAYTRACING_GEOMETRY_AABBS_DESC {
+                AABBCount: 1,
+                AABBs: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                    StartAddress: address,
+                    StrideInBytes: 24,
+                },
+            },
+        },
+    }
 }
 /// A triangle geometry of `count` triangles at `address` (32-byte vertices, position first).
 fn triangles(

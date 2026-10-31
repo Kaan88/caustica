@@ -44,8 +44,13 @@ StructuredBuffer<Vertex> static_vertices:register(t6); // floor, room and lights
 // (tools/build_ggx_e_data.py), read only by the layered-material branch (root SRV t8).
 StructuredBuffer<float> ggx_table:register(t8);
 // One per TLAS instance (InstanceID). material 0xffffffff = the static instance (per-vertex ids).
-struct Instance{uint vertex_base;uint material;uint emitter_base;uint object;};
+// procedural = spec slot + 1 in `procedurals` (0 = none; roadmap track 13).
+struct Instance{uint vertex_base;uint material;uint emitter_base;uint object;uint procedural;};
 StructuredBuffer<Instance> instances:register(t7);
+// Procedural shape records (roadmap track 13): 9 float4s per spec slot, three per atom:
+// (kind,p0,p1,p2),(p3,p4,p5,op into the chain),(join radius). Atom 0's third float4 carries
+// (safety,budget,0,0) instead (its op/join radius are unused); mirrors src/sdf.rs `table`.
+StructuredBuffer<float4> procedurals:register(t9);
 Texture2D<float4> maps[]:register(t0,space1); // mesh texture maps (gpu.rs MAX_MAPS)
 SamplerState map_sampler:register(s1); // linear, wrap
 RWTexture2D<float4> noisy:register(u0);
