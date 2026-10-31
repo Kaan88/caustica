@@ -1444,6 +1444,252 @@ scene("morning-window-room", "Morning through the window",
              **camera(-122, 15, 4.2, (2.2, -0.2, -0.4), 44)))
 
 
+# ================================================================ track 10: nested dielectrics
+# Nested closed volumes: the liquid sits inside the glass wall and its solids inside the liquid,
+# so every interface bends by the two media it actually touches (air/glass/liquid/solid) and each
+# medium's Beer-Lambert colour keeps applying after leaving the one inside it. The volumes must
+# nest with a hairline to spare, never pierce each other, so the asserts below are also the
+# modelling rule for this feature (docs/research/track-10-nested-dielectrics.md).
+WATER = M((0.83, 0.9, 0.94), 0.02, trans=1, ior=1.333)
+ICE = M((0.9, 0.95, 0.97), 0.06, trans=1, ior=1.31)
+BOTTLE = M((0.7, 0.86, 0.76), 0.02, trans=1, ior=1.52)
+
+
+def cyl(radius, half_height):
+    """(size, stretch) for a standing cylinder of that world radius and half height: the unit
+    mesh is radius 1 with half height 1, scaled by 0.35 * size and again by stretch."""
+    return radius / 0.35, half_height / radius
+
+
+def box_half(hx, hy, hz):
+    """(size, stretch, scale) for an axis-aligned box of those world half extents."""
+    size = max(hx, hz) / 0.35
+    span = 0.35 * size
+    return size, hy / span, (hx / span, hz / span)
+
+
+def sphere(r):
+    """size for a sphere of that world radius."""
+    return r / 0.35
+
+
+HAIRLINE = 0.004
+
+
+def gap(label, room):
+    """A nested volume needs at least a hairline of the containing medium between its own
+    surface and its container's, so the two surfaces never coincide (coincident surfaces would
+    order the two IOR pushes randomly, and a volume that pierces the liquid surface is the
+    overlapping model the interior-list stack cannot resolve; that is the not-done, priority-
+    based case: docs/research/track-10-nested-dielectrics.md)."""
+    assert room >= HAIRLINE - 1e-6, f"{label}: {room:.4f} of wall left, needs {HAIRLINE}"
+
+
+def box_at(name, x, y, z, hx, hy, hz, material, **kw):
+    """A box whose world half extents are given, so an inner volume can be inset to the hairline."""
+    size, stretch, scale = box_half(hx, hy, hz)
+    return float_at(name, "box", x, y, z, size, material, stretch=stretch, scale=scale, **kw)
+
+
+# ---------------------------------------------------------------- the drink
+def glass_of_water():
+    """A thick crystal tumbler filled to the brim with water and three ice cubes under the
+    surface: air -> glass -> water -> ice, and back out again."""
+    o = []
+    R, H, wall, base, rim = 0.30, 0.34, 0.035, 0.05, 0.012
+    Rw = R - wall
+    # The tumbler stands on a coaster, raised by a hairline so its base disc and the coaster's
+    # top never coincide (both are read through the thick glass bottom).
+    coaster_r, coaster_h = 0.40, 0.012
+    # The coaster is grounded, so its top face sits at -1 + 2 * coaster_h; the tumbler rests on
+    # that face with a hairline between the two discs (coincident discs would make the stack
+    # ambiguous at that boundary).
+    y0 = -1.0 + 2 * coaster_h + HAIRLINE
+    gap("tumbler base above the coaster", y0 - (-1.0 + 2 * coaster_h))
+    bottom, top = y0 + base, y0 + 2 * H - rim
+    Hw, cy = (top - bottom) / 2.0, (top + bottom) / 2.0
+    gap("tumbler wall", R - Rw)
+    gap("tumbler base", base)
+    gap("tumbler rim", rim)
+    o.append(obj("Coaster", "cylinder", 0, 0, coaster_r / 0.35,
+                 matte((0.3, 0.22, 0.16), 0.65), stretch=coaster_h / coaster_r))
+    size, stretch = cyl(R, H)
+    o.append(float_at("Tumbler", "cylinder", 0, y0 + H, 0, size, BOTTLE, stretch=stretch))
+    wsize, wstretch = cyl(Rw, Hw)
+    o.append(float_at("Water", "cylinder", 0, cy, 0, wsize, WATER, stretch=wstretch))
+    # Ice cubes, fully under the surface and clear of the wall: a cube of half extent he has its
+    # corners he * sqrt(2) out, since it only turns about the vertical axis.
+    he = 0.06
+    random.seed(1010)
+    place = [(-0.09, -0.80, 0.03), (0.07, -0.62, -0.08), (-0.04, -0.42, 0.09)]
+    for i, (x, y, z) in enumerate(place):
+        a = math.sqrt(x * x + z * z)
+        corner = he * math.sqrt(2)
+        gap(f"ice cube {i + 1} against the wall", Rw - corner - a)
+        gap(f"ice cube {i + 1} under the surface", top - he - y)
+        gap(f"ice cube {i + 1} above the base", y - he - bottom)
+        o.append(float_at(f"Ice {i + 1}", "box", x, y, z, he / 0.35, ICE,
+                          rotation=random.uniform(-90, 90)))
+    # Drops of the spill on the table outside the glass: they touch no other volume, so they need
+    # no nesting - only the drink's own volumes are nested.
+    for i in range(5):
+        a = math.radians(30 + i * 55)
+        r = 0.02 + 0.006 * (i % 3)
+        gap("drop ring outside the coaster", 0.58 - coaster_r - r)
+        o.append(float_at(f"Drop {i + 1}", "sphere", 0.58 * math.cos(a), -1.0 + r,
+                          0.58 * math.sin(a), sphere(r), WATER))
+    # A bright card behind the tumbler, so the refraction through two media has something to
+    # read, and a cool kicker from the front left.
+    # A bright card off to one side, so the drink reads by contrast: the glass body stays dark
+    # and the card's image refracts through it as a bright streak, with the ice in front of it.
+    o.append(box_at("Backdrop card", 0.42, -0.45, -1.10, 0.24, 0.5, 0.012,
+                    emitter((1.0, 0.98, 0.94), 2.0)))
+    o.append(box_at("Card stripe", 0.42, -0.45, -1.07, 0.08, 0.5, 0.008,
+                    emitter((0.3, 0.55, 1.0), 1.6)))
+    return o
+
+
+scene("glass-of-water", "Glass of water",
+      "A thick crystal tumbler filled to the brim: air through the glass wall into the water, "
+      "then through three submerged ice cubes (ice is less dense than water, so a grazing ray "
+      "inside the drink totally internally reflects off the ice). The liquid surface sits just "
+      "under the rim, so the drink reads at the wall as glass/water rather than air/water.",
+      ["nested dielectrics", "glass", "absorption"],
+      dark_stage(bounces=14, sky=0.0, base=[0.1, 0.1, 0.12], floor=M((0.1, 0.1, 0.11), 0.4, refl=0.3),
+                 objects=glass_of_water(), exposure=0.8,
+                 **camera(9, 5, 1.7, (0.02, -0.52, 0.0), 42)))
+
+
+def snow_globe():
+    """A sealed water-filled ornament: the liquid surface is the glass's inner wall, so the
+    whole chain is air -> glass -> water and everything inside reads through both."""
+    o = []
+    c = (0.0, -0.66, 0.0)
+    R, wall = 0.30, 0.02
+    Rw = R - wall
+    gap("globe wall", wall)
+    o.append(float_at("Glass globe", "sphere", *c, sphere(R), GLASS))
+    o.append(float_at("Water", "sphere", c[0], c[1], c[2], sphere(Rw), WATER))
+    # The wooden cup the globe sits in: its rim hides the sphere's lower cap.
+    base_r, base_top = 0.32, -0.76
+    gap("cup radius against the globe at the rim",
+        base_r - math.sqrt(max(0.0, R * R - (base_top - c[1]) ** 2)))
+    bsize, bstretch = cyl(base_r, (base_top - -1.0) / 2.0)
+    o.append(obj("Globe base", "cylinder", c[0], c[2], bsize,
+                 matte((0.32, 0.2, 0.12), 0.6), stretch=bstretch))
+    # A metal collar at the rim of the cup.
+    o.append(float_at("Collar", "ring", c[0], base_top, c[2], 0.315 / 0.35, CHROME, scale=(1, 1)))
+    # The little world inside: beads of snow on the globe's floor, five trees standing on them
+    # and two gold baubles floating higher up. Everything lives in the water, so it has to stay
+    # clear of the liquid's surface (the same nesting rule as the drink).
+    bead = 0.03
+    shell = Rw - bead - HAIRLINE
+    gap("snow bead under the liquid surface", Rw - (shell + bead))
+    for i in range(7):
+        a = math.radians(i * 51)
+        phi = math.radians(14 + (i % 3) * 7)
+        x, y, z = (c[0] + shell * math.sin(phi) * math.cos(a),
+                   c[1] - shell * math.cos(phi), c[2] + shell * math.sin(phi) * math.sin(a))
+        o.append(float_at(f"Snow {i + 1}", "sphere", x, y, z, sphere(bead), PORCELAIN))
+    for i, (off, turn, grow) in enumerate([(0.0, 0.0, 1.0), (0.09, 80.0, 0.85), (0.08, 190.0, 0.9),
+                                           (0.13, 280.0, 0.7), (0.12, 340.0, 0.65)]):
+        a = math.radians(turn)
+        x, z = c[0] + off * math.cos(a), c[2] + off * math.sin(a)
+        half_h, r = 0.10 * grow, 0.06 * grow
+        floor_y = c[1] - math.sqrt(max(0.0, shell * shell - (off + r) * (off + r)))
+        gap(f"tree {i + 1} base rim under the liquid surface",
+            Rw - math.sqrt((off + r) * (off + r) + (floor_y - c[1]) ** 2))
+        gap(f"tree {i + 1} tip under the liquid surface",
+            Rw - math.sqrt(off * off + (floor_y + 2 * half_h - c[1]) ** 2))
+        o.append(float_at(f"Tree {i + 1}", "cone", x, floor_y + half_h, z, r / 0.35,
+                          matte((0.05, 0.24, 0.08), 0.85), stretch=half_h / r))
+    big = 0.034
+    for i, (dx, dy, dz) in enumerate([(0.0, 0.15, 0.06), (-0.09, 0.05, -0.1)]):
+        gap(f"gold bauble {i + 1} clear of the liquid surface",
+            Rw - big - math.sqrt(dx * dx + dy * dy + dz * dz))
+        o.append(float_at(f"Bauble {i + 1}", "sphere", c[0] + dx, c[1] + dy, c[2] + dz,
+                          sphere(big), GOLD))
+    return o
+
+
+scene("snow-globe", "Snow globe",
+      "A water-filled glass globe on a turned wooden base: the liquid reaches the glass wall all "
+      "the way around, so a ray crossing it bends glass/water, and the trees and beads of snow "
+      "inside it refract through both media. Grazing views show total internal reflection off the "
+      "inside of the globe, which only the nested chain gets right.",
+      ["nested dielectrics", "glass", "absorption"],
+      studio(light_on=False, lights=[light("Warm key", (0.9, 2.2, 1.4), (1.4, 1.4), kelvin(3200), 60,
+                                          target=(0, -0.6, 0)),
+                                      light("Cool rim", (-1.4, 0.6, -1.2), (1.2, 1.2), (0.4, 0.6, 1.0), 30,
+                                             target=(0, -0.6, 0))],
+             sky=0.0, base=[0.12, 0.12, 0.14], floor=M((0.12, 0.12, 0.13), 0.5, refl=0.25),
+             objects=snow_globe(), exposure=1.0,
+             **camera(-14, 9, 1.45, (0, -0.62, 0), 40)))
+
+
+def aquarium():
+    """A brim-full tank: a water box inset inside a glass box, with gravel, a plant and fish
+    swimming inside the water, all of them clear of the glass."""
+    o = []
+    gx, gy, gz = 0.46, 0.34, 0.36
+    wall, base, rim = 0.035, 0.05, 0.02
+    wx, wy, wz = gx - wall, gy - (base + rim) / 2.0, gz - wall
+    cy = -1.0 + base + wy
+    gap("tank wall", wall)
+    gap("tank base", base)
+    gap("tank rim", rim)
+    aqua = M((0.5, 0.76, 0.88), 0.02, trans=1, ior=1.333)
+    gsize, gstretch, gscale = box_half(gx, gy, gz)
+    o.append(obj("Tank", "box", 0, 0, gsize, GLASS, stretch=gstretch, scale=gscale))
+    wsize, wstretch, wscale = box_half(wx, wy, wz)
+    o.append(float_at("Water", "box", 0, cy, 0, wsize, aqua, stretch=wstretch, scale=wscale))
+    # Gravel resting on the tank floor inside the water.
+    random.seed(707)
+    for i in range(9):
+        r = random.uniform(0.019, 0.034)
+        x = random.uniform(-wx + 0.06, wx - 0.06)
+        z = random.uniform(-wz + 0.06, wz - 0.06)
+        gap(f"gravel {i + 1} clear of the glass", min(wx - abs(x) - r, wz - abs(z) - r))
+        gap(f"gravel {i + 1} under the surface", cy + wy - (-1.0 + base + 2 * r))
+        o.append(float_at(f"Gravel {i + 1}", "sphere", x, -1.0 + base + r, z, sphere(r),
+                          matte((0.4, 0.38, 0.35), 0.7)))
+    # A plant of thin bent blades rooted in the gravel.
+    for i in range(4):
+        h = random.uniform(0.12, 0.2)
+        x, z = -wx + 0.07 + i * 0.03, -wz + 0.1
+        gap(f"plant blade {i + 1} under the surface", cy + wy - (-1.0 + base + 2 * h))
+        o.append(box_at(f"Plant {i + 1}", x, -1.0 + base + h, z, 0.012, h, 0.02,
+                        matte((0.08, 0.3, 0.12), 0.6), rotation=random.uniform(-6, 6),
+                        tilt=(random.uniform(-9, 9), 0)))
+    # Fish: ellipsoids swimming clear of the glass, in warm colours so the absorption along the
+    # tank's depth reads.
+    for i, (x, y, z, tint) in enumerate([(-0.2, -0.62, 0.0, (1.0, 0.42, 0.1)),
+                                         (0.12, -0.5, 0.14, (1.0, 0.75, 0.2)),
+                                         (0.02, -0.72, -0.18, (0.9, 0.2, 0.18))]):
+        gap(f"fish {i + 1} against the glass", wx - 0.05 - abs(x))
+        gap(f"fish {i + 1} against the front glass", wz - 0.02 - abs(z))
+        gap(f"fish {i + 1} against the surface", cy + wy - 0.03 - y)
+        gap(f"fish {i + 1} against the floor", y - (-1.0 + base + 0.03))
+        o.append(float_at(f"Fish {i + 1}", "sphere", x, y, z, 0.05 / 0.35,
+                          matte(tint, 0.5), stretch=0.55, scale=(0.9, 0.4)))
+    # The room's lit back wall and a lamp above, so the tank's depth has real refraction to read.
+    o.append(box_at("Back wall card", 0, -0.5, -1.5, 1.3, 0.8, 0.02,
+                    emitter((0.9, 0.95, 1.0), 1.6)))
+    return o
+
+
+scene("aquarium", "Aquarium",
+      "A brim-full tank: the water box sits inside the glass box with the liquid surface just "
+      "under the rim, so the front wall reads glass/water rather than air/water and the tank's "
+      "whole depth compounds the water's Beer-Lambert tint over the gravel, plant and fish.",
+      ["nested dielectrics", "glass", "absorption"],
+      studio(light_on=False, lights=[light("Tank lamp", (0.0, 1.6, 0.4), (1.2, 1.2), kelvin(4300), 40,
+                                         target=(0, -0.4, 0))],
+             sky=0.0, base=[0.1, 0.11, 0.13], floor=M((0.1, 0.11, 0.12), 0.45, refl=0.2),
+             objects=aquarium(), bounces=16, exposure=1.0,
+             **camera(11, 3, 2.4, (0, -0.6, 0), 44)))
+
+
 # ---------------------------------------------------------------- environments pack
 # HDRI-lit scenes (core track 3); the HDRIs come from tools/fetch_assets.ps1 (scenes/hdri).
 ENV_SCENES = []

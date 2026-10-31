@@ -435,4 +435,42 @@ mod tests {
         }
         assert!(count >= 42, "only {count} scene files");
     }
+    /// The nested showcases (roadmap track 10) ship with an ordered IOR chain and each volume as
+    /// its own full-dielectric object, which is what the shader's interior list needs to push,
+    /// pop and bend by the pair of media actually touched. The drink's ice is the interesting
+    /// case: it is *less* dense than the water, so a grazing ray inside the liquid can totally
+    /// internally reflect off the ice (an air-side model would always bend toward the normal).
+    #[test]
+    fn nested_showcases_keep_the_volume_chain() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("scenes/builtin");
+        let want = |slug, name| {
+            let s = read(&dir.join(format!("{slug}.json")))
+                .unwrap_or_else(|e| panic!("{}: {e:#}", slug));
+            let o = s.objects.iter().find(|o| o.name == name);
+            assert!(o.is_some(), "{} lost the {} volume", slug, name);
+            let m = &o.unwrap().material;
+            assert!(
+                m.transmission > 0.99,
+                "{}: {} is not a full dielectric",
+                slug,
+                name
+            );
+            m.ior
+        };
+        let glass = want("glass-of-water", "Tumbler");
+        let water = want("glass-of-water", "Water");
+        let ice = want("glass-of-water", "Ice 1");
+        assert!(
+            glass > water && water > ice,
+            "the drink needs glass > water > ice so the wall reads glass/water and the ice can totally internally reflect: got glass {glass}, water {water}, ice {ice}",
+        );
+        assert!(
+            want("snow-globe", "Glass globe") > want("snow-globe", "Water"),
+            "the globe's liquid surface is the glass's inner wall, so it bends glass/water"
+        );
+        assert!(
+            want("aquarium", "Tank") > want("aquarium", "Water"),
+            "the tank's front wall is glass/water, not air/water"
+        );
+    }
 }

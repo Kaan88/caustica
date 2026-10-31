@@ -1,4 +1,6 @@
 #include "common.hlsli"
+// Nested dielectrics (track 10): interior list depth — the ambient medium plus 7 volumes.
+#define MED_DEPTH 8u
 uint hash(uint x){x^=x>>16;x*=0x7feb352d;x^=x>>15;x*=0x846ca68b;x^=x>>16;return x;}
 static uint rng_state,sequence_index,dimension_index,pixel_seed;
 uint permute(uint x,uint seed){x^=x*0x3d20adea;x+=seed;x*=(seed>>16)|1;x^=x*0x05526c56;x^=x*0x53a22864;return x;}
@@ -342,6 +344,16 @@ float2 filter_offset(float2 u){
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
         float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        // Nested dielectrics (track 10): the volumes this path is inside, in the order they
+        // were entered, so a boundary bends by the two media it actually touches. Slot 0 is
+        // the ambient medium (air) and never matches a material id.
+        // Only the ids are stored: this kernel's register budget decides its occupancy and three
+        // 8-slot arrays cost every pixel, so the optical index and the Beer-Lambert colour come
+        // back from the material table on demand (apply_maps never touches optical.x, so a push
+        // keeps the maps of the boundary being crossed while a pop takes the table value of the
+        // medium it returns to, since that medium's maps belong to its own surface).
+        uint med_id[MED_DEPTH];uint med_n=1u;
+        [unroll] for(uint ms=0;ms<MED_DEPTH;ms++)med_id[ms]=0xffffffffu;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             uint mis=(scene_info.w>>4)&3;
@@ -419,10 +431,38 @@ float2 filter_offset(float2 u){
             }}}
             float3 next;bool delta=false;float bsdf_pdf=0;
             if(random()<m.lobes.z){
-                float eta=h.front?1/m.optical.x:m.optical.x;float cosi=saturate(dot(-direction,h.n));float cost2=1-eta*eta*(1-cosi*cosi);float f=pow((m.optical.x-1)/(m.optical.x+1),2);float fr=f+(1-f)*pow(1-(h.front?cosi:sqrt(max(0,cost2))),5);
+                // Nested dielectrics (track 10): the medium the path is in comes off the
+                // interior list, so a liquid's wall refracts against the glass it touches, an
+                // ice cube in a drink bends the tea behind it, and the drink's Beer-Lambert
+                // absorption is put back after leaving the ice. Fixed arrays read with
+                // unrolled constant-index loops, because DXC has no dynamically indexed local
+                // memory. A surface of a volume the path never entered (modelling where a
+                // liquid pierces the glass wall, or a mesh that is not a closed manifold)
+                // passes through unchanged; the general priority-based answer is the Schmidt
+                // and Budge interior list (Journal of Graphics Tools 7(2), 2002), kept with
+                // the inside test for a path that starts inside a volume on the not-done list.
+                uint hid=h.material;float mior=m.optical.x;
+                uint top_id=0xffffffffu,under=0u,below_id=0xffffffffu;
+                [unroll] for(uint s=0;s<MED_DEPTH;s++){if(s+1u==med_n)top_id=med_id[s];if(s<med_n&&med_id[s]==hid)under=s;}
+                if(under!=0u){[unroll] for(uint s=0;s<MED_DEPTH;s++){if(s+1u==under)below_id=med_id[s];}}
+                bool entered=h.front&&under==0u,leaving=!h.front&&under!=0u;
+                float inc=mior,tra=mior;
+                if(entered)inc=top_id==0xffffffffu?1.:materials[top_id].optical.x;
+                if(leaving)tra=below_id==0xffffffffu?1.:materials[below_id].optical.x;
+                float eta=inc/tra;float cosi=saturate(dot(-direction,h.n));float cost2=1-eta*eta*(1-cosi*cosi);float r0=(inc-tra)/(inc+tra);float fr=r0*r0+(1-r0*r0)*pow(1-(h.front?cosi:sqrt(max(0,cost2))),5);
                 bool reflected=cost2<=0 || random()<fr;
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
-                if(!reflected){absorption=h.front?-log(max(m.color_rough.rgb,0.001)):0;throughput*=eta*eta;}
+                if(!reflected){
+                    // Only a transmission event edits the list and the medium: a total internal
+                    // reflection off the inner wall of a glass keeps the path in the same medium,
+                    // and so does a surface of a volume the path never entered. The medium being
+                    // returned to is looked up by id, so its own surface maps (which belong to
+                    // that surface, not to the boundary being crossed here) do not tint the
+                    // segment between two volumes.
+                    if(entered){if(med_n<MED_DEPTH){[unroll] for(uint s=0;s<MED_DEPTH;s++)if(s==med_n)med_id[s]=hid;med_n=min(med_n+1u,MED_DEPTH);}absorption=-log(max(m.color_rough.rgb,0.001));}
+                    else if(leaving){med_n=under;if(below_id==0xffffffffu)absorption=0;else absorption=-log(max(materials[below_id].color_rough.rgb,0.001));}
+                    throughput*=eta*eta;
+                }
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;
             }else{

@@ -1,0 +1,909 @@
+{
+ "format": 1,
+ "title": "Snow globe",
+ "description": "A water-filled glass globe on a turned wooden base: the liquid reaches the glass wall all the way around, so a ray crossing it bends glass/water, and the trees and beads of snow inside it refract through both media. Grazing views show total internal reflection off the inside of the globe, which only the nested chain gets right.",
+ "tags": [
+  "nested dielectrics",
+  "glass",
+  "absorption"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.12,
+   0.12,
+   0.14
+  ],
+  "floor": {
+   "color": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.25,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Warm key",
+    "position": [
+     0.9,
+     2.2,
+     1.4
+    ],
+    "rotation": [
+     30.727,
+     32.735,
+     0.0
+    ],
+    "size": [
+     1.4,
+     1.4
+    ],
+    "color": [
+     1.0,
+     0.4856,
+     0.2015
+    ],
+    "intensity": 60,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Cool rim",
+    "position": [
+     -1.4,
+     0.6,
+     -1.2
+    ],
+    "rotation": [
+     56.944,
+     -130.601,
+     0.0
+    ],
+    "size": [
+     1.2,
+     1.2
+    ],
+    "color": [
+     0.4,
+     0.6,
+     1.0
+    ],
+    "intensity": 30,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": -14,
+  "pitch": 9,
+  "distance": 1.45,
+  "target": [
+   0,
+   -0.62,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Glass globe",
+    "shape": "sphere",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 0.8571,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.66,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Water",
+    "shape": "sphere",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.66,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.83,
+      0.9,
+      0.94
+     ],
+     "roughness": 0.02,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.333,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Globe base",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 0.9143,
+    "stretch": 0.375,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Collar",
+    "shape": "ring",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.76,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.035,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 1",
+    "shape": "sphere",
+    "position": [
+     0.0595,
+     0.0
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8987,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 2",
+    "shape": "sphere",
+    "position": [
+     0.0555,
+     0.0685
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8897,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 3",
+    "shape": "sphere",
+    "position": [
+     -0.024,
+     0.113
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8772,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 4",
+    "shape": "sphere",
+    "position": [
+     -0.053,
+     0.027
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8987,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 5",
+    "shape": "sphere",
+    "position": [
+     -0.0805,
+     -0.0359
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8897,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 6",
+    "shape": "sphere",
+    "position": [
+     -0.0299,
+     -0.1116
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8772,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow 7",
+    "shape": "sphere",
+    "position": [
+     0.035,
+     -0.0481
+    ],
+    "size": 0.0857,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.8987,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 1",
+    "shape": "cone",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 0.1714,
+    "stretch": 1.6667,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7986,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.24,
+      0.08
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 2",
+    "shape": "cone",
+    "position": [
+     0.0156,
+     0.0886
+    ],
+    "size": 0.1457,
+    "stretch": 1.6667,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7766,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.24,
+      0.08
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 3",
+    "shape": "cone",
+    "position": [
+     -0.0788,
+     -0.0139
+    ],
+    "size": 0.1543,
+    "stretch": 1.6667,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7763,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.24,
+      0.08
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 4",
+    "shape": "cone",
+    "position": [
+     0.0226,
+     -0.128
+    ],
+    "size": 0.12,
+    "stretch": 1.6667,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7659,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.24,
+      0.08
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 5",
+    "shape": "cone",
+    "position": [
+     0.1128,
+     -0.041
+    ],
+    "size": 0.1114,
+    "stretch": 1.6667,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.7827,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.24,
+      0.08
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bauble 1",
+    "shape": "sphere",
+    "position": [
+     0.0,
+     0.06
+    ],
+    "size": 0.0971,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.51,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bauble 2",
+    "shape": "sphere",
+    "position": [
+     -0.09,
+     -0.1
+    ],
+    "size": 0.0971,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.61,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.0
+ }
+}
