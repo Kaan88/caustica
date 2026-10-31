@@ -1,0 +1,328 @@
+{
+ "format": 1,
+ "title": "Jade and milk",
+ "description": "Polished jade and a glass of milk: both are homogeneous volumes under a refracting skin, so the jade glows green at its thin rims and the milk keeps its real few-centimetre extinction.",
+ "tags": [
+  "studio",
+  "media",
+  "material"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.06,
+   0.06,
+   0.07
+  ],
+  "floor": {
+   "color": [
+    0.1,
+    0.11,
+    0.12
+   ],
+   "roughness": 0.4,
+   "metallic": 0.0,
+   "reflectivity": 0.2,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Key",
+    "position": [
+     0.0,
+     4.0,
+     1.6
+    ],
+    "rotation": [
+     19.724,
+     -14.036,
+     0.0
+    ],
+    "size": [
+     3.0,
+     3.0
+    ],
+    "color": [
+     1.0,
+     0.8116,
+     0.6709
+    ],
+    "intensity": 50.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Cool rim",
+    "position": [
+     -2.6,
+     1.4,
+     -1.8
+    ],
+    "rotation": [
+     57.688,
+     -124.695,
+     0.0
+    ],
+    "size": [
+     1.6,
+     1.6
+    ],
+    "color": [
+     0.42,
+     0.65,
+     1.0
+    ],
+    "intensity": 20.0,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 12,
+  "yaw": 4,
+  "pitch": 8,
+  "distance": 4.2,
+  "target": [
+   0.55,
+   -0.5,
+   -0.3
+  ],
+  "fov": 52,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Jade sphere",
+    "shape": "sphere",
+    "position": [
+     -0.9,
+     0
+    ],
+    "size": 2.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.09,
+      0.46,
+      0.25
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.15,
+     "transmission": 1.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "volume_absorb": [
+      3.5,
+      0.9,
+      2.4
+     ],
+     "volume_scatter": [
+      2.2,
+      2.6,
+      2.4
+     ]
+    },
+    "portal": -1
+   },
+   {
+    "name": "Jade cube",
+    "shape": "box",
+    "position": [
+     0.75,
+     0
+    ],
+    "size": 1.9,
+    "stretch": 1.0,
+    "rotation": 14,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.09,
+      0.46,
+      0.25
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.15,
+     "transmission": 1.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "volume_absorb": [
+      3.5,
+      0.9,
+      2.4
+     ],
+     "volume_scatter": [
+      2.2,
+      2.6,
+      2.4
+     ]
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glass tumbler",
+    "shape": "cylinder",
+    "position": [
+     2.3,
+     -0.3
+    ],
+    "size": 2.4,
+    "stretch": 1.5,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Milk",
+    "shape": "cylinder",
+    "position": [
+     2.3,
+     0
+    ],
+    "size": 2.2,
+    "stretch": 1.3,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.93,
+      0.91,
+      0.88
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1.0,
+     "ior": 1.35,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "volume_absorb": [
+      20.0,
+      32.0,
+      48.0
+     ],
+     "volume_scatter": [
+      30.0,
+      32.0,
+      34.0
+     ]
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.3
+ }
+}

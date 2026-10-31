@@ -43,6 +43,12 @@ pub struct Material {
     /// Diffraction grating (a reflection grating riding the groove direction): the groove period
     /// in nanometres, 0 = none; a CD is about 1600.
     pub grating: f32,
+    /// Participating media (track 12): the absorption and scattering coefficients per metre
+    /// inside this object's mesh (see docs/research/track-12-volumes.md). The surface keeps
+    /// whatever BSDF it has, so jade = a polished boundary with scattering inside; membership
+    /// of the path in the medium rides the interior list. All-zero channels = no medium.
+    pub volume_absorb: [f32; 3],
+    pub volume_scatter: [f32; 3],
 }
 impl Default for Material {
     fn default() -> Self {
@@ -70,6 +76,8 @@ impl Default for Material {
             film_ior: 1.3,
             film_thickness: 0.,
             grating: 0.,
+            volume_absorb: [0., 0., 0.],
+            volume_scatter: [0., 0., 0.],
         }
     }
 }
@@ -456,6 +464,14 @@ pub struct Settings {
     pub sky_turbidity: f32,
     /// Multiplier on the baked sky and its sun disc.
     pub sky_strength: f32,
+    /// Participating media for the whole scene (track 12): fog and the underwater mode are
+    /// the same mechanism, coefficients per metre. Scattering draws scattering events (and
+    /// with them, god rays); absorption fades distance by Beer–Lambert. All-zero = no medium.
+    pub medium_scatter: [f32; 3],
+    pub medium_absorb: [f32; 3],
+    /// The ambient medium's index of refraction: glass objects bend against this when
+    /// underwater (air = 1, water = 1.34). 1 with no medium keeps every path unchanged.
+    pub medium_ior: f32,
     /// Keyframes (track 8); the playhead is `anim::Timeline` in the app.
     #[serde(skip_serializing_if = "crate::anim::Animation::is_default")]
     pub animation: crate::anim::Animation,
@@ -569,6 +585,9 @@ impl Default for Settings {
             sky_day: 210.,
             sky_turbidity: 3.,
             sky_strength: 1.,
+            medium_scatter: [0., 0., 0.],
+            medium_absorb: [0., 0., 0.],
+            medium_ior: 1.,
             animation: Default::default(),
         }
     }
@@ -891,6 +910,14 @@ impl Settings {
                 && (0. ..=100.).contains(&self.sky_strength),
             "Invalid physical sky"
         );
+        anyhow::ensure!(
+            self.medium_scatter
+                .iter()
+                .chain(self.medium_absorb.iter())
+                .all(|v| (0. ..=1e4).contains(v))
+                && (1. ..=2.5).contains(&self.medium_ior),
+            "Invalid medium"
+        );
         for c in [
             &self.left,
             &self.right,
@@ -930,6 +957,13 @@ impl Settings {
                     && (0. ..=4000.).contains(&m.film_thickness)
                     && (0. ..=4000.).contains(&m.grating),
                 "Invalid layered material"
+            );
+            anyhow::ensure!(
+                m.volume_absorb
+                    .iter()
+                    .chain(m.volume_scatter.iter())
+                    .all(|v| (0. ..=1e4).contains(v)),
+                "Invalid media material"
             );
             anyhow::ensure!(
                 m.secondary_color.iter().all(|v| (0. ..=1.).contains(v))

@@ -1,7 +1,7 @@
 //! Built-in rendering studies. Every object and light remains editable.
 use crate::scene::{AreaLight, Material, Object, Pattern, Settings, Shape};
 use std::f32::consts::TAU;
-pub const MATERIAL_NAMES: [&str; 17] = [
+pub const MATERIAL_NAMES: [&str; 18] = [
     "Porcelain",
     "Chrome",
     "Gold",
@@ -19,6 +19,7 @@ pub const MATERIAL_NAMES: [&str; 17] = [
     "Velvet",
     "Oil slick",
     "CD grooves",
+    "Milk",
 ];
 pub fn material(id: usize) -> Material {
     let mut m = Material::default();
@@ -57,6 +58,12 @@ pub fn material(id: usize) -> Material {
             m.color = [0.09, 0.46, 0.25];
             m.roughness = 0.15;
             m.reflectivity = 0.15;
+            // Polished jade is a volume: a refracting boundary plus absorption and
+            // scattering inside (track 12), which is why the Buddha scan glows at the rims.
+            m.transmission = 1.;
+            m.ior = 1.5;
+            m.volume_absorb = [2.4, 0.65, 1.9];
+            m.volume_scatter = [0.4, 0.55, 0.45];
         }
         7 => {
             m.color = [0.68, 0.025, 0.018];
@@ -114,6 +121,16 @@ pub fn material(id: usize) -> Material {
             m.metallic = 1.;
             m.roughness = 0.06;
             m.grating = 1600.;
+        }
+        17 => {
+            // Milk: a slightly wet surface above a scattering, strongly absorbing volume
+            // (coefficients per metre, tuned for a tumbler: extinction over a few centimetres).
+            m.color = [0.93, 0.91, 0.88];
+            m.roughness = 0.35;
+            m.transmission = 1.;
+            m.ior = 1.35;
+            m.volume_absorb = [12., 35., 65.];
+            m.volume_scatter = [30., 32., 34.];
         }
         _ => {}
     }

@@ -25,6 +25,10 @@ pub struct PackedMaterial {
     pub effects: [f32; 4],
     /// [anisotropy stretch 0..1, groove rotation in the tangent plane in degrees, unused, unused]
     pub weave: [f32; 4],
+    /// Participating media (track 12): absorption and scattering per metre inside the
+    /// object's mesh (see docs/research/track-12-volumes.md); w unused; zero = no medium.
+    pub volume_a: [f32; 4],
+    pub volume_s: [f32; 4],
 }
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -71,6 +75,18 @@ fn pack(m: &Material) -> PackedMaterial {
         ],
         effects: [m.film_ior, m.film_thickness, m.grating, 0.],
         weave: [m.anisotropy, m.anisotropy_rotation, 0., 0.],
+        volume_a: [
+            m.volume_absorb[0],
+            m.volume_absorb[1],
+            m.volume_absorb[2],
+            0.,
+        ],
+        volume_s: [
+            m.volume_scatter[0],
+            m.volume_scatter[1],
+            m.volume_scatter[2],
+            0.,
+        ],
     };
     // Flag bit6: this material has a layered lobe, so the shader may read coating/effects/weave.
     // The trace is register-bound (track 10's lesson): guarding that read by a bit test on the

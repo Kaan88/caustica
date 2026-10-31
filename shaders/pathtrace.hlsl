@@ -376,6 +376,54 @@ float2 filter_offset(float2 u){
     if(lights.y==2)return (float2(blackman_harris_inverse(u.x),blackman_harris_inverse(u.y))-0.5)*width;
     return (u-0.5)*width;
 }
+// Participating media (track 12, see docs/research/track-12-volumes.md): homogeneous
+// sigma_a/sigma_s per metre inside meshes (material volume_a/volume_s) and an ambient
+// medium for the whole space (Frame.medium_a/medium_s, fog and underwater). Membership
+// rides the same interior list as the dielectrics, so the containing medium is its top.
+bool has_volume(Material m){return max(max(m.volume_s.x,m.volume_s.y),m.volume_s.z)>0||max(max(m.volume_a.x,m.volume_a.y),m.volume_a.z)>0;}
+// Isotropic phase: the cosine to the incoming direction is uniform on [-1,1] and the
+// value/pdf is 1 for exact sampling; pdf = 1/2PI is also the balance partner in vol_nee.
+float3 vol_dir(float3 in_dir,out float pdf){
+    float cs=1-2*random();float sc=sqrt(max(0,1-cs*cs));float az=2*PI*random();
+    pdf=1/(2*PI);return basis(in_dir,float3(sc*cos(az),sc*sin(az),cs));
+}
+// Next-event estimation at a scattering point: same table as the surface NEE but with the
+// scattering integrand sig_s·phase (phase = 1/2PI) and the arriving radiance carrying the
+// full extinction exp(-(sig_a+sig_s)·len) along the shadow segment; the balance partner
+// for the continuation is the phase pdf. Environment and suns sit at the far plane /
+// their nominal 50 units, so the extinction uses those reaches.
+float3 vol_nee(float3 q,float3 sig_a,float3 sig_s){
+    uint mis=(scene_info.w>>4)&3;
+    bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
+    float p_env=env_nee?(tri_nee?0.5:1):0;
+    float ps=1/(2*PI);float3 ext=sig_a+sig_s;float3 acc=0;
+    if(env_nee && random()<p_env){
+        float pe;float3 ld=sample_env(pe);
+        if(pe>0)acc+=sig_s*ps*exp(-ext*500)*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+ps,1e-8);
+    }else if(tri_nee){
+        Emitter light=select_emitter(random());
+        if(light.position_area.w<0){
+            float om=0,pc=0,lim=1e4;float3 ld=float3(0,1,0);
+            if(light.position_area.w==-1){
+                float3 c=light.position_area.xyz-q;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
+                if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);lim=b-sqrt(max(0,r*r-(d2-b*b)));}
+            }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
+            if(pc>0 && lim>0 && !occluded(q+ld*0.0003,ld,max(0.0002,lim-0.0006))){
+                float reach=(light.position_area.w==-1)?lim:50.;
+                float pl=(1-p_env)*light.edge2_probability.w*pc;
+                acc+=sig_s*ps*exp(-ext*reach)*light.emission_material.rgb/max(mis==1?pl:pl+ps,1e-8);
+            }
+        }else{
+            float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-q;float len=length(ld);ld/=max(len,1e-8);
+            Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
+            if((lm.optical.w<0.5 || dot(ln,-ld)>0) && !occluded(q+ld*0.0003,ld,max(0.0002,len-0.0006))){
+                float pl=(1-p_env)*emitter_pdf(q,lp,light);
+                acc+=sig_s*ps*exp(-ext*len)*lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld))/max(mis==1?pl:pl+ps,1e-8);
+            }
+        }
+    }
+    return acc;
+}
 [numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy;if(any(p>=dimensions.xy))return;
     pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
@@ -427,7 +475,7 @@ float2 filter_offset(float2 u){
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=medium_a.rgb; // ambient medium (track 12): zero keeps every pre-track-12 path bit-identical
         // Nested dielectrics (track 10): the volumes this path is inside, in the order they
         // were entered, so a boundary bends by the two media it actually touches. Slot 0 is
         // the ambient medium (air) and never matches a material id.
@@ -441,15 +489,48 @@ float2 filter_offset(float2 u){
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             uint mis=(scene_info.w>>4)&3;
+            // Media context this bounce (track 12): the containing medium is the top of the
+            // interior list (ambient = the constants when the list holds only the sentinel).
+            // cur_s drives the free-flight race; extinction above the sampling bound (absorption
+            // is the Beer-Lambert/sigma_a of the containing medium the push/pop below keeps
+            // current) is what every segment and shadow ray multiplies by.
+            uint cur_id=0xffffffffu;[unroll]for(uint s=0;s<MED_DEPTH;s++){if(s+1u==med_n)cur_id=med_id[s];}
+            float3 cur_s=cur_id==0xffffffffu?medium_s.rgb:materials[cur_id].volume_s.rgb;
+            float sbar=max(max(cur_s.x,cur_s.y),cur_s.z);
+            bool vol=sbar>0.0;
+            bool med=vol||max(max(medium_a.x,medium_a.y),medium_a.z)>0||max(max(medium_s.x,medium_s.y),medium_s.z)>0; // some medium touches this path segment
             // Light selection: the HDRI and the emissive triangles share NEE half and half.
             bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
             float p_env=env_nee?(tri_nee?0.5:1):0;
-            Hit h;if(!intersect(origin,direction,1e4,h,false,bounce==0)){
+            Hit h;bool hit=intersect(origin,direction,1e4,h,false,bounce==0);
+            float3 ext=absorption+cur_s-sbar; // arrival extinction minus sampling bound: what media segments multiply by (equals absorption when the bound is uniform)
+            if(vol){
+                // Free-flight race ahead of the miss test: sky-pointing rays through fog scatter
+                // along the way, which is what makes beams and haze visible. The distance is
+                // sampled with the conservative scalar sigma_bar and raced against the first
+                // thing on the ray: a surface hit, or the environment / sun reach on a miss.
+                float dfree=-log(max(random(),1e-30))/sbar;
+                if(dfree<(hit?h.t:500.)){
+                    // Scatter before any surface: arrival extinction divided by the sampling
+                    // survival = (sigma_s_c/sigma_bar)·exp(-ext·d) per channel; direct scattering
+                    // by NEE at the event point; isotropic phase continuation from there (the
+                    // race reruns at the new origin, so multiple scattering comes for free).
+                    float3 q=origin+direction*dfree;
+                    throughput*=exp(-ext*dfree)*(cur_s/sbar);
+                    float3 ve=vol_nee(q,absorption,cur_s);
+                    radiance+=throughput*ve;if(bounce==0)direct+=throughput*ve;
+                    float pdf;direction=vol_dir(direction,pdf);
+                    origin=q+direction*0.0005;previous_position=origin;previous_delta=false;previous_pdf=pdf;
+                    cone_width+=cone_spread*dfree;
+                    continue;
+                }
+            }
+            if(!hit){
                 if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
                 float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
-                float3 e=throughput*env*weight;
+                float3 e=throughput*env*weight*(med?exp(-ext*500.):float3(1.,1.,1.)); // the environment sits at the far plane
                 // Suns (they lead the emitter table): seen inside their disk, weighted against
                 // light sampling as triangles are; a hidden one only from bounce 1 on.
                 for(uint i=0;i<(uint)lights.x;i++){Emitter sun=emitters[i];
@@ -458,9 +539,11 @@ float2 filter_offset(float2 u){
                     if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
                     float w=1;if(bounce>0 && !previous_delta)w=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
-                    e+=throughput*sun.emission_material.rgb*w;}
+                    e+=throughput*sun.emission_material.rgb*w*(med?exp(-ext*50.):float3(1.,1.,1.));} // suns sit at their nominal 50 units
                 radiance+=e;if(bounce<=1)direct+=e;break;}
-            throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
+            if(vol)throughput*=exp(-ext*h.t); // no event before the surface: arrival ÷ survival
+            else throughput*=exp(-absorption*h.t); // old text verbatim: layer- and media-free paths
+            cone_width+=cone_spread*h.t;
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
             Material m=material_at(h.material,h.p);
@@ -501,7 +584,7 @@ float2 filter_offset(float2 u){
             if(env_nee && random()<p_env){
                 float pe;float3 ld=sample_env(pe);float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,h.p,pdf);
                 if(nl>0 && pe>0 && !occluded(h.p+h.ng*0.0003,ld,1e4)){
-                    float3 e=throughput*f*nl*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                    float3 e=throughput*f*nl*(med?exp(-(absorption+cur_s)*500.):float3(1.,1.,1.))*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }else if(tri_nee){
             Emitter light=select_emitter(random());
@@ -515,7 +598,7 @@ float2 filter_offset(float2 u){
                 }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
                 float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,h.p,pdf);
                 if(pc>0 && nl>0 && !occluded(h.p+h.ng*0.0003,ld,max(0.0002,limit-0.0006))){
-                    float pl=(1-p_env)*light.edge2_probability.w*pc;float3 e=throughput*f*nl*light.emission_material.rgb/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                    float pl=(1-p_env)*light.edge2_probability.w*pc;float3 e=throughput*f*nl*(med?exp(-(absorption+cur_s)*(light.position_area.w==-1?limit:50.)):float3(1.,1.,1.))*light.emission_material.rgb/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }else{
             float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
@@ -523,7 +606,7 @@ float2 filter_offset(float2 u){
             float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,h.p,pdf);
             if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
                 if(!occluded(h.p+h.ng*0.0003,ld,max(0.0002,len-0.0006))){
-                    float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld)))/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
+                    float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(med?exp(-(absorption+cur_s)*len):float3(1.,1.,1.))*(lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld)))/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
                 }
             }}}
             float3 next;bool delta=false;float bsdf_pdf=0;
@@ -544,8 +627,8 @@ float2 filter_offset(float2 u){
                 if(under!=0u){[unroll] for(uint s=0;s<MED_DEPTH;s++){if(s+1u==under)below_id=med_id[s];}}
                 bool entered=h.front&&under==0u,leaving=!h.front&&under!=0u;
                 float inc=mior,tra=mior;
-                if(entered)inc=top_id==0xffffffffu?1.:materials[top_id].optical.x;
-                if(leaving)tra=below_id==0xffffffffu?1.:materials[below_id].optical.x;
+                if(entered)inc=top_id==0xffffffffu?medium_a.w:materials[top_id].optical.x;
+                if(leaving)tra=below_id==0xffffffffu?medium_a.w:materials[below_id].optical.x;
                 float eta=inc/tra;float cosi=saturate(dot(-direction,h.n));float cost2=1-eta*eta*(1-cosi*cosi);float r0=(inc-tra)/(inc+tra);float fr=r0*r0+(1-r0*r0)*pow(1-(h.front?cosi:sqrt(max(0,cost2))),5);
                 bool reflected=cost2<=0 || random()<fr;
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
@@ -556,8 +639,8 @@ float2 filter_offset(float2 u){
                     // returned to is looked up by id, so its own surface maps (which belong to
                     // that surface, not to the boundary being crossed here) do not tint the
                     // segment between two volumes.
-                    if(entered){if(med_n<MED_DEPTH){[unroll] for(uint s=0;s<MED_DEPTH;s++)if(s==med_n)med_id[s]=hid;med_n=min(med_n+1u,MED_DEPTH);}absorption=-log(max(m.color_rough.rgb,0.001));}
-                    else if(leaving){med_n=under;if(below_id==0xffffffffu)absorption=0;else absorption=-log(max(materials[below_id].color_rough.rgb,0.001));}
+                    if(entered){if(med_n<MED_DEPTH){[unroll] for(uint s=0;s<MED_DEPTH;s++)if(s==med_n)med_id[s]=hid;med_n=min(med_n+1u,MED_DEPTH);}absorption=has_volume(m)?m.volume_a:-log(max(m.color_rough.rgb,0.001));}
+                    else if(leaving){med_n=under;if(below_id==0xffffffffu)absorption=medium_a.rgb;else absorption=has_volume(materials[below_id])?materials[below_id].volume_a:-log(max(materials[below_id].color_rough.rgb,0.001));}
                     throughput*=eta*eta;
                 }
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}

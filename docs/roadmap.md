@@ -328,17 +328,79 @@ Car paint, brushed steel, velvet, oil slicks and CD grooves now exist; Kulla–C
 - **Showcases/library:** builtin `layered-materials` — six spheres (deep-blue car paint under the coat, brushed steel band, velvet, oil slick, CD, film over patterned marble) on a dark stage with warm key + cool rim (`captures/layered-materials.png` RR / `.exr` raw 640×360 512-frame 4096 spp, native mean 2.117 ms, RR 2.884 ms); material library 12–16 (Car paint, Brushed steel, Velvet, Oil slick, CD grooves).
 - **Not done:** coat/sheen over dielectrics (glass skips the layered branch), UV-tangent-frame anisotropy, the grating's specular ink mask, the aniso sampler's exact pdf unvalidated against a measured integral, RR `cone_spread` guide for the anisotropic lobe (heuristic `0.25·(at·ab+1)`), α<0.02 table rows clamped (smooth mirrors, MS≈0 there anyway), occupancy control of the layered branch (see cost bullet), and the carried-forward track 10 items (priority-based nested list, inside test, shadow-ray attenuation).
 
-#### 12. Volumes (J)
+#### 12. Volumes (J) — done 2026-10-31
 
-Homogeneous media inside meshes, plus global fog.
+Homogeneous media inside meshes, plus global fog — one ambient medium drives fog AND underwater;
+free-flight race folded ahead of the miss test in the spp loop (pbrt VolPath structure, EGSR 2012
+course), volume NEE reusing the existing emitter walk.
 
-- **Unlocks:**
-  - Visible laser beams (item 17).
-  - God rays and the **Vermeer room**.
-  - Olafur Eliasson's ***The Weather Project***: a sun disc, fog and a mirrored ceiling.
-  - Subsurface jade, milk and a glowing **jack-o'-lantern**.
-  - **Underwater mode**: the whole room filled with a medium.
-- RR handles volumes poorly, so compare it against the native denoiser per scene.
+- **Append-only layout:** `PackedMaterial` grew `volume_a`/`volume_s` (160 → 192 B; σa, σs per
+  metre); `Material` gained serde-defaulted `volume_absorb`/`volume_scatter` ("Invalid media
+  material" 0..1e4) with Absorb/Scatter rows in the Scene tab's material grid, and `Settings`
+  gained `medium_scatter`/`medium_absorb` + `medium_ior` (1..2.5, "Invalid medium"). The cbuffer
+  pair appended after `environment_map`: `medium_s` (σs rgb) and `medium_a` (σa rgb, **w =
+  medium_ior**) — the track-10 dielectric sentinel pair reads it, so glass bends against the
+  water it sits in and the outer medium's absorption is restored on pop; the same pair drives
+  fog and underwater (one mechanism).
+- **One list, two mechanisms:** media membership REUSES the track-10 interior list (`has_volume(m)`
+  = any media channel non-zero, containing medium = list top, ambient = the sentinel): no second
+  stack, no new per-path state. A media boundary needs `transmission > 0` to toggle membership;
+  its surface stays the material's normal BSDF (frosty volume surfaces stay future).
+- **Race:** `vol = sbar > 0` (sbar = max channel of cur_s): `dfree = −ln(ξ)/sbar` raced against
+  the surface hit (miss = the 500 far plane); on an event `throughput ×= e^{−ext·dfree}·(cur_s/sbar)`
+  (arrival ÷ sampling survival, `ext = σa+σs−sbar` the conservative-race density), NEE at the event
+  point via `vol_nee` (same power-weighted emitter walk, integrand `σs·(1/2π)`, shadow factor =
+  **full extinction** `e^{−(σa+σs)·len}` — nothing is sampled along the shadow march; env at the
+  500 nominal reach, suns at their 50), isotropic `vol_dir` continuation (pdf 1/2π) and a rerace
+  from the event point. Surfaces under media: survival `e^{−ext·h.t}`, miss factors
+  `e^{−ext·500/50}` ratio form, NEE arrival `e^{−(absorption+cur_s)·len}` — all guarded by
+  `med = vol || ambient active` so media-free scenes keep the old arithmetic verbatim.
+- **Verified numerically** (`captures/track12_verify.py` + `captures/probe_b.py`, 128×72 2048-frame
+  `--no-rr --raw` transient scenes): Test A (open floor, one 3×3 rect light at intensity **1000**,
+  ambient absorption only, `mis_mode=1` + direct/indirect recompose isolating bounce-0 NEE): centre
+  on/off ratio vs the analytic quad integral × `e^{−σa·dist}` (the camera segment carries extinction
+  too) — **exact all channels** (mixed K 0.3/0.11/0.075 max dev 0.0001, single-channel 0.2 probes
+  dev 0.0000). Harness lesson: `beauty()` scales the recompose by `composed/max(raw,1e-4)` per
+  channel — raw under 1e-4 skews (pre-existing display guard; this is what made the 0.3 channel
+  look ~5× low at intensity 1, root-caused by matching every probe to raw·1e4 exactly). Test B
+  (glass slab ior 1.05 with `volume_absorb (1.2,0.7,0.35)` σs=0 on the camera ray only): direct
+  ratio **exactly 1.0000** — the single-medium shadow-march approximation documented, no leak —
+  indirect (0.8322,0.9025,0.9466) vs exact `e^{−σa·chord}` (0.8308,0.9019,0.9463) within 0.2%.
+  Real bug caught en route: Constants wrote `medium_a.w = 0.` instead of the IOR → sentinel r0 =
+  −1 → glass always mirrored in media scenes (tank black mirror + a bogus 2× "speedup" in the
+  first chain); one-line fix, fresh-exe re-verification after. Self-test 464 frames (58 builtin)
+  exit 0, rerun after the final regeneration; media-off regression pairs (tank / layered-materials
+  / glass-of-water new-vs-track11) **bit-identical**, RMSE 0.0 with identical means — stronger than
+  the layered guard's 4.1e-7.
+- **Single-medium model (documented, closes the track-10 glass-shadow carry only for media):**
+  shadow attenuation = the current containing medium's extinction × the full segment length
+  (segments crossing mesh-media boundaries keep one medium's σa; Test B's exact direct 1.0 IS this
+  approximation measured), env/sun miss attenuation uses nominal reaches (far plane per bounce,
+  sun 50 units), overlapping media do not additively Σσ; nested concentric media (milk in glass in
+  water) read the innermost through the list top. HG phase η and heterogeneous ratio tracking stay
+  future (homogeneous was the roadmap's own scope line).
+- **Showcases/library:** five builtin showcases — `jade-and-milk` (jade glow + milk cylinder inside
+  a glass tumbler, nested media), `jack-o-lantern` (warm flesh absorption, scatter, unlit candle
+  inside — carving/windows are SDF work, track 13), `vermeer-window` (sealed dark room, one window,
+  0.3/m suspended scatter → soft god ray across floorboards, table + two candle emitters),
+  `weather-project` (20×14×6.5 hall, mirrored ceiling slab, unlit sun disc 18 + haze + five visitors),
+  `cornell-underwater` (the whole room in water: Beer–Lambert distance fade, ceiling beam, glass
+  block refracting against the water via the IOR pair — light and blocks at classic sizes after the
+  p6/p7 occlusion diagnostic showed the oversized block was eating the light). Library grew to 18
+  (17 = Milk; entry 6 Jade carries media fields).
+- **Cost:** media-free `cornell-water-tank` pair in one alternating pass (640×360, 240 frames,
+  native): **5.528 new vs 5.264 track-11 = +5.0%** — an earlier pass measured the same pair 2.249
+  vs 2.058 (+9.3%); GPU power state moves absolutes ~2.4× between passes, so the honest claim is the
+  +5..9% band: same register-class finding as track 11 (the race's live set sets the kernel-wide
+  register budget; the guards buy media-off scenes nothing). Showcase native means (final retuned):
+  weather 12.9, jade-and-milk 10.6, underwater 8.0, jack-o 6.3 ms.
+- **Not done:** ambient medium not exposed in the UI (scene file / `--set` only), laser beams
+  (item 17 — mechanism exists, no showcase shipped), per-scene RR-vs-native denoiser tuning
+  (the roadmap's own line; the RR showcase captures were visually stable at 96 frames), `vol_nee`'s
+  balance partner uses the phase pdf 1/2π (heuristic; exactness only proven where events cannot
+  fire), HG phase, heterogeneous ratio tracking, overlapping-media Σ, boundary emission, carving
+  (track 13's SDFs), and the carried track-10 list items (priority-based nested list, inside test,
+  shadow-ray attenuation for plain dielectrics).
 
 #### 13. Procedural primitives and SDFs
 

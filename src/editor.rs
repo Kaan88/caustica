@@ -253,6 +253,54 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                             ui.add(crate::slider(&mut m.grating, 0. ..=4000.).suffix(" nm"));
                         },
                     );
+                    row(
+                        ui,
+                        "Absorb red",
+                        "Participating media: absorption per metre inside this mesh (the medium's Beer–Lambert fade); jade and milk want non-zero absorb and scatter.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.volume_absorb[0], 0. ..= 100.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Absorb green",
+                        "Absorption per metre, green channel.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.volume_absorb[1], 0. ..= 100.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Absorb blue",
+                        "Absorption per metre, blue channel.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.volume_absorb[2], 0. ..= 100.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Scatter red",
+                        "Scattering per metre inside this mesh (drives the volume path: scattering events and god rays); isotropic phase.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.volume_scatter[0], 0. ..= 100.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Scatter green",
+                        "Scattering per metre, green channel.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.volume_scatter[1], 0. ..= 100.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Scatter blue",
+                        "Scattering per metre, blue channel.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.volume_scatter[2], 0. ..= 100.));
+                        },
+                    );
                 });
     });
 }

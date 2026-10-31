@@ -76,6 +76,8 @@ struct Constants {
     grade_gamma: [f32; 4],
     gain: [f32; 4],
     environment_map: [f32; 4],
+    medium_s: [f32; 4],
+    medium_a: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -2182,6 +2184,18 @@ impl Gpu {
                     0.
                 },
                 self.env_inv_norm * self.env_scale,
+            ],
+            medium_s: [
+                s.medium_scatter[0],
+                s.medium_scatter[1],
+                s.medium_scatter[2],
+                0.,
+            ],
+            medium_a: [
+                s.medium_absorb[0],
+                s.medium_absorb[1],
+                s.medium_absorb[2],
+                s.medium_ior,
             ],
         };
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.

@@ -18,7 +18,7 @@ OUT = Path(__file__).resolve().parent.parent / "scenes" / "builtin"
 def M(color=(0.72, 0.70, 0.66), rough=0.55, metal=0.0, refl=0.05, trans=0.0, ior=1.5,
       emit=0.0, pattern="solid", second=(0.04, 0.04, 0.04), pscale=3.0, unlit=False,
       cc=0.0, cc_rough=0.03, sh=0.0, sh_rough=0.3, aniso=0.0, aniso_rot=0.0,
-      film_ior=1.3, film=0.0, grating=0.0):
+      film_ior=1.3, film=0.0, grating=0.0, vol_a=(0.0, 0.0, 0.0), vol_s=(0.0, 0.0, 0.0)):
     out = {"color": [round(c, 4) for c in color], "roughness": rough, "metallic": metal,
             "reflectivity": refl, "transmission": trans, "ior": ior, "emission": emit,
             "pattern": pattern, "secondary_color": [round(c, 4) for c in second],
@@ -29,7 +29,9 @@ def M(color=(0.72, 0.70, 0.66), rough=0.55, metal=0.0, refl=0.05, trans=0.0, ior
                                 ("sheen", sh, 0.0), ("sheen_roughness", sh_rough, 0.3),
                                 ("anisotropy", aniso, 0.0), ("anisotropy_rotation", aniso_rot, 0.0),
                                 ("film_ior", film_ior, 1.3), ("film_thickness", film, 0.0),
-                                ("grating", grating, 0.0)):
+                                ("grating", grating, 0.0),
+                                ("volume_absorb", [round(v, 4) for v in vol_a], [0.0, 0.0, 0.0]),
+                                ("volume_scatter", [round(v, 4) for v in vol_s], [0.0, 0.0, 0.0])):
         if value != default:
             out[key] = value
     return out
@@ -1248,6 +1250,9 @@ def check(slug, s):
         rng(label + " film_ior", m.get("film_ior", 1.3), 1, 2.5)
         rng(label + " film_thickness", m.get("film_thickness", 0.0), 0, 4000)
         rng(label + " grating", m.get("grating", 0.0), 0, 4000)
+        for k in ("volume_absorb", "volume_scatter"):
+            for v in m.get(k, [0.0, 0.0, 0.0]):
+                rng(label + " volume", v, 0, 1e4)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)
@@ -1280,6 +1285,11 @@ def check(slug, s):
             rng(k, s[k], lo, hi)
     for v in s.get("target", []):
         rng("target", abs(v), 0, 20)
+    for k in ("medium_scatter", "medium_absorb"):
+        for v in s.get(k, []):
+            rng(k, v, 0, 1e4)
+    if "medium_ior" in s:
+        rng("medium_ior", s["medium_ior"], 1, 2.5)
     for v in s.get("light_position", []):
         rng("light_position", abs(v), 0, 50)
     if "pitch" in s:
@@ -1745,6 +1755,117 @@ scene("layered-materials", "Layered materials",
               objects=layered_stage(), bounces=10, exposure=1.3,
               **camera(0, 9, 4.4, (0, -0.55, 0), 50)))
 
+# ---------------------------------------------------------------- media showcase (track 12)
+# Homogeneous media, per metre, inside meshes (volume_absorb / volume_scatter on the material)
+# and as the ambient medium of the whole scene (medium_scatter / medium_absorb / medium_ior).
+# Isotropic phase; docs/research/track-12-volumes.md.
+JADE_MEDIA = M((0.09, 0.46, 0.25), 0.15, refl=0.15, trans=1.0, ior=1.5,
+               vol_a=(3.5, 0.9, 2.4), vol_s=(2.2, 2.6, 2.4))
+MILK = M((0.93, 0.91, 0.88), 0.3, refl=0.05, trans=1.0, ior=1.35,
+         vol_a=(20.0, 32.0, 48.0), vol_s=(30.0, 32.0, 34.0))
+PUMPKIN = M((0.88, 0.45, 0.12), 0.5, refl=0.0, trans=1.0, ior=1.35,
+            vol_a=(0.35, 1.1, 2.6), vol_s=(4.5, 4.5, 4.5))
+
+
+def jade_milk():
+    # The milk cylinder sits a few centimetres inside the tumbler so no surface is coincident
+    # (the same inset-volume rule the aquarium uses).
+    return [obj("Jade sphere", "sphere", -0.9, 0, 2.4, JADE_MEDIA),
+            obj("Jade cube", "box", 0.75, 0, 1.9, JADE_MEDIA, rotation=14),
+            obj("Glass tumbler", "cylinder", 2.3, -0.3, 2.4, GLASS, stretch=1.5),
+            float_at("Milk", "cylinder", 2.3, -0.4, 0, 2.2, MILK, stretch=1.3)]
+
+
+scene("jade-and-milk", "Jade and milk",
+      "Polished jade and a glass of milk: both are homogeneous volumes under a refracting skin, "
+      "so the jade glows green at its thin rims and the milk keeps its real few-centimetre extinction.",
+      ["studio", "media", "material"],
+      dark_stage(lights=[light("Key", (0.0, 4.0, 1.6), (3.0, 3.0), kelvin(5200), 50.0, target=(0.4, -0.6, 0)),
+                        light("Cool rim", (-2.6, 1.4, -1.8), (1.6, 1.6), (0.42, 0.65, 1.0), 20.0, target=(0, -0.6, 0))],
+                floor=M((0.1, 0.11, 0.12), 0.4, refl=0.2), base=[0.06, 0.06, 0.07],
+                objects=jade_milk(), bounces=12, exposure=1.3,
+                **camera(4, 8, 4.2, (0.55, -0.5, -0.3), 52)))
+
+
+def lantern():
+    return [obj("Pumpkin", "sphere", 0, 0, 2.6, PUMPKIN, stretch=0.7, scale=(1.15, 1.15)),
+            float_at("Stem", "cylinder", 0, -0.24, 0, 0.55, matte((0.12, 0.2, 0.06), 0.7), stretch=1.3),
+            float_at("Candle", "cylinder", 0, -0.7, 0, 0.5, emitter((1.0, 0.55, 0.2), 14.0, unlit=False),
+                     stretch=1.2)]
+
+
+scene("jack-o-lantern", "Jack-o'-lantern",
+      "A candle inside a pumpkin: the whole gourd is an absorbing, scattering volume, so the flesh "
+      "glows orange by transmitted candle light - no emission on the skin itself.",
+      ["media", "emissive", "halloween"],
+      dark_stage(lights=[light("Room", (0.0, 3.0, 2.5), (3.0, 2.0), (0.5, 0.6, 0.8), 8.0, target=(0, -0.7, 0))],
+                floor=M((0.08, 0.08, 0.09), 0.6, refl=0.1), base=[0.04, 0.04, 0.045],
+                objects=lantern(), bounces=12, exposure=1.5,
+                **camera(0, 10, 4.2, (0, -0.6, 0), 55)))
+
+
+def vermeer_room():
+    wall = M((0.62, 0.56, 0.44), 0.85, refl=0.03)
+    return room_shell(6.5, 5.5, 3.4, wall, ceiling=True, front=False)
+
+
+def still_life():
+    # The Vermeer foreground the shaft rakes across: a board table and two lit candles.
+    wood = M((0.16, 0.1, 0.06), 0.65, refl=0.2)
+    return [obj("Table", "box", 0.4, -0.4, 1.15, wood, rotation=8),
+            float_at("Candle 1", "sphere", 0.2, -0.16, -0.35, 0.07, emitter((1.0, 0.55, 0.25), 0.6, unlit=False)),
+            float_at("Candle 2", "sphere", 0.6, -0.15, -0.5, 0.055, emitter((1.0, 0.55, 0.25), 0.5, unlit=False))]
+
+
+scene("vermeer-window", "Vermeer window",
+      "One tall window in a sealed room with suspended particulate: scattering events find the window "
+      "and paint a Vermeer god ray across the floorboards.",
+      ["media", "interior", "god ray", "art"],
+      studio(light_on=False, sky=0.0, background=[0.0, 0.0, 0.0],
+             lights=[light("Window", (-3.05, 0.5, -1.3), (1.0, 2.1), kelvin(6400), 55.0,
+                           target=(1.2, -1.0, 0.8), visible=True)],
+             base=[0.22, 0.19, 0.15], floor=M((0.33, 0.26, 0.19), 0.7, refl=0.05), floor_extent=4.0,
+             medium_scatter=[0.3, 0.3, 0.33], medium_absorb=[0.004, 0.005, 0.007],
+             objects=vermeer_room() + still_life(), bounces=10, exposure=0.9,
+             **camera(-8.4, 1.9, 3.0, (0.4, -0.8, 0.2), 52)))
+
+
+def weather_hall():
+    dark = M((0.05, 0.05, 0.06), 0.9, refl=0.02)
+    mirror = M((0.75, 0.73, 0.7), 0.02, metal=1.0)
+    o = room_shell(20.0, 14.0, 6.5, dark, ceiling=False, front=True)
+    # The mirrored ceiling of The Weather Project, a slab just above the hall.
+    o.append(float_at("Mirror ceiling", "box", 0, 5.7, 0, 1, mirror, stretch=0.2 / 0.7,
+                      scale=((20.0 + 0.4) / 0.7, (14.0 + 0.4) / 0.7)))
+    o.append(float_at("Sun disc", "sphere", 0, 2.9, -6.3, 8.0, emitter((1.0, 0.8, 0.5), 18.0, unlit=False)))
+    # A few visitors to break the shafts.
+    for i, (x, z) in enumerate([(-3.5, 1.2), (-1.2, 2.6), (2.3, 0.4), (4.8, -2.0), (-5.2, -3.0)]):
+        o.append(obj(f"Visitor {i + 1}", "cylinder", x, z, 1.2, matte((0.04, 0.04, 0.05), 0.8), stretch=1.5))
+    return o
+
+
+scene("weather-project", "The Weather Project",
+      "After Olafur Eliasson: a mirrored ceiling, a blower-lit haze and a sun disc at the far end of "
+      "the Turbine Hall - the fog scatters the disc across the hall and the mirror doubles the shafts.",
+      ["art", "media", "mirror", "god ray"],
+      studio(light_on=False, sky=0.0, background=[0.0, 0.0, 0.0], base=[0.05, 0.05, 0.055],
+             floor=M((0.05, 0.05, 0.055), 0.4, refl=0.3), floor_extent=12.0,
+             medium_scatter=[0.09, 0.085, 0.07], medium_absorb=[0.002, 0.002, 0.003],
+             objects=weather_hall(), bounces=10, exposure=1.1,
+             **camera(0, 1.5, 8.5, (0, 1.6, -2.5), 62)))
+
+
+scene("cornell-underwater", "Cornell underwater",
+      "The whole room filled with a medium: absorption tints the distance by Beer-Lambert and a "
+      "little scattering gives the ceiling light a visible beam; glass would bend against the water.",
+      ["cornell", "media", "underwater"],
+      cornell(objects=[obj("Tall block", "box", -0.45, 0.0, 2.0, PORCELAIN, rotation=18, stretch=1.7),
+                       obj("Sphere", "sphere", 0.6, 0.0, 1.9, matte((0.5, 0.03, 0.03), 0.9)),
+                       obj("Glass block", "box", 1.35, -1.15, 1.5, GLASS, rotation=-14, stretch=0.7)],
+              medium_absorb=[0.3, 0.11, 0.075], medium_scatter=[0.06, 0.06, 0.06], medium_ior=1.34,
+              light_position=[0.0, 0.85, 0.0], light_size=1.3, light_intensity=13.0,
+              bounces=14, exposure=1.6))
+
 # ---------------------------------------------------------------- environments pack
 # HDRI-lit scenes (core track 3); the HDRIs come from tools/fetch_assets.ps1 (scenes/hdri).
 ENV_SCENES = []
@@ -1931,7 +2052,7 @@ def main():
         (OUT / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     pack = {"name": "Built-in scenes", "version": 1, "license": "Own work", "commercial_use": True,
             "attribution": "Cornell RTX", "source": "",
-            "description": "The 42 scenes of docs/scene-research.md section 2 plus the physical-sky showcase, generated by tools/build_scenes.py.",
+            "description": "The 42 scenes of docs/scene-research.md section 2 plus the physical-sky, layered and media showcases, generated by tools/build_scenes.py.",
             "scenes": [f"{slug}.json" for slug, _ in SCENES]}
     (OUT / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {len(SCENES)} scenes to {OUT}")

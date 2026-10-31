@@ -1,6 +1,6 @@
 // maps: heap slot + 1 of base colour, normal, metallic-roughness (0 = none), alpha cutoff bits.
 // base_scale.rgb and surface_scale.xy (roughness, metallic) = value / map average (core track 5).
-struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;float4 coating;float4 effects;float4 weave;};
+struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;float4 coating;float4 effects;float4 weave;float4 volume_a;float4 volume_s;};
 cbuffer Frame:register(b0) {
     float4x4 inverse_vp;
     float4x4 current_vp;
@@ -28,6 +28,8 @@ cbuffer Frame:register(b0) {
     float4 grade_gamma; // rgb, w = LUT strength
     float4 gain; // rgb, w = frame noise seed
     float4 environment_map; // HDRI strength, rotation (radians), flags (bit 0 loaded, bit 1 seen by the camera), pdf normalization (environment.rs)
+    float4 medium_s; // track 12 ambient medium: scattering sigma_s per metre (rgb), w unused
+    float4 medium_a; // track 12 ambient medium: absorption sigma_a per metre (rgb), w unused
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
