@@ -1336,6 +1336,11 @@ def sheen(m, color, amount=1.0, rough=0.4):
     return {**m, "sheen": amount, "sheen_color": [round(c, 4) for c in color], "sheen_roughness": rough}
 
 
+def brushed(m, amount=0.8, rotation=0.0, spun=False):
+    out = {**m, "anisotropy": amount, "anisotropy_rotation": rotation}
+    return out | {"anisotropy_spun": True} if spun else out
+
+
 def layered():
     """Track 11: clear coat and sheen on shapes, with the same red paint bare and coated."""
     paint = M((0.55, 0.02, 0.03), 0.38, metal=0.6, refl=0.1)
@@ -1529,8 +1534,8 @@ scene("layer-sweeps", "Layer sweeps",
              objects=layer_sweeps(), bounces=12, **camera(0, 30, 8.6, (0, -0.6, 0.15), 40)))
 
 scene("layered-furnace", "Layered white furnace",
-      "The white furnace for track 11: white spheres under clear coats and sheens of several roughnesses in a "
-      "uniform white world. A layer that gains energy shows brighter than the background; a small darkening "
+      "The white furnace for track 11: white spheres under clear coats and sheens of several roughnesses, and "
+      "brushed white metal, in a uniform white world. A layer that gains energy shows brighter than the background; a small darkening "
       "is the energy the GGX lobes lose to single scattering.",
       ["validation", "energy", "clearcoat", "sheen"],
       studio(light_on=False, lights=[], sky=0.0, background=[1.0, 1.0, 1.0], base=[1.0, 1.0, 1.0],
@@ -1540,7 +1545,9 @@ scene("layered-furnace", "Layered white furnace",
              + [obj(f"Sheen {s}", "sphere", -1.8 + 1.2 * i, -1.6, 1.4, sheen(M((1, 1, 1), 1.0, refl=0.0), (1, 1, 1), 1.0, s))
                 for i, s in enumerate([0.1, 0.4, 0.7, 1.0])]
              + [obj("Coat and sheen", "sphere", -0.6, 1.6, 1.4, coat(sheen(M((1, 1, 1), 1.0, refl=0.0), (1, 1, 1), 1.0, 0.5), 1.0, 0.1)),
-                obj("Coated metal", "sphere", 0.6, 1.6, 1.4, coat(M((1, 1, 1), 0.5, metal=1), 1.0, 0.1))],
+                obj("Coated metal", "sphere", 0.6, 1.6, 1.4, coat(M((1, 1, 1), 0.5, metal=1), 1.0, 0.1)),
+                obj("Brushed metal", "sphere", -1.8, 1.6, 1.4, brushed(M((1, 1, 1), 0.3, metal=1), 1.0)),
+                obj("Spun metal", "sphere", 1.8, 1.6, 1.4, brushed(M((1, 1, 1), 0.3, metal=1), 1.0, spun=True))],
              **camera(0, 18, 9, (0, -0.4, 0))))
 
 
@@ -1643,6 +1650,34 @@ scene("perfume-vanity", "Perfume vanity",
              sky=0.03, objects=vanity(), bounces=24, **camera(8, 14, 2.9, (0.15, -0.65, 0.1), 38)))
 
 
+def brushed_metal():
+    """Anisotropic GGX (track 11): spun discs and a pan, a brushed plate and a brushed sphere."""
+    steel = M((0.9, 0.9, 0.92), 0.3, metal=1)
+    alu = M((0.91, 0.92, 0.93), 0.25, metal=1)
+    copper = M((0.95, 0.6, 0.45), 0.3, metal=1)
+    out = [cyl("Spun disc", -1.4, 0.3, -1.0, -0.96, 0.75, brushed(steel, 0.9, spun=True)),
+           block("Brushed plate", 0.0, -1.3, -1.0, 1.0, 3.2, 0.06, brushed(alu, 0.9)),
+           ball("Spun sphere", 0.05, -0.45, 0.2, 0.55, brushed(steel, 0.8, spun=True)),
+           ball("Brushed sphere", 1.35, -0.6, -0.35, 0.4, brushed(alu, 0.8, rotation=90)),
+           cyl("Copper pan", 1.3, 0.75, -1.0, -0.78, 0.45, brushed(copper, 0.85, spun=True)),
+           block("Pan handle", 2.05, 0.75, -0.85, -0.81, 0.7, 0.08, brushed(steel, 0.9)),
+           obj("Brushed ring", "torus", -1.4, 0.3, 0.8, brushed(GOLD, 0.8, spun=True), elevation=0.04),
+           obj("Polished sphere", "sphere", -0.6, 1.1, 0.7, M((0.9, 0.9, 0.92), 0.3, metal=1))]
+    return out
+
+
+scene("brushed-metal", "Brushed metal",
+      "Anisotropic metals (track 11): a spun steel disc with a gold ring on it, a spun sphere and a copper pan "
+      "whose highlights fan out radially, a brushed aluminium plate and sphere streaked across the brushing, and "
+      "a polished sphere of the same roughness for comparison.",
+      ["material", "anisotropy", "metal"],
+      dark_stage(light_on=True, light_position=[-1.0, 3.0, 1.5], light_size=0.5, light_intensity=60.0,
+                 lights=[light("Strip", (2.0, 1.8, 1.5), (0.15, 2.0), (1.0, 0.95, 0.9), 40.0, target=(0, -0.6, 0)),
+                         light("Fill", (-3.0, 1.5, 2.5), (2.0, 2.0), (0.8, 0.85, 1.0), 2.0, target=(0, -0.6, 0))],
+                 floor=M((0.05, 0.05, 0.055), 0.6, refl=0.04), base=[0.05, 0.05, 0.055],
+                 objects=brushed_metal(), bounces=12, **camera(0, 30, 5.2, (0, -0.6, 0), 40)))
+
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1693,6 +1728,8 @@ def check(slug, s):
             rng(label + " " + k, m.get(k, 0), 0, 1)
         for c in m.get("sheen_color", []):
             rng(label + " sheen_color", c, 0, 1)
+        rng(label + " anisotropy", m.get("anisotropy", 0), 0, 1)
+        rng(label + " anisotropy_rotation", m.get("anisotropy_rotation", 0), -180, 180)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)

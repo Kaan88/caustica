@@ -61,7 +61,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 285 scripted frames (`SCENES_FROM`), then one frame per scene file (461 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 285 scripted frames (`SCENES_FROM`), then one frame per scene file (462 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
@@ -159,10 +159,10 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | Field | Contents |
 |---|---|
 | `color_rough` | RGB + roughness |
-| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7). Bits 3 and 4 are set in `Gpu::attach_maps`. |
+| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7); **bit11** = spun anisotropy. Bits 3 and 4 are set in `Gpu::attach_maps`. |
 | `optical` | IOR, emission, pattern id, one-sided emitter (1 for lights) |
 | `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
-| `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, −; sheen colour × strength, −. |
+| `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |
 | `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
 | `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
 | `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled). |
@@ -240,7 +240,7 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
   - Specular hit distance comes from a deterministic mirror-reflection ray, not the sampled lobe. This was the RR stability fix.
 - **Transport:**
   - NEE picks an emissive triangle by power. MIS uses the balance heuristic on both the NEE and the BSDF-hit side.
-  - The BSDF is Lambert + GGX (Smith G1·G1 form) as a mixture chosen by `spec_probability`, under an optional sheen and clear coat (track 11, see "Layered materials").
+  - The BSDF is Lambert + GGX (Smith G1·G1 form) as a mixture chosen by `spec_probability`, under an optional sheen and clear coat (track 11, see "Layered materials"); the GGX lobes are energy-compensated from tables in `layers.hlsli` and the base can be anisotropic (see "Energy compensation and anisotropy").
   - Dielectrics: stochastic choice by the exact Fresnel term (TIR included). Rough glass is an approximation (refracted direction lerped toward a cosine sample).
   - Nested dielectrics (track 10): a per-path stack of up to 4 media (one 64-bit word) ranked by `Material::priority`; surfaces that don't bound the current medium are false hits (skipped, no bounce). See "Nested dielectrics".
   - Beer–Lambert absorption inside glass. Russian roulette after bounce 3. The firefly clamp is off by default.

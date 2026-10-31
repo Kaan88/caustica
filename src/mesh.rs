@@ -578,8 +578,9 @@ fn rgba8(image: &gltf::image::Data) -> Option<Vec<u8>> {
     }
     Some(out)
 }
-/// KHR_materials_clearcoat and _sheen factors (track 11) over the default material; their
-/// texture maps are not read. gltf 1.4 has no typed access, so they come from the raw JSON.
+/// KHR_materials_clearcoat, _sheen and _anisotropy factors (track 11) over the default
+/// material; their texture maps are not read, and the anisotropy direction turns from the
+/// object's x axis rather than the UV tangent. gltf 1.4 has no typed access, so they come from the raw JSON.
 fn layers(m: &gltf::Material) -> Material {
     let number = |ext: &str, key: &str| {
         m.extension_value(ext)
@@ -609,6 +610,18 @@ fn layers(m: &gltf::Material) -> Material {
             "sheenRoughnessFactor",
             d.sheen_roughness,
         ),
+        anisotropy: number("KHR_materials_anisotropy", "anisotropyStrength").unwrap_or(0.),
+        // glTF's direction is the rougher one; the brushing direction here is the sharper one
+        // (the roughness rises across it), so it turns by a further 90°.
+        anisotropy_rotation: m
+            .extension_value("KHR_materials_anisotropy")
+            .map_or(0., |e| {
+                let r = e
+                    .get("anisotropyRotation")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.);
+                ((r as f32).to_degrees() + 270.).rem_euclid(360.) - 180.
+            }),
         ..d
     };
     // The sheen colour splits into a strength (its largest channel) and a normalised colour.

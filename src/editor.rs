@@ -175,6 +175,32 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 }
                 row(
                     ui,
+                    "Anisotropy",
+                    "Brushed metal: highlights streak across the brushing direction.",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.anisotropy, 0. ..=1.));
+                    },
+                );
+                if m.anisotropy > 0. {
+                    row(
+                        ui,
+                        "Brush direction",
+                        "Degrees about the surface normal, from the object's x axis.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.anisotropy_rotation, -180. ..=180.));
+                        },
+                    );
+                    row(
+                        ui,
+                        "Spun",
+                        "Brushed in circles around the object's y axis (a pan, a watch dial).",
+                        |ui| {
+                            ui.checkbox(&mut m.anisotropy_spun, "");
+                        },
+                    );
+                }
+                row(
+                    ui,
                     "Priority",
                     "Where glass, water or ice overlap, the higher priority owns the overlap: \
                      model water reaching into the glass wall and rank the glass above it.",

@@ -28,7 +28,9 @@ float3 cosine_sample(float3 n){float r=sqrt(random()),a=2*PI*random();return bas
 // n: shading normal (normal-mapped), ng: interpolated normal for ray offsets, both facing the ray.
 // Texture maps are sampled in intersect (fewer live registers than the bounce loop): textured is
 // set when albedo and rough_metal hold the mapped base colour, roughness and metallic.
-struct Hit{float t;float3 p;float3 n;float3 ng;float3 albedo;float2 rough_metal;uint material;uint emitter;bool front;bool textured;};
+// tangent: the brushing direction of an anisotropic material (layers.w > 0, else zero), not
+// orthogonalised: the object's x axis, or with flag 2048 (spun) circles around its y axis.
+struct Hit{float t;float3 p;float3 n;float3 ng;float3 tangent;float3 albedo;float2 rough_metal;uint material;uint emitter;bool front;bool textured;};
 // Candidates only come from non-opaque geometry: static range 0 (no offset) or a glass object.
 uint candidate_material(uint instance,uint prim){Instance inst=instances[instance];return inst.material!=0xffffffffu?inst.material:static_vertices[prim*3].material;}
 float4 sample_map(uint slot,float2 uv){return maps[NonUniformResourceIndex(slot-1)].SampleLevel(map_sampler,uv,0);}
@@ -152,6 +154,11 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
         }
     }
     h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
+    if(materials[h.material].layers.w>0){
+        float3 ax=float3(1,0,0),ay=float3(0,1,0),o=0;
+        if(inst.material!=0xffffffffu){float3x4 w=q.CommittedObjectToWorld3x4();ax=w._m00_m10_m20;ay=w._m01_m11_m21;o=w._m03_m13_m23;}
+        h.tangent=((uint)materials[h.material].lobes.w&2048u)!=0?cross(ay,h.p-o):ax;
+    }
     // Footprint: the cone's width at the hit, stretched along the ray by the grazing angle
     // (capped at 20×).
     if(mapped)sample_maps(h,uv,tangent,footprint(d,h.ng,cone_width+cone_spread*h.t,T,B,uv_scale));
@@ -250,10 +257,10 @@ float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
 float3 f0_of(Material m){float f=pow((m.optical.x-1)/(m.optical.x+1),2);return lerp(lerp(f.xxx,1.0.xxx,m.lobes.y),m.color_rough.rgb,m.lobes.x);}
 float spec_probability(Material m){return clamp(0.25+0.5*m.lobes.x+0.25*m.lobes.y,0.1,0.95);}
 // Layers (track 11, glTF's KHR_materials_clearcoat / _sheen model): a sheen over the base and
-// a clear coat over both. layers = (coat, coat roughness, sheen roughness, -), sheen.rgb = the
-// sheen colour (times its strength). Each layer dims what lies below by the energy it takes
-// from the view direction, as glTF's spec has it: the coat by its Fresnel, the sheen by its
-// directional albedo (layers.hlsli). Dimming by both directions (reciprocal) lost 8–12% of a
+// a clear coat over both. layers = (coat, coat roughness, sheen roughness, anisotropy), sheen.rgb
+// = the sheen colour (times its strength). Each layer dims what lies below by the energy it takes
+// from the view direction, as glTF's spec has it: the coat by its compensated albedo (glTF: its
+// Fresnel), the sheen by its directional albedo (layers.hlsli). Dimming by both directions (reciprocal) lost 8–12% of a
 // white base in the furnace; the view-only form keeps it, and NEE and BSDF sampling still
 // evaluate the same function, so MIS stays consistent.
 float max3(float3 c){return max(c.r,max(c.g,c.b));}
@@ -272,18 +279,57 @@ float coat_fresnel(float c){return 0.04+0.96*pow(1-saturate(c),5);}
 float coat_probability(Material m){return 0.3*m.layers.x;}
 // A GGX half vector around n (roughness a = alpha), reflected: the sampled direction.
 float3 ggx_sample(float3 n,float3 d,float a){float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 h=basis(n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));return reflect(d,h);}
-float3 eval_bsdf(Material m,float3 n,float3 v,float3 l,out float pdf){
-    float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f=fresnel(vh,f0_of(m));float ps=spec_probability(m);
-    pdf=(1-ps)*nl/PI+ps*d*nh/max(4*vh,1e-6);
+// Anisotropy (track 11, brushed metal): layers.w = strength, sheen.w = the brushing direction's
+// rotation about the normal (radians). The base GGX takes alpha along the grooves (T) and
+// lerp(alpha, 1, strength²) across them (B), so highlights streak across the brushing; glTF's
+// KHR_materials_anisotropy raises it along its direction instead (mesh.rs turns that by 90°).
+// The coat stays isotropic.
+void aniso_frame(float3 n,float3 t,float rotation,out float3 T,out float3 B){
+    T=t-n*dot(n,t);T=dot(T,T)>1e-12?normalize(T):basis(n,float3(1,0,0));
+    float s,c;sincos(rotation,s,c);T=T*c+cross(n,T)*s;B=cross(n,T);
+}
+float2 aniso_alpha(Material m){float a=max(0.001,m.color_rough.a*m.color_rough.a);return float2(a,lerp(a,1,m.layers.w*m.layers.w));}
+// D and G1 in the local frame (x along T, y along B, z the normal); with ax = ay they reduce to
+// ggx_d and g1.
+float ggx_d_aniso(float3 h,float2 a){float3 s=float3(h.x/a.x,h.y/a.y,h.z);float k=dot(s,s);return 1/(PI*a.x*a.y*k*k);}
+float g1_aniso(float3 w,float2 a){return 2*w.z/max(1e-6,w.z+sqrt(w.x*w.x*a.x*a.x+w.y*w.y*a.y*a.y+w.z*w.z));}
+// Visible normals (Heitz 2018): the weight stays near F·G1(l), where sampling D·nh (as
+// ggx_sample does) put fireflies on a strongly anisotropic metal's steep facets. Its pdf for the
+// reflected direction is G1(v)·D / (4 nv) (eval_bsdf).
+float3 ggx_sample_aniso(float3 n,float3 T,float3 B,float3 d,float2 a){
+    float3 v=-d;float3 vh=normalize(float3(a.x*dot(v,T),a.y*dot(v,B),max(dot(v,n),0)));
+    float len2=vh.x*vh.x+vh.y*vh.y;float3 t1=len2>0?float3(-vh.y,vh.x,0)*rsqrt(len2):float3(1,0,0),t2=cross(vh,t1);
+    float r=sqrt(random()),phi=2*PI*random();float x=r*cos(phi),y=r*sin(phi),s=0.5*(1+vh.z);y=(1-s)*sqrt(max(0,1-x*x))+s*y;
+    float3 m=x*t1+y*t2+sqrt(max(0,1-x*x-y*y))*vh;
+    return reflect(d,normalize(T*(a.x*m.x)+B*(a.y*m.y)+n*max(m.z,1e-6)));
+}
+float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
+    float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f0=f0_of(m),f=fresnel(vh,f0);float ps=spec_probability(m);
+    float gv=g1(nv,a),gl=g1(nl,a),ess,spec_pdf;
+    if(m.layers.w<=0){ess=ggx_albedo(nv,m.color_rough.a);spec_pdf=d*nh/max(4*vh,1e-6);}
+    else{
+        float3 T,B;aniso_frame(n,t,m.sheen.w,T,B);float2 aa=aniso_alpha(m);
+        d=ggx_d_aniso(float3(dot(h,T),dot(h,B),nh),aa);gv=g1_aniso(float3(dot(v,T),dot(v,B),nv),aa);gl=g1_aniso(float3(dot(l,T),dot(l,B),nl),aa);
+        // The albedo for the compensation depends on the view's azimuth too (layers.hlsli).
+        float vt=abs(dot(v,T)),vb=abs(dot(v,B));ess=aniso_albedo(nv,vt+vb>1e-6?atan2(vb,vt)*(2/PI):0,m.color_rough.a,m.layers.w);
+        spec_pdf=gv*d/max(4*nv,1e-6);  // visible normals (ggx_sample_aniso)
+    }
+    pdf=(1-ps)*nl/PI+ps*spec_pdf;
     float3 diff=(1-f)*(1-m.lobes.x)*m.color_rough.rgb/PI;
-    float3 r=diff+f*d*g1(nv,a)*g1(nl,a)/max(4*nv*nl,1e-6);
+    // Energy compensation (Turquin 2019, Kulla and Conty's lost multiple scattering in one table):
+    // the single-scattering lobe returns E(nv) of the light with F = 1, so a white metal gains
+    // 1/E and a dielectric's specular f0·(1/E − 1); the diffuse keeps the rest.
+    float3 r=diff+f*d*gv*gl/max(4*nv*nl,1e-6)*(1+f0*(1/ess-1));
     // The sheen is sampled with the diffuse lobe's cosine directions (it adds no pdf term).
     float s=max3(m.sheen.rgb);
     if(s>0){float sr=m.layers.z;r=r*(1-s*min(1,sheen_albedo(nv,sr)))+m.sheen.rgb*sheen_lobe(sr,nh,nv,nl);}
     float cc=m.layers.x;
     if(cc>0){
         float ac=max(0.001,m.layers.y*m.layers.y),dc=ggx_d(nh,ac);
-        r=r*(1-cc*coat_fresnel(nv))+cc*coat_fresnel(vh)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6);
+        // The coat is compensated in full (1/E), and the layers below are dimmed by exactly the
+        // albedo that leaves the coat (coat_albedo, = coat_fresnel(nv) when smooth): F(nv) nears 1
+        // at grazing, where a rough coat's facets mostly see far smaller F(vh).
+        r=r*(1-cc*coat_albedo(nv,m.layers.y))+cc*coat_fresnel(vh)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6)/ggx_albedo(nv,m.layers.y);
         pdf=lerp(pdf,dc*nh/max(4*vh,1e-6),coat_probability(m));
     }
     pdf*=1-m.lobes.z;return (1-m.lobes.z)*r;
@@ -466,34 +512,35 @@ float2 filter_offset(float2 u){
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             if(((uint)m.lobes.w&1u)!=0)break;
+            // Light sampling: each strategy picks a direction ld with its radiance le, its pdf pl
+            // (solid angle) and a shadow-ray limit; one shared BSDF evaluation follows, so
+            // eval_bsdf is inlined once here instead of once per strategy (code size and
+            // registers cost even scenes that never take the anisotropic branch).
+            bool nee=false;float3 ld=float3(0,1,0),le=0;float pl=0,limit=1e4;
             if(env_nee && random()<p_env){
-                float pe;float3 ld=sample_env(pe);float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
-                if(nl>0 && pe>0 && !occluded(h.p+h.ng*0.0003,ld,1e4)){
-                    float3 e=throughput*f*nl*environment_radiance(ld)/max(mis==1?p_env*pe:p_env*pe+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
-                }
+                float pe;ld=sample_env(pe);
+                if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
             }else if(tri_nee){
             Emitter light=select_emitter(random());
             if(light.position_area.w<0){
                 // Sphere or sun: a direction in the cone it covers, then a shadow ray up to the
                 // sphere's true surface (its inscribed mesh lies beyond) or to infinity.
-                float om=0,pc=0,limit=1e4;float3 ld=float3(0,1,0);
+                float om=0,pc=0;
                 if(light.position_area.w==-1){
                     float3 c=light.position_area.xyz-h.p;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
                     if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);limit=b-sqrt(max(0,r*r-(d2-b*b)));}
                 }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
-                float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
-                if(pc>0 && nl>0 && !occluded(h.p+h.ng*0.0003,ld,max(0.0002,limit-0.0006))){
-                    float pl=(1-p_env)*light.edge2_probability.w*pc;float3 e=throughput*f*nl*light.emission_material.rgb/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
-                }
+                if(pc>0){le=light.emission_material.rgb;pl=(1-p_env)*light.edge2_probability.w*pc;limit=max(0.0002,limit-0.0006);nee=true;}
             }else{
-            float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);float3 ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
+            float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
             Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
-            float nl=dot(h.n,ld),pdf;float3 f=eval_bsdf(m,h.n,-direction,ld,pdf);
-            if(nl>0 && (lm.optical.w<0.5 || dot(ln,-ld)>0)){
-                if(!occluded(h.p+h.ng*0.0003,ld,max(0.0002,len-0.0006))){
-                    float pl=(1-p_env)*emitter_pdf(h.p,lp,light);float3 e=throughput*f*nl*(lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld)))/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;
-                }
-            }}}
+            if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(h.p,lp,light);limit=max(0.0002,len-0.0006);nee=true;}
+            }}
+            float nl=dot(h.n,ld);
+            if(nee && nl>0){
+                float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
+                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;}
+            }
             float3 next;bool delta=false;float bsdf_pdf=0;
             if(random()<m.lobes.z){
                 // The media on both sides: entering, the current one and this; leaving, this and
@@ -509,11 +556,13 @@ float2 filter_offset(float2 u){
             }else{
                 float pc=coat_probability(m),ps=spec_probability(m);
                 if(pc>0 && random()<pc){float a=max(0.001,m.layers.y*m.layers.y);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;cone_spread+=0.5*a;}
-                else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;
+                else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);
+                    if(m.layers.w>0){float3 T,B;aniso_frame(h.n,h.tangent,m.sheen.w,T,B);next=ggx_sample_aniso(h.n,T,B,direction,aniso_alpha(m));}else next=ggx_sample(h.n,direction,a);
+                    if(bounce==0)first_spec=true;
                     cone_spread+=0.5*a;
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}
                 if(dot(h.n,next)<=0)break;
-                float3 bsdf=eval_bsdf(m,h.n,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
+                float3 bsdf=eval_bsdf(m,h.n,h.tangent,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
             }
             if(bounce==0 && delta)first_spec=true;
             previous_pdf=bsdf_pdf;previous_delta=delta;previous_position=h.p;

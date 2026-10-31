@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Layered white furnace",
- "description": "The white furnace for track 11: white spheres under clear coats and sheens of several roughnesses in a uniform white world. A layer that gains energy shows brighter than the background; a small darkening is the energy the GGX lobes lose to single scattering.",
+ "description": "The white furnace for track 11: white spheres under clear coats and sheens of several roughnesses, and brushed white metal, in a uniform white world. A layer that gains energy shows brighter than the background; a small darkening is the energy the GGX lobes lose to single scattering.",
  "tags": [
   "validation",
   "energy",
@@ -552,6 +552,99 @@
      "unlit": false,
      "clearcoat": 1.0,
      "clearcoat_roughness": 0.1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Brushed metal",
+    "shape": "sphere",
+    "position": [
+     -1.8,
+     1.6
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "anisotropy": 1.0,
+     "anisotropy_rotation": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spun metal",
+    "shape": "sphere",
+    "position": [
+     1.8,
+     1.6
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "anisotropy": 1.0,
+     "anisotropy_rotation": 0.0,
+     "anisotropy_spun": true
     },
     "portal": -1
    }

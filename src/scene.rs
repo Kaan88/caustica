@@ -44,6 +44,19 @@ pub struct Material {
     pub sheen_color: [f32; 3],
     #[serde(skip_serializing_if = "is_default_sheen_roughness")]
     pub sheen_roughness: f32,
+    /// Anisotropy (track 11, brushed metal): 0–1 raises the roughness across the brushing
+    /// direction (glTF's KHR_materials_anisotropy strength), so highlights streak across it.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub anisotropy: f32,
+    /// The brushing direction in degrees about the normal (−180..180), from the object's x axis.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub anisotropy_rotation: f32,
+    /// Brushed in circles around the object's y axis (a pan, a watch dial, a record) instead.
+    #[serde(skip_serializing_if = "is_false")]
+    pub anisotropy_spun: bool,
+}
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 fn is_zero(v: &u32) -> bool {
     *v == 0
@@ -83,6 +96,9 @@ impl Default for Material {
             sheen: 0.,
             sheen_color: [1.; 3],
             sheen_roughness: 0.5,
+            anisotropy: 0.,
+            anisotropy_rotation: 0.,
+            anisotropy_spun: false,
         }
     }
 }
@@ -907,11 +923,13 @@ impl Settings {
                         m.clearcoat,
                         m.clearcoat_roughness,
                         m.sheen,
-                        m.sheen_roughness
+                        m.sheen_roughness,
+                        m.anisotropy
                     ]
                     .iter()
                     .chain(&m.sheen_color)
-                    .all(|v| (0. ..=1.).contains(v)),
+                    .all(|v| (0. ..=1.).contains(v))
+                    && (-180. ..=180.).contains(&m.anisotropy_rotation),
                 "Invalid material"
             );
             anyhow::ensure!(

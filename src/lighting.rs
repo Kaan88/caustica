@@ -16,9 +16,9 @@ pub struct PackedMaterial {
     pub base_scale: [f32; 4],
     /// Roughness and metallic value / map average (G and B channels); z, w unused.
     pub surface_scale: [f32; 4],
-    /// Track 11: clear coat, coat roughness, sheen roughness; w unused.
+    /// Track 11: clear coat, coat roughness, sheen roughness, anisotropy.
     pub layers: [f32; 4],
-    /// Sheen colour times its strength; w unused.
+    /// Sheen colour times its strength; w the anisotropy's rotation (radians).
     pub sheen: [f32; 4],
 }
 #[repr(C)]
@@ -36,8 +36,8 @@ fn pack(m: &Material) -> PackedMaterial {
             m.metallic,
             m.reflectivity,
             m.transmission,
-            // Flag bits 8–10: the nested-dielectric priority.
-            (m.unlit as u32 | m.priority.min(7) << 8) as f32,
+            // Flag bits 8–10: the nested-dielectric priority; bit 11: spun anisotropy.
+            (m.unlit as u32 | m.priority.min(7) << 8 | (m.anisotropy_spun as u32) << 11) as f32,
         ],
         optical: [m.ior, m.emission, m.pattern as u32 as f32, 0.],
         secondary: [
@@ -59,12 +59,17 @@ fn pack(m: &Material) -> PackedMaterial {
             },
         ],
         surface_scale: [0.; 4],
-        layers: [m.clearcoat, m.clearcoat_roughness, m.sheen_roughness, 0.],
+        layers: [
+            m.clearcoat,
+            m.clearcoat_roughness,
+            m.sheen_roughness,
+            m.anisotropy,
+        ],
         sheen: [
             m.sheen_color[0] * m.sheen,
             m.sheen_color[1] * m.sheen,
             m.sheen_color[2] * m.sheen,
-            0.,
+            m.anisotropy_rotation.to_radians(),
         ],
     }
 }
