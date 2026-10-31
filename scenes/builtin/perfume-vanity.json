@@ -1,0 +1,3639 @@
+{
+ "format": 1,
+ "title": "Perfume vanity",
+ "description": "Perfume bottles on a mirror tray in front of a velvet curtain: the liquids and the sealed air above them nest inside the glass by priority, the atomiser bulb and the curtain folds are sheen, the jewellery box and the pearls are clear-coated.",
+ "tags": [
+  "glass",
+  "nested dielectrics",
+  "clearcoat",
+  "sheen"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.03,
+  "base": [
+   0.12,
+   0.05,
+   0.06
+  ],
+  "floor": {
+   "color": [
+    0.12,
+    0.01,
+    0.03
+   ],
+   "roughness": 1.0,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false,
+   "sheen": 1.0,
+   "sheen_color": [
+    0.9,
+    0.35,
+    0.45
+   ],
+   "sheen_roughness": 0.35
+  },
+  "light_on": true,
+  "light_position": [
+   -1.2,
+   2.5,
+   1.5
+  ],
+  "light_size": 1.2,
+  "light_intensity": 18.0,
+  "light_visible": false,
+  "light_temperature": 4200.0,
+  "lights": [
+   {
+    "name": "Rim",
+    "position": [
+     1.6,
+     1.0,
+     -1.0
+    ],
+    "rotation": [
+     47.981,
+     122.005,
+     0.0
+    ],
+    "size": [
+     1.0,
+     1.0
+    ],
+    "color": [
+     1.0,
+     0.92,
+     0.85
+    ],
+    "intensity": 10.0,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 24,
+  "yaw": 8,
+  "pitch": 14,
+  "distance": 2.9,
+  "target": [
+   0.15,
+   -0.65,
+   0.1
+  ],
+  "fov": 38,
+  "objects": [
+   {
+    "name": "Mirror tray",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.8571,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.0,
+     1.5
+    ],
+    "elevation": -0.985,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.02,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Square bottle",
+    "shape": "box",
+    "position": [
+     -0.5,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6,
+     0.3714
+    ],
+    "elevation": -0.62,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Amber perfume",
+    "shape": "box",
+    "position": [
+     -0.5,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.5857,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4857,
+     0.2571
+    ],
+    "elevation": -0.705,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.4,
+      0.05
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Square bottle air",
+    "shape": "box",
+    "position": [
+     -0.5,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.2571,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4857,
+     0.2571
+    ],
+    "elevation": -0.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Square bottle neck",
+    "shape": "cylinder",
+    "position": [
+     -0.5,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.1286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1429,
+     0.1429
+    ],
+    "elevation": -0.245,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Gold cap",
+    "shape": "cylinder",
+    "position": [
+     -0.5,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2286,
+     0.2286
+    ],
+    "elevation": -0.14,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Round bottle",
+    "shape": "cylinder",
+    "position": [
+     0.15,
+     -0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.7429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5714,
+     0.5714
+    ],
+    "elevation": -0.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rose perfume",
+    "shape": "cylinder",
+    "position": [
+     0.15,
+     -0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.4571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4571,
+     0.4571
+    ],
+    "elevation": -0.76,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.12,
+      0.4
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Round bottle air",
+    "shape": "cylinder",
+    "position": [
+     0.15,
+     -0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.1571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4571,
+     0.4571
+    ],
+    "elevation": -0.555,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Atomiser collar",
+    "shape": "cylinder",
+    "position": [
+     0.15,
+     -0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1286,
+     0.1286
+    ],
+    "elevation": -0.42,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.02,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Atomiser tube",
+    "shape": "cylinder",
+    "position": [
+     0.29,
+     -0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.04,
+     0.04
+    ],
+    "elevation": -0.41,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.02,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Atomiser bulb",
+    "shape": "sphere",
+    "position": [
+     0.48,
+     -0.15
+    ],
+    "size": 0.2571,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.41,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.02,
+      0.1
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1.0,
+      0.5,
+      0.7
+     ],
+     "sheen_roughness": 0.3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Slim bottle",
+    "shape": "cylinder",
+    "position": [
+     0.6,
+     0.15
+    ],
+    "size": 1.0,
+    "stretch": 1.2429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     0.2857
+    ],
+    "elevation": -0.535,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Blue perfume",
+    "shape": "cylinder",
+    "position": [
+     0.6,
+     0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.8143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2143,
+     0.2143
+    ],
+    "elevation": -0.635,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.45,
+      0.95
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 3
+    },
+    "portal": -1
+   },
+   {
+    "name": "Slim bottle air",
+    "shape": "cylinder",
+    "position": [
+     0.6,
+     0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.3,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2143,
+     0.2143
+    ],
+    "elevation": -0.255,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stopper",
+    "shape": "octahedron",
+    "position": [
+     0.6,
+     0.15
+    ],
+    "size": 0.28,
+    "stretch": 1.3,
+    "rotation": 20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.03,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lacquer box",
+    "shape": "box",
+    "position": [
+     1.3,
+     -0.35
+    ],
+    "size": 1.0,
+    "stretch": 0.3571,
+    "rotation": -20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8571,
+     0.5714
+    ],
+    "elevation": -0.875,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.02,
+      0.02
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Gold ring",
+    "shape": "ring",
+    "position": [
+     1.0,
+     0.55
+    ],
+    "size": 0.35,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 1",
+    "shape": "sphere",
+    "position": [
+     -0.322,
+     0.7073
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 2",
+    "shape": "sphere",
+    "position": [
+     -0.3381,
+     0.6791
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 3",
+    "shape": "sphere",
+    "position": [
+     -0.3584,
+     0.6522
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 4",
+    "shape": "sphere",
+    "position": [
+     -0.3826,
+     0.6267
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 5",
+    "shape": "sphere",
+    "position": [
+     -0.4106,
+     0.603
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 6",
+    "shape": "sphere",
+    "position": [
+     -0.442,
+     0.5813
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 7",
+    "shape": "sphere",
+    "position": [
+     -0.4764,
+     0.5618
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 8",
+    "shape": "sphere",
+    "position": [
+     -0.5137,
+     0.5447
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 9",
+    "shape": "sphere",
+    "position": [
+     -0.5533,
+     0.5302
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 10",
+    "shape": "sphere",
+    "position": [
+     -0.5949,
+     0.5184
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 11",
+    "shape": "sphere",
+    "position": [
+     -0.6381,
+     0.5094
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 12",
+    "shape": "sphere",
+    "position": [
+     -0.6824,
+     0.5034
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 13",
+    "shape": "sphere",
+    "position": [
+     -0.7274,
+     0.5004
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 14",
+    "shape": "sphere",
+    "position": [
+     -0.7726,
+     0.5004
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 15",
+    "shape": "sphere",
+    "position": [
+     -0.8176,
+     0.5034
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 16",
+    "shape": "sphere",
+    "position": [
+     -0.8619,
+     0.5094
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 17",
+    "shape": "sphere",
+    "position": [
+     -0.9051,
+     0.5184
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 18",
+    "shape": "sphere",
+    "position": [
+     -0.9467,
+     0.5302
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 19",
+    "shape": "sphere",
+    "position": [
+     -0.9863,
+     0.5447
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 20",
+    "shape": "sphere",
+    "position": [
+     -1.0236,
+     0.5618
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 21",
+    "shape": "sphere",
+    "position": [
+     -1.058,
+     0.5813
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 22",
+    "shape": "sphere",
+    "position": [
+     -1.0894,
+     0.603
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 23",
+    "shape": "sphere",
+    "position": [
+     -1.1174,
+     0.6267
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 24",
+    "shape": "sphere",
+    "position": [
+     -1.1416,
+     0.6522
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 25",
+    "shape": "sphere",
+    "position": [
+     -1.1619,
+     0.6791
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pearl 26",
+    "shape": "sphere",
+    "position": [
+     -1.178,
+     0.7073
+    ],
+    "size": 0.1,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.965,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.84
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 1",
+    "shape": "cylinder",
+    "position": [
+     -3.0,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 2",
+    "shape": "cylinder",
+    "position": [
+     -2.8,
+     -1.4615
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 3",
+    "shape": "cylinder",
+    "position": [
+     -2.6,
+     -1.4794
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 4",
+    "shape": "cylinder",
+    "position": [
+     -2.4,
+     -1.5275
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 5",
+    "shape": "cylinder",
+    "position": [
+     -2.2,
+     -1.5353
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 6",
+    "shape": "cylinder",
+    "position": [
+     -2.0,
+     -1.4914
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 7",
+    "shape": "cylinder",
+    "position": [
+     -1.8,
+     -1.4601
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 8",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     -1.4872
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 9",
+    "shape": "cylinder",
+    "position": [
+     -1.4,
+     -1.5331
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 10",
+    "shape": "cylinder",
+    "position": [
+     -1.2,
+     -1.5305
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 11",
+    "shape": "cylinder",
+    "position": [
+     -1.0,
+     -1.4832
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 12",
+    "shape": "cylinder",
+    "position": [
+     -0.8,
+     -1.4605
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 13",
+    "shape": "cylinder",
+    "position": [
+     -0.6,
+     -1.4957
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 14",
+    "shape": "cylinder",
+    "position": [
+     -0.4,
+     -1.5372
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 15",
+    "shape": "cylinder",
+    "position": [
+     -0.2,
+     -1.5242
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 16",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     -1.4758
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 17",
+    "shape": "cylinder",
+    "position": [
+     0.2,
+     -1.4628
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 18",
+    "shape": "cylinder",
+    "position": [
+     0.4,
+     -1.5043
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 19",
+    "shape": "cylinder",
+    "position": [
+     0.6,
+     -1.5395
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 20",
+    "shape": "cylinder",
+    "position": [
+     0.8,
+     -1.5168
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 21",
+    "shape": "cylinder",
+    "position": [
+     1.0,
+     -1.4695
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 22",
+    "shape": "cylinder",
+    "position": [
+     1.2,
+     -1.4669
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 23",
+    "shape": "cylinder",
+    "position": [
+     1.4,
+     -1.5128
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 24",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -1.5399
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 25",
+    "shape": "cylinder",
+    "position": [
+     1.8,
+     -1.5086
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 26",
+    "shape": "cylinder",
+    "position": [
+     2.0,
+     -1.4646
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 27",
+    "shape": "cylinder",
+    "position": [
+     2.2,
+     -1.4725
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 28",
+    "shape": "cylinder",
+    "position": [
+     2.4,
+     -1.5207
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 29",
+    "shape": "cylinder",
+    "position": [
+     2.6,
+     -1.5385
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   },
+   {
+    "name": "Curtain fold 30",
+    "shape": "cylinder",
+    "position": [
+     2.8,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.008,
+      0.02
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      0.9,
+      0.3,
+      0.4
+     ],
+     "sheen_roughness": 0.35
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

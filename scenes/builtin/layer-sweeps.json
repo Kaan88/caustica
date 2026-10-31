@@ -1,0 +1,1257 @@
+{
+ "format": 1,
+ "title": "Layer sweeps",
+ "description": "Rows of spheres sweeping one layer parameter each, 0 to 1 from left to right: clear-coat roughness and amount over rough red paint, then sheen roughness and amount over navy cloth.",
+ "tags": [
+  "material",
+  "clearcoat",
+  "sheen",
+  "validation"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.05,
+  "base": [
+   0.2,
+   0.2,
+   0.2
+  ],
+  "floor": {
+   "color": [
+    0.2,
+    0.2,
+    0.2
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.04,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   0.0,
+   4.5,
+   1.5
+  ],
+  "light_size": 4.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Rim",
+    "position": [
+     0,
+     1.2,
+     -5.0
+    ],
+    "rotation": [
+     70.201,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     6.0,
+     1.0
+    ],
+    "color": [
+     0.9,
+     0.95,
+     1.0
+    ],
+    "intensity": 12.0,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 12,
+  "yaw": 0,
+  "pitch": 30,
+  "distance": 8.6,
+  "target": [
+   0,
+   -0.6,
+   0.15
+  ],
+  "fov": 40,
+  "light_aspect": 0.25,
+  "objects": [
+   {
+    "name": "Coat roughness 0.0",
+    "shape": "sphere",
+    "position": [
+     -2.75,
+     -1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat roughness 0.2",
+    "shape": "sphere",
+    "position": [
+     -1.65,
+     -1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat roughness 0.4",
+    "shape": "sphere",
+    "position": [
+     -0.55,
+     -1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat roughness 0.6",
+    "shape": "sphere",
+    "position": [
+     0.55,
+     -1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.6
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat roughness 0.8",
+    "shape": "sphere",
+    "position": [
+     1.65,
+     -1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.8
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat roughness 1.0",
+    "shape": "sphere",
+    "position": [
+     2.75,
+     -1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 1.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat 0.0",
+    "shape": "sphere",
+    "position": [
+     -2.75,
+     -0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 0.0,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat 0.2",
+    "shape": "sphere",
+    "position": [
+     -1.65,
+     -0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 0.2,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat 0.4",
+    "shape": "sphere",
+    "position": [
+     -0.55,
+     -0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 0.4,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat 0.6",
+    "shape": "sphere",
+    "position": [
+     0.55,
+     -0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 0.6,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat 0.8",
+    "shape": "sphere",
+    "position": [
+     1.65,
+     -0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 0.8,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coat 1.0",
+    "shape": "sphere",
+    "position": [
+     2.75,
+     -0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.03,
+      0.03
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen roughness 0.0",
+    "shape": "sphere",
+    "position": [
+     -2.75,
+     0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen roughness 0.2",
+    "shape": "sphere",
+    "position": [
+     -1.65,
+     0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen roughness 0.4",
+    "shape": "sphere",
+    "position": [
+     -0.55,
+     0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen roughness 0.6",
+    "shape": "sphere",
+    "position": [
+     0.55,
+     0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.6
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen roughness 0.8",
+    "shape": "sphere",
+    "position": [
+     1.65,
+     0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.8
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen roughness 1.0",
+    "shape": "sphere",
+    "position": [
+     2.75,
+     0.55
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 1.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen 0.0",
+    "shape": "sphere",
+    "position": [
+     -2.75,
+     1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen 0.2",
+    "shape": "sphere",
+    "position": [
+     -1.65,
+     1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.2,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen 0.4",
+    "shape": "sphere",
+    "position": [
+     -0.55,
+     1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.4,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen 0.6",
+    "shape": "sphere",
+    "position": [
+     0.55,
+     1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.6,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen 0.8",
+    "shape": "sphere",
+    "position": [
+     1.65,
+     1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.8,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sheen 1.0",
+    "shape": "sphere",
+    "position": [
+     2.75,
+     1.65
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03,
+      0.04,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 1.0,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.5
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

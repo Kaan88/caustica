@@ -1254,12 +1254,39 @@ scene("sky-garden-dusk", "Sky garden at dusk",
 
 
 
+def ranked(m, priority):
+    """A nested-dielectric material (track 10): where solids overlap, the highest priority wins."""
+    return {**m, "priority": priority}
+
+
+def clear(color, ior, priority, rough=0.0):
+    """A clear dielectric; its colour is the transmittance per unit of distance."""
+    return ranked(M(color, rough, trans=1, ior=ior), priority)
+
+
+def cyl(name, x, z, y0, y1, radius, material, **kw):
+    """An upright cylinder from y0 to y1."""
+    return float_at(name, "cylinder", x, (y0 + y1) / 2, z, 1.0, material,
+                    stretch=(y1 - y0) / 0.7, scale=(radius / 0.35, radius / 0.35), **kw)
+
+
+def block(name, x, z, y0, y1, width, depth, material, **kw):
+    """A box from y0 to y1, width along x and depth along z (before rotation)."""
+    return float_at(name, "box", x, (y0 + y1) / 2, z, 1.0, material,
+                    stretch=(y1 - y0) / 0.7, scale=(width / 0.7, depth / 0.7), **kw)
+
+
+def ball(name, x, y, z, radius, material, stretch=1.0, **kw):
+    # validate() keeps size >= 0.05: a smaller sphere is a size 0.1 one scaled down.
+    size = max(radius / 0.35, 0.1)
+    f = radius / 0.35 / size
+    return float_at(name, "sphere", x, y, z, size, material, stretch=stretch * f, scale=(f, f), **kw)
+
+
 def glass_of_water():
     """Track 10: a tumbler of water (gen:glass/2, two parts sharing one transform) with ice, a
     straw and air bubbles. Priorities: bubbles 4 > ice 3 > glass 2 > water 1, so the water may
     reach into the glass wall and the ice may poke out of the water."""
-    def ranked(m, priority):
-        return {**m, "priority": priority}
     glass = ranked(M((0.88, 0.97, 0.94), 0.0, trans=1, ior=1.52), 2)
     water = ranked(M((0.9, 0.97, 0.99), 0.0, trans=1, ior=1.33), 1)
     ice = ranked(M((0.95, 0.98, 1.0), 0.03, trans=1, ior=1.31), 3)
@@ -1301,12 +1328,16 @@ scene("glass-of-water", "Glass of water",
              objects=glass_of_water(), bounces=24, **camera(0, 12, 3.2, (0, -0.35, 0), 34)))
 
 
+def coat(m, amount=1.0, rough=0.02):
+    return {**m, "clearcoat": amount, "clearcoat_roughness": rough}
+
+
+def sheen(m, color, amount=1.0, rough=0.4):
+    return {**m, "sheen": amount, "sheen_color": [round(c, 4) for c in color], "sheen_roughness": rough}
+
+
 def layered():
     """Track 11: clear coat and sheen on shapes, with the same red paint bare and coated."""
-    def coat(m, amount=1.0, rough=0.02):
-        return {**m, "clearcoat": amount, "clearcoat_roughness": rough}
-    def sheen(m, color, amount=1.0, rough=0.4):
-        return {**m, "sheen": amount, "sheen_color": [round(c, 4) for c in color], "sheen_roughness": rough}
     paint = M((0.55, 0.02, 0.03), 0.38, metal=0.6, refl=0.1)
     return [
         obj("Paint, bare", "sphere", -2.7, -0.5, 1.25, paint),
@@ -1331,6 +1362,285 @@ scene("layered-materials", "Layered materials",
                      light("Fill", (4.0, 1.5, 3.0), (2.0, 2.0), (1.0, 0.9, 0.8), 2.5, target=(0, -0.6, 0))],
              floor=M((0.16, 0.15, 0.14), 0.5, refl=0.05), base=[0.16, 0.15, 0.14], sky=0.04,
              objects=layered(), bounces=12, **camera(0, 13, 6.4, (0.1, -0.5, 0.1), 40)))
+
+
+# Nested dielectrics as constructive solid geometry: a solid glass cylinder hollowed by a liquid
+# or an air cylinder of higher priority reads as a filled glass, with no inner wall to model.
+AIR = clear((1, 1, 1), 1.0, 6)
+CRYSTAL = clear((0.95, 0.985, 0.975), 1.52, 1)
+
+
+def backdrop_bars(z=-1.6):
+    """A board of vertical stripes behind glassware, to show what the liquids bend."""
+    return obj("Bars", "box", 0, z, 1.0, M((0.85, 0.83, 0.78), 0.8, refl=0.0, pattern="checker",
+               second=(0.05, 0.05, 0.06), pscale=6.0), stretch=8.0, scale=(14.0, 0.2))
+
+
+def cocktail():
+    """A highball of three liquids (grenadine 4 > juice 3 > curaçao 2, each overlapping the next)
+    under an air headspace (6), with ice (7) above everything; and a whisky tumbler beside it."""
+    x0 = -0.45
+    out = [cyl("Highball glass", x0, 0, -1.0, 0.45, 0.42, CRYSTAL),
+           cyl("Headspace", x0, 0, 0.14, 0.55, 0.38, AIR),
+           cyl("Grenadine", x0, 0, -0.9, -0.52, 0.38, clear((0.7, 0.02, 0.05), 1.45, 4)),
+           cyl("Orange juice", x0, 0, -0.53, -0.12, 0.38, clear((0.97, 0.5, 0.08), 1.35, 3)),
+           cyl("Blue curaçao", x0, 0, -0.13, 0.15, 0.38, clear((0.1, 0.4, 0.95), 1.36, 2))]
+    ice = clear((0.96, 0.98, 1.0), 1.31, 7, rough=0.04)
+    for i, (dx, dz, rot) in enumerate([(-0.12, 0.06, 20), (0.13, -0.05, 55)]):
+        out.append(float_at(f"Ice {i + 1}", "box", x0 + dx, 0.12, dz, 0.31, ice, rotation=rot, tilt=(8, -6)))
+    out.append(ball("Cherry", x0 - 0.1, 0.3, 0.08, 0.07, lacquer((0.55, 0.01, 0.03), 0.15)))
+    out.append(float_at("Straw", "cylinder", x0 + 0.12, -0.1, -0.08, 1.0, lacquer((0.95, 0.9, 0.85), 0.3),
+                        stretch=1.5 / 0.7, scale=(0.075, 0.075), tilt=(-9, -8)))
+    x1, z1 = 0.6, 0.35
+    out += [cyl("Tumbler", x1, z1, -1.0, -0.3, 0.33, CRYSTAL),
+            cyl("Tumbler headspace", x1, z1, -0.56, -0.2, 0.29, AIR),
+            cyl("Whisky", x1, z1, -0.92, -0.55, 0.29, clear((0.8, 0.42, 0.1), 1.36, 2)),
+            ball("Ice sphere", x1 + 0.03, -0.58, z1 - 0.02, 0.15, ice)]
+    return out + [backdrop_bars()]
+
+
+scene("layered-cocktail", "Layered cocktail",
+      "Grenadine, orange juice and curaçao in a highball, and whisky over an ice ball: nested dielectrics "
+      "carve the liquids and the air above them out of solid glass cylinders by priority, so every "
+      "liquid–liquid, liquid–glass and ice–liquid interface bends light by its own ratio of indices.",
+      ["glass", "nested dielectrics", "caustics", "absorption"],
+      studio(light_position=[-1.5, 3.0, -2.0], light_size=0.8, light_intensity=45.0,
+             lights=[light("Fill", (2.5, 1.5, 3.0), (2.5, 2.5), (1.0, 0.95, 0.9), 3.0, target=(0, -0.5, 0))],
+             floor=M((0.75, 0.73, 0.7), 0.4, refl=0.05), base=[0.62, 0.6, 0.57], sky=0.12,
+             objects=cocktail(), bounces=24, **camera(0, 10, 3.8, (0.05, -0.35, 0), 36)))
+
+
+def paperweights():
+    """Glass paperweights (1) holding coloured glass of a higher index (2, 3) and air bubbles (6)."""
+    def colored(c, ior=1.7, priority=2):
+        return clear(c, ior, priority)
+    r = random.Random(11)
+    out = []
+    # A sphere around a cobalt knot, with a shell of bubbles clear of the knot.
+    cx, cy, cz, radius = -1.1, -1.0 + 0.525, 0.1, 0.525
+    out.append(ball("Sphere paperweight", cx, cy, cz, radius, CRYSTAL))
+    out.append(float_at("Cobalt knot", "knot", cx, cy, cz, 0.75, colored((0.02, 0.12, 0.75)), tilt=(20, 10)))
+    for i in range(18):
+        a, b, d = r.uniform(0, 2 * math.pi), r.uniform(-0.8, 0.8), r.uniform(0.33, 0.44)
+        out.append(ball(f"Bubble {i + 1}", cx + d * math.cos(a) * math.sqrt(1 - b * b), cy + d * b,
+                        cz + d * math.sin(a) * math.sqrt(1 - b * b), r.uniform(0.012, 0.03), AIR))
+    # A block around a ruby torus with an emerald octahedron in its hole.
+    bx, bz = 0.2, -0.45
+    out.append(block("Block paperweight", bx, bz, -1.0, -0.45, 0.9, 0.9, CRYSTAL, rotation=20))
+    out.append(float_at("Ruby torus", "torus", bx, -0.725, bz, 0.7, colored((0.85, 0.02, 0.05)), tilt=(35, 0), rotation=20))
+    out.append(float_at("Emerald", "octahedron", bx, -0.725, bz, 0.3, colored((0.04, 0.7, 0.15), 1.6, 3), rotation=30))
+    # A low dome of millefiori: canes of coloured glass around a gold bead. (A wide flat-bottomed
+    # solid shows a large patch of floor under it, lit straight through the glass by shadow rays.)
+    dx, dz = 1.25, 0.5
+    out.append(float_at("Dome paperweight", "sphere", dx, -0.81, dz, 1.0, CRYSTAL, stretch=0.54, scale=(1.43, 1.43)))
+    out.append(ball("Gold bead", dx, -0.81, dz, 0.05, GOLD))
+    hues = [(0.9, 0.1, 0.05), (0.95, 0.6, 0.02), (0.1, 0.75, 0.1), (0.05, 0.4, 0.95), (0.55, 0.05, 0.9), (0.95, 0.2, 0.6)]
+    for i, c in enumerate(hues):
+        a = i / len(hues) * 2 * math.pi
+        out.append(float_at(f"Cane {i + 1}", "torus", dx + 0.25 * math.cos(a), -0.81, dz + 0.25 * math.sin(a), 0.3, colored(c)))
+    out.append(float_at("Centre cane", "torus", dx, -0.81, dz, 0.4, colored((0.95, 0.95, 0.3), 1.65)))
+    return out
+
+
+scene("paperweights", "Glass paperweights",
+      "Three paperweights: a cobalt knot and a shell of bubbles in a sphere, a ruby torus around an emerald "
+      "in a block, and millefiori canes in a low dome. Coloured glass of a higher index nests in clear glass; a "
+      "small hard light throws their coloured caustics across the linen.",
+      ["glass", "nested dielectrics", "caustics", "absorption"],
+      studio(light_position=[-2.0, 3.5, 1.0], light_size=0.45, light_intensity=90.0,
+             lights=[light("Rim", (2.0, 2.0, -3.0), (2.0, 1.5), (0.8, 0.9, 1.0), 6.0, target=(0, -0.8, 0))],
+             floor=M((0.8, 0.77, 0.7), 0.6, refl=0.03), base=[0.5, 0.48, 0.45], sky=0.08,
+             objects=paperweights(), bounces=24, **camera(0, 24, 4.2, (0.1, -0.7, 0.05), 34)))
+
+
+def aquarium():
+    """A glass tank (1) hollowed by water (2) and an air headspace (3) that reaches past its rim,
+    with marbles (4) and bubbles (5) in the water, and gravel, plants, fish and a rock that are
+    opaque and sit inside the water medium."""
+    out = [block("Tank", 0, 0, -1.0, 0.6, 3.0, 1.2, clear((0.9, 0.97, 0.95), 1.5, 1)),
+           block("Water", 0, 0, -0.92, 0.35, 2.9, 1.1, clear((0.75, 0.92, 0.95), 1.33, 2)),
+           block("Air above the water", 0, 0, 0.34, 0.7, 2.9, 1.1, clear((1, 1, 1), 1.0, 3))]
+    r = random.Random(12)
+    for i in range(220):
+        rad = r.uniform(0.03, 0.06)
+        g = r.uniform(0.08, 0.3)
+        tone = (g, g * r.uniform(0.75, 0.95), g * r.uniform(0.5, 0.85))
+        out.append(ball(f"Pebble {i + 1}", r.uniform(-1.4, 1.4), -0.92 + rad * 0.3, r.uniform(-0.5, 0.5), rad,
+                        M(tone, 0.6, refl=0.04), stretch=r.uniform(0.6, 0.9), rotation=r.uniform(0, 360)))
+    for i, (x, z, h, tilt) in enumerate([(-1.25, -0.4, 1.0, (4, 6)), (-1.1, -0.3, 0.8, (-6, 3)), (-1.3, -0.15, 0.6, (3, -8)),
+                                         (-0.95, -0.42, 0.7, (5, -4)), (1.0, -0.4, 0.9, (-5, 5)), (1.2, -0.3, 1.1, (3, -3)),
+                                         (1.3, -0.1, 0.65, (-4, -7)), (0.2, -0.45, 0.55, (6, 2))]):
+        green = lacquer((0.04 + 0.03 * (i % 3), 0.35 + 0.05 * (i % 2), 0.08), 0.35)
+        out.append(obj(f"Plant {i + 1}", "cone", x, z, 0.3, green, stretch=h / 0.21, tilt=tilt, elevation=0.06))
+    out.append(obj("Rock", "octahedron", 0.6, -0.2, 0.9, matte((0.12, 0.11, 0.1), 0.8), stretch=0.7, rotation=25,
+                   tilt=(18, -12), elevation=0.06))
+    out.append(obj("Jade bunny", "bunny", -0.45, 0.1, 0.7, JADE, rotation=35, elevation=0.06))
+    for i in range(5):
+        out.append(cyl(f"Coin {i + 1}", -0.05 + 0.09 * i + r.uniform(-0.03, 0.03), 0.25 + r.uniform(-0.1, 0.1),
+                       -0.91 + 0.012 * (i % 2), -0.9 + 0.012 * (i % 2), 0.045, GOLD, tilt=(r.uniform(-8, 8), r.uniform(-8, 8))))
+    for i, (x, z, c) in enumerate([(-0.15, 0.35, (0.3, 0.6, 0.95)), (0.95, 0.3, (0.95, 0.4, 0.2)), (0.3, 0.05, (0.3, 0.9, 0.4))]):
+        out.append(ball(f"Marble {i + 1}", x, -0.85, z, 0.07, clear(c, 1.5, 4)))
+    for i in range(16):
+        y = -0.85 + i * 0.075
+        out.append(ball(f"Bubble {i + 1}", 1.1 + 0.03 * math.sin(i * 1.7), y, 0.3 + 0.02 * math.cos(i * 2.3),
+                        0.018 + 0.0015 * i, clear((1, 1, 1), 1.0, 5)))
+    for i, (x, y, z, side, c) in enumerate([(-0.3, -0.1, 0.0, 1, (0.95, 0.35, 0.03)), (0.55, 0.1, 0.2, -1, (0.95, 0.75, 0.05)),
+                                            (0.1, -0.45, -0.25, 1, (0.1, 0.35, 0.9))]):
+        fish = lacquer(c, 0.25)
+        out.append(float_at(f"Fish {i + 1}", "sphere", x, y, z, 0.35, fish, stretch=0.55, scale=(1.7, 0.45),
+                            rotation=0 if side > 0 else 180))
+        out.append(float_at(f"Fish {i + 1} tail", "cone", x - side * 0.24, y, z, 0.25, fish, stretch=0.8,
+                            scale=(1.0, 0.25), tilt=(0, -90 * side)))
+    out.append(block("Backdrop", 0, -0.78, -1.0, 1.4, 4.0, 0.04, matte((0.04, 0.16, 0.3), 0.9)))
+    return out
+
+
+scene("aquarium", "Aquarium",
+      "A glass tank of water under its lamp: the water and the air above it are carved out of a solid glass "
+      "box by priority, so the walls are one water–glass interface. Fish, plants, coins, marbles, bubbles "
+      "and a jade bunny sit in the water, and its surface mirrors them seen from below.",
+      ["glass", "nested dielectrics", "water"],
+      studio(light_position=[-2.0, 3.0, 3.0], light_size=2.0, light_intensity=2.5, sky=0.05,
+             lights=[light("Tank lamp", (0, 1.3, 0), (2.6, 0.8), (1.0, 0.97, 0.9), 30.0)],
+             floor=M((0.3, 0.27, 0.24), 0.5, refl=0.04), base=[0.2, 0.22, 0.25],
+             objects=aquarium(), bounces=24, **camera(0, 6, 4.6, (0, -0.2, 0), 40)))
+
+
+def layer_sweeps():
+    """Four rows of spheres: coat roughness, coat amount, sheen roughness, sheen amount."""
+    steps = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    red = M((0.6, 0.03, 0.03), 0.6, refl=0.04)
+    navy = matte((0.03, 0.04, 0.12), 1.0)
+    rows = [("Coat roughness", lambda v: coat(red, 1.0, v)),
+            ("Coat", lambda v: coat(red, v, 0.03)),
+            ("Sheen roughness", lambda v: sheen(navy, (1, 1, 1), 1.0, v)),
+            ("Sheen", lambda v: sheen(navy, (1, 1, 1), v, 0.5))]
+    return [obj(f"{label} {v}", "sphere", -2.75 + 1.1 * j, -1.65 + 1.1 * i, 1.4, make(v))
+            for i, (label, make) in enumerate(rows) for j, v in enumerate(steps)]
+
+
+scene("layer-sweeps", "Layer sweeps",
+      "Rows of spheres sweeping one layer parameter each, 0 to 1 from left to right: clear-coat roughness and "
+      "amount over rough red paint, then sheen roughness and amount over navy cloth.",
+      ["material", "clearcoat", "sheen", "validation"],
+      studio(light_position=[0.0, 4.5, 1.5], light_size=4.0, light_aspect=0.25, light_intensity=12.0,
+             lights=[light("Rim", (0, 1.2, -5.0), (6.0, 1.0), (0.9, 0.95, 1.0), 12.0, target=(0, -0.6, 0))],
+             floor=M((0.2, 0.2, 0.2), 0.6, refl=0.04), base=[0.2, 0.2, 0.2], sky=0.05,
+             objects=layer_sweeps(), bounces=12, **camera(0, 30, 8.6, (0, -0.6, 0.15), 40)))
+
+scene("layered-furnace", "Layered white furnace",
+      "The white furnace for track 11: white spheres under clear coats and sheens of several roughnesses in a "
+      "uniform white world. A layer that gains energy shows brighter than the background; a small darkening "
+      "is the energy the GGX lobes lose to single scattering.",
+      ["validation", "energy", "clearcoat", "sheen"],
+      studio(light_on=False, lights=[], sky=0.0, background=[1.0, 1.0, 1.0], base=[1.0, 1.0, 1.0],
+             floor=M((1, 1, 1), 1.0, refl=0.0), floor_extent=40.0, tonemap=0, exposure=0.7, bounces=32,
+             objects=[obj(f"Coat {c}", "sphere", -1.8 + 1.2 * i, 0, 1.4, coat(M((1, 1, 1), 1.0, refl=0.0), 1.0, c))
+                      for i, c in enumerate([0.0, 0.3, 0.6, 1.0])]
+             + [obj(f"Sheen {s}", "sphere", -1.8 + 1.2 * i, -1.6, 1.4, sheen(M((1, 1, 1), 1.0, refl=0.0), (1, 1, 1), 1.0, s))
+                for i, s in enumerate([0.1, 0.4, 0.7, 1.0])]
+             + [obj("Coat and sheen", "sphere", -0.6, 1.6, 1.4, coat(sheen(M((1, 1, 1), 1.0, refl=0.0), (1, 1, 1), 1.0, 0.5), 1.0, 0.1)),
+                obj("Coated metal", "sphere", 0.6, 1.6, 1.4, coat(M((1, 1, 1), 0.5, metal=1), 1.0, 0.1))],
+             **camera(0, 18, 9, (0, -0.4, 0))))
+
+
+def lounge():
+    """A velvet sofa with cushions and pillows, a lacquered table, a glazed vase, peaches, a felt rug."""
+    velvet = sheen(matte((0.015, 0.06, 0.04), 1.0), (0.35, 0.85, 0.6), 1.0, 0.3)
+    wood = M((0.2, 0.1, 0.05), 0.5, refl=0.04)
+    chrome = M((0.92, 0.94, 0.97), 0.05, metal=1)
+    out = [block("Back wall", 0, -1.7, -1.0, 2.4, 13.0, 0.1, matte((0.38, 0.33, 0.29), 0.9)),
+           block("Rug", 0, 0.05, -1.0, -0.99, 3.4, 2.2, sheen(matte((0.45, 0.1, 0.06), 1.0), (1.0, 0.6, 0.5), 0.8, 0.7)),
+           block("Sofa base", 0, -0.9, -0.88, -0.6, 2.4, 0.9, velvet),
+           block("Sofa back", 0, -1.25, -0.6, 0.05, 2.4, 0.2, velvet)]
+    for side in (-1, 1):
+        out.append(block("Sofa arm", side * 1.3, -0.9, -0.88, -0.3, 0.2, 0.9, velvet))
+        out.append(block("Seat cushion", side * 0.58, -0.82, -0.6, -0.42, 1.12, 0.74, velvet))
+        out.append(block("Back cushion", side * 0.58, -1.08, -0.42, 0.0, 1.1, 0.16, velvet, tilt=(-8, 0)))
+        for dz in (-1.28, -0.52):
+            out.append(cyl("Sofa leg", side * 1.3, dz, -1.0, -0.88, 0.035, wood))
+    out.append(float_at("Mustard pillow", "sphere", -0.85, -0.2, -0.98, 1.0,
+                        sheen(matte((0.35, 0.2, 0.02), 1.0), (1.0, 0.85, 0.4), 1.0, 0.35),
+                        stretch=0.85, scale=(1.0, 0.4), tilt=(-15, 0), rotation=12))
+    out.append(float_at("Rose pillow", "sphere", 0.85, -0.2, -0.98, 1.0,
+                        sheen(matte((0.3, 0.02, 0.08), 1.0), (1.0, 0.45, 0.6), 1.0, 0.35),
+                        stretch=0.85, scale=(1.0, 0.4), tilt=(-15, 0), rotation=-10))
+    # The table: a black lacquer top on chrome legs.
+    out.append(block("Table top", 0, 0.35, -0.62, -0.58, 1.4, 0.7, coat(matte((0.02, 0.015, 0.012), 0.6), 1.0, 0.02)))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            out.append(cyl("Table leg", sx * 0.64, 0.35 + sz * 0.29, -1.0, -0.62, 0.02, chrome))
+    out.append(cyl("Glazed vase", -0.38, 0.3, -0.58, -0.18, 0.1, coat(matte((0.1, 0.25, 0.55), 0.7), 1.0, 0.04)))
+    out.append(obj("Brass bowl", "torus", 0.25, 0.4, 0.75, coat(M((0.9, 0.65, 0.3), 0.35, metal=1), 1.0, 0.05),
+                   elevation=0.42))
+    peach = sheen(M((0.8, 0.28, 0.08), 0.75, refl=0.02), (1.0, 0.8, 0.7), 0.7, 0.9)
+    for i, (dx, dz) in enumerate([(-0.05, 0.0), (0.05, 0.02), (0.0, -0.05)]):
+        out.append(ball(f"Peach {i + 1}", 0.25 + dx, -0.47, 0.4 + dz, 0.06, peach))
+    # A floor lamp: a chrome pole and a glowing globe.
+    out.append(cyl("Lamp pole", 1.85, -1.2, -1.0, 0.75, 0.02, chrome))
+    out.append(ball("Lamp globe", 1.85, 0.9, -1.2, 0.17, emitter((1.0, 0.75, 0.45), 6.0, unlit=False)))
+    return out
+
+
+scene("velvet-lounge", "Velvet lounge",
+      "A green velvet sofa with mustard and rose pillows, a black lacquer table, a glazed vase, a brass bowl of "
+      "peaches and a felt rug on a clear-coated floor: sheen gives the cloth its bright edges, the coats their "
+      "sharp reflections over a soft base.",
+      ["interior", "clearcoat", "sheen", "material"],
+      studio(light_position=[-1.5, 3.2, 1.5], light_size=2.5, light_intensity=8.0, light_temperature=3400.0,
+             lights=[light("Window", (3.2, 1.0, -0.4), (1.5, 2.5), (0.7, 0.8, 1.0), 5.0, target=(0, -0.5, -0.9))],
+             floor=coat(M((0.3, 0.16, 0.08), 0.5, refl=0.04), 1.0, 0.1), base=[0.35, 0.3, 0.26], sky=0.04,
+             objects=lounge(), bounces=12, **camera(-12, 8, 4.6, (0, -0.45, -0.4), 45)))
+
+
+def vanity():
+    """Perfume bottles (glass 1, liquids 3, sealed air 5) on a mirror tray, on velvet (sheen) in
+    front of a velvet curtain, with a lacquered box, a gold ring and coated pearls."""
+    chrome = M((0.92, 0.94, 0.97), 0.02, metal=1)
+    sealed = clear((1, 1, 1), 1.0, 5)
+    out = [block("Mirror tray", 0, 0, -1.0, -0.97, 1.8, 0.9, chrome)]
+    # A square amber bottle with a gold cap.
+    x, z, rot = -0.5, 0.0, 15
+    out += [block("Square bottle", x, z, -0.97, -0.27, 0.42, 0.26, CRYSTAL, rotation=rot),
+            block("Amber perfume", x, z, -0.91, -0.5, 0.34, 0.18, clear((0.85, 0.4, 0.05), 1.36, 3), rotation=rot),
+            block("Square bottle air", x, z, -0.51, -0.33, 0.34, 0.18, sealed, rotation=rot),
+            cyl("Square bottle neck", x, z, -0.29, -0.2, 0.05, CRYSTAL),
+            cyl("Gold cap", x, z, -0.2, -0.08, 0.08, coat(GOLD, 1.0, 0.03))]
+    # A round rose bottle with an atomiser: a chrome tube to a velvet bulb.
+    x, z = 0.15, -0.15
+    out += [cyl("Round bottle", x, z, -0.97, -0.45, 0.2, CRYSTAL),
+            cyl("Rose perfume", x, z, -0.92, -0.6, 0.16, clear((0.9, 0.12, 0.4), 1.36, 3)),
+            cyl("Round bottle air", x, z, -0.61, -0.5, 0.16, sealed),
+            cyl("Atomiser collar", x, z, -0.46, -0.38, 0.045, chrome),
+            float_at("Atomiser tube", "cylinder", x + 0.14, -0.41, z, 1.0, chrome, stretch=0.28 / 0.7, scale=(0.04, 0.04), tilt=(0, 90)),
+            ball("Atomiser bulb", x + 0.33, -0.41, z, 0.09, sheen(matte((0.3, 0.02, 0.1), 1.0), (1.0, 0.5, 0.7), 1.0, 0.3))]
+    # A slim blue bottle with a faceted stopper.
+    x, z = 0.6, 0.15
+    out += [cyl("Slim bottle", x, z, -0.97, -0.1, 0.1, CRYSTAL),
+            cyl("Blue perfume", x, z, -0.92, -0.35, 0.075, clear((0.2, 0.45, 0.95), 1.36, 3)),
+            cyl("Slim bottle air", x, z, -0.36, -0.15, 0.075, sealed),
+            float_at("Stopper", "octahedron", x, -0.03, z, 0.28, CRYSTAL, stretch=1.3, rotation=20)]
+    out.append(block("Lacquer box", 1.3, -0.35, -1.0, -0.75, 0.6, 0.4, coat(matte((0.45, 0.02, 0.02), 0.7), 1.0, 0.03), rotation=-20))
+    out.append(obj("Gold ring", "ring", 1.0, 0.55, 0.35, GOLD))
+    pearl = coat(M((0.92, 0.88, 0.84), 0.35, refl=0.1), 1.0, 0.02)
+    for i in range(26):
+        a = math.pi * (0.1 + 0.8 * i / 25)
+        out.append(ball(f"Pearl {i + 1}", -0.75 + 0.45 * math.cos(a), -1.0 + 0.035, 0.8 - 0.3 * math.sin(a), 0.035, pearl))
+    curtain = sheen(matte((0.1, 0.008, 0.02), 1.0), (0.9, 0.3, 0.4), 1.0, 0.35)
+    for i in range(30):
+        out.append(cyl(f"Curtain fold {i + 1}", -3.0 + 0.2 * i, -1.5 + 0.04 * math.sin(i * 1.3), -1.0, 2.5, 0.12, curtain))
+    return out
+
+
+scene("perfume-vanity", "Perfume vanity",
+      "Perfume bottles on a mirror tray in front of a velvet curtain: the liquids and the sealed air above them "
+      "nest inside the glass by priority, the atomiser bulb and the curtain folds are sheen, the jewellery box "
+      "and the pearls are clear-coated.",
+      ["glass", "nested dielectrics", "clearcoat", "sheen"],
+      studio(light_position=[-1.2, 2.5, 1.5], light_size=1.2, light_intensity=18.0, light_temperature=4200.0,
+             lights=[light("Rim", (1.6, 1.0, -1.0), (1.0, 1.0), (1.0, 0.92, 0.85), 10.0, target=(0, -0.7, 0))],
+             floor=sheen(matte((0.12, 0.01, 0.03), 1.0), (0.9, 0.35, 0.45), 1.0, 0.35), base=[0.12, 0.05, 0.06],
+             sky=0.03, objects=vanity(), bounces=24, **camera(8, 14, 2.9, (0.15, -0.65, 0.1), 38)))
 
 
 # ---------------------------------------------------------------- checks

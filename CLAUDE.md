@@ -61,7 +61,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 285 scripted frames (`SCENES_FROM`), then one frame per scene file (453 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
+  - `--self-test`: 285 scripted frames (`SCENES_FROM`), then one frame per scene file (461 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
     - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
