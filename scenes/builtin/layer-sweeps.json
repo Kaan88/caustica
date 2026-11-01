@@ -12,7 +12,7 @@
  "settings": {
   "cornell_room": false,
   "floor_extent": 15.0,
-  "sky": 0.05,
+  "sky": 0.5,
   "base": [
    0.2,
    0.2,
@@ -46,7 +46,7 @@
    1.5
   ],
   "light_size": 4.0,
-  "light_intensity": 12.0,
+  "light_intensity": 6.0,
   "light_visible": false,
   "light_temperature": 5600.0,
   "lights": [
@@ -86,7 +86,7 @@
    0.15
   ],
   "fov": 40,
-  "light_aspect": 0.25,
+  "light_aspect": 1.0,
   "objects": [
    {
     "name": "Coat roughness 0.0",

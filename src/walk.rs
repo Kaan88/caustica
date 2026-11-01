@@ -91,7 +91,7 @@ impl Walk {
     /// Mouse look: turn around the eye.
     pub fn look(s: &mut Settings, dx: f32, dy: f32) {
         let e = eye(s);
-        s.yaw += dx * 0.2;
+        s.yaw -= dx * 0.2;
         s.pitch = (s.pitch + dy * 0.2).clamp(-85., 85.);
         place(s, e);
     }

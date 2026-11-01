@@ -28,6 +28,8 @@ const HEAP_SIZE: usize = 512;
 const FIRST_GUI_SLOT: usize = 32;
 /// Mesh texture maps (core track 5): SRVs t0.. in space 1, in the heap after `HEAP_SIZE`.
 const MAX_MAPS: usize = 4096;
+/// Still frames a temporal upscaler gets fresh jittered samples before they accumulate.
+const SR_FRESH_FRAMES: u32 = 32;
 /// A light-meter / click-to-focus reading at one pixel: linear beauty, diffuse albedo and
 /// linear view depth.
 #[derive(Clone, Copy)]
@@ -274,6 +276,8 @@ pub struct Gpu {
     sr_created: Option<Upscaler>,
     sr_failed: Vec<Upscaler>,
     sr_reset: bool,
+    /// Frames drawn with a temporal upscaler since the last restart (see `SR_FRESH_FRAMES`).
+    sr_fresh: u32,
     pub upscale_status: String,
     pub rr_status: String,
     rr_created: bool,
@@ -699,6 +703,7 @@ impl Gpu {
             sr_created: None,
             sr_failed: vec![],
             sr_reset: true,
+            sr_fresh: 0,
             upscale_status: String::new(),
             rr_created: false,
             rr_failed: false,
@@ -752,6 +757,7 @@ impl Gpu {
     }
     pub fn reset(&mut self, reset_history: bool) {
         self.samples = 0;
+        self.sr_fresh = 0;
         // Each restart takes a fresh, 8192-aligned Sobol block, so a moving camera
         // never reuses the previous frame's sample points.
         self.restarts = self.restarts.wrapping_add(1);
@@ -2040,8 +2046,16 @@ impl Gpu {
         // denoiser's history and the upscaler do the accumulation, so detail is resolved above
         // the render resolution. (Feeding an accumulated image measured worse: the upscalers
         // assume every input frame sits at its own jitter.)
-        if sr.is_some() && draw && self.samples > 0 {
-            self.reset(false);
+        // Once the view has been still for SR_FRESH_FRAMES the upscaler's short history has
+        // done what it can, so the samples accumulate from then on and converge to the cap.
+        let accumulating = sr.is_some() && self.sr_fresh >= SR_FRESH_FRAMES;
+        if sr.is_some() && draw && !accumulating {
+            if self.samples > 0 {
+                let fresh = self.sr_fresh;
+                self.reset(false);
+                self.sr_fresh = fresh;
+            }
+            self.sr_fresh += 1;
         }
         let jittered = self.rr_active || sr.is_some();
         let jitter = if jittered {
@@ -2299,6 +2313,8 @@ impl Gpu {
         if let Some(kind) = sr
             && (n > 0 || self.sr_reset)
         {
+            // An accumulated input is the mean over every jitter phase, so it sits at the pixel centre.
+            let jitter = if accumulating { [0., 0.] } else { jitter };
             self.run_upscaler(kind, s, &mut c, jitter, (self.sr_reset || reset) as i32, dt);
         }
         self.list

@@ -682,6 +682,7 @@ impl Settings {
     pub fn keep_output(&mut self, from: &Settings) {
         self.scale = from.scale;
         self.rr = from.rr;
+        self.denoise = from.denoise;
         self.vsync = from.vsync;
         self.rr_preset = from.rr_preset;
         self.upscaler = from.upscaler;
@@ -701,7 +702,7 @@ impl Settings {
         let camera = (self.yaw, self.pitch, self.distance, self.target, self.fov);
         let output = (
             self.scale,
-            self.rr,
+            (self.rr, self.denoise),
             self.vsync,
             self.rr_preset,
             self.upscaler,
@@ -807,7 +808,7 @@ impl Settings {
         }
         (
             self.scale,
-            self.rr,
+            (self.rr, self.denoise),
             self.vsync,
             self.rr_preset,
             self.upscaler,

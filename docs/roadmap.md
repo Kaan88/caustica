@@ -262,11 +262,11 @@ Order is from scene-research.md section 5, unchanged:
 
 - **Native denoiser:** faint low-frequency blotches on flat walls at very low spp, typical of SVGF (found in the 2026-10-29 review, not started).
 - **Gamepad:** untested, no controller here (5d).
-- **Reported 2026-10-31 (owner, not yet investigated):**
-  - *Accumulation stalls with a render scale below 1:* after turning RR off, accumulation sometimes stays at the first 4 spp instead of converging.
-  - *Layer sweeps shows no difference:* the rows of `layer-sweeps` read the same across 0 → 1 (check the lighting and camera, which may hide the coat and sheen, and that the values reach the shader).
-  - *Switching scenes changes quality:* loading a scene moves the render mode from reference to the native denoiser (`Settings::keep_output` or the scene's own fields may not keep it).
-  - *Walk mode mouse look:* left / right is inverted (`walk.rs`, the yaw from the mouse delta).
+- **Reported 2026-10-31, fixed 2026-11-01:**
+  - *Accumulation stalls with a render scale below 1:* by design a temporal upscaler got fresh 4 spp every frame, so the count never grew and noise was capped by the upscaler's short history. Now, after 32 still frames, the samples accumulate to the cap and the upscaler gets zero jitter. Measured at 0.5 scale, 256 spp against a 4096 spp reference: raw RMSE×1000 17.7 → 10.9; denoised 5×5-blurred error unchanged (5.2) but plain error 9.1 → 11.9, from edges: a static input loses the upscaler's sub-pixel edge detail. Not done: keep that detail (e.g. accumulate per jitter phase, or blend the fresh-phase output at edges).
+  - *Layer sweeps showed no difference:* the values do reach the shader; the dark surround (sky 0.05, one thin light) left the coat only a small highlight. The scene now uses sky 0.5 and a square light.
+  - *Switching scenes changed quality:* `denoise` was not kept by `Settings::keep_output` or `preset()`; now it is.
+  - *Walk mode mouse look:* yaw sign flipped in `Walk::look`.
 - **Hidden lights occlude:** see core 3 above.
 - **BSDF-only vs MIS offset:** on the tea set, `mis_mode` 2 (BSDF sampling only) is 1.6% brighter than MIS and light sampling only, which agree (320×240, 8192 spp; mean l/(1+l) +0.00116, 9×9-blurred RMSE×1000 2.9). Present before the track 11 layers (found 2026-10-31 while checking them); not investigated. Suspects: the hidden main light or the uniform sky term on the BSDF side.
 
