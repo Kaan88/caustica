@@ -1842,12 +1842,9 @@ impl Gpu {
                 }
             }
             if let Some(mr) = &maps.metal_rough {
-                m.surface_scale = [
-                    ratio(m.color_rough[3], mr.average[1]),
-                    ratio(m.lobes[0], mr.average[2]),
-                    0.,
-                    0.,
-                ];
+                // z, w: the thin film (lighting::pack).
+                m.surface_scale[0] = ratio(m.color_rough[3], mr.average[1]);
+                m.surface_scale[1] = ratio(m.lobes[0], mr.average[2]);
             }
         }
         let stale: Vec<usize> = self

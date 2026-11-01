@@ -14,7 +14,8 @@ pub struct PackedMaterial {
     pub maps: [u32; 4],
     /// Base colour value / map average per channel (rgb); w unused.
     pub base_scale: [f32; 4],
-    /// Roughness and metallic value / map average (G and B channels); z, w unused.
+    /// Roughness and metallic value / map average (G and B channels); z: thin-film strength,
+    /// w: the film's thickness in nm plus 2048 × its IOR in hundredths (`film_code`).
     pub surface_scale: [f32; 4],
     /// Track 11: clear coat, coat roughness, sheen roughness, anisotropy.
     pub layers: [f32; 4],
@@ -28,6 +29,13 @@ pub struct Emitter {
     pub edge1_cdf: [f32; 4],
     pub edge2_probability: [f32; 4],
     pub emission_material: [f32; 4],
+}
+/// The thin film's thickness (whole nm, < 2048) and IOR (hundredths) in one float, exact as an
+/// integer below 2^24; the shader splits it at 2048.
+fn film_code(m: &Material) -> f32 {
+    let t = m.iridescence_thickness.round().clamp(0., 2047.);
+    let n = (m.iridescence_ior * 100.).round().clamp(100., 250.);
+    n * 2048. + t
 }
 fn pack(m: &Material) -> PackedMaterial {
     PackedMaterial {
@@ -58,7 +66,7 @@ fn pack(m: &Material) -> PackedMaterial {
                 m.texture_scale
             },
         ],
-        surface_scale: [0.; 4],
+        surface_scale: [0., 0., m.iridescence, film_code(m)],
         layers: [
             m.clearcoat,
             m.clearcoat_roughness,
@@ -342,6 +350,20 @@ pub fn sun_count(emitters: &[Emitter]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn film_code_decodes_as_the_shader_does() {
+        for (t, n) in [(0., 1.), (400., 1.3), (2000., 2.5), (437.4, 1.47)] {
+            let m = Material {
+                iridescence_thickness: t,
+                iridescence_ior: n,
+                ..Material::default()
+            };
+            let w = film_code(&m);
+            let hundredths = (w / 2048.).floor();
+            assert_eq!(w - hundredths * 2048., f32::round(t));
+            assert!((hundredths / 100. - n).abs() < 0.005);
+        }
+    }
     #[test]
     fn powers_are_normalized() {
         let s = Settings::default();

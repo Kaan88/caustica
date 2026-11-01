@@ -201,6 +201,27 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 }
                 row(
                     ui,
+                    "Thin film",
+                    "An iridescent film on the surface (soap bubble, oil slick, anodized titanium).",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.iridescence, 0. ..=1.));
+                    },
+                );
+                if m.iridescence > 0. {
+                    row(
+                        ui,
+                        "Film thickness",
+                        "Nanometres; 200–800 gives the strongest colours, thinner fades to plain.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.iridescence_thickness, 0. ..=2000.).suffix(" nm"));
+                        },
+                    );
+                    row(ui, "Film IOR", "Soap and water 1.33, oil 1.47, titanium oxide 2.4.", |ui| {
+                        ui.add(crate::slider(&mut m.iridescence_ior, 1. ..=2.5));
+                    });
+                }
+                row(
+                    ui,
                     "Priority",
                     "Where glass, water or ice overlap, the higher priority owns the overlap: \
                      model water reaching into the glass wall and rank the glass above it.",

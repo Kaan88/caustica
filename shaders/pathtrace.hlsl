@@ -252,10 +252,53 @@ uint64_t medium_remove(uint64_t s,uint e){int j=medium_find(s,e);if(j<0)return s
 Material medium_material(uint64_t s,int top){return materials[(medium_at(s,top)&0x1fffu)-1];}
 float medium_ior(uint64_t s,int top){return top>=0?medium_material(s,top).optical.x:1;}
 float3 medium_absorption(uint64_t s,int top){return top>=0?-log(max(medium_material(s,top).color_rough.rgb,0.001)):float3(0,0,0);}
+// Thin-film interference (track 11, glTF's KHR_materials_iridescence): Belcour and Barla
+// (2017), the Airy sum of a film between the outside and the base, kept to its first two
+// orders, with the spectral integral done in closed form against Gaussian fits of the CIE XYZ
+// matching functions (as the Khronos sample viewer), so no spectral rendering. IORs are relative
+// to the outside medium: eta2 the film's, eta3 the base's (per channel, from f0 for an opaque
+// base). surface_scale.z = strength, w = thickness (nm) + 2048 × IOR (hundredths) (lighting.rs).
+static const float3x3 XYZ_TO_REC709={3.2404542,-1.5371385,-0.4985314,-0.9692660,1.8760108,0.0415560,0.0556434,-0.2040259,1.0572252};
+float3 film_sensitivity(float opd,float3 shift){
+    float phase=2*PI*opd*1e-9;
+    const float3 val=float3(5.4856e-13,4.4201e-13,5.2481e-13),pos=float3(1.6810e6,1.7953e6,2.2084e6),var=float3(4.3278e9,9.3046e9,6.6121e9);
+    float3 xyz=val*sqrt(2*PI*var)*cos(pos*phase+shift)*exp(-phase*phase*var);
+    xyz.x+=9.7470e-14*sqrt(2*PI*4.5282e9)*cos(2.2399e6*phase+shift.x)*exp(-4.5282e9*phase*phase);
+    return mul(XYZ_TO_REC709,xyz/1.0685e-7);
+}
+float schlick(float f0,float c){return f0+(1-f0)*pow(1-saturate(c),5);}
+float3 film_fresnel(float c1,float eta2,float3 eta3,float thickness){
+    // Below ~30 nm the film fades out (its IOR towards the outside's), leaving the base's Fresnel.
+    eta2=lerp(1,eta2,smoothstep(0,30,thickness));
+    float s2=(1-c1*c1)/(eta2*eta2);if(s2>=1)return 1;float c2=sqrt(1-s2);
+    float r12=schlick(pow((eta2-1)/(eta2+1),2),c1),t121=1-r12;
+    float phi21=eta2<1?0:PI;
+    float3 r23=float3(schlick(pow((eta3.x-eta2)/(eta3.x+eta2),2),c2),schlick(pow((eta3.y-eta2)/(eta3.y+eta2),2),c2),schlick(pow((eta3.z-eta2)/(eta3.z+eta2),2),c2));
+    float3 phi=phi21+select(eta3<eta2,PI.xxx,0.0.xxx);
+    float opd=2*eta2*thickness*c2;
+    float3 r123=clamp(r12*r23,1e-5,0.9999),rs=t121*t121*r23/(1-r123),i=r12+rs,cm=rs-t121,sq=sqrt(r123);
+    [unroll]for(int k=1;k<=2;k++){cm*=sq;i+=cm*2*film_sensitivity(k*opd,k*phi);}
+    return saturate(i);
+}
+float film_thickness(Material m){return m.surface_scale.w-floor(m.surface_scale.w/2048)*2048;}
+float film_ior(Material m){return floor(m.surface_scale.w/2048)/100;}
 float ggx_d(float nh,float a){float d=nh*nh*(a*a-1)+1;return a*a/(PI*d*d);}
 float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
 float3 f0_of(Material m){float f=pow((m.optical.x-1)/(m.optical.x+1),2);return lerp(lerp(f.xxx,1.0.xxx,m.lobes.y),m.color_rough.rgb,m.lobes.x);}
 float spec_probability(Material m){return clamp(0.25+0.5*m.lobes.x+0.25*m.lobes.y,0.1,0.95);}
+// The film is evaluated once per hit at the view cosine (as glTF's model does), not per half
+// vector, and kept in the hit's copy of the material (base_scale.rgb, no longer needed once the
+// maps are applied): inlined at every Fresnel site it cost scenes without a film 3–9% (registers).
+// outside / base: the IORs on both sides (base 0 = an opaque base, its IOR from f0 per channel).
+void prepare_film(inout Material m,float c,float outside,float base){
+    if(m.surface_scale.z<=0)return;
+    float3 q=sqrt(clamp(f0_of(m),0,0.9999));float3 eta3=base>0?(base/outside).xxx:(1+q)/(1-q);
+    m.base_scale.rgb=film_fresnel(c,film_ior(m)/outside,eta3,film_thickness(m));
+}
+// The base specular's Fresnel at cosine c, with the film (if any, prepare_film) over it.
+float3 spec_fresnel(Material m,float c,float3 f0){
+    float3 f=fresnel(c,f0);return m.surface_scale.z>0?lerp(f,m.base_scale.rgb,m.surface_scale.z):f;
+}
 // Layers (track 11, glTF's KHR_materials_clearcoat / _sheen model): a sheen over the base and
 // a clear coat over both. layers = (coat, coat roughness, sheen roughness, anisotropy), sheen.rgb
 // = the sheen colour (times its strength). Each layer dims what lies below by the energy it takes
@@ -304,7 +347,7 @@ float3 ggx_sample_aniso(float3 n,float3 T,float3 B,float3 d,float2 a){
     return reflect(d,normalize(T*(a.x*m.x)+B*(a.y*m.y)+n*max(m.z,1e-6)));
 }
 float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
-    float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f0=f0_of(m),f=fresnel(vh,f0);float ps=spec_probability(m);
+    float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f0=f0_of(m),f=spec_fresnel(m,vh,f0);float ps=spec_probability(m);
     float gv=g1(nv,a),gl=g1(nl,a),ess,spec_pdf;
     if(m.layers.w<=0){ess=ggx_albedo(nv,m.color_rough.a);spec_pdf=d*nh/max(4*vh,1e-6);}
     else{
@@ -319,7 +362,10 @@ float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
     // Energy compensation (Turquin 2019, Kulla and Conty's lost multiple scattering in one table):
     // the single-scattering lobe returns E(nv) of the light with F = 1, so a white metal gains
     // 1/E and a dielectric's specular f0·(1/E − 1); the diffuse keeps the rest.
-    float3 r=diff+f*d*gv*gl/max(4*nv*nl,1e-6)*(1+f0*(1/ess-1));
+    // With a thin film the lost energy follows the film's reflectance (at normal incidence, as
+    // f0 does) instead: f0 left a white diffuse base under a film up to 6% dark in some channels.
+    float3 fc=m.surface_scale.z>0?spec_fresnel(m,1,f0):f0;
+    float3 r=diff+f*d*gv*gl/max(4*nv*nl,1e-6)*(1+fc*(1/ess-1));
     // The sheen is sampled with the diffuse lobe's cosine directions (it adds no pdf term).
     float s=max3(m.sheen.rgb);
     if(s>0){float sr=m.layers.z;r=r*(1-s*min(1,sheen_albedo(nv,sr)))+m.sheen.rgb*sheen_lobe(sr,nh,nv,nl);}
@@ -426,9 +472,9 @@ float2 filter_offset(float2 u){
     cone_width=pixel_width;cone_spread=pixel_angle;
     Hit guide;float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
     if(intersect(go,gd,1e4,guide,false,true)){
-        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
+        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);prepare_film(m,abs(dot(-gd,guide.n)),1,0);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
         diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
-        specular_albedo[p]=float4(fresnel(abs(dot(-gd,guide.n)),f0_of(m)),1);
+        specular_albedo[p]=float4(spec_fresnel(m,abs(dot(-gd,guide.n)),f0_of(m)),1);
         depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
         float4 projected=mul(current_vp,float4(guide.p,1));device_depth[p]=projected.z/projected.w;
         float4 prev=mul(previous_vp,float4(guide.p,1)),curr=mul(current_vp,float4(guide.p,1));
@@ -507,7 +553,13 @@ float2 filter_offset(float2 u){
             emitted*=spot(m,-dot(direction,h.n));
             // Emission keeps the flat colour: light sampling has no texture lookup.
             apply_maps(h,m);
-            if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=fresnel(abs(dot(-direction,h.n)),f0_of(m));}
+            // A dielectric's film sits between the media on both sides (the transmission branch).
+            if(m.surface_scale.z>0){
+                float n1=1,n2=0;
+                if(m.lobes.z>0){uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);n1=h.front?medium_ior(media,medium_top(media)):m.optical.x;n2=h.front?m.optical.x:medium_ior(after,medium_top(after));}
+                prepare_film(m,saturate(dot(-direction,h.n)),n1,n2);
+            }
+            if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=spec_fresnel(m,abs(dot(-direction,h.n)),f0_of(m));}
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
@@ -547,9 +599,14 @@ float2 filter_offset(float2 u){
                 // the one the stack falls back to (air when empty, as before nesting).
                 uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);
                 float n1=h.front?medium_ior(media,medium_top(media)):m.optical.x,n2=h.front?m.optical.x:medium_ior(after,medium_top(after));
-                float eta=n1/n2;float fr=fresnel_dielectric(saturate(dot(-direction,h.n)),eta);
+                float eta=n1/n2,ci=saturate(dot(-direction,h.n));float fr=fresnel_dielectric(ci,eta);
+                // A thin film (a soap bubble: IOR 1 inside a 1.33 film) colours the reflection and,
+                // by what it leaves, the transmission: choose by the mean, weight per channel.
+                float3 frc=fr.xxx;
+                if(m.surface_scale.z>0 && fr<1){frc=lerp(frc,m.base_scale.rgb,m.surface_scale.z);fr=clamp((frc.r+frc.g+frc.b)/3,1e-4,1-1e-4);}
                 bool reflected=random()<fr;
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
+                if(m.surface_scale.z>0)throughput*=reflected?frc/fr:(1-frc)/(1-fr);
                 if(!reflected){media=after;absorption=medium_absorption(media,medium_top(media));throughput*=eta*eta;}
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;

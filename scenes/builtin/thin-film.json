@@ -1,0 +1,589 @@
+{
+ "format": 1,
+ "title": "Thin film",
+ "description": "Thin-film interference (track 11): three soap bubbles of different wall thickness, a row of anodized titanium spheres whose oxide grows from 60 to 260 nm, an oil slick on a dark puddle and a beetle-green pawn, under a broad softbox so the colours shift across each surface.",
+ "tags": [
+  "material",
+  "iridescence",
+  "thin film"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.15,
+  "base": [
+   0.5,
+   0.5,
+   0.5
+  ],
+  "floor": {
+   "color": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.04,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": true,
+  "light_position": [
+   -1.5,
+   4.0,
+   2.5
+  ],
+  "light_size": 3.0,
+  "light_intensity": 9.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Softbox",
+    "position": [
+     3.5,
+     2.0,
+     1.5
+    ],
+    "rotation": [
+     58.868,
+     66.801,
+     0.0
+    ],
+    "size": [
+     3.0,
+     3.0
+    ],
+    "color": [
+     1.0,
+     0.97,
+     0.93
+    ],
+    "intensity": 6.0,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Back",
+    "position": [
+     0.0,
+     2.5,
+     -4.0
+    ],
+    "rotation": [
+     57.995,
+     -180.0,
+     0.0
+    ],
+    "size": [
+     5.0,
+     2.0
+    ],
+    "color": [
+     0.9,
+     0.95,
+     1.0
+    ],
+    "intensity": 5.0,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 12,
+  "yaw": 0,
+  "pitch": 10,
+  "distance": 6.0,
+  "target": [
+   0,
+   -0.2,
+   0.2
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Soap bubble 380 nm",
+    "shape": "sphere",
+    "position": [
+     -1.6,
+     0.3
+    ],
+    "size": 1.5714,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 0,
+     "iridescence": 1.0,
+     "iridescence_thickness": 380,
+     "iridescence_ior": 1.33
+    },
+    "portal": -1
+   },
+   {
+    "name": "Soap bubble 520 nm",
+    "shape": "sphere",
+    "position": [
+     -0.35,
+     -0.4
+    ],
+    "size": 1.1429,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 0,
+     "iridescence": 1.0,
+     "iridescence_thickness": 520,
+     "iridescence_ior": 1.33
+    },
+    "portal": -1
+   },
+   {
+    "name": "Soap bubble 700 nm",
+    "shape": "sphere",
+    "position": [
+     0.55,
+     0.55
+    ],
+    "size": 0.8571,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.0,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 0,
+     "iridescence": 1.0,
+     "iridescence_thickness": 700,
+     "iridescence_ior": 1.33
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anodized titanium 60 nm",
+    "shape": "sphere",
+    "position": [
+     -1.65,
+     1.35
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.72,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.56,
+      0.53,
+      0.5
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 60,
+     "iridescence_ior": 2.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anodized titanium 110 nm",
+    "shape": "sphere",
+    "position": [
+     -0.85,
+     1.35
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.72,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.56,
+      0.53,
+      0.5
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 110,
+     "iridescence_ior": 2.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anodized titanium 160 nm",
+    "shape": "sphere",
+    "position": [
+     -0.05,
+     1.35
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.72,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.56,
+      0.53,
+      0.5
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 160,
+     "iridescence_ior": 2.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anodized titanium 210 nm",
+    "shape": "sphere",
+    "position": [
+     0.75,
+     1.35
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.72,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.56,
+      0.53,
+      0.5
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 210,
+     "iridescence_ior": 2.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anodized titanium 260 nm",
+    "shape": "sphere",
+    "position": [
+     1.55,
+     1.35
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.72,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.56,
+      0.53,
+      0.5
+     ],
+     "roughness": 0.12,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 260,
+     "iridescence_ior": 2.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Oil slick",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -0.5
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.0,
+     9.0
+    ],
+    "elevation": -0.995,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.015,
+      0.015,
+      0.02
+     ],
+     "roughness": 0.04,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 420,
+     "iridescence_ior": 1.47
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beetle-green pawn",
+    "shape": "pawn",
+    "position": [
+     1.65,
+     -0.5
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.25,
+      0.08
+     ],
+     "roughness": 0.25,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "iridescence": 1.0,
+     "iridescence_thickness": 520,
+     "iridescence_ior": 1.6
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

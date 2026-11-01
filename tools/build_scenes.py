@@ -1341,6 +1341,11 @@ def brushed(m, amount=0.8, rotation=0.0, spun=False):
     return out | {"anisotropy_spun": True} if spun else out
 
 
+def film(m, thickness, ior=1.33, amount=1.0):
+    """A thin film over the surface (track 11, KHR_materials_iridescence): colours from its thickness."""
+    return {**m, "iridescence": amount, "iridescence_thickness": thickness, "iridescence_ior": ior}
+
+
 def layered():
     """Track 11: clear coat and sheen on shapes, with the same red paint bare and coated."""
     paint = M((0.55, 0.02, 0.03), 0.38, metal=0.6, refl=0.1)
@@ -1678,6 +1683,31 @@ scene("brushed-metal", "Brushed metal",
                  objects=brushed_metal(), bounces=12, **camera(0, 30, 5.2, (0, -0.6, 0), 40)))
 
 
+def thin_film():
+    """Thin-film interference (track 11): soap bubbles, an oil slick, anodized titanium and a beetle-green pawn."""
+    bubble = clear((1, 1, 1), 1.0, 0)
+    titanium = M((0.56, 0.53, 0.5), 0.12, metal=1)
+    out = [ball(f"Soap bubble {t} nm", x, y, z, r, film(bubble, t))
+           for (x, y, z, r, t) in [(-1.6, 0.35, 0.3, 0.55, 380), (-0.35, 0.9, -0.4, 0.4, 520), (0.55, 0.15, 0.55, 0.3, 700)]]
+    out += [ball(f"Anodized titanium {t} nm", -1.65 + i * 0.8, -0.72, 1.35, 0.28, film(titanium, t, 2.4))
+            for i, t in enumerate([60, 110, 160, 210, 260])]
+    out += [cyl("Oil slick", 1.6, -0.5, -1.0, -0.99, 0.9, film(M((0.015, 0.015, 0.02), 0.04, refl=0.04), 420, 1.47)),
+            obj("Beetle-green pawn", "pawn", 1.65, -0.5, 0.9, film(M((0.05, 0.25, 0.08), 0.25, metal=1), 520, 1.6))]
+    return out
+
+
+scene("thin-film", "Thin film",
+      "Thin-film interference (track 11): three soap bubbles of different wall thickness, a row of anodized "
+      "titanium spheres whose oxide grows from 60 to 260 nm, an oil slick on a dark puddle and a beetle-green "
+      "pawn, under a broad softbox so the colours shift across each surface.",
+      ["material", "iridescence", "thin film"],
+      studio(light_position=[-1.5, 4.0, 2.5], light_size=3.0, light_intensity=9.0,
+             lights=[light("Softbox", (3.5, 2.0, 1.5), (3.0, 3.0), (1.0, 0.97, 0.93), 6.0, target=(0, -0.3, 0)),
+                     light("Back", (0.0, 2.5, -4.0), (5.0, 2.0), (0.9, 0.95, 1.0), 5.0, target=(0, 0, 0))],
+             floor=M((0.5, 0.5, 0.5), 0.6, refl=0.04), base=[0.5, 0.5, 0.5], sky=0.15,
+             objects=thin_film(), bounces=12, **camera(0, 10, 6.0, (0, -0.2, 0.2), 40)))
+
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1730,6 +1760,9 @@ def check(slug, s):
             rng(label + " sheen_color", c, 0, 1)
         rng(label + " anisotropy", m.get("anisotropy", 0), 0, 1)
         rng(label + " anisotropy_rotation", m.get("anisotropy_rotation", 0), -180, 180)
+        rng(label + " iridescence", m.get("iridescence", 0), 0, 1)
+        rng(label + " iridescence_thickness", m.get("iridescence_thickness", 400), 0, 2000)
+        rng(label + " iridescence_ior", m.get("iridescence_ior", 1.3), 1, 2.5)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)

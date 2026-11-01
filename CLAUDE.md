@@ -165,7 +165,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |
 | `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
 | `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
-| `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled). |
+| `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled); z, w the thin film (track 11): strength, thickness nm + 2048 × IOR in hundredths. |
 
 **Emitter**:
 

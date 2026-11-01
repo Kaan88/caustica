@@ -54,6 +54,15 @@ pub struct Material {
     /// Brushed in circles around the object's y axis (a pan, a watch dial, a record) instead.
     #[serde(skip_serializing_if = "is_false")]
     pub anisotropy_spun: bool,
+    /// Thin-film interference (track 11, glTF's KHR_materials_iridescence): a film 0–1 strong
+    /// on the surface (soap, oil, anodized titanium) whose reflections take colours from its
+    /// thickness (nanometres, 0–2000) and index of refraction (1–2.5).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub iridescence: f32,
+    #[serde(skip_serializing_if = "is_default_film_thickness")]
+    pub iridescence_thickness: f32,
+    #[serde(skip_serializing_if = "is_default_film_ior")]
+    pub iridescence_ior: f32,
 }
 fn is_false(v: &bool) -> bool {
     !*v
@@ -72,6 +81,12 @@ fn is_default_coat_roughness(v: &f32) -> bool {
 }
 fn is_default_sheen_roughness(v: &f32) -> bool {
     *v == Material::default().sheen_roughness
+}
+fn is_default_film_thickness(v: &f32) -> bool {
+    *v == Material::default().iridescence_thickness
+}
+fn is_default_film_ior(v: &f32) -> bool {
+    *v == Material::default().iridescence_ior
 }
 impl Default for Material {
     fn default() -> Self {
@@ -99,6 +114,9 @@ impl Default for Material {
             anisotropy: 0.,
             anisotropy_rotation: 0.,
             anisotropy_spun: false,
+            iridescence: 0.,
+            iridescence_thickness: 400.,
+            iridescence_ior: 1.3,
         }
     }
 }
@@ -924,12 +942,15 @@ impl Settings {
                         m.clearcoat_roughness,
                         m.sheen,
                         m.sheen_roughness,
-                        m.anisotropy
+                        m.anisotropy,
+                        m.iridescence
                     ]
                     .iter()
                     .chain(&m.sheen_color)
                     .all(|v| (0. ..=1.).contains(v))
-                    && (-180. ..=180.).contains(&m.anisotropy_rotation),
+                    && (-180. ..=180.).contains(&m.anisotropy_rotation)
+                    && (0. ..=2000.).contains(&m.iridescence_thickness)
+                    && (1. ..=2.5).contains(&m.iridescence_ior),
                 "Invalid material"
             );
             anyhow::ensure!(

@@ -624,6 +624,16 @@ fn layers(m: &gltf::Material) -> Material {
             }),
         ..d
     };
+    // Thin film: glTF's thickness is a range read from a texture; without the texture it is the
+    // maximum.
+    if let Some(e) = m.extension_value("KHR_materials_iridescence") {
+        let f = |k: &str| e.get(k).and_then(|v| v.as_f64()).map(|v| v as f32);
+        out.iridescence = f("iridescenceFactor").unwrap_or(0.).clamp(0., 1.);
+        out.iridescence_ior = f("iridescenceIor").unwrap_or(1.3).clamp(1., 2.5);
+        out.iridescence_thickness = f("iridescenceThicknessMaximum")
+            .unwrap_or(400.)
+            .clamp(0., 2000.);
+    }
     // The sheen colour splits into a strength (its largest channel) and a normalised colour.
     if let Some(c) = m
         .extension_value("KHR_materials_sheen")
