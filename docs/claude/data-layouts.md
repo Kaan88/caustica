@@ -1,0 +1,104 @@
+# Data layouts shared by Rust and HLSL
+
+Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to the repo root. Where this file says "see X", X is a section of `docs/engine-notes.md`.
+
+## Data layouts (keep in sync on both sides)
+
+**Material IDs** (vertex `material` field):
+
+| ID | Meaning |
+|---|---|
+| 0 | Left wall |
+| 1 | Right wall |
+| 2 | Back wall and ceiling |
+| 3 | Floor |
+| 4 | Main light |
+| 5 … 5+N−1 | Objects |
+| 5+N … | Extra area lights |
+
+**PackedMaterial** (176 B) fields:
+
+| Field | Contents |
+|---|---|
+| `color_rough` | RGB + roughness |
+| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7); **bit11** = spun anisotropy. Bits 3 and 4 are set in `Gpu::attach_maps`. |
+| `optical` | IOR, emission, pattern id, w: one-sided emitter (1 for lights); negative = a diffraction grating, −(strength ‰ × 16384 + spacing nm) (track 11) |
+| `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
+| `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |
+| `medium`, `phase` | Track 12: scattering albedo rgb + extinction (0 unless transmissive); HG g in x. See "Volumes". |
+| `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
+| `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
+| `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled); z, w the thin film (track 11): strength, thickness nm + 2048 × IOR in hundredths. |
+
+**Emitter**:
+
+| Field | Contents |
+|---|---|
+| `position_area` | Vertex a, triangle area |
+| `edge1_cdf` | b−a, CDF |
+| `edge2_probability` | c−a, selection probability |
+| `emission_material` | Emitted RGB, material id |
+
+**Root signature:**
+
+| Slot | Binding |
+|---|---|
+| 0 | CBV b0 |
+| 1 | SRV t0 TLAS |
+| 2 | SRV t1 mesh vertices (object space, every mesh in use) |
+| 3 | Table: UAV u0–u31 (heap slots 0–31; u29 is the 3D LUT, u30 / u31 the HDRI and its CDFs) |
+| 4 | Table: SRV t2, the egui texture of each GUI draw (heap slots 32–511, one per texture; pixel-visible only) |
+| 5 | Root SRV t3 materials |
+| 6 | Root SRV t4 emitters |
+| 7 | Root SRV t5 emitter lookup |
+| 8 | Root SRV t6 static vertices (floor, room, lights; world space) |
+| 9 | Root SRV t7 instance table (`InstanceRecord` / `Instance`, by InstanceID) |
+| 10 | Table: SRV t0.. space 1, texture maps (`maps[]`, heap slots 512–4607, `MAX_MAPS` 4096) |
+| 11 | Root UAV u0 space 2, path visualizer records (`trace_paths` only; bound for every dispatch) |
+| 12 | Root UAV u1 space 2, LPE AOVs (`trace_lpe` writes, `display` view 12 reads; the path buffer stands in while none) |
+| 13 | Root SRV t8 LPE DFA table |
+| 14 | Root UAV u2 space 2, ReSTIR DI reservoirs (bound for every dispatch; the path buffer stands in while ReSTIR is off) |
+| 15 | Root UAV u3 space 2, raw: the photon grid and photons at 0, BDPT's light-tracing splats at `splat_offset` (the path buffer stands in while neither runs) |
+| 16 | Root SRV t9 lens system (`lens::pack`, an upload buffer of `lens::FLOAT4S` float4s; track 16) |
+| 17 | Root UAV u4 space 2 glare grid: two regions of 3 × 512² complex values (track 16) |
+
+Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips (texture maps). The heap holds 512 + 4096 descriptors: UAVs 0–31, egui textures 32–511, texture maps from 512.
+
+**Vertex** (40 B): position, material, normal, pad, uv (meshes only; zero for shapes and static geometry). The BLAS vertex stride follows `size_of::<Vertex>()`.
+
+**Acceleration structures** (instanced since core track 4, see "Instancing"; procedural objects are instances of one unit-cube AABB BLAS with `vertex_base` = the `Sdf` kind, see "Procedural surfaces"): a static BLAS (floor, room, lights; world space; two geometries, hidden lights non-opaque first, the rest opaque) as InstanceID 0, plus one BLAS per distinct object mesh in object space, instanced once per visible object with its transform. Glass objects are FORCE_NON_OPAQUE instances (their candidates run the `Proceed()` loop, so shadow rays can pass them), all other objects FORCE_OPAQUE. All use PREFER_FAST_TRACE.
+
+**UAV textures.** Index = `u` register = heap slot. Formats are RGBA32F unless noted; resolution is render resolution unless noted.
+
+| u | Purpose | Format / resolution |
+|---|---|---|
+| 0 | noisy (this frame's batch) | RR color input |
+| 1 | accumulation (rgb mean, a = Welford M2 of luminance) | |
+| 2 | normal_roughness | RR input |
+| 3 | diffuse_albedo (RR: the guide's; native: mean of the samples, a = coverage) | RR input |
+| 4 | specular_albedo (as u3) | RR input |
+| 5 | depth (linear view z) | R32F, RR input |
+| 6 | motion (prev − curr, pixels) | RG32F, RR input |
+| 7 | specular hit distance | R32F, RR input |
+| 8 / 9 | ping / pong (à-trous; final result in ping) | |
+| 10 | output_image (tonemapped) | RGBA8, **output resolution** |
+| 11 | direct_light AOV | |
+| 12 | specular_light AOV | |
+| 13 | reference_image (A/B) | **output resolution** |
+| 14 | reconstruction (RR output) | **output resolution** |
+| 15 | history (reprojected integration, frozen while the camera is still) | |
+| 16 | history normal | |
+| 17 | history depth | R32F |
+| 18 | linear_output (HDR beauty, used for EXR) | **output resolution** |
+| 19 | object_id (first-hit material id + 1, 0 = miss) | R32F |
+| 20 | history object id | R32F |
+| 21 | integrated (demodulated color; a = effective samples) | |
+| 22 | moments (E[l], E[l²] per sample of demodulated luminance; z = variance of the integrated mean) | |
+| 23 | history_moments | |
+| 24 | filter_guide (octahedral normal xy, depth, object id: one read per à-trous tap) | |
+| 25 | device_depth (projected z/w, 0 near → 1 far) for DLSS SR / FSR / XeSS | R32F |
+| 26 | hdr_output (scRGB, 1.0 = 80 nits; written only in HDR mode, copied to the HDR backbuffer) | RGBA16F, **output resolution** |
+| 27 | trace_stats: this frame's mean bounces per sample, BVH steps (`Proceed()` calls, all rays) per pixel | RG32F |
+| 28 | scopes: counters, rows 0–3 histogram R,G,B,L; 4–131 luma waveform; 132–259 vectorscope (128 wide) | R32_UINT, **256×260 fixed** |
+| 30 | env_map: HDRI, linear RGB (kept across resizes; 1×1 when none) | RGBA32F, **map size** |
+| 31 | env_cdf: conditional CDF per row, then the marginal CDF in an extra row | R32F, **map width × (height + 1)** |

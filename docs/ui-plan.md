@@ -524,7 +524,7 @@ Risks: low. Long one-line UI code makes the move tedious but mechanical. Merge c
 
 ### Phase 2: Viewport interaction and undo (2–3 days) — done 2026-10-30
 
-Undo / redo, gizmos and G / R / S came with roadmap item 3b; the rest with the phase 2 batch (CLAUDE.md "Viewport interaction"). Not done: Alt-drag duplicate (Shift+D instead), hover outlines for lights, silhouette outlines (phase 5).
+Undo / redo, gizmos and G / R / S came with roadmap item 3b; the rest with the phase 2 batch (docs/engine-notes.md "Viewport interaction"). Not done: Alt-drag duplicate (Shift+D instead), hover outlines for lights, silhouette outlines (phase 5).
 
 - Undo/redo stack (Ctrl+Z / Ctrl+Y) and Ctrl+D, H, Del, F / double-click focus, Home reset camera, PageUp/PageDown scenes, middle-drag pan, F1 shortcuts sheet.
 - Selection outline and hover outline (projected AABB hull, throttled CPU hover pick).
@@ -535,7 +535,7 @@ Risks: medium. Handle vs orbit input conflicts in `window_event`; BLAS rebuild c
 
 ### Phase 3: Scene browser with thumbnails (3–4 days) — done 2026-10-30
 
-The browser and thumbnails came with roadmap item 4; favourites, recent, Ctrl+S / Ctrl+Shift+S / Ctrl+O and `--preset` slugs with UI phases 3–5 (CLAUDE.md). Not done: the `PresetInfo` registry refactor (slugs instead).
+The browser and thumbnails came with roadmap item 4; favourites, recent, Ctrl+S / Ctrl+Shift+S / Ctrl+O and `--preset` slugs with UI phases 3–5 (docs/engine-notes.md "UI phases 3–5"). Not done: the `PresetInfo` registry refactor (slugs instead).
 
 - `gpu.rs` multi-texture egui path (managed + user ids, heap to 512, per-draw binding, `delta.free`).
 - Preset registry (`PresetInfo` with slug, category, tags, description, builder) replacing `PRESETS`/`description()`/`apply()` matches; `--preset slug`; numeric indices kept.

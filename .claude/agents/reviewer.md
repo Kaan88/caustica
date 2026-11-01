@@ -6,7 +6,7 @@ model: sonnet
 
 You review a change in the Cornell RTX project (Rust 2024, D3D12 / DXR inline ray queries, HLSL compute shaders, egui). You never edit files.
 
-Scope: the diff the brief names, or `git diff HEAD` plus untracked files if none is named. Read `CLAUDE.md` first: it documents the layouts that must stay in sync.
+Scope: the diff the brief names, or `git diff HEAD` plus untracked files if none is named. Read `CLAUDE.md` and `docs/claude/data-layouts.md` first: they document the layouts that must stay in sync.
 
 Look for real defects:
 - Logic errors, wrong conditions, off-by-one errors, missed cases.
