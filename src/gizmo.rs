@@ -76,6 +76,26 @@ impl View {
             )
         })
     }
+    /// A world segment in pixels, clipped to the part in front of the camera (path visualizer).
+    pub fn segment(&self, a: Vec3, b: Vec3) -> Option<(Vec2, Vec2)> {
+        const NEAR: f32 = 1e-3;
+        let (mut ca, mut cb) = (self.view_proj * a.extend(1.), self.view_proj * b.extend(1.));
+        if ca.w < NEAR && cb.w < NEAR {
+            return None;
+        }
+        if ca.w < NEAR {
+            ca = ca.lerp(cb, (NEAR - ca.w) / (cb.w - ca.w));
+        } else if cb.w < NEAR {
+            cb = cb.lerp(ca, (NEAR - cb.w) / (ca.w - cb.w));
+        }
+        let pixel = |c: Vec4| {
+            Vec2::new(
+                (c.x / c.w * 0.5 + 0.5) * self.size.x,
+                (0.5 - c.y / c.w * 0.5) * self.size.y,
+            )
+        };
+        Some((pixel(ca), pixel(cb)))
+    }
     pub fn ray(&self, pixel: Vec2) -> (Vec3, Vec3) {
         let ndc = Vec4::new(
             pixel.x / self.size.x * 2. - 1.,

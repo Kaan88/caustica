@@ -662,8 +662,34 @@ float2 filter_offset(float2 u){
     if(lights.y==2)return (float2(blackman_harris_inverse(u.x),blackman_harris_inverse(u.y))-0.5)*width;
     return (u-0.5)*width;
 }
+// Path visualizer (track 14): the PATH_RECORD variant re-traces one pixel (path_record.xy) on one
+// thread, path_record.z paths with this frame's sample indices (the first sampling.y are exactly
+// the paths this frame accumulates), and writes no texture. Each event is a record (paths.rs
+// parses them); record 0 holds the count. Kinds: 0 camera, 1 diffuse, 2 glossy, 3 dielectric
+// reflection, 4 refraction, 5 volume scatter, 6 portal entry, 7 portal exit, 8 pass-through (a
+// nested-dielectric false hit, or inside a portal), 9 the path stops at a surface, 10 escape,
+// 11 light sample, 12 blocked light sample, 13 end (color = the path's radiance, value = why:
+// 0 escaped, 1 unlit surface, 2 Russian roulette, 3 bounce limit, 4 sample below the surface,
+// 5 blocked by the lens). Vertices carry the throughput arriving there and the luminance they
+// add (emission); light samples their contribution and distance; direction is the way out.
+static uint path_count,path_index;
+#ifdef PATH_RECORD
+static const bool recording=true;
+struct PathVertex{float3 position;uint info;float3 color;float value;float3 direction;uint pad;};
+RWStructuredBuffer<PathVertex> path_vertices:register(u0,space2);
+void record(uint kind,uint bounce,float3 position,float3 color,float value,float3 direction){
+    if(path_count+1>=path_record.w)return;
+    PathVertex v;v.position=position;v.info=kind|(min(bounce,255u)<<8)|(path_index<<16);v.color=color;v.value=value;v.direction=direction;v.pad=0;
+    path_vertices[++path_count]=v;
+}
+#else
+static const bool recording=false;
+void record(uint kind,uint bounce,float3 position,float3 color,float value,float3 direction){}
+#endif
 [numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
-    uint2 p=tid.xy;if(any(p>=dimensions.xy))return;
+    uint2 p=tid.xy;
+    if(recording){if(any(p!=0))return;p=min(path_record.xy,dimensions.xy-1);}
+    if(any(p>=dimensions.xy))return;
     pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
@@ -679,7 +705,8 @@ float2 filter_offset(float2 u){
     float pixel_angle=camera_model.x==1?0:2*environment.z/dimensions.y,pixel_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;
     cone_width=pixel_width;cone_spread=pixel_angle;
     Hit guide;float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
-    if(intersect(go,gd,1e4,guide,false,true)){
+    if(recording){if(!intersect(go,gd,1e4,guide,false,true))guide.material=0xffffffffu;}
+    else if(intersect(go,gd,1e4,guide,false,true)){
         Material m=material_at(guide.material,guide.p);apply_maps(guide,m);prepare_film(m,abs(dot(-gd,guide.n)),1,0);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
         diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
         specular_albedo[p]=float4(spec_fresnel(m,abs(dot(-gd,guide.n)),f0_of(m)),1);
@@ -694,7 +721,8 @@ float2 filter_offset(float2 u){
         specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
     }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
     float3 batch=0;
-    for(uint sample_id=0;sample_id<sampling.y;sample_id++){
+    for(uint sample_id=0;sample_id<(recording?path_record.z:sampling.y);sample_id++){
+        if(recording)path_index=sample_id;
         // The base changes on every reset, so a moving camera never reuses the previous frame's points.
         sequence_index=scene_info.z+sampling.x+sample_id;dimension_index=0;
         // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
@@ -702,7 +730,11 @@ float2 filter_offset(float2 u){
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
         float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
+        // Recording only (dead code otherwise): why the path ended, and its last bounce.
+        uint end_reason=lens_valid?3:5,last_bounce=0;
+        record(0,0,origin,throughput,0,direction);
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
+            last_bounce=bounce;
             bounces_used+=1;
             uint mis=(scene_info.w>>4)&3;
             // Light selection: the HDRI and the emissive triangles share NEE half and half.
@@ -724,23 +756,27 @@ float2 filter_offset(float2 u){
                 media=h.front?medium_push(media,e):medium_remove(media,e);{int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;}
                 throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
                 false_hits++;origin=h.p-h.ng*0.0003;
+                record(8,bounce,h.p,throughput,0,direction);
             }
             {float sigma,g,t0,t1;float3 albedo;
             if((density>0 || (fog.x>0 && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
                 float ts=t0-log(1-random())/sigma;
                 if(ts<t1){
                     // A scatter before the surface: NEE by the phase function, then a new direction.
+                    float3 arriving=throughput*exp(-absorption*ts);
                     throughput*=exp(-absorption*ts)*albedo;cone_width+=cone_spread*ts;
                     float3 x=origin+direction*ts;
                     if(bounce==0 && sample_albedo)first_diffuse=float4(albedo,0);
                     float3 ld,le;float pl,limit;
                     if(sample_light(x,env_nee,tri_nee,p_env,ld,le,pl,limit)){
                         float pp=hg_pdf(dot(direction,ld),g);
-                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;}
+                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);}
+                        else record(12,bounce,x,0,limit,ld);
                     }
                     float pp;direction=hg_sample(direction,g,pp);
+                    record(5,bounce,x,arriving,0,direction);
                     previous_pdf=pp;previous_delta=false;previous_position=x;origin=x;
-                    if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival)break;throughput/=survival;}
+                    if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
                     continue;
                 }
             }}
@@ -759,8 +795,9 @@ float2 filter_offset(float2 u){
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
                     float w=1;if(bounce>0 && !previous_delta)w=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
                     e+=throughput*sun.emission_material.rgb*w;}
-                radiance+=e;if(bounce<=1)direct+=e;break;}
+                radiance+=e;if(bounce<=1)direct+=e;record(10,bounce,origin,throughput,luminance(e),direction);end_reason=0;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
+            float3 arriving=throughput;
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
             Material m=material_at(h.material,h.p);
@@ -768,11 +805,13 @@ float2 filter_offset(float2 u){
                 portal_crossings++;
                 // The map lands on the far face of the pair; inside a portal object the ray just
                 // passes through, so it leaves through the pair's near face (portals work both ways).
-                if(!h.front){origin=h.p+direction*0.001;bounce--;continue;}
+                if(!h.front){origin=h.p+direction*0.001;record(8,bounce,h.p,throughput,0,direction);bounce--;continue;}
                 Material pm=materials[(uint)m.secondary.w];
                 float4 P=float4(h.p,1),D=float4(direction,0);
+                record(6,bounce,h.p,throughput,0,direction);
                 direction=normalize(float3(dot(pm.color_rough,D),dot(pm.lobes,D),dot(pm.optical,D)));
                 origin=float3(dot(pm.color_rough,P),dot(pm.lobes,P),dot(pm.optical,P))+direction*0.001;
+                record(7,bounce,origin,throughput,0,direction);
                 previous_delta=true;bounce--;continue;
             }
             float3 emitted=m.color_rough.rgb*m.optical.y;
@@ -791,7 +830,8 @@ float2 filter_offset(float2 u){
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
-            if(((uint)m.lobes.w&1u)!=0)break;
+            float emitted_l=luminance(e);
+            if(((uint)m.lobes.w&1u)!=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=1;break;}
             // Light sampling (sample_light), then one shared BSDF evaluation: eval_bsdf is inlined
             // once here instead of once per strategy (code size and registers cost even scenes
             // that never take the anisotropic branch).
@@ -801,9 +841,10 @@ float2 filter_offset(float2 u){
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
                 if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(mis==1?pl:pl+pdf,1e-8);
                     if(fog.x>0 || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
-                    radiance+=e;if(bounce==0)direct+=e;}
+                    radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);}
+                else record(12,bounce,h.p,0,limit,ld);
             }
-            float3 next;bool delta=false;float bsdf_pdf=0;
+            float3 next;bool delta=false;float bsdf_pdf=0;uint lobe=1;
             if(random()<m.lobes.z){
                 // The media on both sides: entering, the current one and this; leaving, this and
                 // the one the stack falls back to (air when empty, as before nesting).
@@ -814,7 +855,7 @@ float2 filter_offset(float2 u){
                 // by what it leaves, the transmission: choose by the mean, weight per channel.
                 float3 frc=fr.xxx;
                 if(m.surface_scale.z>0 && fr<1){frc=lerp(frc,m.base_scale.rgb,m.surface_scale.z);fr=clamp((frc.r+frc.g+frc.b)/3,1e-4,1-1e-4);}
-                bool reflected=random()<fr;
+                bool reflected=random()<fr;lobe=reflected?3:4;
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
                 if(m.surface_scale.z>0)throughput*=reflected?frc/fr:(1-frc)/(1-fr);
                 if(!reflected){media=after;int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;throughput*=eta*eta;}
@@ -822,31 +863,36 @@ float2 filter_offset(float2 u){
                 delta=true;
             }else{
                 float pc=coat_probability(m),ps=spec_probability(m);
-                if(pc>0 && random()<pc){float a=max(0.001,m.layers.y*m.layers.y);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;cone_spread+=0.5*a;}
-                else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);
+                if(pc>0 && random()<pc){float a=max(0.001,m.layers.y*m.layers.y);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;cone_spread+=0.5*a;lobe=2;}
+                else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);lobe=2;
                     // A grating's order (order_shares): the isotropic GGX sample moved
                     // across the grooves; eval_bsdf has its pdf.
                     int o=-1;float3 T,B;
                     if(has_grating(m)){aniso_frame(h.n,h.tangent,m.sheen.w,T,B);float4 w=order_shares(m,h.n,B,-direction);float u=random(),c=0;[unroll]for(int i=0;i<4;i++){if(o<0 && u<c+w[i])o=i;c+=w[i];}}
-                    if(o>=0){next=ggx_sample(h.n,direction,a);if(dot(h.n,next)<=0 || !grating_move(h.n,B,next,GRATING_ORDER[o]*grating_shift(m),next))break;}
+                    if(o>=0){next=ggx_sample(h.n,direction,a);if(dot(h.n,next)<=0 || !grating_move(h.n,B,next,GRATING_ORDER[o]*grating_shift(m),next)){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=4;break;}}
                     else if(m.layers.w>0){float3 T,B;aniso_frame(h.n,h.tangent,m.sheen.w,T,B);next=ggx_sample_aniso(h.n,T,B,direction,aniso_alpha(m));}else next=ggx_sample(h.n,direction,a);
                     if(bounce==0)first_spec=true;
                     cone_spread+=0.5*a;
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}
-                if(dot(h.n,next)<=0)break;
+                if(dot(h.n,next)<=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=4;break;}
                 float3 bsdf=eval_bsdf(m,h.n,h.tangent,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
             }
             if(bounce==0 && delta)first_spec=true;
             previous_pdf=bsdf_pdf;previous_delta=delta;previous_position=h.p;
             direction=normalize(next);origin=h.p+h.ng*(dot(direction,h.ng)>0?0.0003:-0.0003);
-            if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival)break;throughput/=survival;}
+            record(lobe,bounce,h.p,arriving,emitted_l,direction);
+            if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
         }
         if(!all(isfinite(radiance))){radiance=0;direct=0;}
         radiance=max(radiance,0);if(options.x>0 && sampling.x>4){float l=luminance(radiance);float scale=min(1,options.x*max(luminance(mean),0.05)/max(l,1e-6));radiance*=scale;direct*=scale;}
+        record(13,last_bounce,0,radiance,end_reason,0);
         float count=sampling.x+sample_id+1;float delta_l=luminance(radiance)-luminance(mean);mean+=(radiance-mean)/count;m2+=delta_l*(luminance(radiance)-luminance(mean));
         dmean+=(direct-dmean)/count;smean+=((first_spec?radiance:0)-smean)/count;batch+=radiance/sampling.y;
         damean+=(first_diffuse-damean)/count;samean+=(first_specular-samean)/count;
     }
+    #ifdef PATH_RECORD
+    PathVertex header=(PathVertex)0;header.info=path_count;path_vertices[0]=header;return;
+    #endif
     if(sample_albedo){diffuse_albedo[p]=damean;specular_albedo[p]=float4(samean,1);}
     trace_stats[p]=float2(bounces_used/max(1,sampling.y),proceed_steps);
     noisy[p]=float4(batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);

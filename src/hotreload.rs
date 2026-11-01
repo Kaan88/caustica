@@ -8,13 +8,14 @@ use std::time::{Duration, Instant, SystemTime};
 pub struct Shaders {
     pub trace: Vec<u8>,
     pub trace_maps: Vec<u8>,
+    pub trace_paths: Vec<u8>,
     pub filter: Vec<u8>,
     pub display: Vec<u8>,
     pub vs: Vec<u8>,
     pub ps: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 6] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 7] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -22,6 +23,13 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 6] = [
         "cs_6_5",
         "trace_maps",
         &["-D", "TEXTURE_MAPS"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_paths",
+        &["-D", "TEXTURE_MAPS", "-D", "PATH_RECORD"],
     ),
     ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
     ("post.hlsl", "display", "cs_6_5", "display", &[]),
@@ -96,6 +104,7 @@ impl HotReload {
         Ok(Shaders {
             trace: b.next().unwrap(),
             trace_maps: b.next().unwrap(),
+            trace_paths: b.next().unwrap(),
             filter: b.next().unwrap(),
             display: b.next().unwrap(),
             vs: b.next().unwrap(),

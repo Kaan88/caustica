@@ -32,6 +32,7 @@ cbuffer Frame:register(b0) {
     float4 environment_map; // HDRI strength, rotation (radians), flags (bit 0 loaded, bit 1 seen by the camera), pdf normalization (environment.rs)
     float4 fog; // track 12: density, phase g, top height, half extent on x / z
     float4 fog_color; // albedo rgb
+    uint4 path_record; // track 14, the PATH_RECORD variant of trace only: render pixel x, y, paths, record capacity
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};

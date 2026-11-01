@@ -50,6 +50,14 @@ fn main() {
             "trace_maps",
             &["-D", "TEXTURE_MAPS"][..],
         ),
+        // The path visualizer's recording trace (track 14), with the map code.
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_paths",
+            &["-D", "TEXTURE_MAPS", "-D", "PATH_RECORD"][..],
+        ),
         ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
         ("post.hlsl", "display", "cs_6_5", "display", &[]),
         ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),

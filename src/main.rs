@@ -14,6 +14,7 @@ mod hotreload;
 mod lighting;
 mod look;
 mod mesh;
+mod paths;
 mod prefs;
 mod presets;
 mod procedural;
@@ -430,6 +431,19 @@ impl App {
                 "--ui-scenes" => interface.show_scenes = true,
                 "--ui-assets" => interface.assets.open = true,
                 "--ui-video" => interface.show_video = true,
+                // Path visualizer open, recording the paths through output pixel X,Y (and
+                // selecting path I).
+                "--ui-paths" => {
+                    let at = args.next().context("--ui-paths needs X,Y[,I]")?;
+                    let v: Vec<u32> = at
+                        .split(',')
+                        .map(|t| t.trim().parse())
+                        .collect::<Result<_, _>>()
+                        .context("--ui-paths needs X,Y[,I]")?;
+                    anyhow::ensure!(matches!(v.len(), 2 | 3), "--ui-paths needs X,Y[,I]");
+                    interface.paths.request([v[0], v[1]]);
+                    interface.paths.selected = v.get(2).map(|i| *i as usize);
+                }
                 "--ui-scopes" => {
                     interface.show_scopes = true;
                     interface.zebras = true;
@@ -952,6 +966,11 @@ impl App {
                     self.settings.aperture = 0.05;
                     self.cursor = [self.size[0] as f64 * 0.5, self.size[1] as f64 * 0.5];
                     self.focus_pending = true;
+                }
+                // Path visualizer: record the centre pixel's paths (checked after the render).
+                230 => {
+                    self.ui.paths.count = 8;
+                    self.ui.paths.request([self.size[0] / 2, self.size[1] / 2]);
                 }
                 // Light painting: a light edit keeps the accumulation going.
                 240 => {
@@ -1722,6 +1741,7 @@ impl App {
                 }
             }
         } else {
+            g.path_request = self.ui.paths.take_request();
             unsafe {
                 g.render(
                     s,
@@ -1731,6 +1751,9 @@ impl App {
                     &output.textures_delta,
                     output.pixels_per_point,
                 )?;
+            }
+            if let Some(records) = g.path_result.take() {
+                self.ui.paths.receive(&records);
             }
         }
         self.ui.hovered = None;
@@ -1976,6 +1999,25 @@ impl App {
                         s.focus_distance
                     );
                     self.settings.aperture = 0.;
+                }
+                230 => {
+                    let paths = &self.ui.paths.paths;
+                    anyhow::ensure!(
+                        paths.len() == 8 && self.ui.paths.pixel.is_some(),
+                        "Path visualizer recorded {} paths",
+                        paths.len()
+                    );
+                    for (i, p) in paths.iter().enumerate() {
+                        anyhow::ensure!(
+                            p.end.is_some()
+                                && p.vertices.first().map(|v| v.kind) == Some(paths::Kind::Camera)
+                                && (p.vertices.len() >= 2 || p.end == Some(5))
+                                && p.vertices.iter().all(|v| v.position.is_finite())
+                                && p.radiance.is_finite(),
+                            "Path {i} is malformed: {p:?}"
+                        );
+                    }
+                    self.ui.paths = Default::default();
                 }
                 209 => {
                     let [w, h] = gpu::SCOPES.map(|v| v as usize);
@@ -2506,6 +2548,16 @@ impl ApplicationHandler for App {
                         self.finish_transform();
                     } else if self.drag == Some(MouseButton::Left)
                         && self.drag_distance < 3.
+                        && (self.ui.paths.open || self.alt)
+                        && !self.egui.is_pointer_over_area()
+                    {
+                        // Path visualizer (track 14): trace the pixel's paths instead of picking.
+                        self.ui.paths.request([
+                            self.cursor[0].max(0.) as u32,
+                            self.cursor[1].max(0.) as u32,
+                        ]);
+                    } else if self.drag == Some(MouseButton::Left)
+                        && self.drag_distance < 3.
                         && self.settings.perspective()
                         && !self.egui.is_pointer_over_area()
                     {
@@ -2749,6 +2801,14 @@ impl ApplicationHandler for App {
                         }
                         KeyCode::KeyF => self.frame_selection(),
                         KeyCode::KeyL => self.toggle_painting(),
+                        KeyCode::KeyP => {
+                            self.ui.paths.open = !self.ui.paths.open;
+                            self.ui.toast(if self.ui.paths.open {
+                                "Path visualizer: click a pixel"
+                            } else {
+                                "Path visualizer closed"
+                            });
+                        }
                         KeyCode::Backquote => self.toggle_walk(),
                         KeyCode::Delete => {
                             if let Some(name) = self.ui.delete_selected(&mut self.settings) {

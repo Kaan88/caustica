@@ -142,6 +142,8 @@ pub struct UiState {
     pub zebras: bool,
     pub show_scopes: bool,
     pub meter: bool,
+    /// Path visualizer (track 14).
+    pub paths: crate::paths::PathView,
     pub show_graph: bool,
     pub show_stats: bool,
     pub show_remote: bool,
@@ -229,6 +231,7 @@ impl Default for UiState {
             zebras: false,
             show_scopes: false,
             meter: false,
+            paths: Default::default(),
             show_graph: false,
             show_stats: false,
             show_remote: false,
@@ -1350,6 +1353,11 @@ impl App {
         if self.ui.show_remote {
             self.remote_window(ctx);
         }
+        if self.ui.paths.open
+            && crate::paths::window(ctx, &mut self.ui.paths, self.settings.perspective())
+        {
+            self.ui.paths.again();
+        }
     }
     fn scopes_window(&mut self, ctx: &egui::Context) {
         let g = self.gpu.as_ref().unwrap();
@@ -1752,6 +1760,15 @@ impl App {
             egui::Id::new("gizmo"),
         ));
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, self.ui.selection);
+        if self.ui.paths.open && self.settings.perspective() {
+            crate::paths::draw(
+                &painter,
+                ppp,
+                &view,
+                self.settings.distance.max(1.),
+                &self.ui.paths,
+            );
+        }
         // A/B compare: the split line can be dragged (a 12-point strip over the line).
         if self.settings.compare {
             let screen = ctx.screen_rect();
@@ -3090,6 +3107,8 @@ impl App {
                 .on_hover_text("Luminance and illuminance under the cursor");
             ui.checkbox(&mut self.ui.show_graph, "Convergence graph")
                 .on_hover_text("Error against a reference image as samples grow");
+            ui.checkbox(&mut self.ui.paths.open, "Path visualizer (P)")
+                .on_hover_text("Click a pixel to see its light paths in 3D");
         });
         section(ui, "Compare");
         ui.horizontal(|ui| {
@@ -3778,6 +3797,10 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("1 – 8", "Debug views"),
             ("C", "Freeze an A/B reference"),
             ("L", "Light painting"),
+            (
+                "P / Alt+click",
+                "Path visualizer / trace the paths of a pixel",
+            ),
             ("F12", "Save cornell.png"),
             (
                 "I / Shift+I / Alt+I",

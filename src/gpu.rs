@@ -82,6 +82,8 @@ struct Constants {
     fog: [f32; 4],
     /// Fog albedo (rgb).
     fog_color: [f32; 4],
+    /// Track 14, read only by the path-recording trace: render pixel x, y, paths, capacity.
+    path_record: [u32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -89,6 +91,8 @@ const TIMESTAMPS: u32 = 5;
 /// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
 const CB_STRIDE: u64 = 1024;
 const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
+/// Path visualizer records per request, the count record included (48 B each).
+const PATH_CAPACITY: usize = 16384;
 unsafe extern "C" {
     fn cornell_ngx_release(ngx: *mut c_void);
     fn cornell_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
@@ -203,6 +207,15 @@ pub struct Gpu {
     /// The path tracer with texture-map code (core track 5) and diffraction gratings (track 11),
     /// used while any material has maps or a grating.
     trace_maps: ID3D12PipelineState,
+    /// Path visualizer (track 14): the trace variant that re-traces one pixel into
+    /// `path_buffer` (bound at u0 space 2 for every dispatch), read back through `path_readback`.
+    trace_paths: ID3D12PipelineState,
+    path_buffer: ID3D12Resource,
+    path_readback: ID3D12Resource,
+    /// One-shot: record paths through this output pixel in the next `render` (pixel, paths).
+    pub path_request: Option<([u32; 2], u32)>,
+    /// The records of the last request (the count record stripped), until the app takes them.
+    pub path_result: Option<Vec<crate::paths::Record>>,
     textured: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
@@ -520,6 +533,17 @@ impl Gpu {
                 },
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
+            // Track 14: the path visualizer's records (u0 space 2, the recording trace only).
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_UAV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 0,
+                        RegisterSpace: 2,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -570,6 +594,26 @@ impl Gpu {
         let compute = |code: &[u8]| create_compute_pipeline(&device, &root, code);
         let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
         let trace_maps = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps.dxil")))?;
+        let trace_paths = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/trace_paths.dxil"
+        )))?;
+        let path_size = (PATH_CAPACITY * size_of::<crate::paths::Record>()) as u64;
+        let path_buffer = buffer(
+            &device,
+            path_size,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            // Buffers start in COMMON and are promoted to UAV by the first dispatch.
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        let path_readback = buffer(
+            &device,
+            path_size,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
         let (vs, ps): (&[u8], &[u8]) = (
@@ -655,6 +699,11 @@ impl Gpu {
             root,
             trace,
             trace_maps,
+            trace_paths,
+            path_buffer,
+            path_readback,
+            path_request: None,
+            path_result: None,
             textured: false,
             filter,
             display,
@@ -1281,6 +1330,7 @@ impl Gpu {
     pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
         let trace = create_compute_pipeline(&self.device, &self.root, &sh.trace)?;
         let trace_maps = create_compute_pipeline(&self.device, &self.root, &sh.trace_maps)?;
+        let trace_paths = create_compute_pipeline(&self.device, &self.root, &sh.trace_paths)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
         let gui = create_gui_pipeline(
@@ -1301,11 +1351,20 @@ impl Gpu {
         (
             self.trace,
             self.trace_maps,
+            self.trace_paths,
             self.filter,
             self.display,
             self.gui,
             self.gui_hdr,
-        ) = (trace, trace_maps, filter, display, gui, gui_hdr);
+        ) = (
+            trace,
+            trace_maps,
+            trace_paths,
+            filter,
+            display,
+            gui,
+            gui_hdr,
+        );
         self.integrated_valid = false;
         self.reset(true);
         Ok(())
@@ -1851,6 +1910,8 @@ impl Gpu {
             .SetComputeRootShaderResourceView(9, self.instance_table.GetGPUVirtualAddress());
         self.list
             .SetComputeRootDescriptorTable(10, self.gpu(HEAP_SIZE));
+        self.list
+            .SetComputeRootUnorderedAccessView(11, self.path_buffer.GetGPUVirtualAddress());
     }
     /// Points each visible object's material at its texture maps (core track 5), uploading
     /// maps that are new and releasing ones no object uses any more.
@@ -2256,7 +2317,18 @@ impl Gpu {
             ],
             fog: [s.fog.density, s.fog.phase, s.fog.height, s.fog.extent],
             fog_color: [s.fog.color[0], s.fog.color[1], s.fog.color[2], 0.],
+            path_record: [0; 4],
         };
+        // Path visualizer: the output pixel maps to a render pixel as the light meter's does.
+        let path_request = self.path_request.take();
+        if let Some(([x, y], count)) = path_request {
+            c.path_record = [
+                (x * self.rw / self.width.max(1)).min(self.rw.saturating_sub(1)),
+                (y * self.rh / self.height.max(1)).min(self.rh.saturating_sub(1)),
+                count,
+                PATH_CAPACITY as u32,
+            ];
+        }
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
         if self.hdr_active {
             c.eye[3] = self.hdr_levels[0] / 80.;
@@ -2267,6 +2339,27 @@ impl Gpu {
         if n == 0 {
             self.list
                 .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+        }
+        if path_request.is_some() {
+            // Writes only the path records, so it may run before this frame's trace.
+            self.bind(0);
+            self.list.SetPipelineState(&self.trace_paths);
+            self.list.Dispatch(1, 1, 1);
+            uav(&self.list, None);
+            transition(
+                &self.list,
+                &self.path_buffer,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+            );
+            self.list
+                .CopyResource(&self.path_readback, &self.path_buffer);
+            transition(
+                &self.list,
+                &self.path_buffer,
+                D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
         }
         if n > 0 {
             self.bind(0);
@@ -2508,6 +2601,14 @@ impl Gpu {
         self.submit()?;
         self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
         self.finish_readbacks(probe)?;
+        if path_request.is_some() {
+            let mut p = null_mut();
+            self.path_readback.Map(0, None, Some(&mut p))?;
+            let all = std::slice::from_raw_parts(p as *const crate::paths::Record, PATH_CAPACITY);
+            let count = (all[0].info as usize).min(PATH_CAPACITY - 1);
+            self.path_result = Some(all[1..=count].to_vec());
+            self.path_readback.Unmap(0, None);
+        }
         self.present_count = self.present_count.wrapping_add(1);
         let mut data = null_mut();
         let count = TIMESTAMPS as usize;
