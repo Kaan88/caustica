@@ -98,6 +98,12 @@ struct Constants {
     photon: [f32; 4],
     /// The scene's bounding sphere (centre, radius).
     bounds: [f32; 4],
+    /// Track 16 lens system: surfaces (0 = off), dispersion, scene units per mm, -.
+    real_lens: [f32; 4],
+    /// Track 16 glare pass: mode, region, flags, image size in the grid (w | h << 16).
+    glare: [u32; 4],
+    /// Glare strength (0 = off), threshold, aperture diameter in grid texels, -.
+    glare_settings: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -126,6 +132,13 @@ pub struct BattleQuadrant {
 }
 /// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
 const CB_STRIDE: u64 = 1024;
+/// Constant slots: trace 0, filter 1–7, display 8, battle quadrants 9–12, glare passes from 13.
+const CB_SLOTS: u64 = 13 + 10;
+const GLARE_SLOT: u64 = 13;
+/// The glare grid (post.hlsl GN) and the image's longer side in it (the rest is padding, so the
+/// circular convolution does not wrap highlights around the frame).
+const GLARE_N: u64 = 512;
+const GLARE_IMAGE: f32 = 384.;
 const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
 /// Path visualizer records per request, the count record included (48 B each).
 const PATH_CAPACITY: usize = 16384;
@@ -263,6 +276,15 @@ pub struct Gpu {
     pub lpe_slots: u32,
     lpe_aov: Option<ID3D12Resource>,
     lpe_aov_len: u64,
+    /// Track 16: the lens system's buffer (t9, upload), what it was built for, its surfaces.
+    lens_buffer: ID3D12Resource,
+    lens_params: Option<crate::lens::Params>,
+    lens_surfaces: u32,
+    /// Track 16 glare: the FFT pass, its buffer (u4 space 2: two regions of 3 × GLARE_N²
+    /// complex values) and the aperture its kernel was built for (blades, rotation, diameter).
+    glare: ID3D12PipelineState,
+    glare_buffer: ID3D12Resource,
+    glare_kernel: Option<[f32; 3]>,
     /// ReSTIR DI (track 15): the reservoir passes before the trace and their buffer (u2 space
     /// 2: two 32-byte reservoirs per render pixel and layer, allocated while ReSTIR is on); the
     /// history is valid from the frame after a pass until a full reset.
@@ -656,6 +678,19 @@ impl Gpu {
                 },
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
+            // Track 16: the lens system (t9).
+            root_srv(9),
+            // Track 16: glare (u4 space 2).
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_UAV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 4,
+                        RegisterSpace: 2,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -734,6 +769,21 @@ impl Gpu {
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
         )?;
+        let glare = compute(include_bytes!(concat!(env!("OUT_DIR"), "/glare.dxil")))?;
+        let glare_buffer = buffer(
+            &device,
+            2 * 3 * GLARE_N * GLARE_N * 8,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        let lens_buffer = buffer(
+            &device,
+            (crate::lens::FLOAT4S * 16) as u64,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+        )?;
         let restir_presample = compute(include_bytes!(concat!(
             env!("OUT_DIR"),
             "/restir_presample.dxil"
@@ -776,7 +826,7 @@ impl Gpu {
         let env_cdf = env_texture(&device, 1, 2, DXGI_FORMAT_R32_FLOAT)?;
         let constants = buffer(
             &device,
-            CB_STRIDE * 13,
+            CB_STRIDE * CB_SLOTS,
             D3D12_HEAP_TYPE_UPLOAD,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -856,6 +906,12 @@ impl Gpu {
             trace_lpe,
             lpe_table,
             lpe_uploaded: None,
+            lens_buffer,
+            lens_params: None,
+            lens_surfaces: 0,
+            glare,
+            glare_buffer,
+            glare_kernel: None,
             lpe_slots: 0,
             lpe_aov: None,
             lpe_aov_len: 0,
@@ -1532,6 +1588,7 @@ impl Gpu {
         let photon_gather = create_compute_pipeline(&self.device, &self.root, &sh.photon_gather)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
+        let glare = create_compute_pipeline(&self.device, &self.root, &sh.glare)?;
         let gui = create_gui_pipeline(
             &self.device,
             &self.root,
@@ -1563,7 +1620,7 @@ impl Gpu {
                 self.photon_gather,
             ),
             self.filter,
-            self.display,
+            (self.display, self.glare),
             self.gui,
             self.gui_hdr,
         ) = (
@@ -1582,7 +1639,7 @@ impl Gpu {
                 photon_gather,
             ),
             filter,
-            display,
+            (display, glare),
             gui,
             gui_hdr,
         );
@@ -2169,6 +2226,10 @@ impl Gpu {
                 .unwrap_or(&self.path_buffer)
                 .GetGPUVirtualAddress(),
         );
+        self.list
+            .SetComputeRootShaderResourceView(16, self.lens_buffer.GetGPUVirtualAddress());
+        self.list
+            .SetComputeRootUnorderedAccessView(17, self.glare_buffer.GetGPUVirtualAddress());
     }
     /// Sizes `aux` (u3 space 2) for the integrators in use: the photon grid and photons at 0
     /// (photon mapping), the light-tracing splats after them (BDPT, one rgb float triple per
@@ -2264,9 +2325,7 @@ impl Gpu {
         let photons = ((s.photons as f32 * share * photon_boost) as u32).clamp(1024, s.photons);
         let capacity = (self.splat_offset.saturating_sub(PHOTON_BASE) / 32) as u32;
         // Light tracing needs a pinhole perspective camera and samples spread over each pixel.
-        let light_tracing = (s.projection == 0 || s.projection == 4)
-            && s.aperture <= 0.
-            && c.scene_info[3] & 1 == 0;
+        let light_tracing = s.perspective() && s.aperture <= 0. && c.scene_info[3] & 1 == 0;
         c.integrator = [
             photons,
             capacity,
@@ -2439,6 +2498,74 @@ impl Gpu {
             self.restir_history = false;
         }
         Ok(on)
+    }
+    /// The image's size in the glare grid, w | h << 16 (the longer side GLARE_IMAGE).
+    fn glare_grid(&self) -> u32 {
+        let aspect = self.width as f32 / self.height.max(1) as f32;
+        let (w, h) = if aspect >= 1. {
+            (GLARE_IMAGE, GLARE_IMAGE / aspect)
+        } else {
+            (GLARE_IMAGE * aspect, GLARE_IMAGE)
+        };
+        (w.round().max(1.) as u32) | (h.round().max(1.) as u32) << 16
+    }
+    /// Track 16 glare: rebuilds the kernel's spectrum when the aperture changes (its shape into
+    /// region 0, FFT, the per-wavelength pattern into region 1, FFT), then convolves this frame's
+    /// highlights (region 0: highlights, row FFT, column FFT × kernel × inverse, inverse rows).
+    /// The display pass reads region 0.
+    unsafe fn run_glare(&mut self, s: &Settings, c: &mut Constants) -> Result<()> {
+        let key = [
+            s.aperture_blades as f32,
+            s.blade_rotation,
+            c.glare_settings[2],
+        ];
+        let mut passes = Vec::new();
+        if self.glare_kernel != Some(key) {
+            passes.extend([
+                [1, 0, 0],
+                [2, 0, 0],
+                [3, 0, 0],
+                [4, 0, 0],
+                [2, 1, 0],
+                [3, 1, 0],
+            ]);
+            self.glare_kernel = Some(key);
+        }
+        passes.extend([[0, 0, 0], [2, 0, 0], [3, 0, 2], [2, 0, 1]]);
+        for (i, p) in passes.iter().enumerate() {
+            c.glare[..3].copy_from_slice(p);
+            let offset = (GLARE_SLOT + i as u64) * CB_STRIDE;
+            write_buffer(&self.constants, offset, bytemuck::bytes_of(c))?;
+            self.bind(offset);
+            self.list.SetPipelineState(&self.glare);
+            self.list.Dispatch(GLARE_N as u32, 1, 1);
+            uav(&self.list, None);
+        }
+        c.glare[..3].copy_from_slice(&[0; 3]);
+        Ok(())
+    }
+    /// Builds the lens system's buffer (track 16) when the lens, its stop, focus, field of view,
+    /// aspect or dispersion change. The GPU is idle between frames (one frame in flight).
+    unsafe fn prepare_lens(&mut self, s: &Settings) -> Result<()> {
+        if !s.real_lens() {
+            self.lens_surfaces = 0;
+            return Ok(());
+        }
+        let p = crate::lens::Params {
+            lens: s.lens_system,
+            f_number: s.f_number,
+            focus_mm: s.focus_distance * s.lens_scale * 1000.,
+            fov: s.fov.to_radians(),
+            aspect: self.rw as f32 / self.rh.max(1) as f32,
+            dispersion: s.dispersion,
+        };
+        if self.lens_params.as_ref() != Some(&p) || self.lens_surfaces == 0 {
+            let (data, n) = crate::lens::pack(&p);
+            write_buffer(&self.lens_buffer, 0, bytemuck::cast_slice(&data))?;
+            self.lens_surfaces = n as u32;
+            self.lens_params = Some(p);
+        }
+        Ok(())
     }
     /// Uploads the light path expressions' table when they change, and sizes the AOV buffer
     /// (a new buffer restarts the accumulation, as its contents are undefined).
@@ -2744,6 +2871,7 @@ impl Gpu {
             }
         }
         self.prepare_lpe(s)?;
+        self.prepare_lens(s)?;
         let restir = self.prepare_restir(s)?;
         let sr = self.prepare_upscaler(s);
         // With a temporal upscaler each frame is fresh jittered samples, as with RR: the native
@@ -2910,6 +3038,15 @@ impl Gpu {
             integrator: [0; 4],
             photon: [0.; 4],
             bounds: [0.; 4],
+            real_lens: [
+                self.lens_surfaces as f32,
+                s.dispersion,
+                0.001 / s.lens_scale,
+                0.,
+            ],
+            glare: [0, 0, 0, self.glare_grid()],
+            // A smaller aperture in the grid spreads the pattern wider.
+            glare_settings: [s.glare, s.glare_threshold, 256. - 232. * s.glare_size, 0.],
             path_record: [0; 4],
             lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
             restir: [
@@ -3086,6 +3223,9 @@ impl Gpu {
             .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 2);
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
+        if s.glare > 0. {
+            self.run_glare(s, &mut c)?;
+        }
         write_buffer(&self.constants, 8 * CB_STRIDE, bytemuck::bytes_of(&c))?;
         if self.scopes_on {
             self.clear_scopes()?;

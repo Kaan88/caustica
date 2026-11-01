@@ -270,6 +270,10 @@ Order is from scene-research.md section 5, unchanged:
 - **Hidden lights occlude:** see core 3 above.
 - **Light sampling misses ~0.5% (found 2026-11-01 with ReSTIR):** on night-skyline (emissive buildings with window patterns), `mis_mode` 1 (light sampling only) is 0.57% darker than MIS and BSDF only, which agree to 0.05% (480×270, 4096–16384 spp); light-temperature-row −0.24%; presets 0 and colonnade-night agree. The missing light is on the building faces lit by their neighbours. ReSTIR DI uses light sampling only at the first hit, so it inherits the gap. Not the shadow-ray margin (a distance-relative one changed nothing). Not investigated further. Lead (2026-11-01, track 15): BDPT's connections lost 4% of veach-ajar's light because a shadow ray ending a fixed 0.6 mm short of the far point still hit that point's own surface at grazing angles; `connected()` in integrators.hlsl offsets both ends along their normals instead. Worth trying on NEE's shadow rays here.
 - **BSDF-only vs MIS offset:** on the tea set, `mis_mode` 2 (BSDF sampling only) is 1.6% brighter than MIS and light sampling only, which agree (320×240, 8192 spp; mean l/(1+l) +0.00116, 9×9-blurred RMSE×1000 2.9). Present before the track 11 layers (found 2026-10-31 while checking them); not investigated. Suspects: the hidden main light or the uniform sky term on the BSDF side.
+- **Ultrareview of track 15 part 2 (2026-11-02, owner: fix later):**
+  - *Confirmed:* `Gpu` battle mode reads the timestamp slice after `self.timing.Unmap` (move the per-quadrant loop before the Unmap); `video::Job::start` does not clear `battle`, so an export with battle mode on renders four-integrator quadrants and takes several times longer (set `v.battle = false` next to `v.compare`).
+  - *Plausible, unchecked:* `photon_gather` walks at most 4096 photons per cell but divides by the full photon count, so large gather radii or photon counts come out dark (count per cell and rescale, or bound chain length); `preset()` drops `battle` while `keep_output` keeps it; BDPT's `atomic_add_float` gives up after 64 compare-exchange attempts, losing splats on hot pixels; `prepare_restir` allocates reservoirs for BDPT / photon mapping, which never read them (gate on `integrator == 0 || battle`).
+  - *Cleanups:* `prepare_aux` zeroes the splats with a CPU vector and upload buffer (use a GPU clear); the battle convergence graph duplicates the RMSE code of the normal graph.
 
 ### Feature tracks
 
@@ -393,9 +397,11 @@ BDPT, photon mapping and battle mode done 2026-11-01 (part 2): Render → *Integ
 - **ReSTIR DI:** thousands of emitters at 1 spp, for a night city or a dense Kusama room. It slots in beside `select_emitter` and reuses the motion vectors and object IDs.
 - **Battle mode:** a 2×2 split of path, BDPT, SPPM and path with ReSTIR at equal time, with the live convergence graph (5b) per quadrant. It generalizes the A/B slider.
 
-#### 16. Real lenses and physical glare
+#### 16. Real lenses and physical glare — done 2026-11-02
 
-After thin-lens depth of field (5c).
+Done: four lens prescriptions (Double Gauss 50 mm f/2, Nakamura wide angle 22 mm, Muller fisheye 10 mm, an uncorrected singlet) traced per camera ray with exit-pupil sampling, f-number, scene scale, aperture blades on the stop and optional dispersion (Render → Lens); FFT diffraction glare from the aperture shape, per wavelength (Look → Film → Glare); the `lens-fairy-lights` scene. See engine-notes "Real lenses and glare".
+
+- Not done: RR, the temporal upscalers, click picking and the gizmo with a lens system (motion vectors and picking assume a pinhole; a distortion-aware projection would fix them); real Abbe numbers (the prescriptions carry only n_d, so dispersion uses estimates and is off by default, as it undoes the designs' achromatic pairs); a Zeiss Planar and a telephoto prescription; lens systems with tilt-shift and the other camera models, and BDPT light tracing through a lens; the paraxial focus misses best focus on the singlet's strong spherical aberration; glare is additive (the highlight's own energy is not removed), on a fixed 512² grid (384 px of image, so spikes are soft at 4K and wrap past 128 grid cells), and has no dust, scratches or obstruction (spider vanes) in the aperture; lens flare ghosts (reflections between elements).
 
 - **Lens systems:** trace through real lens prescriptions (Kolb 1995): a Double Gauss, a Zeiss Planar or a fisheye. Distortion, vignetting, chromatic aberration and bokeh then come from the glass elements themselves.
 - **Glare:** an FFT of the aperture shape (the same shape as the 5c bokeh) gives the diffraction starburst on bright emitters. Convolve in `display` at a reduced resolution.

@@ -39,6 +39,9 @@ cbuffer Frame:register(b0) {
     uint4 integrator; // track 15 (integrators.hlsl): photons emitted this frame, photon capacity, splat offset in aux (bytes), flags (bit 0 light tracing)
     float4 photon; // track 15: gather radius, image-plane area at distance 1 times the region's share of the image, -, -
     float4 bounds; // track 15: the scene's bounding sphere (centre, radius) for sun and sky photons
+    float4 real_lens; // track 16: lens system surfaces (0 = off), dispersion, scene units per mm, -
+    uint4 glare; // track 16 glare pass: mode (0 highlights, 1 aperture, 2 rows FFT, 3 columns FFT, 4 PSF), region, flags (bit 0 inverse, bit 1 convolve), image size in the grid (w | h << 16)
+    float4 glare_settings; // strength (0 = off), threshold, aperture diameter in grid texels, -
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -55,6 +58,11 @@ StructuredBuffer<Instance> instances:register(t7);
 // accept flag << 8 (255 = no match possible); and each slot's AOV, the running mean per render
 // pixel (index (y * render width + x) * slots + slot), written by the LPE variant of trace.
 StructuredBuffer<uint> lpe_table:register(t8);
+// Track 16 lens system (lens.rs `pack`): header, surfaces, exit-pupil bounds per film band.
+StructuredBuffer<float4> lens_data:register(t9);
+// Track 16 glare (post.hlsl): complex values, region r channel c at ((r*3+c)*512+y)*512+x;
+// region 0 the image being convolved, region 1 the kernel's spectrum.
+RWStructuredBuffer<float2> glare_data:register(u4,space2);
 RWStructuredBuffer<float4> lpe_aov:register(u1,space2);
 Texture2D<float4> maps[]:register(t0,space1); // mesh texture maps (gpu.rs MAX_MAPS)
 SamplerState map_sampler:register(s1); // linear, wrap
@@ -95,4 +103,11 @@ float2 sign_nz(float2 v){return float2(v.x>=0?1:-1,v.y>=0?1:-1);}
 float2 oct_encode(float3 n){n/=abs(n.x)+abs(n.y)+abs(n.z)+1e-9;return n.z>=0?n.xy:(1-abs(n.yx))*sign_nz(n.xy);}
 float3 oct_decode(float2 e){float3 n=float3(e,1-abs(e.x)-abs(e.y));n.xy-=saturate(-n.z)*sign_nz(n.xy);return normalize(n);}
 static const float PI=3.14159265359;
+// The aperture (roadmap 5c, track 16): a disk of radius r, or the n-gon of lens.z blades turned
+// by lens.w (vertices at lens.w + 2πk/n, as pathtrace's aperture_point).
+bool inside_aperture(float2 q,float r){
+    if(lens.z<2.5)return dot(q,q)<=r*r;
+    float n=lens.z,sector=2*PI/n,a=atan2(q.y,q.x)-lens.w-PI/n;a-=round(a/sector)*sector;
+    return length(q)*cos(a)<=r*cos(PI/n);
+}
 

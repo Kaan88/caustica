@@ -193,6 +193,15 @@ float3 scene_at(int2 op){
     if((scene_info.w&2)!=0)return reconstruction[op].rgb;
     return native_at(int2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)));
 }
+#define GN 512
+// Track 16 glare: the image region of the convolved grid at an output pixel (bilinear).
+float3 glare_at(uint2 op){
+    float2 size=float2(glare.w&0xffff,glare.w>>16),g=(float2(op)+0.5)/float2(dimensions.zw)*size-0.5;
+    int2 b=int2(floor(g));float2 f=g-b;float3 sum=0;
+    for(int i=0;i<4;i++){int2 o=int2(i&1,i>>1),q=clamp(b+o,0,int2(size)-1);float w=(o.x!=0?f.x:1-f.x)*(o.y!=0?f.y:1-f.y);
+        sum+=w*float3(glare_data[q.y*GN+q.x].x,glare_data[(GN+q.y)*GN+q.x].x,glare_data[(2*GN+q.y)*GN+q.x].x);}
+    return max(sum,0);
+}
 // Halation: red-orange glow from highlights scattering back through film; vignette: cos^4-like falloff.
 float3 lens_and_film(float3 c,uint2 op){
     if(look.x>0){
@@ -200,8 +209,80 @@ float3 lens_and_film(float3 c,uint2 op){
         for(int i=0;i<12;i++){float a=i*PI/6;for(int k=1;k<=2;k++)glow+=max(scene_at(int2(op)+int2(float2(cos(a),sin(a))*r*k))-1,0);}
         c+=glow/24*look.x*float3(1.0,0.3,0.12);
     }
+    if(glare_settings.x>0)c+=glare_at(op)*glare_settings.x;
     if(look.z>0){float2 q=(float2(op)/dimensions.zw-0.5)*float2(float(dimensions.z)/dimensions.w,1);float v=1/(1+dot(q,q)*1.6);c*=lerp(1,v*v,look.z);}
     return c;
+}
+// Track 16 glare: the aperture's diffraction pattern (|FFT|² of its shape, scaled per wavelength)
+// convolved with the frame's highlights by FFT on a GN² grid. One dispatch of GN groups per mode;
+// a group is one row (or column) and each thread two of its texels.
+groupshared float2 fft_a[3][GN],fft_b[3][GN];
+uint gidx(uint r,uint c,uint x,uint y){return ((r*3+c)*GN+y)*GN+x;}
+float2 cmul(float2 a,float2 b){return float2(a.x*b.x-a.y*b.y,a.x*b.y+a.y*b.x);}
+// One Stockham radix-2 stage (natural order out) for the three channels; sign -1 forward.
+#define FFT_STAGE(SRC,DST,NS) {[unroll]for(uint c=0;c<3;c++){float2 v0=SRC[c][t],v1=SRC[c][t+GN/2];float a=sign*PI*float(t&(NS-1))/NS;v1=cmul(v1,float2(cos(a),sin(a)));uint d=(t/NS)*NS*2+(t&(NS-1));DST[c][d]=v0+v1;DST[c][d+NS]=v0-v1;}GroupMemoryBarrierWithGroupSync();}
+void fft(uint t,float sign){
+    FFT_STAGE(fft_a,fft_b,1)FFT_STAGE(fft_b,fft_a,2)FFT_STAGE(fft_a,fft_b,4)FFT_STAGE(fft_b,fft_a,8)
+    FFT_STAGE(fft_a,fft_b,16)FFT_STAGE(fft_b,fft_a,32)FFT_STAGE(fft_a,fft_b,64)FFT_STAGE(fft_b,fft_a,128)
+    FFT_STAGE(fft_a,fft_b,256)
+    [unroll]for(uint c=0;c<3;c++){fft_a[c][t]=fft_b[c][t];fft_a[c][t+GN/2]=fft_b[c][t+GN/2];}GroupMemoryBarrierWithGroupSync();
+}
+// |F|² of the aperture's spectrum (region 0, channel 0) at a signed, fractional frequency (bilinear).
+float spectrum_power(float2 k){
+    int2 b=int2(floor(k));float2 f=k-b;float sum=0;
+    for(int i=0;i<4;i++){int2 o=int2(i&1,i>>1);uint2 q=uint2((b+o)&(GN-1));float w=(o.x!=0?f.x:1-f.x)*(o.y!=0?f.y:1-f.y);float2 v=glare_data[gidx(0,0,q.x,q.y)];sum+=w*dot(v,v);}
+    return sum;
+}
+[numthreads(256,1,1)]void glare_pass(uint3 gid:SV_GroupID,uint3 tid:SV_GroupThreadID){
+    uint t=tid.x,row=gid.x,mode=glare.x,r=glare.y,W=glare.w&0xffff,H=glare.w>>16;
+    if(mode==0){
+        // The highlights: light above the threshold (by luminance), box-filtered into the grid.
+        float2 cell=float2(dimensions.zw)/float2(W,H);
+        for(uint k=0;k<2;k++){
+            uint x=t+k*GN/2;float3 v=0;
+            if(x<W && row<H){
+                for(int i=0;i<16;i++){float3 s=scene_at(int2((float2(x,row)+(float2(i&3,i>>2)+0.5)/4)*cell));float l=luminance(s);v+=s*max(l-glare_settings.y,0)/max(l,1e-6);}
+                v/=16;
+            }
+            [unroll]for(uint c=0;c<3;c++)glare_data[gidx(0,c,x,row)]=float2(v[c],0);
+        }
+        return;
+    }
+    if(mode==1){
+        // The aperture shape, glare_settings.z texels across (4×4 supersampled), into region 0.
+        float R=glare_settings.z*0.5;
+        for(uint k=0;k<2;k++){
+            uint x=t+k*GN/2;float a=0;
+            for(int i=0;i<16;i++)a+=inside_aperture(float2(x,row)+(float2(i&3,i>>2)+0.5)/4-GN/2,R)?1.0/16:0;
+            glare_data[gidx(0,0,x,row)]=float2(a,0);glare_data[gidx(0,1,x,row)]=0;glare_data[gidx(0,2,x,row)]=0;
+        }
+        return;
+    }
+    if(mode==4){
+        // The diffraction pattern per channel: |F(k / s)|² / s² with s = λ / 550 nm (610, 550 and
+        // 465 nm), normalized to unit sum (Parseval: Σ|F|² = GN² · aperture area), centred at 0.
+        float n=lens.z,R=glare_settings.z*0.5,area=n<2.5?PI*R*R:0.5*n*R*R*sin(2*PI/n),norm=1/(float(GN)*GN*area);
+        float3 scale=float3(610,550,465)/550;
+        for(uint k=0;k<2;k++){
+            uint x=t+k*GN/2;float2 q=float2(int2(uint2(x,row)+GN/2)&(GN-1))-GN/2;
+            [unroll]for(uint c=0;c<3;c++)glare_data[gidx(1,c,x,row)]=float2(spectrum_power(q/scale[c])/(scale[c]*scale[c])*norm,0);
+        }
+        return;
+    }
+    // FFT of rows (mode 2) or columns (mode 3) of region r; flags: bit 0 inverse, bit 1 convolve
+    // (columns: forward, times the kernel's spectrum, inverse).
+    bool rows=mode==2,inverse=(glare.z&1)!=0;
+    [unroll]for(uint c=0;c<3;c++){[unroll]for(uint k=0;k<2;k++){uint i=t+k*GN/2;fft_a[c][i]=glare_data[rows?gidx(r,c,i,row):gidx(r,c,row,i)];}}
+    GroupMemoryBarrierWithGroupSync();
+    fft(t,inverse?1:-1);
+    if((glare.z&2)!=0){
+        [unroll]for(uint c=0;c<3;c++){[unroll]for(uint k=0;k<2;k++){uint i=t+k*GN/2;fft_a[c][i]=cmul(fft_a[c][i],glare_data[gidx(1,c,row,i)]);}}
+        GroupMemoryBarrierWithGroupSync();
+        fft(t,1);
+    }
+    // The 1 / GN² of the inverse transform, once, in the last (row) pass.
+    float s=rows && inverse?1.0/(float(GN)*GN):1;
+    [unroll]for(uint c=0;c<3;c++){[unroll]for(uint k=0;k<2;k++){uint i=t+k*GN/2;glare_data[rows?gidx(r,c,i,row):gidx(r,c,row,i)]=fft_a[c][i]*s;}}
 }
 float film_grain(uint2 op){
     uint2 cell=op/max(1,(uint)lift.w);uint h=cell.x*1973+cell.y*9277+(uint)gain.w*26699;h^=h>>13;h*=0x5bd1e995;h^=h>>15;

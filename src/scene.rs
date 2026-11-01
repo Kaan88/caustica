@@ -568,10 +568,23 @@ pub struct Settings {
     /// 4 tilt-shift (perspective with the focal plane tilted by `tilt` degrees).
     pub projection: u32,
     pub tilt: f32,
+    /// Track 16: a real lens system (0 = the thin lens above; 1.. = `lens::LENSES`), used with
+    /// the perspective model. `f_number` stops it down (0 = wide open), `lens_scale` is metres
+    /// per scene unit (sets how much depth of field the scene gets), `dispersion` scales the
+    /// glass's dispersion (0 = none, 1 = real glass).
+    pub lens_system: u32,
+    pub f_number: f32,
+    pub lens_scale: f32,
+    pub dispersion: f32,
     /// Film look (display only): halation, grain and its size (0 fine, 1 medium, 2 coarse),
     /// vignette, lift / gamma / gain per channel, and a .cube LUT.
     pub halation: f32,
     pub grain: f32,
+    /// Track 16 glare (display only): the aperture's diffraction pattern around highlights.
+    /// Strength (0 = off), size (0 small to 1 large) and the luminance it starts above.
+    pub glare: f32,
+    pub glare_size: f32,
+    pub glare_threshold: f32,
     pub grain_size: u32,
     pub vignette: f32,
     pub lift: [f32; 3],
@@ -714,7 +727,14 @@ impl Default for Settings {
             cat_eye: 0.,
             projection: 0,
             tilt: 0.,
+            lens_system: 0,
+            f_number: 0.,
+            lens_scale: 1.,
+            dispersion: 0.,
             halation: 0.,
+            glare: 0.,
+            glare_size: 0.5,
+            glare_threshold: 1.,
             grain: 0.,
             grain_size: 1,
             vignette: 0.,
@@ -1060,7 +1080,11 @@ impl Settings {
                 && (1..=32).contains(&self.restir_candidates)
                 && self.restir_neighbors <= 8
                 && self.restir_history <= 64
-                && self.tilt.abs() <= 60.,
+                && self.tilt.abs() <= 60.
+                && self.lens_system as usize <= crate::lens::LENSES.len()
+                && (self.f_number == 0. || (0.5..=64.).contains(&self.f_number))
+                && (0.001..=1000.).contains(&self.lens_scale)
+                && (0. ..=20.).contains(&self.dispersion),
             "Invalid lens or camera model"
         );
         // At most 1M photons: 16384 dispatch groups, and the photon buffer stays under 400 MB.
@@ -1072,6 +1096,9 @@ impl Settings {
         );
         anyhow::ensure!(
             (0. ..=1.).contains(&self.halation)
+                && (0. ..=4.).contains(&self.glare)
+                && (0. ..=1.).contains(&self.glare_size)
+                && (0. ..=100.).contains(&self.glare_threshold)
                 && (0. ..=1.).contains(&self.grain)
                 && self.grain_size < 3
                 && (0. ..=1.).contains(&self.vignette)
@@ -1190,7 +1217,12 @@ impl Settings {
     }
     /// RR, the temporal upscalers and the gizmo assume a perspective camera.
     pub fn perspective(&self) -> bool {
-        self.projection == 0 || self.projection == 4
+        (self.projection == 0 && !self.real_lens()) || self.projection == 4
+    }
+    /// A lens system is in use (track 16): perspective model only. Its distortion breaks the
+    /// pinhole math of RR's motion vectors, the upscalers, picking and the gizmo.
+    pub fn real_lens(&self) -> bool {
+        self.projection == 0 && self.lens_system > 0
     }
     pub fn camera(&self, aspect: f32) -> (Mat4, Mat4, Vec3) {
         let (sy, cy) = self.yaw.to_radians().sin_cos();

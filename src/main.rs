@@ -11,6 +11,7 @@ mod geometry;
 mod gizmo;
 mod gpu;
 mod hotreload;
+mod lens;
 mod lighting;
 mod look;
 mod lpe;
@@ -152,7 +153,7 @@ struct App {
     timeline: anim::Timeline,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 290;
+const SCENES_FROM: u32 = 292;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -174,6 +175,9 @@ fn transport_key(s: &Settings) -> String {
         "rotate",
         "rotate_speed",
         "halation",
+        "glare",
+        "glare_size",
+        "glare_threshold",
         "grain",
         "grain_size",
         "vignette",
@@ -1375,6 +1379,23 @@ impl App {
                     self.settings.battle = false;
                     self.settings.restir = false;
                 }
+                // Track 16 lens systems: a stopped-down Double Gauss with blades, dispersion and
+                // glare, then the fisheye (both checked after the render), then back to the thin lens.
+                289 => {
+                    self.settings.lens_system = 1;
+                    self.settings.f_number = 4.;
+                    self.settings.aperture_blades = 6;
+                    self.settings.dispersion = 1.;
+                    self.settings.glare = 1.;
+                }
+                290 => self.settings.lens_system = 3,
+                291 => {
+                    self.settings.lens_system = 0;
+                    self.settings.f_number = 0.;
+                    self.settings.aperture_blades = 0;
+                    self.settings.dispersion = 0.;
+                    self.settings.glare = 0.;
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -2047,6 +2068,21 @@ impl App {
                     );
                 }
 
+                289 | 290 => {
+                    let image = unsafe { g.read_floats(18)? };
+                    let pixels = image.as_chunks::<4>().0;
+                    let mean = pixels
+                        .iter()
+                        .map(|p| (p[0] + p[1] + p[2]) as f64 / 3.)
+                        .sum::<f64>()
+                        / pixels.len().max(1) as f64;
+                    anyhow::ensure!(
+                        mean.is_finite() && mean > 0.002 && !g.rr_active,
+                        "Lens {} rendered a mean of {mean} (RR {})",
+                        s.lens_system,
+                        g.rr_active
+                    );
+                }
                 283 | 284 => anyhow::ensure!(
                     g.restir_layers() == 2,
                     "ReSTIR did not run with two layers ({})",

@@ -580,12 +580,60 @@ float2 aperture_point(){
     float u=random(),v=random();if(u+v>1){u=1-u;v=1-v;}
     return u*float2(cos(a0),sin(a0))+v*float2(cos(a1),sin(a1));
 }
+// Track 16 real lens systems (lens.rs `pack`): millimetres, the film at z = 0, the lens toward
+// -z. camera_weight is the sample's weight from the camera (1 except through a lens system).
+static float3 camera_weight=1;
+#define LENS_BANDS_BASE 34
+// From the film to the object side through every surface, in channel c's indices.
+bool trace_lens(inout float3 o,inout float3 d,uint c){
+    for(int i=int(real_lens.x)-1;i>=0;i--){
+        float4 s=lens_data[2+2*i];float t;float3 nrm=float3(0,0,1);
+        if(s.x==0)t=(s.y-o.z)/d.z;
+        else{
+            float3 oc=o-float3(0,0,s.y+s.x);float b=dot(oc,d),disc=b*b-(dot(oc,oc)-s.x*s.x);if(disc<0)return false;
+            float q=sqrt(disc);t=((d.z>0)!=(s.x<0))?-b-q:-b+q;nrm=normalize(oc+t*d);
+        }
+        if(!(t>0))return false;o+=t*d;
+        if(s.x==0){if(!inside_aperture(o.xy,s.z))return false;continue;}
+        if(dot(o.xy,o.xy)>s.z*s.z)return false;
+        float before=i>0?lens_data[3+2*(i-1)][c]:1;
+        float3 w=refract(d,dot(nrm,d)>0?-nrm:nrm,lens_data[3+2*i][c]/before);if(dot(w,w)==0)return false;d=w;
+    }
+    return true;
+}
+// A film point for the pixel (inverted: the lens flips the image), a point in its band's exit-pupil
+// bounds turned to the film point's angle (their centre for the guide ray), traced out of the front
+// element. Weight cos⁴θ · bounds area / the centre's effective pupil: 1 at the centre of the frame.
+bool lens_ray(float2 ndc,bool sample_pupil,uint c,out float3 o,out float3 d){
+    float4 h=lens_data[0],g=lens_data[1];
+    float3 f=float3(-ndc.x*h.x,-ndc.y*h.y,0);float r=length(f.xy);
+    float4 e=lens_data[LENS_BANDS_BASE+min((uint)(r/g.w*h.z),(uint)h.z-1)];
+    o=f;d=float3(0,0,-1);if(e.w<=0)return false;
+    float2 q=sample_pupil?float2(lerp(e.x,e.y,random()),(random()*2-1)*e.z):float2((e.x+e.y)*0.5,0);
+    float2 cs=r>1e-6?f.xy/r:float2(1,0);q=float2(q.x*cs.x-q.y*cs.y,q.x*cs.y+q.y*cs.x);
+    d=normalize(float3(q,g.x)-f);float c2=d.z*d.z;
+    if(!trace_lens(o,d,c))return false;
+    camera_weight=c2*c2*e.w*h.w;return true;
+}
 // Camera rays for every model (roadmap 5c). `lens_sample` adds depth of field; a ray the
 // cat-eye vignette blocks comes back with valid=false and contributes nothing (optical vignetting).
 void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool valid){
     float3 right=world_view[0].xyz,up=world_view[1].xyz,forward=-world_view[2].xyz;
     float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float aspect=float(dimensions.x)/dimensions.y;
-    uint model=(uint)camera_model.x;o=eye.xyz;valid=true;
+    uint model=(uint)camera_model.x;o=eye.xyz;valid=true;camera_weight=1;
+    if(model==0 && real_lens.x>0){
+        // Dispersion: each sample traces one channel (weight 3 there) through that channel's indices.
+        bool spectral=lens_sample && real_lens.y>0;uint c=spectral?min((uint)(random()*3),2u):1;
+        float3 lo,ld;
+        if(!lens_ray(ndc,lens_sample,c,lo,ld)){
+            // A vignetted sample is invalid; the guide falls back to the pinhole ray.
+            d=camera_direction(pixel);if(lens_sample)valid=false;camera_weight=1;return;
+        }
+        o=eye.xyz+(right*lo.x+up*lo.y+forward*(lens_data[1].z-lo.z))*real_lens.z;
+        d=normalize(right*ld.x+up*ld.y-forward*ld.z);
+        if(spectral){float3 m=0;m[c]=3;camera_weight*=m;}
+        return;
+    }
     if(model==1){o=eye.xyz+(right*ndc.x*aspect+up*ndc.y)*camera_model.w;d=forward;return;}
     if(model==2){float phi=ndc.x*PI,theta=ndc.y*PI*0.5;d=normalize(right*sin(phi)*cos(theta)+up*sin(theta)+forward*cos(phi)*cos(theta));return;}
     if(model==3){
@@ -896,7 +944,7 @@ void write_guides(uint2 p,out Hit guide){
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
+        float3 throughput=lens_valid?camera_weight:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
         // Recording only (dead code otherwise): why the path ended, and its last bounce.
         uint end_reason=lens_valid?3:5,last_bounce=0;
         if(lpe_on){lpe_state=0;lpe_weight=1;}

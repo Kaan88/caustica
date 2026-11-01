@@ -20,11 +20,12 @@ pub struct Shaders {
     pub photon_gather: Vec<u8>,
     pub filter: Vec<u8>,
     pub display: Vec<u8>,
+    pub glare: Vec<u8>,
     pub vs: Vec<u8>,
     pub ps: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 16] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 17] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -106,6 +107,7 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 16] = [
     ),
     ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
     ("post.hlsl", "display", "cs_6_5", "display", &[]),
+    ("post.hlsl", "glare_pass", "cs_6_5", "glare", &[]),
     ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
     ("gui.hlsl", "ps_main", "ps_6_0", "ps_main", &[]),
 ];
@@ -189,6 +191,7 @@ impl HotReload {
             photon_gather: b.next().unwrap(),
             filter: b.next().unwrap(),
             display: b.next().unwrap(),
+            glare: b.next().unwrap(),
             vs: b.next().unwrap(),
             ps: b.next().unwrap(),
         })

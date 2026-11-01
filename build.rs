@@ -126,6 +126,7 @@ fn main() {
         ),
         ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
         ("post.hlsl", "display", "cs_6_5", "display", &[]),
+        ("post.hlsl", "glare_pass", "cs_6_5", "glare", &[]),
         ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
         ("gui.hlsl", "ps_main", "ps_6_0", "ps_main", &[]),
     ] {

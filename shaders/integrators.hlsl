@@ -174,8 +174,8 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
     float2 sub=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
     float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)return 0;
     // Camera subpath.
-    BVertex x0=(BVertex)0;x0.p=o;x0.beta=1;x0.info=V_CAMERA|(lt?0:V_DELTA);cam[0]=x0;
-    uint T=1;float3 beta=1,absorption=0;float pdf_w=camera_pdf_w(d),prev_pdf=0;bool prev_delta=true;
+    BVertex x0=(BVertex)0;x0.p=o;x0.beta=camera_weight;x0.info=V_CAMERA|(lt?0:V_DELTA);cam[0]=x0;
+    uint T=1;float3 beta=camera_weight,absorption=0;float pdf_w=camera_pdf_w(d),prev_pdf=0;bool prev_delta=true;
     cone_width=pixel_width;cone_spread=pixel_angle;
     for(;;){
         Hit h;
@@ -417,7 +417,7 @@ float3 direct_light_at(BVertex x,Material m,float3 v,float p_env){
         float2 sub=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
         float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)continue;
         cone_width=pixel_width_now();cone_spread=pixel_angle_now();
-        float3 beta=1,ab=0,L=0;
+        float3 beta=camera_weight,ab=0,L=0;
         for(uint bounce=0;bounce<min(sampling.z,10u);bounce++){
             Hit h;if(!intersect(o,d,1e4,h,false,bounce==0)){L+=beta*escape(d,bounce==0,true,0,p_env);break;}
             beta*=exp(-ab*h.t);

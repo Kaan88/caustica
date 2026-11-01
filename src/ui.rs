@@ -3218,6 +3218,22 @@ impl App {
             );
             row(
                 ui,
+                "Glare",
+                "Diffraction starbursts around highlights: the aperture's shape (Lens: aperture blades) diffracts light into spikes, coloured because red spreads wider than blue. An FFT convolution of the highlights.",
+                |ui| {
+                    ui.add(crate::slider(&mut s.glare, 0. ..=4.).logarithmic(true).smallest_positive(0.01));
+                },
+            );
+            if s.glare > 0. {
+                row(ui, "Glare size", "How far the spikes and rings reach.", |ui| {
+                    ui.add(crate::slider(&mut s.glare_size, 0. ..=1.));
+                });
+                row(ui, "Glare threshold", "Only light brighter than this (luminance, before exposure) glares.", |ui| {
+                    ui.add(crate::slider(&mut s.glare_threshold, 0. ..=100.).logarithmic(true).smallest_positive(0.01));
+                });
+            }
+            row(
+                ui,
                 "Grain",
                 "Film grain, strongest in the midtones.",
                 |ui| {
@@ -3817,6 +3833,49 @@ fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
                 ui.add(crate::slider(&mut s.tilt, -60. ..=60.).suffix("°"));
             });
         }
+        if s.projection == 0 {
+            let name = |i: u32| if i == 0 { "Thin lens".to_string() } else { let l = &crate::lens::LENSES[i as usize - 1]; let n = crate::lens::INFO[i as usize - 1]; format!("{} f/{:.1}", l.name, n.f_number) };
+            row(ui, "Lens", "Thin lens: an ideal lens with the aperture below. The others trace each ray through a real lens prescription (track 16): distortion, vignetting, chromatic aberration and bokeh come from the glass. Real lenses use the native denoiser.", |ui| {
+                egui::ComboBox::from_id_salt("lens_system").selected_text(name(s.lens_system)).show_ui(ui, |ui| {
+                    for i in 0..=crate::lens::LENSES.len() as u32 {
+                        ui.selectable_value(&mut s.lens_system, i, name(i));
+                    }
+                });
+            });
+        }
+        if s.real_lens() {
+            let open = crate::lens::INFO[s.lens_system as usize - 1].f_number;
+            row(ui, "f-number", "Stops the lens down: higher is a smaller aperture, deeper focus and less aberration. The image keeps its brightness.", |ui| {
+                let mut n = if s.f_number == 0. { open } else { s.f_number.max(open) };
+                if ui.add(crate::slider(&mut n, open..=32.).logarithmic(true).custom_formatter(|v, _| format!("f/{v:.1}"))).changed() {
+                    s.f_number = if n <= open + 1e-3 { 0. } else { n };
+                }
+            });
+            row(ui, "Focus distance", "Distance of the sharp plane from the front of the lens. Ctrl+click in the viewport focuses there.", |ui| {
+                ui.add(crate::slider(&mut s.focus_distance, 0.05..=500.).logarithmic(true).suffix(" units"));
+            });
+            row(ui, "Scene scale", "Metres per scene unit. The lens is real size, so a small scale (a miniature) gets shallow focus.", |ui| {
+                ui.add(crate::slider(&mut s.lens_scale, 0.001..=1000.).logarithmic(true).suffix(" m"));
+            });
+            row(ui, "Dispersion", "Chromatic aberration from the glass: 1 is real glass, 0 none, higher exaggerates it. Each sample traces one colour, so it adds some colour noise.", |ui| {
+                ui.add(crate::slider(&mut s.dispersion, 0. ..=20.));
+            });
+            row(ui, "Aperture blades", "Shape of the aperture stop: round, or a polygon with this many blades.", |ui| {
+                egui::ComboBox::from_id_salt("lens_blades")
+                    .selected_text(if s.aperture_blades == 0 { "Round".to_string() } else { format!("{} blades", s.aperture_blades) })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut s.aperture_blades, 0, "Round");
+                        for n in [3, 5, 6, 7, 8, 9] {
+                            ui.selectable_value(&mut s.aperture_blades, n, format!("{n} blades"));
+                        }
+                    });
+            });
+            if s.aperture_blades > 0 {
+                row(ui, "Blade rotation", "Turns the polygonal aperture.", |ui| {
+                    ui.add(crate::slider(&mut s.blade_rotation, -180. ..=180.).suffix("°"));
+                });
+            }
+        }
         if s.perspective() {
             row(ui, "Aperture", "Lens radius in scene units. 0 is a pinhole: everything sharp.", |ui| {
                 ui.add(crate::slider(&mut s.aperture, 0. ..=2.).logarithmic(true).smallest_positive(0.001).suffix(" units"));
@@ -3844,7 +3903,12 @@ fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
             });
         }
     });
-    if !s.perspective() {
+    if s.real_lens() {
+        note(
+            ui,
+            "Real lenses render with the native denoiser; RR, temporal upscalers, click picking and the gizmo are off.",
+        );
+    } else if !s.perspective() {
         note(
             ui,
             "This camera model renders with the native denoiser; RR, temporal upscalers and the gizmo are off. A 360° panorama exports best at 2:1 (e.g. --width 4096 --height 2048).",
