@@ -352,14 +352,11 @@ As built: homogeneous media inside transmissive objects (density, scatter colour
   - Subsurface jade, milk and a glowing **jack-o'-lantern**.
   - **Underwater mode**: the whole room filled with a medium.
 
-#### 13. Procedural primitives and SDFs
+#### 13. Procedural primitives and SDFs — done 2026-11-01 (first part)
 
-Needs instancing (core 4): procedural AABBs go in their own BLAS.
+As built: per-object procedural surfaces in one shared AABB BLAS, intersected inside the existing `Proceed()` loops: an exact (analytic) sphere, an exact sphere-traced torus, the Mandelbulb and a level-5 Menger sponge, with SDF-gradient normals; a *Surface* combo in the Scene tab; `sdf-gallery`. See engine-notes "Procedural surfaces".
 
-- **Intersection:** inline `RayQuery` reports `CANDIDATE_PROCEDURAL_PRIMITIVE` in the existing `Proceed()` loop. The shader intersects or ray-marches there and calls `CommitProceduralPrimitiveHit(t)`.
-- **Exact analytic shapes:** spheres, tori and cylinders, with no tessellation facets. Today a sphere costs 4,096 triangles.
-- **SDFs by sphere tracing:** the Mandelbulb, a Menger sponge at any level, metaballs (a **lava lamp**) and smooth CSG subtraction. Normals come from the SDF gradient.
-- This replaces scene-research.md's "SDF → marching cubes → mesh" route for anything that doesn't need to be a mesh.
+- Not done: metaballs / a lava lamp (needs animated parameters), smooth CSG between objects, exact cylinders and cones, parameters per object (Mandelbulb power, Menger level, torus radii), user SDF expressions; procedural emitters are not light-sampled; texture maps and box mapping on procedural surfaces (they render the flat colour); anisotropy / gratings use a generic tangent, not the brush direction; normals use a fixed object-space step (noisy on small fractals); the Menger march can give up at grazing angles (pinholes); walk-mode collision and sky occlusion see no procedural objects (`geometry()` skips them); RR / denoiser guides are exact but fractal detail below a pixel shimmers under RR (not measured); the fractals are slow (Mandelbulb +8 ms at 1440×900) — a step budget tied to the pixel footprint, or a baked distance grid, would help.
 
 #### 14. Path visualizer and light path expressions
 

@@ -25,7 +25,7 @@ impl std::ops::Deref for Source {
 /// The mesh an object instances (core track 4): a key shared by every object with the same
 /// triangles, which names its BLAS, and the triangles.
 pub fn object_source(o: &Object) -> (String, Source) {
-    match crate::mesh::of(o) {
+    match crate::mesh::of(o).filter(|_| o.sdf.is_none()) {
         Some(m) => (o.mesh.clone(), Source::File(m)),
         None => (
             format!("shape:{:?}", o.kind()),
@@ -450,6 +450,10 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
     cache.resize_with(s.objects.len(), || None);
     for (i, o) in s.objects.iter().enumerate() {
         let id = 5 + i as u32;
+        // Procedural objects (track 13) have no triangles on the GPU.
+        if !o.sdf.is_none() {
+            continue;
+        }
         match &cache[i] {
             Some((cached, cached_id, mesh)) if cached == o && *cached_id == id => {
                 out.extend_from_slice(mesh)

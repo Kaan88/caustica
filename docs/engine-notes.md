@@ -33,6 +33,14 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
 
+## Procedural surfaces (track 13, 2026-11-01)
+
+- **Objects:** `Object::sdf` (`Sdf`: none, exact sphere, exact torus, Mandelbulb, Menger level 5) renders the object as a procedural surface in the unit cube [−1, 1]³ of object space, under the usual transform. `kind()` returns a proxy mesh (sphere, torus, box) for CPU picking, framing and grounding; `geometry()` skips such objects (no GPU triangles, so the self-test counts still match); they are not in the emitter table (emission is found by BSDF hits only). The Scene tab's *Surface* combo picks it.
+- **GPU:** one shared BLAS of one AABB (the unit cube), instanced per visible procedural object with `InstanceRecord.vertex_base` = the kind id; glass / hidden ones get FORCE_NON_OPAQUE like meshes. Every RayQuery loop (`intersect`, `occluded`, `surface_distance`) handles `CANDIDATE_PROCEDURAL_PRIMITIVE`: `sdf_hit` on the object ray (unnormalized, so t is the world t) and `CommitProceduralPrimitiveHit`; the glass-shadow and hidden-from-camera rules match triangles. A committed procedural hit takes its normal from the SDF gradient (tetrahedral differences), to world by the inverse transpose.
+- **Intersection:** the sphere is analytic; the rest are sphere traced (128 steps, hit at 2e-4 object units; round shapes start at their bounding sphere; starting inside, for refraction, marches to the exit). The Mandelbulb uses Quilez's trigonometry-free power 8 (6 iterations; 3× cheaper than the polar form), the Menger sponge Quilez's cross subtraction.
+- **Cost** (1440×900, native, `sdf-gallery` objects alone, GPU ms): mesh versions 5.6, exact sphere 4.9, exact torus 5.0, Mandelbulb 12.3, Menger 7.8; the gallery 19.5 (65 before the bounding sphere, the cheaper bulb and the step cap). Non-procedural scenes render the same as before (≤1e-6).
+- **Scene:** `sdf-gallery`.
+
 ## Volumes (track 12, 2026-11-01)
 
 - **Media.** Homogeneous only. An object's medium rides the nested-dielectric stack: a transmissive material with `density` > 0 (extinction per unit), `scatter_color` (single-scattering albedo) and `phase` (Henyey-Greenstein g). The colour still absorbs by Beer–Lambert as before. An IOR of 1 with roughness 0 makes an invisible boundary (smoke in a box). Global fog (`Settings::fog`) fills a box from the floor (y = −1) to `height`, ±`extent` on x and z, and exists only where the stack is empty (not inside glass).

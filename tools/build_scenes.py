@@ -1622,6 +1622,23 @@ scene("underwater", "Underwater",
                  **camera(10, 4, 8, (0, 0.8, 0), 55)))
 
 
+# ================================================================ procedural surfaces (track 13)
+def sdf(o, kind):
+    """Render an object as an exact procedural surface (its shape stays the proxy for picking)."""
+    return {**o, "sdf": kind}
+
+
+scene("sdf-gallery", "Procedural surfaces",
+      "Shapes intersected in the shader, with no triangles: an exact glass sphere and gold torus (no facets "
+      "in the refraction or the highlights), a Mandelbulb and a level-5 Menger sponge, both sphere traced.",
+      ["procedural", "sdf", "fractal"],
+      studio(objects=[sdf(obj("Exact glass sphere", "sphere", -2.4, 0.3, 1.3, GLASS), "sphere"),
+                      sdf(obj("Exact gold torus", "torus", -0.8, -0.4, 1.4, GOLD, tilt=(70, 0), elevation=0.2), "torus"),
+                      sdf(obj("Mandelbulb", "sphere", 0.9, 0.2, 1.6, M((0.8, 0.45, 0.25), 0.35, refl=0.08), rotation=20), "mandelbulb"),
+                      sdf(obj("Menger sponge", "box", 2.6, -0.3, 1.2, M((0.82, 0.8, 0.76), 0.6), rotation=30), "menger")],
+             bounces=12, **camera(0, 14, 8, (0.1, -0.3, 0), 40)))
+
+
 def lounge():
     """A velvet sofa with cushions and pillows, a lacquered table, a glazed vase, peaches, a felt rug."""
     velvet = sheen(matte((0.015, 0.06, 0.04), 1.0), (0.35, 0.85, 0.6), 1.0, 0.3)

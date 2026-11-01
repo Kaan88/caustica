@@ -327,7 +327,19 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
         .num_columns(2)
         .spacing([12., 6.])
         .show(ui, |ui| {
-            if o.mesh.is_empty() {
+            row(
+                ui,
+                "Surface",
+                "Mesh, or an exact procedural surface intersected in the shader (no facets): spheres, tori and fractals.",
+                |ui| {
+                    egui::ComboBox::from_id_salt("object sdf").selected_text(o.sdf.label()).show_ui(ui, |ui| {
+                        for k in crate::scene::Sdf::ALL {
+                            ui.selectable_value(&mut o.sdf, k, k.label());
+                        }
+                    });
+                },
+            );
+            if o.mesh.is_empty() && o.sdf.is_none() {
                 row(ui, "Shape", "The mesh used for this object.", |ui| {
                     let mut kind = o.kind();
                     shape_combo(ui, "object shape", &mut kind);
@@ -336,7 +348,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                         o.sphere = false;
                     }
                 });
-            } else {
+            } else if o.sdf.is_none() {
                 row(
                     ui,
                     "Mesh",

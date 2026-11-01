@@ -204,6 +204,7 @@ fn geometry_key(s: &Settings) -> String {
             .iter()
             .map(|o| (
                 o.kind(),
+                o.sdf,
                 &o.mesh,
                 // Glass goes to the non-opaque BLAS range (shadow rays may pass it).
                 o.material.transmission > 0.,

@@ -197,7 +197,7 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
 
 **Vertex** (40 B): position, material, normal, pad, uv (meshes only; zero for shapes and static geometry). The BLAS vertex stride follows `size_of::<Vertex>()`.
 
-**Acceleration structures** (instanced since core track 4, see "Instancing"): a static BLAS (floor, room, lights; world space; two geometries, hidden lights non-opaque first, the rest opaque) as InstanceID 0, plus one BLAS per distinct object mesh in object space, instanced once per visible object with its transform. Glass objects are FORCE_NON_OPAQUE instances (their candidates run the `Proceed()` loop, so shadow rays can pass them), all other objects FORCE_OPAQUE. All use PREFER_FAST_TRACE.
+**Acceleration structures** (instanced since core track 4, see "Instancing"; procedural objects are instances of one unit-cube AABB BLAS with `vertex_base` = the `Sdf` kind, see "Procedural surfaces"): a static BLAS (floor, room, lights; world space; two geometries, hidden lights non-opaque first, the rest opaque) as InstanceID 0, plus one BLAS per distinct object mesh in object space, instanced once per visible object with its transform. Glass objects are FORCE_NON_OPAQUE instances (their candidates run the `Proceed()` loop, so shadow rays can pass them), all other objects FORCE_OPAQUE. All use PREFER_FAST_TRACE.
 
 **UAV textures.** Index = `u` register = heap slot. Formats are RGBA32F unless noted; resolution is render resolution unless noted.
 

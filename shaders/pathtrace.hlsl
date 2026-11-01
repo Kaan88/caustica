@@ -112,17 +112,85 @@ void sample_maps(inout Hit h,float2 uv,float4 tangent,Footprint footprint){
         if(dot(T,T)>1e-12){T=normalize(T);float3 B=cross(n,T)*tangent.w;h.n=normalize(T*t.x+B*t.y+n*max(t.z,1e-3));}
     }
 }
+// Procedural surfaces (track 13): kinds as scene::Sdf, inside the unit cube of object space.
+// Sphere tracing in object space along the unnormalized object ray, so t stays the world t.
+float sdf_box(float3 p,float3 b){float3 q=abs(p)-b;return length(max(q,0))+min(max(q.x,max(q.y,q.z)),0);}
+float sdf_mandelbulb(float3 p){
+    // Quilez's trigonometry-free power 8 (the same bulb, about 3× cheaper).
+    p*=1.15;float3 w=p;float m=dot(w,w),dz=1;
+    for(int i=0;i<6 && m<4;i++){
+        dz=8*m*m*m*sqrt(m)*dz+1;
+        float x=w.x,x2=x*x,x4=x2*x2,y=w.y,y2=y*y,y4=y2*y2,z=w.z,z2=z*z,z4=z2*z2;
+        float k3=x2+z2,k2=rsqrt(k3*k3*k3*k3*k3*k3*k3),k1=x4+y4+z4-6*y2*z2-6*x2*y2+2*z2*x2,k4=x2-y2+z2;
+        w=p+float3(64*x*y*z*(x2-z2)*k4*(x4-6*x2*z2+z4)*k1*k2,-16*y2*k3*k4*k4+k1*k1,-8*y*k4*(x4*x4-28*x4*x2*z2+70*x4*z4-28*x2*z2*z4+z4*z4)*k1*k2);
+        m=dot(w,w);
+    }
+    return 0.25*log(max(m,1e-16))*sqrt(m)/dz/1.15;
+}
+// Quilez's Menger sponge: the cube minus three crosses per level.
+float sdf_menger(float3 p){
+    float d=sdf_box(p,1),s=1;
+    for(int m=0;m<5;m++){float3 a=p*s;a=a-2*floor(a*0.5)-1;s*=3;float3 r=abs(1-3*abs(a));
+        d=max(d,(min(max(r.x,r.y),min(max(r.y,r.z),max(r.z,r.x)))-1)/s);}
+    return d;
+}
+float sdf(uint kind,float3 p){
+    if(kind==2)return length(float2(length(p.xz)-0.72,p.y))-0.28;
+    if(kind==3)return sdf_mandelbulb(p);
+    if(kind==4)return sdf_menger(p);
+    return length(p)-1;
+}
+float3 sdf_normal(uint kind,float3 p){
+    if(kind==1)return p;
+    const float e=1e-4;const float2 k=float2(1,-1);
+    return k.xyy*sdf(kind,p+k.xyy*e)+k.yyx*sdf(kind,p+k.yyx*e)+k.yxy*sdf(kind,p+k.yxy*e)+k.xxx*sdf(kind,p+k.xxx*e);
+}
+// The nearest surface crossing in (tmin, tmax); from inside (refraction) it marches to the exit.
+bool sdf_hit(uint kind,float3 o,float3 d,float tmin,float tmax,out float t){
+    t=0;
+    float3 inv=1/select(abs(d)>1e-12,d,1e-12),a=(-1-o)*inv,b=(1-o)*inv,lo=min(a,b),hi=max(a,b);
+    float t0=max(tmin,max(lo.x,max(lo.y,lo.z))),t1=min(tmax,min(hi.x,min(hi.y,hi.z)));
+    if(t0>t1)return false;
+    if(kind==1){float A=dot(d,d),B=dot(o,d),D=B*B-A*(dot(o,o)-1);if(D<0)return false;float r=sqrt(D);t=(-B-r)/A;if(t<=tmin)t=(-B+r)/A;return t>tmin && t<tmax;}
+    float L=length(d),s=t0*L,e=t1*L;float3 u=d/L;
+    // Round shapes start at their bounding sphere (radius 1) instead of the cube's corners.
+    if(kind!=4){float b=dot(o,u),D=b*b-dot(o,o)+1;if(D<0)return false;float r=sqrt(D);s=max(s,-b-r);e=min(e,-b+r);}
+    float side=sdf(kind,o+u*s)<0?-1:1;
+    for(int i=0;i<128 && s<e;i++){
+        float h=side*sdf(kind,o+u*s);
+        // 1e-4 world units (L = object units per world unit along a normalized world ray).
+        if(h<1e-4*L){t=s/L;return t>tmin;}
+        s+=kind==3?0.9*h:h;
+    }
+    return false;
+}
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
     RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
+        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+            Instance pi=instances[q.CandidateInstanceID()];uint pm=pi.material;float t;
+            if(camera_ray && (((uint)materials[pm].lobes.w&2u)!=0))continue;
+            if(shadow && jitter.w<=0.5 && materials[pm].lobes.z>=0.5)continue;
+            if(sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
+            continue;
+        }
         uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
         if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();
     }
     h=(Hit)0;
+    if(q.CommittedStatus()==COMMITTED_PROCEDURAL_PRIMITIVE_HIT){
+        // Procedural (track 13): the SDF gradient in object space, to world by the inverse transpose.
+        Instance pi=instances[q.CommittedInstanceID()];
+        h.t=q.CommittedRayT();h.p=o+d*h.t;float3 op=q.CommittedObjectRayOrigin()+q.CommittedObjectRayDirection()*h.t;
+        h.n=normalize(mul(sdf_normal(pi.vertex_base,op),(float3x3)q.CommittedWorldToObject3x4()));h.material=pi.material;
+        h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
+        h.tangent=normalize(cross(h.n,abs(h.n.y)<0.99?float3(0,1,0):float3(1,0,0)));
+        return true;
+    }
     if(q.CommittedStatus()!=COMMITTED_TRIANGLE_HIT)return false;
     Instance inst=instances[q.CommittedInstanceID()];uint prim=q.CommittedPrimitiveIndex();float2 b=q.CommittedTriangleBarycentrics();
     // uv_scale: texture units per world unit at the hit; T, B: world dP/du and dP/dv (both for
@@ -172,10 +240,16 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
-    while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+    while(q.Proceed()){proceed_steps++;
+        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+            Instance pi=instances[q.CandidateInstanceID()];float t;
+            if((jitter.w>0.5 || materials[pi.material].lobes.z<0.5) && sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
+            continue;
+        }
+        uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
-    return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT;
+    return q.CommittedStatus()!=COMMITTED_NOTHING;
 }
 Material material_at(uint id,float3 p){
     Material m=materials[id];uint pattern=(uint)m.optical.z;float t=0;
@@ -536,10 +610,16 @@ bool medium_params(uint64_t media,float3 o,float3 d,float tmax,out float sigma,o
 float surface_distance(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
-    while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+    while(q.Proceed()){proceed_steps++;
+        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+            Instance pi=instances[q.CandidateInstanceID()];float t;
+            if(sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
+            continue;
+        }
+        uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         q.CommitNonOpaqueTriangleHit();}
-    return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT?q.CommittedRayT():limit;
+    return q.CommittedStatus()!=COMMITTED_NOTHING?q.CommittedRayT():limit;
 }
 // A shadow ray's transmittance: through a scattering object's medium up to the first surface
 // (refraction there is ignored, as glass shadows ignore it; clear glass keeps its old

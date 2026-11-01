@@ -250,6 +250,8 @@ pub struct Gpu {
     static_vertices: ID3D12Resource,
     static_cache: Vec<Vertex>,
     static_blas: Option<ID3D12Resource>,
+    /// Track 13: one AABB, the unit cube, shared by every procedural (`Sdf`) object.
+    sdf_blas: Option<ID3D12Resource>,
     meshes: std::collections::HashMap<String, MeshBlas>,
     /// One record per TLAS instance (t7, indexed by InstanceID).
     instances: Vec<InstanceRecord>,
@@ -691,6 +693,7 @@ impl Gpu {
             instance_table: geometry,
             static_cache: vec![],
             static_blas: None,
+            sdf_blas: None,
             meshes: Default::default(),
             instances: vec![],
             tlas: None,
@@ -1514,7 +1517,7 @@ impl Gpu {
             .objects
             .iter()
             .enumerate()
-            .filter(|(_, o)| o.visible)
+            .filter(|(_, o)| o.visible && o.sdf.is_none())
             .map(|(i, o)| {
                 let (key, source) = crate::geometry::object_source(o);
                 (i, key, source)
@@ -1609,6 +1612,56 @@ impl Gpu {
                 object: *i as u32,
             });
             triangle_count += mesh.count;
+        }
+        // Procedural objects (track 13): instances of the unit-cube AABB; the shader intersects
+        // the surface (kind in vertex_base). Glass and hidden ones are non-opaque like meshes,
+        // though the shader sees every procedural candidate either way.
+        if s.objects.iter().any(|o| o.visible && !o.sdf.is_none()) {
+            if self.sdf_blas.is_none() {
+                let aabb = self.gpu_buffer(
+                    bytemuck::cast_slice(&[-1f32, -1., -1., 1., 1., 1.]),
+                    &mut keep,
+                )?;
+                let desc = D3D12_RAYTRACING_GEOMETRY_DESC {
+                    Type: D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS,
+                    Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+                    Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
+                        AABBs: D3D12_RAYTRACING_GEOMETRY_AABBS_DESC {
+                            AABBCount: 1,
+                            AABBs: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                                StartAddress: aabb.GetGPUVirtualAddress(),
+                                StrideInBytes: 24,
+                            },
+                        },
+                    },
+                };
+                self.sdf_blas = Some(self.build_blas(&[desc], &mut keep)?);
+                keep.push(aabb);
+            }
+            let blas = self.sdf_blas.clone().unwrap();
+            for (i, o) in s.objects.iter().enumerate() {
+                if !o.visible || o.sdf.is_none() {
+                    continue;
+                }
+                let material = 5 + i as u32;
+                let opacity = if needs_any_hit(material) {
+                    D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
+                } else {
+                    D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
+                } as u32;
+                push(
+                    &crate::geometry::object_transform(o),
+                    table.len() as u32,
+                    cull | opacity,
+                    &blas,
+                );
+                table.push(InstanceRecord {
+                    vertex_base: o.sdf.id(),
+                    material,
+                    emitter_base: u32::MAX,
+                    object: i as u32,
+                });
+            }
         }
         let instances = upload(&self.device, &descs)?;
         let ti = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
@@ -1741,16 +1794,18 @@ impl Gpu {
             let m = &materials[record.material as usize];
             let emission =
                 m.color_rough[0].max(m.color_rough[1]).max(m.color_rough[2]) * m.optical[1];
-            record.emitter_base = if emission > 0. {
-                let base = (world.len() / 3) as u32;
-                world.extend(crate::geometry::object_geometry(
-                    &s.objects[record.object as usize],
-                    record.material,
-                ));
-                base
-            } else {
-                u32::MAX
-            };
+            // Procedural objects are not light-sampled: their emission is found by BSDF hits.
+            record.emitter_base =
+                if emission > 0. && s.objects[record.object as usize].sdf.is_none() {
+                    let base = (world.len() / 3) as u32;
+                    world.extend(crate::geometry::object_geometry(
+                        &s.objects[record.object as usize],
+                        record.material,
+                    ));
+                    base
+                } else {
+                    u32::MAX
+                };
         }
         let analytic = crate::lighting::analytic(s);
         let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials, &analytic);

@@ -405,6 +405,50 @@ pub struct Object {
     /// An imported mesh file (OBJ, glTF, GLB) used instead of `shape`; relative paths are
     /// relative to the scenes folder. Empty for built-in shapes.
     pub mesh: String,
+    /// Track 13: rendered as an exact procedural surface instead of a mesh (`shape` is then
+    /// ignored; `kind()` gives the proxy mesh used for picking, framing and grounding).
+    #[serde(skip_serializing_if = "Sdf::is_none")]
+    pub sdf: Sdf,
+}
+/// Procedural surfaces (track 13), intersected in the shader inside the unit cube [−1, 1]³.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Sdf {
+    #[default]
+    None,
+    /// An exact sphere (analytic), radius 1.
+    Sphere,
+    /// An exact torus (sphere traced), the mesh torus's radii 0.72 and 0.28.
+    Torus,
+    /// The power-8 Mandelbulb, scaled into the unit sphere.
+    Mandelbulb,
+    /// A Menger sponge, five levels, filling the unit cube.
+    Menger,
+}
+impl Sdf {
+    pub const ALL: [Sdf; 5] = [
+        Sdf::None,
+        Sdf::Sphere,
+        Sdf::Torus,
+        Sdf::Mandelbulb,
+        Sdf::Menger,
+    ];
+    pub fn is_none(&self) -> bool {
+        *self == Sdf::None
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Sdf::None => "Mesh",
+            Sdf::Sphere => "Exact sphere",
+            Sdf::Torus => "Exact torus",
+            Sdf::Mandelbulb => "Mandelbulb",
+            Sdf::Menger => "Menger sponge",
+        }
+    }
+    /// The shader's kind id (`Instance.vertex_base` of a procedural instance).
+    pub fn id(self) -> u32 {
+        self as u32
+    }
 }
 impl Default for Object {
     fn default() -> Self {
@@ -424,11 +468,18 @@ impl Default for Object {
             material: Material::default(),
             portal: -1,
             mesh: String::new(),
+            sdf: Sdf::None,
         }
     }
 }
 impl Object {
     pub fn kind(&self) -> Shape {
+        match self.sdf {
+            Sdf::Sphere | Sdf::Mandelbulb => return Shape::Sphere,
+            Sdf::Torus => return Shape::Torus,
+            Sdf::Menger => return Shape::Box,
+            Sdf::None => {}
+        }
         if self.sphere {
             Shape::Sphere
         } else {
