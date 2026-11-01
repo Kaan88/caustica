@@ -410,6 +410,36 @@ pub struct Object {
     #[serde(skip_serializing_if = "Sdf::is_none")]
     pub sdf: Sdf,
 }
+/// Track 17 physics sandbox. `enabled` runs the simulation; a scene file that sets it opens
+/// with the bodies live (stacks settle, then sleep until something touches them).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Physics {
+    pub enabled: bool,
+    /// Downward acceleration in scene units/s² (negative pulls up).
+    pub gravity: f32,
+    /// Simulation speed (1 = real time, below 1 is slow motion, 0 pauses).
+    pub speed: f32,
+    /// Restitution of every body.
+    pub bounce: f32,
+    pub friction: f32,
+}
+impl Default for Physics {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            gravity: 9.81,
+            speed: 1.,
+            bounce: 0.15,
+            friction: 0.7,
+        }
+    }
+}
+impl Physics {
+    pub fn is_off(&self) -> bool {
+        *self == Self::default()
+    }
+}
 /// Procedural surfaces (track 13), intersected in the shader inside the unit cube [−1, 1]³.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -614,6 +644,9 @@ pub struct Settings {
     /// Battle mode (track 15): the image split into four quadrants rendered at equal GPU time
     /// by path tracing, path tracing with ReSTIR DI, BDPT and photon mapping.
     pub battle: bool,
+    /// Track 17 physics sandbox: rigid-body simulation of the objects (see physics.rs).
+    #[serde(skip_serializing_if = "Physics::is_off")]
+    pub physics: Physics,
     /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
     /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
     pub lpe: Vec<String>,
@@ -752,6 +785,7 @@ impl Default for Settings {
             photons: 1 << 18,
             photon_radius: 0.01,
             battle: false,
+            physics: Physics::default(),
             lpe: vec![],
             lpe_slot: 0,
             hdri: String::new(),
@@ -1114,6 +1148,13 @@ impl Settings {
                 && (0. ..=1000.).contains(&self.hdri_strength)
                 && (-360. ..=360.).contains(&self.hdri_rotation),
             "Invalid HDRI"
+        );
+        anyhow::ensure!(
+            (-30. ..=30.).contains(&self.physics.gravity)
+                && (0. ..=4.).contains(&self.physics.speed)
+                && (0. ..=1.).contains(&self.physics.bounce)
+                && (0. ..=2.).contains(&self.physics.friction),
+            "Invalid physics"
         );
         for c in [
             &self.left,

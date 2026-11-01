@@ -17,6 +17,7 @@ mod look;
 mod lpe;
 mod mesh;
 mod paths;
+mod physics;
 mod prefs;
 mod presets;
 mod procedural;
@@ -63,6 +64,9 @@ struct Actions {
     export_video: bool,
     cancel_export: bool,
     frame_scene: bool,
+    /// Track 17 physics buttons.
+    physics_wake: bool,
+    physics_blast: bool,
 }
 struct App {
     window: Option<Arc<Window>>,
@@ -151,12 +155,15 @@ struct App {
     gamepad: Option<gilrs::Gilrs>,
     /// The animation's playhead (track 8).
     timeline: anim::Timeline,
+    /// Track 17: the running rigid-body simulation (`Settings::physics`).
+    physics: Option<physics::Sim>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 292;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
+        "physics",
         "exposure",
         "gamma",
         "tonemap",
@@ -585,6 +592,7 @@ impl App {
             remote_synced: Instant::now(),
             gamepad: None,
             timeline: anim::Timeline::default(),
+            physics: None,
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -1471,6 +1479,7 @@ impl App {
         if self.export.is_none() {
             self.timeline.advance(&self.settings.animation, dt);
             self.timeline.update(&mut self.settings);
+            self.step_physics(dt);
         }
         let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
         if self.actions.save {
@@ -2701,6 +2710,11 @@ impl ApplicationHandler for App {
             WindowEvent::MouseInput { state, button, .. } => {
                 let transforming = self.ui.transform.as_ref().map(|t| t.from_handle);
                 if state == ElementState::Released {
+                    // A grabbed body is thrown with the velocity the spring gave it; a click
+                    // without a drag still selects below.
+                    if button == MouseButton::Left {
+                        self.physics_release();
+                    }
                     if transforming == Some(true) && button == MouseButton::Left {
                         self.finish_transform();
                     } else if self.drag == Some(MouseButton::Left)
@@ -2755,6 +2769,16 @@ impl ApplicationHandler for App {
                 } else if !consumed && button == MouseButton::Left && self.ctrl {
                     // Ctrl+click: focus the lens on what is under the pointer.
                     self.focus_pending = true;
+                } else if !consumed
+                    && button == MouseButton::Left
+                    && self.ui.hover.is_none()
+                    && self.walking.is_none()
+                    && self.physics_grab()
+                {
+                    // Track 17: grabbed a body; the drag moves it instead of the camera, and a
+                    // release without moving still counts as a click.
+                    self.drag = Some(button);
+                    self.drag_distance = 0.;
                 } else if !consumed {
                     let mode = self.tool_mode();
                     if button == MouseButton::Left
@@ -2772,7 +2796,9 @@ impl ApplicationHandler for App {
                 let dx = (position.x - self.cursor[0]) as f32;
                 let dy = (position.y - self.cursor[1]) as f32;
                 self.cursor = [position.x, position.y];
-                if let Some(t) = &mut self.ui.transform {
+                if self.physics_drag() {
+                    self.drag_distance += dx.abs() + dy.abs();
+                } else if let Some(t) = &mut self.ui.transform {
                     // Shift moves the pointer's effect at a tenth of the speed.
                     let k = if self.shift { 0.1 } else { 1. };
                     t.mouse += glam::Vec2::new(dx, dy) * k;
@@ -2958,6 +2984,11 @@ impl ApplicationHandler for App {
                         }
                         KeyCode::KeyF => self.frame_selection(),
                         KeyCode::KeyL => self.toggle_painting(),
+                        KeyCode::KeyE
+                            if self.settings.physics.enabled && self.walking.is_none() =>
+                        {
+                            self.physics_explode()
+                        }
                         KeyCode::KeyP => {
                             self.ui.paths.open = !self.ui.paths.open;
                             self.ui.toast(if self.ui.paths.open {

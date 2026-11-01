@@ -260,6 +260,8 @@ Order is from scene-research.md section 5, unchanged:
 
 ### Known issues (not scheduled)
 
+- `--self-test` failed once with "The timeline export did not finish" (src/main.rs, the export assertion) and passed on an immediate rerun (2026-11-02, track 17 checkpoint); intermittent, not investigated.
+
 - **Native denoiser:** faint low-frequency blotches on flat walls at very low spp, typical of SVGF (found in the 2026-10-29 review, not started).
 - **Gamepad:** untested, no controller here (5d).
 - **Reported 2026-10-31, fixed 2026-11-01:**
@@ -408,6 +410,10 @@ Done: four lens prescriptions (Double Gauss 50 mm f/2, Nakamura wide angle 22 mm
 
 #### 17. Physics sandbox, optics bench and laser puzzle
 
+Physics sandbox core done 2026-11-02 (part 1): rapier3d rigid bodies for the objects (box, ball and convex-hull colliders, the floor and Cornell walls), Scene → *Physics* (gravity, speed / slow motion, bounce, friction), grab-and-throw with the mouse, E for an explosion, and the `physics` generator family (dominoes, brick wall, pyramid, Jenga, ball pit) with five curated scenes. See engine-notes "Physics sandbox".
+
+- Not done (physics): wind, spawn at the cursor, freeze / unfreeze, a gravity direction (only strength), the scroll wheel to change the grab distance; card houses, domino spirals with more turns, castles; cloth, ropes, chains and the wrecking ball (joints); baking a simulation into keyframes for video export; convex decomposition for concave meshes (tori and imported meshes are filled hulls); bodies keep running while an animation drives the same objects; per-object mass or material; the simulation does not run during a video export; no self-test frames drive the simulation (the scene files are rendered once each); any outside edit of an object, a colour included, rebuilds the simulation and drops velocities (compare pose and shape fields only); `hull_points` subsamples big meshes with a stride, which can drop extreme vertices.
+
 - **Physics sandbox** (`rapier3d`):
   - Drop balls, throw objects with the mouse, and knock over Jenga towers and domino chains.
   - Needs instancing (core 4), so each step only rebuilds the TLAS. While the simulation runs, the renderer stays in per-frame RR mode.
@@ -424,6 +430,12 @@ Done: four lens prescriptions (Double Gauss 50 mm f/2, Nakamura wide angle 22 mm
   - Gameplay: a laser (a thin emitter, visible in fog from item 12, or a cheap emissive cylinder before that) plus placeable mirrors, prisms and splitters. Route it to a target in N moves.
   - Win detection: a **sensor material** that adds the radiance hitting it into a counter buffer, read back once per frame.
   - Levels are scene files.
+
+#### 17b. GitHub builds and releases (owner request, 2026-11-02)
+
+- GitHub Actions on a Windows runner: `cargo fmt --check`, clippy, tests and a release build on every push (DXC from the Windows SDK or a pinned download; the vendor SDKs that cannot be fetched in CI need a stub or a cache, see docs/claude/setup.md).
+- Releases: a tag builds the exe with its DLLs, shaders and `scenes/` into a zip and attaches it to a GitHub release with notes from the roadmap entry.
+- Open question: the NGX project GUID in `bridge/ngx.cpp` is a development one; decide before any public release.
 
 #### 18. Content using the features above
 

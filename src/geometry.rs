@@ -717,3 +717,20 @@ impl Settings {
         selected
     }
 }
+/// Track 17 physics: up to `max` points of the object's grounding mesh in its local frame
+/// (scaled, not rotated), for a convex-hull collider. Same mesh as `lowest_y` grounds on.
+pub fn hull_points(o: &Object, max: usize) -> Vec<Vec3> {
+    let (scale, _) = scale_rotation(o);
+    let ground = crate::mesh::ground(o);
+    let source: &Mesh = ground.as_deref().unwrap_or_else(|| mesh(o.kind()));
+    let step = source.len().div_ceil(max.max(1)).max(1);
+    source
+        .iter()
+        .step_by(step)
+        .map(|(p, _)| *p * scale)
+        .collect()
+}
+/// The local scale applied to the unit mesh (size, stretch and X/Z scale).
+pub fn object_scale(o: &Object) -> Vec3 {
+    scale_rotation(o).0
+}

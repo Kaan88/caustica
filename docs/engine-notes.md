@@ -563,3 +563,14 @@ The gains come from:
 
 **Still open (not started):**
 - Faint low-frequency blotches at very low spp, which is typical of SVGF.
+
+## Physics sandbox (track 17 part 1, 2026-11-02)
+
+- `src/physics.rs`, rapier3d 0.36 (glam-based; its glam is a different version, so poses cross as plain floats). `Settings::physics` (`enabled`, `gravity`, `speed`, `bounce`, `friction`) is omitted from scene files while it is at its defaults and is out of `transport_key`.
+- One dynamic body per visible, non-portal object; the body origin is `object_frame`'s centre, so writing back is `grounded = false`, `position`/`elevation` = translation, `rotation`/`tilt` = the quaternion as YXZ Euler (the same order `scale_rotation` builds). Colliders: cuboid for built-in boxes, a ball for uniform spheres (and SDF spheres), else a convex hull of up to 4000 points of the grounding mesh (`geometry::hull_points`); tori, rings and knots are therefore filled in. Static: a floor slab (`floor_extent`, 1 unit thick) and, with `cornell_room`, the ceiling and three walls (the front is open).
+- Fixed 1/120 s steps, at most 8 per frame (slower frames become slow motion), times `speed`. Only awake bodies that moved more than 0.5 mm or 0.05° are written, so a settling scene stops changing the geometry key and accumulates (without the threshold, rapier's sub-millimetre jitter restarted accumulation every frame and the image stayed at 4 spp). Bodies past ±39 or below −30 turn fixed.
+- `Sim::matches` compares the objects with what the sim last wrote: any outside edit (gizmo, inspector, undo, a new scene) or a bounce / friction / stage change rebuilds the simulation (velocities are lost). A gravity change wakes every body. Enabling the simulation records an undo checkpoint, so Ctrl+Z restores the poses from before.
+- Tools: left-press on an object grabs it: a velocity drive sets the grabbed point's velocity to 20× its distance to the cursor ray (capped at 20 units/s), with spin damping, and the body is 21× heavier while held so it shoves others aside (a dominance group let pushed bodies sink into it); release throws it with the velocity it has, and a click without a drag still selects. E explodes under the pointer (radial impulse, up to 6 units/s within 1.2 units, a little upward). The Scene tab has a Physics section (sliders, Wake all, Explode at the floor centre, awake count).
+- Generator family `physics` (Physics playground): dominoes, brick wall, block pyramid, Jenga tower, ball pit, all with the simulation on; `scenes/generated/physics-{1,2,4,7,13}.json`. Bodies start awake and settle in the first second (bodies spawned asleep never fall, so a ball pit would hang in the air).
+- Not done: see roadmap track 17.
+

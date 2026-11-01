@@ -2599,6 +2599,7 @@ impl App {
         };
         let g = self.gpu.as_ref().unwrap();
         let aspect = g.width as f32 / g.height as f32;
+        let awake = self.physics.as_ref().map_or(0, |p| p.awake());
         let s = &mut self.settings;
         let state = &mut self.ui;
         note(ui, &description);
@@ -2737,6 +2738,51 @@ impl App {
             other => other,
         };
         ui.separator();
+        // Track 17 physics sandbox (see physics.rs).
+        section(ui, "Physics");
+        let p = &mut s.physics;
+        ui.checkbox(&mut p.enabled, "Simulate (rigid bodies)").on_hover_text(
+            "Objects fall, stack and collide. Drag an object to grab and throw it; E explodes under the pointer.",
+        );
+        if p.enabled {
+            egui::Grid::new("physics").num_columns(2).show(ui, |ui| {
+                row(
+                    ui,
+                    "Gravity",
+                    "Downward acceleration, scene units/s² (negative pulls up)",
+                    |ui| {
+                        ui.add(egui::Slider::new(&mut p.gravity, -30. ..=30.));
+                    },
+                );
+                row(
+                    ui,
+                    "Speed",
+                    "1 = real time, lower is slow motion, 0 pauses",
+                    |ui| {
+                        ui.add(egui::Slider::new(&mut p.speed, 0. ..=4.));
+                    },
+                );
+                row(ui, "Bounce", "Restitution of every body", |ui| {
+                    ui.add(egui::Slider::new(&mut p.bounce, 0. ..=1.));
+                });
+                row(ui, "Friction", "Friction of every body", |ui| {
+                    ui.add(egui::Slider::new(&mut p.friction, 0. ..=2.));
+                });
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Wake all").clicked() {
+                    self.actions.physics_wake = true;
+                }
+                if ui
+                    .button("Explode (E)")
+                    .on_hover_text("A blast at the middle of the floor")
+                    .clicked()
+                {
+                    self.actions.physics_blast = true;
+                }
+                ui.label(egui::RichText::new(format!("{awake} awake")).small());
+            });
+        }
         let advanced = state.advanced;
         match state.selection {
             Selection::None => note(
@@ -3819,6 +3865,17 @@ fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
             },
         );
     });
+    lens_ui(ui, s);
+    note(
+        ui,
+        "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom · Ctrl+click: focus",
+    );
+    ui.button("Reset camera")
+        .on_hover_text("Back to the scene's own view")
+        .clicked()
+}
+/// Camera model, lens system and aperture (Scene → Camera).
+fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
     section(ui, "Lens");
     grid("lens").show(ui, |ui| {
         row(ui, "Camera model", "Orthographic, panorama and little planet use the native denoiser: RR, the temporal upscalers and the gizmo need a perspective camera.", |ui| {
@@ -3914,13 +3971,6 @@ fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
             "This camera model renders with the native denoiser; RR, temporal upscalers and the gizmo are off. A 360° panorama exports best at 2:1 (e.g. --width 4096 --height 2048).",
         );
     }
-    note(
-        ui,
-        "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom · Ctrl+click: focus",
-    );
-    ui.button("Reset camera")
-        .on_hover_text("Back to the scene's own view")
-        .clicked()
 }
 fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
     section(ui, "Main light");

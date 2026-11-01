@@ -6,7 +6,7 @@ use crate::scene::{MAX_OBJECTS, Material, Object, Pattern, Settings, Shape};
 use std::f32::consts::{PI, TAU};
 
 /// (id, label, what it makes)
-pub const FAMILIES: [(&str, &str, &str); 17] = [
+pub const FAMILIES: [(&str, &str, &str); 18] = [
     (
         "still-life",
         "Studio still life",
@@ -87,6 +87,11 @@ pub const FAMILIES: [(&str, &str, &str); 17] = [
         "crowd",
         "Crowd",
         "Up to 3000 copies of one shape in a field, each with its own colour",
+    ),
+    (
+        "physics",
+        "Physics playground",
+        "Dominoes, a brick wall, a block pyramid, a Jenga tower or a ball pit, with the simulation on",
     ),
 ];
 
@@ -253,6 +258,7 @@ pub fn generate(family: &str, seed: u64) -> anyhow::Result<Settings> {
         "tree" => trees(&mut r, seed),
         "forest" => forest(&mut r, seed),
         "crowd" => crowd(&mut r),
+        "physics" => playground(&mut r),
         _ => anyhow::bail!("Unknown generator family {family}"),
     };
     Ok(finish(s, family, seed))
@@ -1496,4 +1502,173 @@ mod tests {
             s.objects.len()
         );
     }
+}
+
+/// A box of world size `d` (width, height, length) centred at `c`, yawed by `yaw` degrees.
+fn block(name: String, d: [f32; 3], c: [f32; 3], yaw: f32, m: Material) -> Object {
+    at(
+        Object {
+            name,
+            shape: Shape::Box,
+            position: [c[0], c[2]],
+            size: 1.,
+            stretch: d[1] / 0.7,
+            scale_xz: [d[0] / 0.7, d[2] / 0.7],
+            rotation: yaw,
+            tilt: [0.; 2],
+            material: m,
+            ..Object::default()
+        },
+        c[1],
+    )
+}
+/// Track 17: stable structures to knock down, opened with the physics simulation on (the
+/// structures settle in the first second, then sleep). A small gap between blocks keeps the first contacts gentle.
+fn playground(r: &mut Rng) -> Settings {
+    let mut s = base(r);
+    s.physics.enabled = true;
+    s.floor_extent = s.floor_extent.max(6.);
+    let kind = r.pick(&["dominoes", "wall", "pyramid", "jenga", "balls"]);
+    let paint = |r: &mut Rng, h: f32| Material {
+        color: hue(
+            h + r.range(-0.03, 0.03),
+            r.range(0.4, 0.8),
+            r.range(0.55, 0.9),
+        ),
+        roughness: r.range(0.3, 0.7),
+        ..Material::default()
+    };
+    match kind {
+        "dominoes" => {
+            // An Archimedean spiral of dominoes standing on end.
+            let (w, h, t) = (0.1, 0.2, 0.03);
+            let h0 = r.next();
+            let mut a: f32 = 3.;
+            for i in 0..140 {
+                let rad = 0.12 * a;
+                let (x, z) = (rad * a.cos(), rad * a.sin());
+                let yaw = -a.to_degrees();
+                let m = paint(r, h0 + i as f32 * 0.007);
+                s.objects.push(block(
+                    format!("Domino {}", i + 1),
+                    [w, h, t],
+                    [x, -1. + h / 2., z],
+                    yaw,
+                    m,
+                ));
+                a += 0.12 / rad.max(0.15);
+                if rad > 1.4 {
+                    break;
+                }
+            }
+        }
+        "wall" => {
+            let (bw, bh, bd) = (0.24, 0.11, 0.12);
+            let rows = (6. + r.next() * 6.) as usize;
+            let cols = 8;
+            let clay = r.range(0.0, 0.06);
+            for k in 0..rows {
+                let shift = if k % 2 == 1 { bw / 2. } else { 0. };
+                for c in 0..cols {
+                    let x = (c as f32 - cols as f32 / 2. + 0.5) * bw + shift - bw / 4.;
+                    let m = paint(r, clay);
+                    s.objects.push(block(
+                        format!("Brick {}", s.objects.len() + 1),
+                        [bw * 0.98, bh * 0.98, bd],
+                        [x, -1. + bh * (k as f32 + 0.5), 0.],
+                        0.,
+                        m,
+                    ));
+                }
+            }
+        }
+        "pyramid" => {
+            let e = 0.16;
+            let n = (5. + r.next() * 3.) as usize;
+            let h0 = r.next();
+            for k in 0..n {
+                let side = n - k;
+                for i in 0..side {
+                    for j in 0..side {
+                        let off = |v: usize| (v as f32 - (side as f32 - 1.) / 2.) * e;
+                        let m = paint(r, h0 + k as f32 * 0.08);
+                        s.objects.push(block(
+                            format!("Block {}", s.objects.len() + 1),
+                            [e * 0.98; 3],
+                            [off(i), -1. + e * (k as f32 + 0.5), off(j)],
+                            0.,
+                            m,
+                        ));
+                    }
+                }
+            }
+        }
+        "jenga" => {
+            let layers = (12. + r.next() * 8.) as usize;
+            let (lw, lh, ll) = (0.25, 0.15, 0.75);
+            for k in 0..layers {
+                for b in 0..3 {
+                    let off = (b as f32 - 1.) * lw;
+                    let (x, z, yaw) = if k % 2 == 0 {
+                        (off, 0., 0.)
+                    } else {
+                        (0., off, 90.)
+                    };
+                    let m = paint(r, 0.09);
+                    s.objects.push(block(
+                        format!("Block {}", s.objects.len() + 1),
+                        [lw * 0.98, lh * 0.995, ll],
+                        [x, -1. + lh * (k as f32 + 0.5), z],
+                        yaw,
+                        m,
+                    ));
+                }
+            }
+        }
+        _ => {
+            // A ball pit: a low box of four walls filled with a loose heap that settles.
+            let wall = Material {
+                color: [0.9; 3],
+                roughness: 0.5,
+                ..Material::default()
+            };
+            for (c, d) in [
+                ([0., -0.85, 0.9], [1.9, 0.3, 0.1]),
+                ([0., -0.85, -0.9], [1.9, 0.3, 0.1]),
+                ([0.9, -0.85, 0.], [0.1, 0.3, 1.7]),
+                ([-0.9, -0.85, 0.], [0.1, 0.3, 1.7]),
+            ] {
+                s.objects.push(block(
+                    format!("Wall {}", s.objects.len() + 1),
+                    d,
+                    c,
+                    0.,
+                    wall.clone(),
+                ));
+            }
+            let rad = 0.09;
+            for i in 0..147 {
+                let h = r.pick(&[0., 0.15, 0.33, 0.6, 0.8]);
+                let m = paint(r, h);
+                s.objects.push(at(
+                    Object {
+                        name: format!("Ball {}", i + 1),
+                        shape: Shape::Sphere,
+                        // Layers of a 7×7 grid, jittered but never overlapping.
+                        position: [
+                            ((i % 7) as f32 - 3.) * 0.2 + r.range(-0.005, 0.005),
+                            ((i / 7 % 7) as f32 - 3.) * 0.2 + r.range(-0.005, 0.005),
+                        ],
+                        size: rad / 0.35,
+                        stretch: 1.,
+                        rotation: 0.,
+                        material: m,
+                        ..Object::default()
+                    },
+                    -0.9 + (i / 49) as f32 * 0.2,
+                ));
+            }
+        }
+    }
+    s
 }

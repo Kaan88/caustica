@@ -1,0 +1,14 @@
+{
+ "format": 1,
+ "title": "Physics playground 1",
+ "description": "Generated scene: physics playground (block pyramid), seed 1. The simulation is on: drag to grab and throw, E explodes. Regenerated from the seed on every load.",
+ "tags": [
+  "generated",
+  "physics"
+ ],
+ "credits": "Cornell RTX generators",
+ "generator": {
+  "family": "physics",
+  "seed": 1
+ }
+}
