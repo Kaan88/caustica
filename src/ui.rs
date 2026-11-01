@@ -2951,6 +2951,20 @@ impl App {
                         ui.selectable_value(&mut s.mis_mode, i as u32, *label);
                     }
                 });
+                row(ui, "ReSTIR DI", "First-hit light sampling through per-pixel reservoirs that reuse good light samples across neighbouring pixels and frames. Unbiased; it pays off with many lights at a few samples per pixel.", |ui| {
+                    ui.checkbox(&mut s.restir, "");
+                });
+                if s.restir {
+                    row(ui, "Candidates", "Fresh light samples per pixel and frame.", |ui| {
+                        ui.add(crate::slider(&mut s.restir_candidates, 1..=32));
+                    });
+                    row(ui, "Neighbours", "Reservoirs of nearby pixels merged each frame (0 = none).", |ui| {
+                        ui.add(crate::slider(&mut s.restir_neighbors, 0..=8));
+                    });
+                    row(ui, "History", "How much last frame's reservoir may count against a fresh one (0 = no temporal reuse).", |ui| {
+                        ui.add(crate::slider(&mut s.restir_history, 0..=64));
+                    });
+                }
                 row(ui, "Glass casts shadows", "Off lets light through glass for shadow rays, a common shortcut.", |ui| {
                     ui.checkbox(&mut s.glass_shadow, "");
                 });

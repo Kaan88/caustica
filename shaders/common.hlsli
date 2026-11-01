@@ -34,6 +34,7 @@ cbuffer Frame:register(b0) {
     float4 fog_color; // albedo rgb
     uint4 path_record; // track 14, the PATH_RECORD variant of trace only: render pixel x, y, paths, record capacity
     uint4 lpe; // track 14: light path expression slots in use (0 = off), the slot the LPE view shows
+    uint4 restir; // track 15 ReSTIR DI: flags (bit 0 on, bit 1 history valid), candidates, spatial neighbours, history cap
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -86,5 +87,8 @@ RWTexture2D<float4> env_map:register(u30); // equirectangular HDRI, RGBA16F, lin
 RWTexture2D<float> env_cdf:register(u31); // per-row conditional CDFs, then the marginal CDF over rows in an extra last row
 RWTexture2D<uint> scopes:register(u28); // 256 x 260 counters: rows 0-3 histogram R,G,B,L; 4-131 waveform; 132-259 vectorscope (128 wide)
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}
+float2 sign_nz(float2 v){return float2(v.x>=0?1:-1,v.y>=0?1:-1);}
+float2 oct_encode(float3 n){n/=abs(n.x)+abs(n.y)+abs(n.z)+1e-9;return n.z>=0?n.xy:(1-abs(n.yx))*sign_nz(n.xy);}
+float3 oct_decode(float2 e){float3 n=float3(e,1-abs(e.x)-abs(e.y));n.xy-=saturate(-n.z)*sign_nz(n.xy);return normalize(n);}
 static const float PI=3.14159265359;
 

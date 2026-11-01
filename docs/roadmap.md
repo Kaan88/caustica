@@ -268,6 +268,7 @@ Order is from scene-research.md section 5, unchanged:
   - *Switching scenes changed quality:* `denoise` was not kept by `Settings::keep_output` or `preset()`; now it is.
   - *Walk mode mouse look:* yaw sign flipped in `Walk::look`.
 - **Hidden lights occlude:** see core 3 above.
+- **Light sampling misses ~0.5% (found 2026-11-01 with ReSTIR):** on night-skyline (emissive buildings with window patterns), `mis_mode` 1 (light sampling only) is 0.57% darker than MIS and BSDF only, which agree to 0.05% (480×270, 4096–16384 spp); light-temperature-row −0.24%; presets 0 and colonnade-night agree. The missing light is on the building faces lit by their neighbours. ReSTIR DI uses light sampling only at the first hit, so it inherits the gap. Not the shadow-ray margin (a distance-relative one changed nothing). Not investigated further.
 - **BSDF-only vs MIS offset:** on the tea set, `mis_mode` 2 (BSDF sampling only) is 1.6% brighter than MIS and light sampling only, which agree (320×240, 8192 spp; mean l/(1+l) +0.00116, 9×9-blurred RMSE×1000 2.9). Present before the track 11 layers (found 2026-10-31 while checking them); not investigated. Suspects: the hidden main light or the uniform sky term on the BSDF side.
 
 ### Feature tracks
@@ -378,6 +379,12 @@ Was:
   - It generalizes today's direct, indirect and spec AOVs.
 
 #### 15. More integrators and integrator battle mode
+
+ReSTIR DI done 2026-11-01 (part 1): first-hit light sampling through per-pixel reservoirs with temporal and spatial reuse, unbiased (generalized RIS, pairwise MIS in the spatial pass), one reservoir chain per sample for the first 4 samples; Render → Advanced → *ReSTIR DI*, and the `fairy-lights` scene (300 bulbs). Direct light at 1 spp: 6.7× (fairy-lights) and 11× (candle-shelf) less variance on flat regions. See engine-notes "ReSTIR DI".
+
+- Not done (ReSTIR): visibility reuse; ReSTIR GI / PT for later bounces; the target ignores coat, sheen, anisotropy and transmission; history is dropped on every non-camera change (animation); fixed spatial radius; a reservoir debug view; accumulation with a static camera converges more slowly with temporal reuse on.
+- Still to do in this track: BDPT, SPPM / caustics mode, battle mode.
+
 
 - **BDPT:** good for light behind a door, the Veach "door" scene.
 - **SPPM / photon mapping:** a **caustics mode**. A light-tracing compute pass deposits photons into a hash grid, and camera paths gather from it. Real caustics under glass spheres and on the glass-lab table.

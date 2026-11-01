@@ -363,6 +363,46 @@ pub fn emitter_table(
     }
     (emitters, lookup)
 }
+/// Walker's alias table over the emitters' selection probabilities (Vose's construction), for
+/// ReSTIR DI (track 15), which draws about ten emitters per pixel: pick i uniformly, keep it if
+/// a second number is below its threshold, else take its alias. The same probabilities as the
+/// CDF in O(1), where the CDF's binary search over a big table (fairy-lights: 150k triangles)
+/// costs ~17 dependent loads per draw. Packed after the emitters in the same buffer, eight
+/// (threshold bits, alias) pairs per record.
+pub fn alias_records(emitters: &[Emitter]) -> Vec<Emitter> {
+    let n = emitters.len();
+    let mut q: Vec<f64> = emitters
+        .iter()
+        .map(|e| e.edge2_probability[3] as f64 * n as f64)
+        .collect();
+    let mut alias: Vec<u32> = (0..n as u32).collect();
+    let (mut small, mut large): (Vec<usize>, Vec<usize>) = (0..n).partition(|&i| q[i] < 1.);
+    while let (Some(&s), Some(&l)) = (small.last(), large.last()) {
+        small.pop();
+        alias[s] = l as u32;
+        q[l] -= 1. - q[s];
+        if q[l] < 1. {
+            large.pop();
+            small.push(l);
+        }
+    }
+    // What rounding leaves on either list keeps itself.
+    for i in large.into_iter().chain(small) {
+        q[i] = 1.;
+    }
+    let mut words: Vec<u32> = q
+        .iter()
+        .zip(alias)
+        .flat_map(|(t, a)| [(*t as f32).to_bits(), a])
+        .collect();
+    words.resize(words.len().div_ceil(16) * 16, 0);
+    words
+        .as_chunks::<16>()
+        .0
+        .iter()
+        .map(|c| bytemuck::cast(*c))
+        .collect()
+}
 /// How many suns lead the emitter table.
 pub fn sun_count(emitters: &[Emitter]) -> u32 {
     emitters
@@ -401,6 +441,30 @@ mod tests {
             assert!(((code - strength * 16384.) / 1000. - d).abs() < 5e-4);
         }
         assert_eq!(grating_code(&Material::default()), 0.);
+    }
+    #[test]
+    fn alias_table_matches_the_probabilities() {
+        let probs = [0.5f32, 0.05, 0.2, 0.0001, 0.2499];
+        let emitters: Vec<Emitter> = probs
+            .iter()
+            .map(|&p| Emitter {
+                position_area: [0.; 4],
+                edge1_cdf: [0.; 4],
+                edge2_probability: [0., 0., 0., p],
+                emission_material: [0.; 4],
+            })
+            .collect();
+        let words: Vec<u32> = bytemuck::cast_slice(&alias_records(&emitters)).to_vec();
+        let n = probs.len();
+        let mut got = vec![0f64; n];
+        for i in 0..n {
+            let t = f32::from_bits(words[2 * i]) as f64;
+            got[i] += t / n as f64;
+            got[words[2 * i + 1] as usize] += (1. - t) / n as f64;
+        }
+        for (g, p) in got.iter().zip(probs) {
+            assert!((g - p as f64).abs() < 1e-6, "{got:?}");
+        }
     }
     #[test]
     fn powers_are_normalized() {

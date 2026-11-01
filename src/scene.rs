@@ -582,6 +582,15 @@ pub struct Settings {
     /// Light sampling (roadmap 5e): 0 MIS (both strategies), 1 light sampling (NEE) only,
     /// 2 BSDF sampling only. 1 and 2 show what MIS combines, as in Veach's plates.
     pub mis_mode: u32,
+    /// ReSTIR DI (track 15): first-bounce light sampling resamples the emitter table through
+    /// per-pixel reservoirs reused across frames and neighbours (see engine-notes "ReSTIR DI").
+    pub restir: bool,
+    /// Fresh candidates per pixel and frame (RIS from the power CDF).
+    pub restir_candidates: u32,
+    /// Neighbours merged by the spatial pass (0 = none).
+    pub restir_neighbors: u32,
+    /// Cap on the history's confidence M in the temporal merge (0 = no temporal reuse).
+    pub restir_history: u32,
     /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
     /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
     pub lpe: Vec<String>,
@@ -705,6 +714,10 @@ impl Default for Settings {
             lut_path: String::new(),
             lut_strength: 1.,
             mis_mode: 0,
+            restir: false,
+            restir_candidates: 8,
+            restir_neighbors: 4,
+            restir_history: 20,
             lpe: vec![],
             lpe_slot: 0,
             hdri: String::new(),
@@ -1029,6 +1042,9 @@ impl Settings {
                 && (0. ..=1.).contains(&self.cat_eye)
                 && self.projection < 5
                 && self.mis_mode < 3
+                && (1..=32).contains(&self.restir_candidates)
+                && self.restir_neighbors <= 8
+                && self.restir_history <= 64
                 && self.tilt.abs() <= 60.,
             "Invalid lens or camera model"
         );

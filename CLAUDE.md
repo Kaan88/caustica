@@ -52,7 +52,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `tools/verify.ps1` runs release via `Start-Process` with stdout and stderr redirected.
 - `build.rs` does the following:
   - Asserts that `vendor/dlss`, `vendor/fsr` and `vendor/xess` exist.
-  - Compiles 5 shader entries: `trace`, `filter` and `display` as cs_6_5; `vs_main` and `ps_main` as 6_0. `trace` is built four times: plain, `trace_maps` (`-D TEXTURE_MAPS`), `trace_paths` (plus `-D PATH_RECORD`, the path visualizer) and `trace_lpe` (plus `-D LPE`, light path expressions).
+  - Compiles 8 shader entries: `trace`, `restir_presample`, `restir_initial`, `restir_spatial`, `filter` and `display` as cs_6_5; `vs_main` and `ps_main` as 6_0. `trace` is built four times: plain, `trace_maps` (`-D TEXTURE_MAPS`), `trace_paths` (plus `-D PATH_RECORD`, the path visualizer) and `trace_lpe` (plus `-D LPE`, light path expressions). The three ReSTIR DI passes come from the same file with `-D TEXTURE_MAPS`.
   - Compiles the bridge and links `nvsdk_ngx_d`.
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
 - Headless runs need a real GPU and use a hidden window:
@@ -89,9 +89,10 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `src/ui.rs` | UI plan phase 1 (2026-10-30). `UiState` (tab, advanced, panel_hidden, selection, toasts, export size/samples): never in `Settings`. `impl App { fn ui }` draws top bar, status bar, right `SidePanel` with Scene / Render / Look / Export tabs, toasts. Helpers `row` (2-column grid row, label carries the tooltip), `more` (inline when advanced, else a "More" header), `theme`. `UiState::delete_selected`, `toast`, `error`. |
 | `src/gizmo.rs` | Roadmap 3b (2026-10-30). `View` (camera in physical pixels: project, ray, world-per-pixel), `frame()` (pivot + rotation of the selection; lights are `flat`), `Transform` (mode, constraint, typed value, snap, original settings; `apply` restores the target then transforms; `restore` cancels), `layout`/`hit`/`draw`, `draw_lights`, `pick` (objects via `pick_object_hit` plus light quads). Unit tests cover typed values, arrow drags, screen-angle rotation, Blender's axis toggling and light scaling. |
 | `src/scenes.rs` | Roadmap 4 (2026-10-30). `folder()` (`./scenes`, next to the exe, or `exe/../../scenes`), `list()` (packs by `pack.json` order; builtin first, user last), `read()` (wrapper `{format, title, description, tags, credits, settings}` or bare `Settings`; validated; title becomes `scene_name`), `find()` (path, stem or title), `load_into()` (uses `Settings::keep_output` so render choices survive), `save_user()`. Test `builtin_scenes_are_valid`. |
-| `src/hotreload.rs` | Roadmap 5a. `HotReload::new()` (debug builds, not the self-test) watches `CORNELL_SHADERS` (build.rs bakes the source path and the DXC path `CORNELL_DXC`); `poll()` every 0.5 s on the newest mtime; `compile()` runs all 8 entries of `ENTRIES` (keep in sync with build.rs) with build.rs's flags. `Gpu::reload_shaders` builds all PSOs before swapping, so an error keeps the old ones; prints `SHADERS RELOADED` / `SHADER ERROR`. Tested by editing post.hlsl under a running instance (valid, broken, restored). |
+| `src/hotreload.rs` | Roadmap 5a. `HotReload::new()` (debug builds, not the self-test) watches `CORNELL_SHADERS` (build.rs bakes the source path and the DXC path `CORNELL_DXC`); `poll()` every 0.5 s on the newest mtime; `compile()` runs all 11 entries of `ENTRIES` (keep in sync with build.rs) with build.rs's flags. `Gpu::reload_shaders` builds all PSOs before swapping, so an error keeps the old ones; prints `SHADERS RELOADED` / `SHADER ERROR`. Tested by editing post.hlsl under a running instance (valid, broken, restored). |
 | `src/paths.rs` | Track 14 path visualizer: `Record` (the shader's `PathVertex`), `parse`, `draw`, `window`, `PathView` (in `UiState`). See engine-notes "Path visualizer". |
 | `src/lpe.rs` | Track 14 light path expressions: parser, NFA → minimal DFA (`compile`), the GPU `table`, `PRESETS`. See engine-notes "Light path expressions". |
+| ReSTIR DI | Track 15: `restir_presample` / `restir_initial` / `restir_spatial` in pathtrace.hlsl (before `trace`), `lighting::alias_records`, `Gpu::prepare_restir`, `Settings::restir*`. See engine-notes "ReSTIR DI". |
 | `src/look.rs` | Roadmap 5c: `read_cube` (.cube 3D LUT) and `color_wheel` (lift/gamma/gain widget: chroma from a dragged dot in an orthonormal RGB chroma plane, level from a slider, double-click resets). |
 | `src/walk.rs`, `video.rs`, `saver.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), screensaver mode, phone remote (see "Toys"). |
 | `src/sky.rs` | Track 9 physical sky: `PhysicalSky` (`Settings::physical_sky`), solar position, atmosphere bake, the sun light, `environment_key` / `upload_environment`. See "Physical sky". |
@@ -197,6 +198,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 11 | Root UAV u0 space 2, path visualizer records (`trace_paths` only; bound for every dispatch) |
 | 12 | Root UAV u1 space 2, LPE AOVs (`trace_lpe` writes, `display` view 12 reads; the path buffer stands in while none) |
 | 13 | Root SRV t8 LPE DFA table |
+| 14 | Root UAV u2 space 2, ReSTIR DI reservoirs (bound for every dispatch; the path buffer stands in while ReSTIR is off) |
 
 Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips (texture maps). The heap holds 512 + 4096 descriptors: UAVs 0–31, egui textures 32–511, texture maps from 512.
 
@@ -245,7 +247,7 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
   - Jittered with Halton(2,3) over 64 phases when RR is on; unjittered otherwise.
   - Specular hit distance comes from a deterministic mirror-reflection ray, not the sampled lobe. This was the RR stability fix.
 - **Transport:**
-  - NEE picks an emissive triangle by power. MIS uses the balance heuristic on both the NEE and the BSDF-hit side.
+  - NEE picks an emissive triangle by power. MIS uses the balance heuristic on both the NEE and the BSDF-hit side. With ReSTIR DI on, the first hit's light sample comes from the reservoirs instead (weight 1, BSDF hits on table emitters from that vertex count 0).
   - The BSDF is Lambert + GGX (Smith G1·G1 form) as a mixture chosen by `spec_probability`, under an optional sheen and clear coat (track 11, see "Layered materials"); the GGX lobes are energy-compensated from tables in `layers.hlsli` and the base can be anisotropic (see "Energy compensation and anisotropy").
   - Dielectrics: stochastic choice by the exact Fresnel term (TIR included). Rough glass is an approximation (refracted direction lerped toward a cosine sample).
   - Nested dielectrics (track 10): a per-path stack of up to 4 media (one 64-bit word) ranked by `Material::priority`; surfaces that don't bound the current medium are false hits (skipped, no bounce). See "Nested dielectrics".

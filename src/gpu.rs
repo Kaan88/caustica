@@ -86,6 +86,9 @@ struct Constants {
     path_record: [u32; 4],
     /// Track 14: light path expression slots in use (0 = off), the slot the LPE view shows.
     lpe: [u32; 4],
+    /// Track 15 ReSTIR DI: flags (bit 0 on, bit 1 history valid), candidates, spatial
+    /// neighbours, history cap.
+    restir: [u32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -95,6 +98,8 @@ const CB_STRIDE: u64 = 1024;
 const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
 /// Path visualizer records per request, the count record included (48 B each).
 const PATH_CAPACITY: usize = 16384;
+/// ReSTIR light-tile samples per frame (pathtrace.hlsl: 128 tiles of 1024).
+const RESTIR_TILES: u64 = 128 * 1024;
 unsafe extern "C" {
     fn cornell_ngx_release(ngx: *mut c_void);
     fn cornell_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
@@ -227,6 +232,17 @@ pub struct Gpu {
     pub lpe_slots: u32,
     lpe_aov: Option<ID3D12Resource>,
     lpe_aov_len: u64,
+    /// ReSTIR DI (track 15): the reservoir passes before the trace and their buffer (u2 space
+    /// 2: two 32-byte reservoirs per render pixel and layer, allocated while ReSTIR is on); the
+    /// history is valid from the frame after a pass until a full reset.
+    restir_layers: u32,
+    restir_presample: ID3D12PipelineState,
+    restir_initial: ID3D12PipelineState,
+    restir_spatial: ID3D12PipelineState,
+    reservoirs: Option<ID3D12Resource>,
+    reservoirs_len: u64,
+    restir_history: bool,
+    restir_ran: bool,
     textured: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
@@ -567,6 +583,17 @@ impl Gpu {
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
             root_srv(8),
+            // ReSTIR DI: the reservoirs (u2 space 2).
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_UAV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 2,
+                        RegisterSpace: 2,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -645,6 +672,18 @@ impl Gpu {
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
         )?;
+        let restir_presample = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/restir_presample.dxil"
+        )))?;
+        let restir_initial = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/restir_initial.dxil"
+        )))?;
+        let restir_spatial = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/restir_spatial.dxil"
+        )))?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
         let (vs, ps): (&[u8], &[u8]) = (
@@ -741,6 +780,14 @@ impl Gpu {
             lpe_slots: 0,
             lpe_aov: None,
             lpe_aov_len: 0,
+            restir_presample,
+            restir_initial,
+            restir_spatial,
+            reservoirs: None,
+            reservoirs_len: 0,
+            restir_history: false,
+            restir_layers: 0,
+            restir_ran: false,
             textured: false,
             filter,
             display,
@@ -858,6 +905,7 @@ impl Gpu {
         if reset_history {
             self.rr_reset = true;
             self.history_valid = false;
+            self.restir_history = false;
             self.camera_moved = false;
         } else {
             self.camera_moved = true;
@@ -1369,6 +1417,10 @@ impl Gpu {
         let trace_maps = create_compute_pipeline(&self.device, &self.root, &sh.trace_maps)?;
         let trace_paths = create_compute_pipeline(&self.device, &self.root, &sh.trace_paths)?;
         let trace_lpe = create_compute_pipeline(&self.device, &self.root, &sh.trace_lpe)?;
+        let restir_presample =
+            create_compute_pipeline(&self.device, &self.root, &sh.restir_presample)?;
+        let restir_initial = create_compute_pipeline(&self.device, &self.root, &sh.restir_initial)?;
+        let restir_spatial = create_compute_pipeline(&self.device, &self.root, &sh.restir_spatial)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
         let gui = create_gui_pipeline(
@@ -1391,6 +1443,9 @@ impl Gpu {
             self.trace_maps,
             self.trace_paths,
             self.trace_lpe,
+            self.restir_presample,
+            self.restir_initial,
+            self.restir_spatial,
             self.filter,
             self.display,
             self.gui,
@@ -1400,6 +1455,9 @@ impl Gpu {
             trace_maps,
             trace_paths,
             trace_lpe,
+            restir_presample,
+            restir_initial,
+            restir_spatial,
             filter,
             display,
             gui,
@@ -1918,9 +1976,15 @@ impl Gpu {
             .any(|m| m.lobes[3] as u32 & 16 != 0 || m.optical[3] < 0.);
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
-        self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&emitters))?;
+        // The alias table for ReSTIR follows the emitters (`emitter_count` stays the table).
+        let mut table = emitters.clone();
+        table.extend(crate::lighting::alias_records(&emitters));
+        self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&table))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
         self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;
+        // Light painting keeps the exposure, but reservoirs made for the old lights would be
+        // reused with stale weights.
+        self.restir_history = false;
         if !self.painting {
             self.reset(true);
         }
@@ -1962,6 +2026,57 @@ impl Gpu {
         );
         self.list
             .SetComputeRootShaderResourceView(13, self.lpe_table.GetGPUVirtualAddress());
+        // Without ReSTIR no shader reads u2 space 2 (restir.x is 0).
+        self.list.SetComputeRootUnorderedAccessView(
+            14,
+            self.reservoirs
+                .as_ref()
+                .unwrap_or(&self.path_buffer)
+                .GetGPUVirtualAddress(),
+        );
+    }
+    /// Reservoir layers of the last frame's ReSTIR passes (0 when they did not run).
+    pub fn restir_layers(&self) -> u32 {
+        if self.restir_ran {
+            self.restir_layers
+        } else {
+            0
+        }
+    }
+    /// Sizes the ReSTIR reservoir buffer while ReSTIR is on: one layer (two reservoirs per
+    /// render pixel) for each of the frame's first 4 samples, which keeps them independent;
+    /// later samples use plain light sampling. A new buffer has no history. True when the
+    /// passes run this frame.
+    unsafe fn prepare_restir(&mut self, s: &Settings) -> Result<bool> {
+        let on = s.restir && self.emitter_count > 0;
+        // At most 1 GiB of reservoirs (4K: two layers).
+        let pixels = (self.rw as u64 * self.rh as u64).max(1);
+        self.restir_layers = s
+            .spp
+            .clamp(1, 4)
+            .min(((1 << 30) / (pixels * 64)).max(1) as u32);
+        // Plus the light tiles (pathtrace.hlsl RESTIR_TILES × RESTIR_TILE, 32 B each).
+        let len = if s.restir {
+            self.rw as u64 * self.rh as u64 * self.restir_layers as u64 * 64 + RESTIR_TILES * 32
+        } else {
+            0
+        };
+        if len == 0 {
+            self.reservoirs = None;
+            self.reservoirs_len = 0;
+            self.restir_history = false;
+        } else if len != self.reservoirs_len {
+            self.reservoirs = Some(buffer(
+                &self.device,
+                len,
+                D3D12_HEAP_TYPE_DEFAULT,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COMMON,
+            )?);
+            self.reservoirs_len = len;
+            self.restir_history = false;
+        }
+        Ok(on)
     }
     /// Uploads the light path expressions' table when they change, and sizes the AOV buffer
     /// (a new buffer restarts the accumulation, as its contents are undefined).
@@ -2266,6 +2381,7 @@ impl Gpu {
             }
         }
         self.prepare_lpe(s)?;
+        let restir = self.prepare_restir(s)?;
         let sr = self.prepare_upscaler(s);
         // With a temporal upscaler each frame is fresh jittered samples, as with RR: the native
         // denoiser's history and the upscaler do the accumulation, so detail is resolved above
@@ -2424,6 +2540,12 @@ impl Gpu {
             fog_color: [s.fog.color[0], s.fog.color[1], s.fog.color[2], 0.],
             path_record: [0; 4],
             lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
+            restir: [
+                restir as u32 | (self.restir_history as u32) << 1 | self.restir_layers << 8,
+                s.restir_candidates.clamp(1, 32),
+                s.restir_neighbors.min(8),
+                s.restir_history.min(64),
+            ],
         };
         // Path visualizer: the output pixel maps to a render pixel as the light meter's does.
         let path_request = self.path_request.take();
@@ -2466,6 +2588,22 @@ impl Gpu {
                 D3D12_RESOURCE_STATE_COPY_SOURCE,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             );
+        }
+        self.restir_ran = n > 0 && restir;
+        if n > 0 && restir {
+            // ReSTIR DI: initial candidates and the temporal merge, then the spatial merge into
+            // the final reservoirs the trace reads.
+            self.bind(0);
+            self.list.SetPipelineState(&self.restir_presample);
+            self.list.Dispatch((RESTIR_TILES / 64) as u32, 1, 1);
+            uav(&self.list, None);
+            for pass in [&self.restir_initial, &self.restir_spatial] {
+                self.list.SetPipelineState(pass);
+                self.list
+                    .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), self.restir_layers);
+                uav(&self.list, None);
+            }
+            self.restir_history = true;
         }
         if n > 0 {
             self.bind(0);

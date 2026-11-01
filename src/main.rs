@@ -1336,7 +1336,10 @@ impl App {
                 // Track 7: one light of every kind (the per-frame check covers their triangles
                 // and emitter entries), the spot's inspector and every outline drawn; then the
                 // sun alone, with the room open so it reaches the floor.
+                // ReSTIR DI (track 15) runs from here with two layers, over every light kind.
                 283 => {
+                    self.settings.restir = true;
+                    self.settings.spp = 2;
                     self.ui.tab = ui::Tab::Scene;
                     for (n, kind) in scene::LightKind::ALL.into_iter().enumerate() {
                         let mut l = editor::new_light(kind, n);
@@ -1975,6 +1978,11 @@ impl App {
                     );
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
+                283 | 284 => anyhow::ensure!(
+                    g.restir_layers() == 2,
+                    "ReSTIR did not run with two layers ({})",
+                    g.restir_layers()
+                ),
                 241 => anyhow::ensure!(
                     g.samples >= 2 * s.spp,
                     "Light painting restarted the exposure ({} samples)",

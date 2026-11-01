@@ -9,10 +9,12 @@ uint owen(uint x,uint seed){return reversebits(permute(reversebits(x),seed));}
 // transform replaces the 32-step loop over direction numbers (bit-identical results).
 uint superset(uint i){i^=(i>>1)&0x55555555;i^=(i>>2)&0x33333333;i^=(i>>4)&0x0f0f0f0f;i^=(i>>8)&0x00ff00ff;i^=(i>>16)&0x0000ffff;return i;}
 static float pair_second;
+// The ReSTIR passes always draw white noise (they are not tied to a sample index).
+static bool white_noise;
 // Debug statistics for this pixel and frame (views 8 and 9).
 static uint proceed_steps;
 float random(){
-    if(jitter.z>0.5 && modes.w==0){
+    if(!white_noise && jitter.z>0.5 && modes.w==0){
         // Padded 2D Owen-scrambled Sobol. RR uses independent white noise per NVIDIA's guide.
         // Both values of a dimension pair share one shuffled index, so compute them together.
         // owen(reversebits(x)) and owen(reversebits(superset(x))) reduce to one reversal each.
@@ -559,7 +561,14 @@ float spot(Material m,float c){return ((uint)m.lobes.w&32u)!=0?smoothstep(m.seco
 float emitter_pdf(float3 from,float3 at,Emitter light){
     if(light.position_area.w==-1){float3 c=light.position_area.xyz-from;float om=sphere_om(dot(c,c),light.edge1_cdf.x);return om>0?light.edge2_probability.w/(2*PI*om):0;}
     float3 d=at-from;float dist2=dot(d,d);float3 n=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));float c=abs(dot(n,normalize(d)));return light.edge2_probability.w*dist2/max(1e-8,light.position_area.w*c);}
-Emitter select_emitter(float u){uint lo=0,hi=scene_info.x-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return emitters[lo];}
+// ReSTIR's emitter choice: Walker's alias table (lighting::alias_records, after the n emitters,
+// eight threshold / alias pairs per record). Same probabilities as select_index's CDF, in O(1).
+uint alias_index(float u,float v){
+    uint n=scene_info.x,i=min((uint)(u*n),n-1);Emitter e=emitters[n+(i>>3)];uint j=i&7;
+    float4 r=j<2?e.position_area:j<4?e.edge1_cdf:j<6?e.edge2_probability:e.emission_material;
+    uint2 pair=asuint((j&1)!=0?r.zw:r.xy);return v<asfloat(pair.x)?i:pair.y;
+}
+uint select_index(float u){uint lo=0,hi=scene_info.x-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return lo;}
 float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 p=mul(inverse_vp,float4(ndc,1,1));return normalize(p.xyz/p.w-eye.xyz);}
 // A point in the unit aperture: a disk, or an n-gon (one triangle of the fan, then uniform in it).
 float2 aperture_point(){
@@ -601,7 +610,7 @@ bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,o
         float pe;ld=sample_env(pe);if(lpe_on)lpe_env_sample=true;
         if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
     }else if(tri_nee){
-    Emitter light=select_emitter(random());
+    Emitter light=emitters[select_index(random())];
     if(light.position_area.w<0){
         // Sphere or sun: a direction in the cone it covers, then a shadow ray up to the
         // sphere's true surface (its inscribed mesh lies beyond) or to infinity.
@@ -617,6 +626,118 @@ bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,o
     if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(x,lp,light);limit=max(0.0002,len-0.0006);nee=true;}
     }}
     return nee;
+}
+// ReSTIR DI (track 15; Bitterli et al. 2020, with the generalized RIS weights of Lin et al.
+// 2022). A light sample is an emitter index and two 16-bit numbers that name the same point from
+// every surface (area measure; a sun's direction, solid angle), so samples move between pixels and
+// frames with a unit Jacobian. Reservoirs (32 B) hold the sample, its contribution weight W, the
+// confidence M and the surface it was made for. Each of the frame's first `layers` samples has its
+// own chain (sample s uses layer s), so samples stay independent: the final reservoirs
+// (restir_spatial; next frame's history) of every layer, then restir_initial's of every layer,
+// then the frame's light tiles (restir_presample).
+struct Reservoir{uint light;uint uv;float W;uint m_material;float3 position;uint normal;};
+RWStructuredBuffer<Reservoir> reservoirs:register(u2,space2);
+// A surface the target is evaluated on, with its cheap BSDF terms read once (target_brdf).
+struct Domain{float3 p;float3 n;float3 v;uint material;float diffuse;float spec;float alpha;};
+struct LightPoint{float3 p;float3 n;float3 le;float source;uint kind;float lum;}; // kind 0 triangle, 1 sphere, 2 sun (p = direction); le the table's flat emission, lum its luminance
+uint restir_layers(){return (restir.x>>8)&0xffu;}
+// Light tiles (Wyman and Panteleev 2021): each frame restir_presample draws RESTIR_TILES ×
+// RESTIR_TILE light samples from the source distribution, and every 8×8 group takes its
+// candidates from one tile, so the reads stay in cache instead of hitting a random emitter (and
+// its alias record) per candidate. Still unbiased: RIS needs each candidate's marginal pdf, not
+// independent candidates. On fairy-lights (150k emitter triangles, 1440×900, RR 1 spp) ReSTIR's
+// overhead fell from 14.3 ms (alias draws per candidate) to 2.5 ms.
+static const uint RESTIR_TILES=128,RESTIR_TILE=1024;
+uint restir_slot(uint stage,uint layer){return (stage*restir_layers()+layer)*dimensions.x*dimensions.y;}
+uint pack_uv(float2 u){uint2 q=min((uint2)(u*65536),65535u);return q.x|q.y<<16;}
+float2 unpack_uv(uint q){return (float2(q&0xffffu,q>>16)+0.5)/65536;}
+uint pack_normal(float3 n){uint2 q=(uint2)round((oct_encode(n)*0.5+0.5)*65535);return q.x|q.y<<16;}
+float3 unpack_normal(uint q){return oct_decode(float2(q&0xffffu,q>>16)/65535*2-1);}
+float reservoir_m(Reservoir r){return (float)(r.m_material>>24);}
+bool reservoir_valid(Reservoir r){return (r.m_material&0xffffffu)!=0xffffffu && r.light<scene_info.x;}
+// The target's BSDF: Lambert with a floor, so every direction above the surface keeps support,
+// plus one isotropic GGX lobe.
+Domain make_domain(float3 p,float3 n,float3 v,uint material){
+    Domain d;d.p=p;d.n=n;d.v=v;d.material=material;Material m=materials[material];
+    d.diffuse=max(luminance(m.color_rough.rgb)*(1-m.lobes.x)*(1-m.lobes.z),0.05)/PI;d.spec=spec_probability(m);d.alpha=max(0.01,m.color_rough.a*m.color_rough.a);
+    return d;
+}
+Domain domain_of(Reservoir r){return make_domain(r.position,unpack_normal(r.normal),normalize(eye.xyz-r.position),r.m_material&0xffffffu);}
+// The point (or sun direction) a sample names, and its source pdf: power selection times uniform
+// area (triangles, the whole sphere) or the sun's cone.
+LightPoint light_point(uint i,uint q){
+    Emitter e=emitters[i];float2 u=unpack_uv(q);float prob=e.edge2_probability.w;LightPoint l;l.le=e.emission_material.rgb;l.lum=luminance(l.le);
+    if(e.position_area.w==-1){float z=1-2*u.x,s=sqrt(max(0,1-z*z)),a=2*PI*u.y,r=e.edge1_cdf.x;l.n=float3(s*cos(a),s*sin(a),z);l.p=e.position_area.xyz+r*l.n;l.source=prob/(4*PI*r*r);l.kind=1;}
+    else if(e.position_area.w<0){float om=e.edge1_cdf.x,x=u.x*om,s=sqrt(x*(2-x)),a=2*PI*u.y;l.p=basis(e.position_area.xyz,float3(s*cos(a),s*sin(a),1-x));l.n=0;l.source=prob/(2*PI*om);l.kind=2;}
+    else{float su=sqrt(u.x);l.p=e.position_area.xyz+e.edge1_cdf.xyz*(1-su)+e.edge2_probability.xyz*(su*u.y);l.n=normalize(cross(e.edge1_cdf.xyz,e.edge2_probability.xyz));l.source=prob/e.position_area.w;l.kind=0;}
+    return l;
+}
+// Radiance from the sample toward x and the geometry factor (area measure; 1 for a sun), as
+// sample_light computes them; ld and limit for the shadow ray.
+float3 light_toward(uint i,LightPoint l,float3 x,out float3 ld,out float g,out float limit){
+    if(l.kind==2){ld=l.p;g=1;limit=1e4;return l.le;}
+    ld=l.p-x;float d2=dot(ld,ld),len=sqrt(d2);ld/=max(len,1e-8);limit=max(0.0002,len-0.0006);float c=dot(l.n,-ld);
+    if(l.kind==1){g=max(c,0)/max(d2,1e-8);return c>0?l.le:0;}
+    Material lm=material_at((uint)emitters[i].emission_material.w,l.p);g=abs(c)/max(d2,1e-8);
+    return lm.optical.w>=0.5 && c<=0?0:lm.color_rough.rgb*lm.optical.y*spot(lm,c);
+}
+// The target function: unshadowed reflected luminance from the table's flat emission (no
+// pattern or spot cone: a target only has to be positive wherever the light can be) through
+// the domain's cheap BSDF. Visibility is left to the final shadow ray, which keeps every merge
+// unbiased without extra rays.
+float restir_target(Domain d,LightPoint l){
+    float3 ld;float g;
+    if(l.kind==2){ld=l.p;g=1;}
+    else{
+        ld=l.p-d.p;float d2=max(dot(ld,ld),1e-16);ld*=rsqrt(d2);float c=dot(l.n,-ld);
+        // A triangle seen from behind: on a closed emitter (a bulb, an emissive box) the object
+        // itself hides it, which the unshadowed target cannot know (64% of the remaining error
+        // in fairy-lights). A small weight rather than 0 keeps such points reachable (two-sided
+        // panels, a camera inside a luminous room), so the result stays unbiased.
+        g=l.kind==1?max(c,0)/d2:abs(c)/d2*(c>0?1:0.02);
+    }
+    float c=dot(d.n,ld);if(c<=0 || g<=0)return 0;
+    float spec=d.spec*ggx_d(saturate(dot(d.n,normalize(ld+d.v))),d.alpha)/(4*max(dot(d.n,d.v),0.1)*max(c,0.1));
+    return l.lum*g*c*(d.diffuse+spec);
+}
+// Streaming RIS over k candidates drawn from one light tile; W = 0 when none has any target.
+// A tile entry is a Reservoir record: light | kind << 30, uv, W = source pdf, m_material = the
+// emission's luminance bits, position = the point (a sun: its direction), normal.
+void restir_candidates(Domain d,uint k,uint tile,out uint light,out uint q,out float W){
+    float sum=0,chosen=0;light=0;q=0;uint base=restir_slot(2,0)+tile*RESTIR_TILE;
+    for(uint j=0;j<k;j++){
+        Reservoir r=reservoirs[base+min((uint)(random()*RESTIR_TILE),RESTIR_TILE-1)];
+        LightPoint l;l.p=r.position;l.n=unpack_normal(r.normal);l.le=0;l.source=r.W;l.kind=r.light>>30;l.lum=asfloat(r.m_material);
+        float t=restir_target(d,l),w=t/(max(l.source,1e-30)*k);sum+=w;
+        if(w>0 && random()*sum<w){light=r.light&0x3fffffffu;q=r.uv;chosen=t;}
+    }
+    W=chosen>0?sum/chosen:0;
+}
+// Emission found by BSDF sampling from a vertex that used ReSTIR counts 0, except from inside a
+// sphere light, where the area samples (all facing away) can never reach it.
+bool restir_covers(float3 x,Emitter e){float3 c=x-e.position_area.xyz;return e.position_area.w!=-1 || dot(c,c)>e.edge1_cdf.x*e.edge1_cdf.x;}
+// Generalized RIS over two domains, a canonical: balance weights M·p̂ over both surfaces sum to 1
+// for every sample, so the result is unbiased for a whatever b is (another pixel, last frame).
+// Every merge takes the surfaces it chose by geometry alone: a reservoir that holds no sample
+// (W = 0) still takes part with its M. Skipping it would condition on its random outcome and
+// over-weight the reservoirs that did find one (measured +1.1% with one candidate).
+void restir_merge(Domain a,uint la,uint qa,float Wa,float Ma,Domain b,uint lb,uint qb,float Wb,float Mb,out uint light,out uint q,out float W){
+    float aa=0,ab=0,ba=0,bb=0;
+    if(Wa>0){LightPoint l=light_point(la,qa);aa=restir_target(a,l);ab=restir_target(b,l);}
+    if(Wb>0){LightPoint l=light_point(lb,qb);ba=restir_target(a,l);bb=restir_target(b,l);}
+    float wa=aa>0?Ma*aa/(Ma*aa+Mb*ab)*aa*Wa:0,wb=bb>0?Mb*bb/(Ma*ba+Mb*bb)*ba*Wb:0,sum=wa+wb;
+    bool pick=random()*sum<wb;light=pick?lb:la;q=pick?qb:qa;float t=pick?ba:aa;W=t>0?sum/t:0;
+}
+// Bounce-0 light sample: the pixel's final reservoir merged with one fresh candidate at this hit,
+// which keeps every light reachable where the hit is not the reservoir's surface (edges inside
+// the pixel filter, depth of field, portals). le comes back times G and W.
+bool restir_nee(uint2 p,uint layer,Hit h,float3 v,out float3 ld,out float3 le,out float limit){
+    Domain a=make_domain(h.p,h.n,v,h.material);
+    uint lc=alias_index(random(),random()),qc=pack_uv(float2(random(),random()));float Wc=1/max(light_point(lc,qc).source,1e-30);
+    Reservoir r=reservoirs[restir_slot(0,layer)+p.y*dimensions.x+p.x];uint light=lc,q=qc;float W=Wc;
+    if(reservoir_valid(r))restir_merge(a,lc,qc,Wc,1,domain_of(r),r.light,r.uv,r.W,reservoir_m(r),light,q,W);
+    LightPoint l=light_point(light,q);float g;le=light_toward(light,l,h.p,ld,g,limit)*g*W;
+    return W>0 && any(le>0);
 }
 // Volumes (track 12): homogeneous media, sampled by free flight on their extinction (one grey
 // sigma, so the pdf cancels the transmittance), with the albedo applied at each scatter and a
@@ -765,7 +886,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
         // Recording only (dead code otherwise): why the path ended, and its last bounce.
         uint end_reason=lens_valid?3:5,last_bounce=0;
         if(lpe_on){lpe_state=0;lpe_weight=1;}
@@ -812,7 +933,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                     }
                     float pp;direction=hg_sample(direction,g,pp);
                     record(5,bounce,x,arriving,0,direction);lpe_advance(4);
-                    previous_pdf=pp;previous_delta=false;previous_position=x;origin=x;
+                    previous_pdf=pp;previous_delta=false;previous_restir=false;previous_position=x;origin=x;
                     if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
                     continue;
                 }
@@ -830,7 +951,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                     float3 x=cross(direction,sun.position_area.xyz);float om=sun.edge1_cdf.x;
                     if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
-                    float w=1;if(bounce>0 && !previous_delta)w=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
+                    float w=1;if(bounce>0 && !previous_delta)w=mis==1 || previous_restir?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
                     float3 se=throughput*sun.emission_material.rgb*w;e+=se;lpe_add(8,5,se);}
                 radiance+=e;if(bounce<=1)direct+=e;record(10,bounce,origin,throughput,luminance(e),direction);end_reason=0;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
@@ -865,18 +986,25 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
             if(has_grating(m))grating_wavelength(pixel_seed^(sequence_index*0x9e3779b9u)^(bounce*0x85ebca6bu));
             if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=spec_fresnel(m,abs(dot(-direction,h.n)),f0_of(m));}
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
-            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
+            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1 || (previous_restir && restir_covers(previous_position,emitters[h.emitter-1]))?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             float emitted_l=luminance(e);lpe_add(8,5,e);
             if(((uint)m.lobes.w&1u)!=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=1;break;}
             // Light sampling (sample_light), then one shared BSDF evaluation: eval_bsdf is inlined
             // once here instead of once per strategy (code size and registers cost even scenes
             // that never take the anisotropic branch).
-            float3 ld,le;float pl,limit;bool nee=sample_light(h.p,env_nee,tri_nee,p_env,ld,le,pl,limit);
+            // ReSTIR DI (track 15): at the first hit the emitter table is sampled through the
+            // pixel's reservoir of this sample's layer with weight 1, so BSDF hits on emitters from this vertex count 0;
+            // the HDRI keeps its own strategy, chosen with the same probability, and its MIS.
+            bool restir_vertex=bounce==0 && (restir.x&1)!=0 && sample_id<restir_layers() && tri_nee,reused=false;
+            float3 ld,le;float pl,limit;bool nee;
+            if(restir_vertex && !(env_nee && random()<p_env)){reused=true;nee=restir_nee(p,sample_id,h,-direction,ld,le,limit);le/=1-p_env;pl=1;if(lpe_on)lpe_env_sample=false;}
+            else if(restir_vertex){nee=sample_light(h.p,true,false,1,ld,le,pl,limit);pl*=p_env;}
+            else nee=sample_light(h.p,env_nee,tri_nee,p_env,ld,le,pl,limit);
             float nl=dot(h.n,ld);
             if(nee && nl>0){
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
-                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(mis==1?pl:pl+pdf,1e-8);
+                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(reused?1:mis==1?pl:pl+pdf,1e-8);
                     if(fog.x>0 || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
                     radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);
                     if(lpe_on){float3 ed=e*lpe_diffuse/max(f,1e-30);uint light=lpe_env_sample?6:5;lpe_add(0,light,ed);lpe_add(lpe_glossy(m),light,e-ed);}}
@@ -922,7 +1050,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                 }
             }
             if(bounce==0 && delta)first_spec=true;
-            previous_pdf=bsdf_pdf;previous_delta=delta;previous_position=h.p;
+            previous_pdf=bsdf_pdf;previous_delta=delta;previous_restir=restir_vertex;previous_position=h.p;
             direction=normalize(next);origin=h.p+h.ng*(dot(direction,h.ng)>0?0.0003:-0.0003);
             record(lobe,bounce,h.p,arriving,emitted_l,direction);
             if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
@@ -944,3 +1072,74 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
     noisy[p]=float4(batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);
 }
 
+// ReSTIR DI, pass 0: the frame's light tiles, one sample per thread.
+[numthreads(64,1,1)]void restir_presample(uint3 tid:SV_DispatchThreadID){
+    uint i=tid.x;if(i>=RESTIR_TILES*RESTIR_TILE || scene_info.x==0)return;
+    white_noise=true;rng_state=hash(i^hash(sampling.w*0x85ebca6bu+0x165667b1u));
+    uint light=alias_index(random(),random()),q=pack_uv(float2(random(),random()));LightPoint l=light_point(light,q);
+    Reservoir r;r.light=light|l.kind<<30;r.uv=q;r.W=l.source;r.m_material=asuint(l.lum);r.position=l.p;r.normal=pack_normal(l.n);
+    reservoirs[restir_slot(2,0)+i]=r;
+}
+// ReSTIR DI, pass 1 (before trace; z = layer): the guide ray's hit, k fresh candidates, then the
+// temporal merge with last frame's final reservoir of the same layer at the reprojected pixel.
+[numthreads(8,8,1)]void restir_initial(uint3 tid:SV_DispatchThreadID){
+    uint2 p=tid.xy;uint layer=tid.z;if(any(p>=dimensions.xy))return;
+    white_noise=true;pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed^hash(sampling.w*747796405+layer*0x9e3779b9u+0x2545f491u));
+    cone_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;cone_spread=camera_model.x==1?0:2*environment.z/dimensions.y;
+    Reservoir r;r.light=0;r.uv=0;r.W=0;r.m_material=0xffffffu;r.position=0;r.normal=0;
+    float3 o,d;bool valid;camera_ray(float2(p)+0.5+jitter.xy,false,o,d,valid);Hit h;
+    if(scene_info.x>0 && intersect(o,d,1e4,h,false,true) && ((uint)materials[h.material].lobes.w&1u)==0){
+        Domain a=make_domain(h.p,h.n,-d,h.material);
+        uint tile=hash((p.x>>3)|(p.y>>3)<<16^hash(sampling.w*0x9e3779b9u+layer))%RESTIR_TILES;
+        uint light,q;float W,M=1;restir_candidates(a,restir.y,tile,light,q,W);
+        if((restir.x&2)!=0 && restir.w>0){
+            float4 prev=mul(previous_vp,float4(h.p,1));float2 uv=prev.xy/prev.w*float2(0.5,-0.5)+0.5;int2 hp=int2(floor(uv*dimensions.xy));
+            if(prev.w>0 && all(hp>=0) && all(hp<int2(dimensions.xy))){
+                Reservoir hr=reservoirs[restir_slot(0,layer)+hp.y*dimensions.x+hp.x];
+                // Only histories on a similar surface: dissimilar ones would mostly be wasted.
+                if(reservoir_valid(hr)){Domain b=domain_of(hr);
+                    if(dot(b.n,a.n)>0.8 && length(b.p-a.p)<0.05*length(a.p-eye.xyz)){
+                        float Mh=min(reservoir_m(hr),(float)restir.w);
+                        restir_merge(a,light,q,W,1,b,hr.light,hr.uv,hr.W,Mh,light,q,W);M+=Mh;}}
+            }
+        }
+        r.light=light;r.uv=q;r.W=W;r.m_material=h.material|(uint)min(M,255)<<24;r.position=h.p;r.normal=pack_normal(h.n);
+    }
+    reservoirs[restir_slot(1,layer)+p.y*dimensions.x+p.x]=r;
+}
+// ReSTIR DI, pass 2: merge up to 8 random neighbours on similar surfaces with pairwise MIS (each
+// neighbour against this pixel: 3k + 1 target evaluations instead of (k + 1)^2). With
+// a_i(y) = M_i p_i(y) / (M_i p_i(y) + M_c/k p_c(y)) (p: the targets), neighbour i's sample has
+// weight a_i / k and the pixel's own sample the sum of (1 - a_i) / k; for any sample they sum
+// to 1, so the result is unbiased. It is the final reservoir that trace reads and next frame's
+// history.
+[numthreads(8,8,1)]void restir_spatial(uint3 tid:SV_DispatchThreadID){
+    uint2 p=tid.xy;uint layer=tid.z;if(any(p>=dimensions.xy))return;
+    uint self=p.y*dimensions.x+p.x;Reservoir c=reservoirs[restir_slot(1,layer)+self];
+    if(!reservoir_valid(c) || restir.z==0){reservoirs[restir_slot(0,layer)+self]=c;return;}
+    white_noise=true;pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed^hash(sampling.w*2891336453u+layer*0x85ebca6bu+0x68bc21ebu));
+    Domain a=domain_of(c);float radius=max(4.0,30.0*dimensions.y/1080),reach=0.05*length(a.p-eye.xyz);
+    uint index[8];uint k=0;
+    for(uint t=0;t<min(restir.z,8u);t++){
+        float rr=radius*sqrt(random()),ang=2*PI*random();int2 q=int2(p)+int2(round(rr*float2(cos(ang),sin(ang))));
+        if(any(q<0) || any(q>=int2(dimensions.xy)) || all(q==int2(p)))continue;
+        uint j=restir_slot(1,layer)+q.y*dimensions.x+q.x;Reservoir r=reservoirs[j];
+        if(!reservoir_valid(r))continue;
+        Domain b=domain_of(r);if(dot(b.n,a.n)<0.9 || abs(dot(a.n,b.p-a.p))>reach)continue;
+        index[k++]=j;
+    }
+    float Mc=reservoir_m(c),M=Mc,sum=0,chosen=0,own=0,cc=0;uint light=c.light,q=c.uv;
+    LightPoint lc=light_point(c.light,c.uv);if(c.W>0)cc=restir_target(a,lc);
+    for(uint i=0;i<k;i++){
+        Reservoir r=reservoirs[index[i]];Domain b=domain_of(r);float Mi=reservoir_m(r);M+=Mi;
+        // The pixel's own sample against this neighbour.
+        if(cc>0){float ti=restir_target(b,lc);own+=1-Mi*ti/(Mi*ti+Mc/k*cc);}
+        LightPoint l=light_point(r.light,r.uv);float ti=restir_target(b,l),tc=restir_target(a,l);
+        float w=ti>0 && tc>0?Mi*ti/(Mi*ti+Mc/k*tc)/k*tc*r.W:0;sum+=w;
+        if(w>0 && random()*sum<w){light=r.light;q=r.uv;chosen=tc;}
+    }
+    float w=cc>0?(k>0?own/k:1)*cc*c.W:0;sum+=w;
+    if(w>0 && random()*sum<w){light=c.light;q=c.uv;chosen=cc;}
+    c.light=light;c.uv=q;c.W=chosen>0?sum/chosen:0;c.m_material=(c.m_material&0xffffffu)|(uint)min(M,255)<<24;
+    reservoirs[restir_slot(0,layer)+self]=c;
+}

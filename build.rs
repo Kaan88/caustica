@@ -66,6 +66,28 @@ fn main() {
             "trace_lpe",
             &["-D", "TEXTURE_MAPS", "-D", "LPE"][..],
         ),
+        // ReSTIR DI (track 15): light tiles, initial / temporal, spatial.
+        (
+            "pathtrace.hlsl",
+            "restir_presample",
+            "cs_6_5",
+            "restir_presample",
+            &["-D", "TEXTURE_MAPS"][..],
+        ),
+        (
+            "pathtrace.hlsl",
+            "restir_initial",
+            "cs_6_5",
+            "restir_initial",
+            &["-D", "TEXTURE_MAPS"][..],
+        ),
+        (
+            "pathtrace.hlsl",
+            "restir_spatial",
+            "cs_6_5",
+            "restir_spatial",
+            &["-D", "TEXTURE_MAPS"][..],
+        ),
         ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
         ("post.hlsl", "display", "cs_6_5", "display", &[]),
         ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
