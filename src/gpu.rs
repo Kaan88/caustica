@@ -194,7 +194,8 @@ pub struct Gpu {
     rtv: ID3D12DescriptorHeap,
     root: ID3D12RootSignature,
     trace: ID3D12PipelineState,
-    /// The path tracer with texture-map code (core track 5), used while any material has maps.
+    /// The path tracer with texture-map code (core track 5) and diffraction gratings (track 11),
+    /// used while any material has maps or a grating.
     trace_maps: ID3D12PipelineState,
     textured: bool,
     filter: ID3D12PipelineState,
@@ -1746,7 +1747,11 @@ impl Gpu {
         self.sun_count = crate::lighting::sun_count(&emitters);
         let mut materials = materials;
         self.attach_maps(s, &mut materials)?;
-        self.textured = materials.iter().any(|m| m.lobes[3] as u32 & 16 != 0);
+        // Only real material records: the portal matrices after them hold a translation in optical.w.
+        self.textured = materials
+            .iter()
+            .take(5 + s.objects.len() + s.lights.len())
+            .any(|m| m.lobes[3] as u32 & 16 != 0 || m.optical[3] < 0.);
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&emitters))?;

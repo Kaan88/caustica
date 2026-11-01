@@ -28,7 +28,8 @@ float3 cosine_sample(float3 n){float r=sqrt(random()),a=2*PI*random();return bas
 // n: shading normal (normal-mapped), ng: interpolated normal for ray offsets, both facing the ray.
 // Texture maps are sampled in intersect (fewer live registers than the bounce loop): textured is
 // set when albedo and rough_metal hold the mapped base colour, roughness and metallic.
-// tangent: the brushing direction of an anisotropic material (layers.w > 0, else zero), not
+// tangent: the brushing direction of an anisotropic material or a grating's grooves (layers.w > 0
+// or optical.w < 0, else zero), not
 // orthogonalised: the object's x axis, or with flag 2048 (spun) circles around its y axis.
 struct Hit{float t;float3 p;float3 n;float3 ng;float3 tangent;float3 albedo;float2 rough_metal;uint material;uint emitter;bool front;bool textured;};
 // Candidates only come from non-opaque geometry: static range 0 (no offset) or a glass object.
@@ -66,11 +67,14 @@ Footprint footprint(float3 d,float3 n,float w,float3 T,float3 B,float uv_scale){
 // Material flag bits (lobes.w): 1 unlit, 2 hidden from the camera, 4 portal, 8 masked texture
 // maps, 16 any texture maps. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
 // no maps) the map code folds away: it cost untextured scenes about 7% even when never run.
+// Diffraction gratings ride in the same variant (Gpu picks it when any material has one): their
+// code cost scenes without one 2–15% in registers even when never run.
 #ifdef TEXTURE_MAPS
 static const bool texture_maps=true;
 #else
 static const bool texture_maps=false;
 #endif
+bool has_grating(Material m){return texture_maps && m.optical.w<0;}
 bool flagged(uint m,uint bit){return texture_maps && ((uint)materials[m].lobes.w&bit)!=0;}
 // Masked texture maps: a candidate whose base-colour alpha is below the cutoff is a hole.
 bool alpha_hole(uint instance,uint prim,float2 b,uint m){
@@ -154,7 +158,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
         }
     }
     h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
-    if(materials[h.material].layers.w>0){
+    if(materials[h.material].layers.w>0 || has_grating(materials[h.material])){
         float3 ax=float3(1,0,0),ay=float3(0,1,0),o=0;
         if(inst.material!=0xffffffffu){float3x4 w=q.CommittedObjectToWorld3x4();ax=w._m00_m10_m20;ay=w._m01_m11_m21;o=w._m03_m13_m23;}
         h.tangent=((uint)materials[h.material].lobes.w&2048u)!=0?cross(ay,h.p-o):ax;
@@ -346,6 +350,50 @@ float3 ggx_sample_aniso(float3 n,float3 T,float3 B,float3 d,float2 a){
     float3 m=x*t1+y*t2+sqrt(max(0,1-x*x-y*y))*vh;
     return reflect(d,normalize(T*(a.x*m.x)+B*(a.y*m.y)+n*max(m.z,1e-6)));
 }
+// Diffraction grating (track 11, a CD or DVD): optical.w < 0 holds the strength (thousandths ×
+// 16384) and the groove spacing (nm; lighting::grating_code). The grooves run along the brush
+// direction T (aniso_frame). Order o of wavelength λ leaves where the tangential part of l is the
+// mirror direction's moved by o·λ/spacing across them (along B): each order is the base GGX lobe
+// translated on the projected disk, f_o(l) = f(l0) with l0 = l moved back (f·cos·dω is f times
+// the projected area, which the move keeps). So it
+// keeps the lobe's energy, minus what lands past the horizon (evanescent), and sampling it is
+// the GGX sample moved the same way: pdf_o(l) = pdf(l0)·cos l / cos l0. Orders ±1 take 0.35 of
+// the grating's share each and ±2 0.15 each. The orders use the isotropic lobe (an anisotropic
+// grating keeps its anisotropy in the mirror reflection only). Each grating hit draws its own wavelength
+// (`grating_wavelength`, from a hash, not the sampler's dimensions), used by both next-event
+// estimation and the BSDF sample there, so MIS stays exact for it. It is importance-sampled from
+// three Gaussian channel curves of equal area (a flat spectrum is white), so the RGB weight is
+// 3·N_c / ΣN: at most 3 per channel. One wavelength per path instead multiplied the same weight
+// in at every grating bounce, which is biased (E[w²] > 1) and blew up between grating spheres.
+static float path_lambda;
+static const float3 GRATING_MU=float3(600,545,455),GRATING_SIGMA=float3(40,35,25);
+void grating_wavelength(uint key){
+    uint a=hash(key),b=hash(a^0x68e31da4);uint c=a%3;float u1=max(((a>>8)&0xffff)*(1.0/65536.0),1e-6),u2=(b>>8)*(1.0/16777216.0);
+    path_lambda=GRATING_MU[c]+GRATING_SIGMA[c]*sqrt(-2*log(u1+(1.0/131072.0)))*cos(2*PI*u2);
+    path_lambda=clamp(path_lambda,300,900);
+}
+// The RGB weight of the hit's wavelength, recomputed where needed: kept from the hit, it (like the
+// groove axis and the order shares, also recomputed) stayed live across the whole bounce, and
+// those registers cost scenes without a grating 4–12%.
+float3 grating_weight(){float3 x=(path_lambda-GRATING_MU)/GRATING_SIGMA,nc=exp(-0.5*x*x)/GRATING_SIGMA;return 3*nc/max(nc.r+nc.g+nc.b,1e-30);}
+float grating_share(Material m){return floor(-m.optical.w/16384)/1000;}
+float grating_shift(Material m){float c=-m.optical.w;return path_lambda/(c-floor(c/16384)*16384);}
+static const float GRATING_ORDER[4]={-1,1,-2,2};
+static const float GRATING_WEIGHT[4]={0.35,0.35,0.15,0.15};
+// The direction whose lobe a shift carries to l (false past the horizon). B lies in the tangent plane.
+bool grating_move(float3 n,float3 B,float3 l,float shift,out float3 moved){
+    float3 lt=l-n*dot(n,l)+shift*B;float s=dot(lt,lt);moved=lt+n*sqrt(max(0,1-s));return s<1;
+}
+// The share of each order for view v: GRATING_WEIGHT × the grating's strength for orders that
+// leave above the horizon from the mirror direction, else 0; what they don't take stays in the
+// mirror reflection (evanescent orders give their energy back), so a Blu-ray's 0.32 µm grooves
+// reflect plainly except at grazing views. Depends on v and the path's wavelength only, so
+// sampling and evaluation agree.
+float4 order_shares(Material m,float3 n,float3 B,float3 v){
+    float g=grating_share(m),k=grating_shift(m);float3 r=reflect(-v,n);float4 w;
+    [unroll]for(int o=0;o<4;o++){float3 lt=r-n*dot(n,r)+GRATING_ORDER[o]*k*B;w[o]=dot(lt,lt)<1?g*GRATING_WEIGHT[o]:0;}
+    return w;
+}
 float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
     float nl=saturate(dot(n,l)),nv=saturate(dot(n,v));float3 h=normalize(v+l);float nh=saturate(dot(n,h)),vh=saturate(dot(v,h));float a=max(0.001,m.color_rough.a*m.color_rough.a);float d=ggx_d(nh,a);float3 f0=f0_of(m),f=spec_fresnel(m,vh,f0);float ps=spec_probability(m);
     float gv=g1(nv,a),gl=g1(nl,a),ess,spec_pdf;
@@ -366,6 +414,15 @@ float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
     // f0 does) instead: f0 left a white diffuse base under a film up to 6% dark in some channels.
     float3 fc=m.surface_scale.z>0?spec_fresnel(m,1,f0):f0;
     float3 r=diff+f*d*gv*gl/max(4*nv*nl,1e-6)*(1+fc*(1/ess-1));
+    if(has_grating(m) && nl>0){
+        float3 T,B,orders=0;aniso_frame(n,t,m.sheen.w,T,B);float k=grating_shift(m),op=0;float4 w=order_shares(m,n,B,v);float g=w.x+w.y+w.z+w.w;
+        [unroll]for(int o=0;o<4;o++){
+            float3 l0;if(w[o]<=0 || !grating_move(n,B,l,-GRATING_ORDER[o]*k,l0))continue;
+            float nl0=max(dot(n,l0),1e-6);float3 h0=normalize(v+l0);float nh0=saturate(dot(n,h0)),vh0=saturate(dot(v,h0)),d0=ggx_d(nh0,a);
+            orders+=w[o]*spec_fresnel(m,vh0,f0)*d0*g1(nl0,a)/nl0;op+=w[o]*d0*nh0/max(4*vh0,1e-6)*nl/nl0;
+        }
+        r=diff+(1-g)*(r-diff)+orders*(g1(nv,a)/max(4*nv,1e-6))*(1+fc*(1/ess-1))*grating_weight();pdf=(1-ps)*nl/PI+ps*((1-g)*spec_pdf+op);
+    }
     // The sheen is sampled with the diffuse lobe's cosine directions (it adds no pdf term).
     float s=max3(m.sheen.rgb);
     if(s>0){float sr=m.layers.z;r=r*(1-s*min(1,sheen_albedo(nv,sr)))+m.sheen.rgb*sheen_lobe(sr,nh,nv,nl);}
@@ -559,6 +616,7 @@ float2 filter_offset(float2 u){
                 if(m.lobes.z>0){uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);n1=h.front?medium_ior(media,medium_top(media)):m.optical.x;n2=h.front?m.optical.x:medium_ior(after,medium_top(after));}
                 prepare_film(m,saturate(dot(-direction,h.n)),n1,n2);
             }
+            if(has_grating(m))grating_wavelength(pixel_seed^(sequence_index*0x9e3779b9u)^(bounce*0x85ebca6bu));
             if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=spec_fresnel(m,abs(dot(-direction,h.n)),f0_of(m));}
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
@@ -614,7 +672,12 @@ float2 filter_offset(float2 u){
                 float pc=coat_probability(m),ps=spec_probability(m);
                 if(pc>0 && random()<pc){float a=max(0.001,m.layers.y*m.layers.y);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;cone_spread+=0.5*a;}
                 else if(random()<ps){float a=max(0.001,m.color_rough.a*m.color_rough.a);
-                    if(m.layers.w>0){float3 T,B;aniso_frame(h.n,h.tangent,m.sheen.w,T,B);next=ggx_sample_aniso(h.n,T,B,direction,aniso_alpha(m));}else next=ggx_sample(h.n,direction,a);
+                    // A grating's order (order_shares): the isotropic GGX sample moved
+                    // across the grooves; eval_bsdf has its pdf.
+                    int o=-1;float3 T,B;
+                    if(has_grating(m)){aniso_frame(h.n,h.tangent,m.sheen.w,T,B);float4 w=order_shares(m,h.n,B,-direction);float u=random(),c=0;[unroll]for(int i=0;i<4;i++){if(o<0 && u<c+w[i])o=i;c+=w[i];}}
+                    if(o>=0){next=ggx_sample(h.n,direction,a);if(dot(h.n,next)<=0 || !grating_move(h.n,B,next,GRATING_ORDER[o]*grating_shift(m),next))break;}
+                    else if(m.layers.w>0){float3 T,B;aniso_frame(h.n,h.tangent,m.sheen.w,T,B);next=ggx_sample_aniso(h.n,T,B,direction,aniso_alpha(m));}else next=ggx_sample(h.n,direction,a);
                     if(bounce==0)first_spec=true;
                     cone_spread+=0.5*a;
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}

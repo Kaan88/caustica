@@ -181,7 +181,25 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         ui.add(crate::slider(&mut m.anisotropy, 0. ..=1.));
                     },
                 );
-                if m.anisotropy > 0. {
+                row(
+                    ui,
+                    "Diffraction grating",
+                    "Fine grooves that split reflections into rainbows (a CD or DVD).",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.grating, 0. ..=1.));
+                    },
+                );
+                if m.grating > 0. {
+                    row(
+                        ui,
+                        "Groove spacing",
+                        "Micrometres: CD 1.6, DVD 0.74, Blu-ray 0.32. Grooves follow the brush direction.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.grating_spacing, 0.3..=10.).suffix(" um"));
+                        },
+                    );
+                }
+                if m.anisotropy > 0. || m.grating > 0. {
                     row(
                         ui,
                         "Brush direction",

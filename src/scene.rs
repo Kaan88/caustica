@@ -63,6 +63,13 @@ pub struct Material {
     pub iridescence_thickness: f32,
     #[serde(skip_serializing_if = "is_default_film_ior")]
     pub iridescence_ior: f32,
+    /// Diffraction grating (track 11, a CD or DVD): the share 0–1 of the specular reflection
+    /// spread into the first and second spectral orders across the grooves, which run along the
+    /// brush direction (`anisotropy_rotation`, `anisotropy_spun`); spacing in µm (0.3–10).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub grating: f32,
+    #[serde(skip_serializing_if = "is_default_grating_spacing")]
+    pub grating_spacing: f32,
 }
 fn is_false(v: &bool) -> bool {
     !*v
@@ -87,6 +94,9 @@ fn is_default_film_thickness(v: &f32) -> bool {
 }
 fn is_default_film_ior(v: &f32) -> bool {
     *v == Material::default().iridescence_ior
+}
+fn is_default_grating_spacing(v: &f32) -> bool {
+    *v == Material::default().grating_spacing
 }
 impl Default for Material {
     fn default() -> Self {
@@ -117,6 +127,8 @@ impl Default for Material {
             iridescence: 0.,
             iridescence_thickness: 400.,
             iridescence_ior: 1.3,
+            grating: 0.,
+            grating_spacing: 1.6,
         }
     }
 }
@@ -943,14 +955,16 @@ impl Settings {
                         m.sheen,
                         m.sheen_roughness,
                         m.anisotropy,
-                        m.iridescence
+                        m.iridescence,
+                        m.grating
                     ]
                     .iter()
                     .chain(&m.sheen_color)
                     .all(|v| (0. ..=1.).contains(v))
                     && (-180. ..=180.).contains(&m.anisotropy_rotation)
                     && (0. ..=2000.).contains(&m.iridescence_thickness)
-                    && (1. ..=2.5).contains(&m.iridescence_ior),
+                    && (1. ..=2.5).contains(&m.iridescence_ior)
+                    && (0.3..=10.).contains(&m.grating_spacing),
                 "Invalid material"
             );
             anyhow::ensure!(

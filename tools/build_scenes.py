@@ -1346,6 +1346,12 @@ def film(m, thickness, ior=1.33, amount=1.0):
     return {**m, "iridescence": amount, "iridescence_thickness": thickness, "iridescence_ior": ior}
 
 
+def grating(m, amount=0.8, spacing=1.6, spun=True, rotation=0.0):
+    """A diffraction grating (track 11): grooves along the brush direction, circles when spun."""
+    out = {**m, "grating": amount, "grating_spacing": spacing, "anisotropy_rotation": rotation}
+    return out | {"anisotropy_spun": True} if spun else out
+
+
 def layered():
     """Track 11: clear coat and sheen on shapes, with the same red paint bare and coated."""
     paint = M((0.55, 0.02, 0.03), 0.38, metal=0.6, refl=0.1)
@@ -1708,6 +1714,28 @@ scene("thin-film", "Thin film",
              objects=thin_film(), bounces=12, **camera(0, 10, 6.0, (0, -0.2, 0.2), 40)))
 
 
+def optical_discs():
+    """Diffraction gratings (track 11): a CD, a DVD and a Blu-ray, and a CD standing up."""
+    alu = M((0.92, 0.92, 0.93), 0.08, metal=1)
+    return [cyl("CD", -1.3, 0.2, -1.0, -0.985, 0.6, grating(alu, 0.85, 1.6)),
+            cyl("DVD", 0.15, 0.55, -1.0, -0.985, 0.6, grating(M((0.8, 0.72, 0.55), 0.08, metal=1), 0.85, 0.74)),
+            cyl("Blu-ray", 1.55, 0.15, -1.0, -0.985, 0.6, grating(alu, 0.85, 0.32)),
+            float_at("Standing CD", "cylinder", -0.1, -0.4, -0.7, 1.0, grating(alu, 0.85, 1.6),
+                     stretch=0.015 / 0.7, scale=(0.6 / 0.35, 0.6 / 0.35), tilt=(90, 0), rotation=10)]
+
+
+scene("optical-discs", "Optical discs",
+      "Diffraction gratings (track 11): a CD (1.6 µm grooves), a gold DVD (0.74 µm) and a Blu-ray (0.32 µm, whose "
+      "orders only reach grazing views) lie on a dark stage and a CD stands up behind them, "
+      "under small lamps so each reflection splits into rainbows across the grooves.",
+      ["material", "diffraction", "grating"],
+      dark_stage(light_on=True, light_position=[0.5, 3.0, -2.5], light_size=0.25, light_intensity=300.0,
+                 lights=[light("Lamp", (-3.0, 1.2, 1.8), (0.2, 0.2), (1.0, 0.97, 0.92), 300.0, target=(0, -0.9, 0)),
+                         light("Fill", (2.5, 2.5, 3.0), (2.5, 2.5), (0.8, 0.85, 1.0), 0.6, target=(0, -0.9, 0))],
+                 floor=M((0.03, 0.03, 0.035), 0.6, refl=0.04), base=[0.03, 0.03, 0.035],
+                 objects=optical_discs(), bounces=8, **camera(0, 35, 5.0, (0.1, -0.85, 0.0), 40)))
+
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1763,6 +1791,8 @@ def check(slug, s):
         rng(label + " iridescence", m.get("iridescence", 0), 0, 1)
         rng(label + " iridescence_thickness", m.get("iridescence_thickness", 400), 0, 2000)
         rng(label + " iridescence_ior", m.get("iridescence_ior", 1.3), 1, 2.5)
+        rng(label + " grating", m.get("grating", 0), 0, 1)
+        rng(label + " grating_spacing", m.get("grating_spacing", 1.6), 0.3, 10)
     for o in s.get("objects", []):
         n = o["name"]
         rng(n + " size", o["size"], 0.05, 30)

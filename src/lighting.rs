@@ -37,6 +37,17 @@ fn film_code(m: &Material) -> f32 {
     let n = (m.iridescence_ior * 100.).round().clamp(100., 250.);
     n * 2048. + t
 }
+/// A diffraction grating as a negative `optical.w` (lights keep 0 / 1 there for one- or
+/// two-sided emission; negative reads as two-sided): strength in thousandths × 16384 + groove
+/// spacing in nm, exact as an integer float.
+fn grating_code(m: &Material) -> f32 {
+    if m.grating <= 0. {
+        return 0.;
+    }
+    let g = (m.grating * 1000.).round().clamp(1., 1000.);
+    let d = (m.grating_spacing * 1000.).round().clamp(300., 10000.);
+    -(g * 16384. + d)
+}
 fn pack(m: &Material) -> PackedMaterial {
     PackedMaterial {
         color_rough: [m.color[0], m.color[1], m.color[2], m.roughness],
@@ -47,7 +58,7 @@ fn pack(m: &Material) -> PackedMaterial {
             // Flag bits 8–10: the nested-dielectric priority; bit 11: spun anisotropy.
             (m.unlit as u32 | m.priority.min(7) << 8 | (m.anisotropy_spun as u32) << 11) as f32,
         ],
-        optical: [m.ior, m.emission, m.pattern as u32 as f32, 0.],
+        optical: [m.ior, m.emission, m.pattern as u32 as f32, grating_code(m)],
         secondary: [
             m.secondary_color[0],
             m.secondary_color[1],
@@ -363,6 +374,21 @@ mod tests {
             assert_eq!(w - hundredths * 2048., f32::round(t));
             assert!((hundredths / 100. - n).abs() < 0.005);
         }
+    }
+    #[test]
+    fn grating_code_decodes_as_the_shader_does() {
+        for (g, d) in [(1., 0.3), (0.5, 1.6), (0.001, 10.), (0.7, 0.74)] {
+            let m = Material {
+                grating: g,
+                grating_spacing: d,
+                ..Material::default()
+            };
+            let code = -grating_code(&m);
+            let strength = (code / 16384.).floor();
+            assert!((strength / 1000. - g).abs() < 5e-4);
+            assert!(((code - strength * 16384.) / 1000. - d).abs() < 5e-4);
+        }
+        assert_eq!(grating_code(&Material::default()), 0.);
     }
     #[test]
     fn powers_are_normalized() {
