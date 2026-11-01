@@ -225,6 +225,8 @@ float film_grain(uint2 op){
     else if(modes.x==9)c=heat(log2(1+trace_stats[p].y/max(1,sampling.y))/log2(1+tools.w));
     else if(modes.x==10){float n=max(2,sampling.x+sampling.y);c=heat(log2(1+accumulation[p].a/(n-1))/4);}
     else if(modes.x==11)c=false_color(c);
+    // A light path expression's AOV, raw (no denoising); it also replaces the beauty in EXR captures.
+    else if(modes.x==12){float3 a=lpe.y<lpe.x?lpe_aov[(p.y*dimensions.x+p.x)*lpe.x+lpe.y].rgb:0;linear_output[op]=float4(a,1);c=tonemap(a);}
     float3 h;bool beauty_view=modes.x==0;
     if(beauty_view){if(options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w)c=reference_image[op].rgb;c=lens_and_film(c,op);h=hdr_map(c);c=tonemap(c);
         // Grain on the displayed value, strongest in the midtones.

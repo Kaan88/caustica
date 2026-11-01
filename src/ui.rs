@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(96, 202, 216);
 const WARN: egui::Color32 = egui::Color32::from_rgb(232, 176, 72);
-const VIEWS: [&str; 12] = [
+const VIEWS: [&str; 13] = [
     "Beauty",
     "Normals",
     "Albedo",
@@ -20,6 +20,7 @@ const VIEWS: [&str; 12] = [
     "BVH cost (heat)",
     "Variance (heat)",
     "False colour",
+    "Light path (LPE)",
 ];
 const TONE_MAPS: [&str; 8] = [
     "Linear",
@@ -144,6 +145,8 @@ pub struct UiState {
     pub meter: bool,
     /// Path visualizer (track 14).
     pub paths: crate::paths::PathView,
+    /// The light path expression fields as typed (`Settings::lpe` takes them once they compile).
+    pub lpe_edit: Vec<String>,
     pub show_graph: bool,
     pub show_stats: bool,
     pub show_remote: bool,
@@ -232,6 +235,7 @@ impl Default for UiState {
             show_scopes: false,
             meter: false,
             paths: Default::default(),
+            lpe_edit: vec![],
             show_graph: false,
             show_stats: false,
             show_remote: false,
@@ -477,6 +481,83 @@ pub(crate) fn section(ui: &mut egui::Ui, title: &str) {
 }
 pub(crate) fn grid(id: &str) -> egui::Grid {
     egui::Grid::new(id).num_columns(2).spacing([12., 6.])
+}
+/// Light path expressions (track 14): one row per slot (show it, the expression, ready-made
+/// ones), and the compile error while one does not parse. A field holds what was typed; the
+/// settings take it once it compiles, and it shows the settings again when it loses focus.
+fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
+    use crate::lpe;
+    note(
+        ui,
+        "Each expression gets its own image (the Light path view, raw samples). Events from the camera: D diffuse, G glossy, S specular, T transmission, V volume, then L light or B background; . any, [DG] [^S] sets, * + ? | ( ).",
+    );
+    edit.resize(lpe::SLOTS, String::new());
+    let shown = s.view == 12;
+    // The field takes what the radio and the Presets button leave.
+    let width = (ui.available_width() - 120.).max(80.);
+    for (k, text) in edit.iter_mut().enumerate() {
+        let current = s.lpe.get(k).cloned().unwrap_or_default();
+        let mut error = None;
+        ui.horizontal(|ui| {
+            if ui
+                .radio(shown && s.lpe_slot == k as u32, format!("{}", k + 1))
+                .on_hover_text("Show this expression's image")
+                .clicked()
+            {
+                s.view = 12;
+                s.lpe_slot = k as u32;
+            }
+            let field = ui.add(
+                egui::TextEdit::singleline(text)
+                    .hint_text("e.g. C D L")
+                    .desired_width(width),
+            );
+            let mut set = None;
+            if field.changed() {
+                set = Some(text.clone());
+            }
+            ui.menu_button("Presets", |ui| {
+                for (name, expr) in lpe::PRESETS {
+                    if ui.button(format!("{name}  ({expr})")).clicked() {
+                        set = Some(expr.to_string());
+                        ui.close_menu();
+                    }
+                }
+                if ui.button("Clear").clicked() {
+                    set = Some(String::new());
+                    ui.close_menu();
+                }
+            });
+            if let Some(t) = set {
+                *text = t.clone();
+                match lpe::compile(&t) {
+                    Ok(_) => store(s, k, t),
+                    Err(_) if t.trim().is_empty() => store(s, k, String::new()),
+                    Err(_) => {}
+                }
+            } else if !field.has_focus() && *text != current {
+                *text = current.clone();
+            }
+            if !text.trim().is_empty()
+                && let Err(e) = lpe::compile(text)
+            {
+                error = Some(e);
+            }
+        });
+        if let Some(e) = error {
+            ui.colored_label(egui::Color32::from_rgb(255, 120, 100), e);
+        }
+    }
+    /// Sets slot k, keeping the list no longer than its last expression.
+    fn store(s: &mut Settings, k: usize, text: String) {
+        if s.lpe.len() <= k {
+            s.lpe.resize(k + 1, String::new());
+        }
+        s.lpe[k] = text;
+        while s.lpe.last().is_some_and(|e| e.trim().is_empty()) {
+            s.lpe.pop();
+        }
+    }
 }
 pub(crate) fn note(ui: &mut egui::Ui, text: &str) {
     ui.label(egui::RichText::new(text).small().weak());
@@ -3110,6 +3191,8 @@ impl App {
             ui.checkbox(&mut self.ui.paths.open, "Path visualizer (P)")
                 .on_hover_text("Click a pixel to see its light paths in 3D");
         });
+        section(ui, "Light path expressions");
+        lpe_section(ui, s, &mut self.ui.lpe_edit);
         section(ui, "Compare");
         ui.horizontal(|ui| {
             if ui

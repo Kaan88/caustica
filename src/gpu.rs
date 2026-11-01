@@ -84,6 +84,8 @@ struct Constants {
     fog_color: [f32; 4],
     /// Track 14, read only by the path-recording trace: render pixel x, y, paths, capacity.
     path_record: [u32; 4],
+    /// Track 14: light path expression slots in use (0 = off), the slot the LPE view shows.
+    lpe: [u32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -216,6 +218,15 @@ pub struct Gpu {
     pub path_request: Option<([u32; 2], u32)>,
     /// The records of the last request (the count record stripped), until the app takes them.
     pub path_result: Option<Vec<crate::paths::Record>>,
+    /// Light path expressions (track 14): the trace variant that fills the AOVs, the DFA table
+    /// (t8, an upload buffer, rewritten when the expressions change), the slots in use and the
+    /// AOV buffer (u1 space 2: render pixels x slots float4s, allocated while any slot is set).
+    trace_lpe: ID3D12PipelineState,
+    lpe_table: ID3D12Resource,
+    lpe_uploaded: Option<Vec<String>>,
+    pub lpe_slots: u32,
+    lpe_aov: Option<ID3D12Resource>,
+    lpe_aov_len: u64,
     textured: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
@@ -544,6 +555,18 @@ impl Gpu {
                 },
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
+            // Light path expressions: the AOVs (u1 space 2) and the DFA table (t8).
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_UAV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 1,
+                        RegisterSpace: 2,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
+            root_srv(8),
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -613,6 +636,14 @@ impl Gpu {
             D3D12_HEAP_TYPE_READBACK,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        let trace_lpe = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_lpe.dxil")))?;
+        let lpe_table = buffer(
+            &device,
+            (crate::lpe::SLOTS * crate::lpe::STATES * crate::lpe::SYMBOLS * 4) as u64,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
         )?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
@@ -704,6 +735,12 @@ impl Gpu {
             path_readback,
             path_request: None,
             path_result: None,
+            trace_lpe,
+            lpe_table,
+            lpe_uploaded: None,
+            lpe_slots: 0,
+            lpe_aov: None,
+            lpe_aov_len: 0,
             textured: false,
             filter,
             display,
@@ -1331,6 +1368,7 @@ impl Gpu {
         let trace = create_compute_pipeline(&self.device, &self.root, &sh.trace)?;
         let trace_maps = create_compute_pipeline(&self.device, &self.root, &sh.trace_maps)?;
         let trace_paths = create_compute_pipeline(&self.device, &self.root, &sh.trace_paths)?;
+        let trace_lpe = create_compute_pipeline(&self.device, &self.root, &sh.trace_lpe)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
         let gui = create_gui_pipeline(
@@ -1352,6 +1390,7 @@ impl Gpu {
             self.trace,
             self.trace_maps,
             self.trace_paths,
+            self.trace_lpe,
             self.filter,
             self.display,
             self.gui,
@@ -1360,6 +1399,7 @@ impl Gpu {
             trace,
             trace_maps,
             trace_paths,
+            trace_lpe,
             filter,
             display,
             gui,
@@ -1912,6 +1952,70 @@ impl Gpu {
             .SetComputeRootDescriptorTable(10, self.gpu(HEAP_SIZE));
         self.list
             .SetComputeRootUnorderedAccessView(11, self.path_buffer.GetGPUVirtualAddress());
+        // Without AOVs no shader reads u1 space 2 (display checks the slot count).
+        self.list.SetComputeRootUnorderedAccessView(
+            12,
+            self.lpe_aov
+                .as_ref()
+                .unwrap_or(&self.path_buffer)
+                .GetGPUVirtualAddress(),
+        );
+        self.list
+            .SetComputeRootShaderResourceView(13, self.lpe_table.GetGPUVirtualAddress());
+    }
+    /// Uploads the light path expressions' table when they change, and sizes the AOV buffer
+    /// (a new buffer restarts the accumulation, as its contents are undefined).
+    unsafe fn prepare_lpe(&mut self, s: &Settings) -> Result<()> {
+        if self.lpe_uploaded.as_ref() != Some(&s.lpe) {
+            let (table, slots) = crate::lpe::table(&s.lpe);
+            write_buffer(&self.lpe_table, 0, bytemuck::cast_slice(&table))?;
+            self.lpe_slots = slots;
+            self.lpe_uploaded = Some(s.lpe.clone());
+        }
+        let len = self.rw as u64 * self.rh as u64 * self.lpe_slots as u64 * 16;
+        if len == 0 {
+            self.lpe_aov = None;
+            self.lpe_aov_len = 0;
+        } else if len != self.lpe_aov_len {
+            self.lpe_aov = Some(buffer(
+                &self.device,
+                len,
+                D3D12_HEAP_TYPE_DEFAULT,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_COMMON,
+            )?);
+            self.lpe_aov_len = len;
+            self.reset(false);
+        }
+        Ok(())
+    }
+    /// One light path expression's AOV at render resolution, as RGB floats (self-test, tools).
+    pub unsafe fn read_lpe(&mut self, slot: u32) -> Result<Vec<f32>> {
+        anyhow::ensure!(slot < self.lpe_slots, "LPE slot {slot} is not in use");
+        let aov = self.lpe_aov.clone().context("No LPE buffer")?;
+        let staging = buffer(
+            &self.device,
+            self.lpe_aov_len,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        self.begin()?;
+        // A buffer used as a UAV decays to COMMON after each submit; COPY_SOURCE is implicit.
+        self.list.CopyResource(&staging, &aov);
+        self.submit()?;
+        let mut p = null_mut();
+        staging.Map(0, None, Some(&mut p))?;
+        let all =
+            std::slice::from_raw_parts(p as *const [f32; 4], (self.lpe_aov_len / 16) as usize);
+        let out = all
+            .iter()
+            .skip(slot as usize)
+            .step_by(self.lpe_slots as usize)
+            .flat_map(|v| [v[0], v[1], v[2]])
+            .collect();
+        staging.Unmap(0, None);
+        Ok(out)
     }
     /// Points each visible object's material at its texture maps (core track 5), uploading
     /// maps that are new and releasing ones no object uses any more.
@@ -2161,6 +2265,7 @@ impl Gpu {
                     format!("RR creation failed: 0x{code:08x}; native denoiser active");
             }
         }
+        self.prepare_lpe(s)?;
         let sr = self.prepare_upscaler(s);
         // With a temporal upscaler each frame is fresh jittered samples, as with RR: the native
         // denoiser's history and the upscaler do the accumulation, so detail is resolved above
@@ -2318,6 +2423,7 @@ impl Gpu {
             fog: [s.fog.density, s.fog.phase, s.fog.height, s.fog.extent],
             fog_color: [s.fog.color[0], s.fog.color[1], s.fog.color[2], 0.],
             path_record: [0; 4],
+            lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
         };
         // Path visualizer: the output pixel maps to a render pixel as the light meter's does.
         let path_request = self.path_request.take();
@@ -2363,7 +2469,9 @@ impl Gpu {
         }
         if n > 0 {
             self.bind(0);
-            self.list.SetPipelineState(if self.textured {
+            self.list.SetPipelineState(if self.lpe_slots > 0 {
+                &self.trace_lpe
+            } else if self.textured {
                 &self.trace_maps
             } else {
                 &self.trace

@@ -58,6 +58,14 @@ fn main() {
             "trace_paths",
             &["-D", "TEXTURE_MAPS", "-D", "PATH_RECORD"][..],
         ),
+        // Light path expressions (track 14), with the map code; used while any slot is set.
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_lpe",
+            &["-D", "TEXTURE_MAPS", "-D", "LPE"][..],
+        ),
         ("post.hlsl", "filter", "cs_6_5", "filter", &[]),
         ("post.hlsl", "display", "cs_6_5", "display", &[]),
         ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),

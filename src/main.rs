@@ -13,6 +13,7 @@ mod gpu;
 mod hotreload;
 mod lighting;
 mod look;
+mod lpe;
 mod mesh;
 mod paths;
 mod prefs;
@@ -159,6 +160,7 @@ fn transport_key(s: &Settings) -> String {
         "gamma",
         "tonemap",
         "view",
+        "lpe_slot",
         "direct",
         "indirect",
         "denoise",
@@ -971,6 +973,19 @@ impl App {
                 230 => {
                     self.ui.paths.count = 8;
                     self.ui.paths.request([self.size[0] / 2, self.size[1] / 2]);
+                }
+                // Light path expressions: a partition of every path, checked against the raw
+                // beauty at 236.
+                232 => {
+                    // The check compares render-size AOVs with the output-size beauty.
+                    self.settings.scale = 1.;
+                    self.settings.rr = false;
+                    self.settings.denoise = false;
+                    self.settings.view = 0;
+                    self.settings.lpe =
+                        ["C [LB]", "C D .* [LB]", "C [GS] .* [LB]", "C [TV] .* [LB]"]
+                            .map(String::from)
+                            .to_vec();
                 }
                 // Light painting: a light edit keeps the accumulation going.
                 240 => {
@@ -2018,6 +2033,35 @@ impl App {
                         );
                     }
                     self.ui.paths = Default::default();
+                }
+                236 => {
+                    anyhow::ensure!(g.lpe_slots == 4, "LPE slots: {}", g.lpe_slots);
+                    let beauty = unsafe { g.read_floats(18)? };
+                    let mut sum = 0.;
+                    for k in 0..4 {
+                        let aov = unsafe { g.read_lpe(k)? };
+                        anyhow::ensure!(
+                            aov.len() / 3 == beauty.len() / 4,
+                            "LPE AOV size {} vs {}",
+                            aov.len() / 3,
+                            beauty.len() / 4
+                        );
+                        sum += aov.iter().map(|v| *v as f64).sum::<f64>();
+                    }
+                    let b: f64 = beauty
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|p| (p[0] + p[1] + p[2]) as f64)
+                        .sum();
+                    // Equal in expectation (labels are drawn per path), so a loose bound.
+                    anyhow::ensure!(
+                        sum.is_finite() && (sum - b).abs() <= 0.03 * b.abs() + 1e-3,
+                        "LPE partition sums to {sum}, beauty {b}"
+                    );
+                    self.settings.lpe.clear();
+                    self.settings.rr = true;
+                    self.settings.denoise = true;
                 }
                 209 => {
                     let [w, h] = gpu::SCOPES.map(|v| v as usize);

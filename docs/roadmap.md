@@ -358,11 +358,13 @@ As built: per-object procedural surfaces in one shared AABB BLAS, intersected in
 
 - Not done: metaballs / a lava lamp (needs animated parameters), smooth CSG between objects, exact cylinders and cones, parameters per object (Mandelbulb power, Menger level, torus radii), user SDF expressions; procedural emitters are not light-sampled; texture maps and box mapping on procedural surfaces (they render the flat colour); anisotropy / gratings use a generic tangent, not the brush direction; normals use a fixed object-space step (noisy on small fractals); the Menger march can give up at grazing angles (pinholes); walk-mode collision and sky occlusion see no procedural objects (`geometry()` skips them); RR / denoiser guides are exact but fractal detail below a pixel shimmers under RR (not measured); the fractals are slow (Mandelbulb +8 ms at 1440×900) — a step budget tied to the pixel footprint, or a baked distance grid, would help.
 
-#### 14. Path visualizer and light path expressions — path visualizer done 2026-11-01
+#### 14. Path visualizer and light path expressions — done 2026-11-01
 
 As built (part 1): click a pixel with the window open (P), or Alt+click, and a recording variant of `trace` re-traces its paths with that frame's samples; they draw in 3D over the viewport (by bounce, throughput or event, light samples yellow / blocked red), and the window lists the paths (bounces, radiance, why each ended) with a vertex scrubber and table (event, throughput, what each vertex adds). See engine-notes "Path visualizer".
 
-- Not done: light path expressions (below); an animated photon along a path; shadow rays don't show their pass-throughs (glass shadows, nested-dielectric false hits) or portals; no export of the recorded paths; only the perspective camera draws them.
+Part 2, light path expressions: up to 4 expressions (Look tab, `Settings::lpe`) compile to DFAs that the `trace_lpe` variant runs per path, each into its own AOV (View → *Light path (LPE)*, EXR capture); light samples split exactly into diffuse and glossy, continued paths take a hashed label with a share / probability weight, so every AOV is unbiased and a partition sums to the beauty. See engine-notes "Light path expressions". Not done: object and material labels ("light off the red wall"); glossy transmission as its own event; a multi-layer EXR with every slot; denoised AOVs; more than 4 slots.
+
+- Not done (visualizer): an animated photon along a path; shadow rays don't show their pass-throughs (glass shadows, nested-dielectric false hits) or portals; no export of the recorded paths; only the perspective camera draws them.
 
 Was:
 

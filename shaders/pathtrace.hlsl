@@ -385,6 +385,40 @@ float3 spec_fresnel(Material m,float c,float3 f0){
 // white base in the furnace; the view-only form keeps it, and NEE and BSDF sampling still
 // evaluate the same function, so MIS stays consistent.
 float max3(float3 c){return max(c.r,max(c.g,c.b));}
+// Light path expressions (track 14, lpe.rs): the LPE variant (build.rs's `trace_lpe`) runs a DFA
+// per slot along each path. Events: 0 D, 1 G, 2 S, 3 T, 4 V, 5 L, 6 B; 8 = none. A light sample
+// at a surface is split exactly into its diffuse and glossy parts (eval_bsdf's lpe_diffuse); a
+// continued path takes one label, drawn from a hash (so the beauty's samples stay the same) by
+// the luminance shares at the sampled direction, and weights later contributions by share /
+// probability per channel: each AOV is unbiased, and a partition of all paths sums to the
+// beauty in expectation (not per sample).
+#ifdef LPE
+static const bool lpe_on=true;
+#else
+static const bool lpe_on=false;
+#endif
+static float3 lpe_diffuse; // eval_bsdf: the diffuse part of the value it returned
+static bool lpe_env_sample; // sample_light: the HDRI or sky was picked (event B, else L)
+static uint lpe_state; // per slot, 8 bits: the DFA state after this path's events so far
+static float3 lpe_weight,lpe_sum[4];
+uint lpe_step(uint k,uint state,uint event){return lpe_table[(k*32+state)*8+event];}
+void lpe_advance(uint event){
+    if(!lpe_on)return;uint s=0;
+    [unroll]for(uint k=0;k<4;k++){uint st=(lpe_state>>(8*k))&255;s|=(k<lpe.x && st!=255?lpe_step(k,st,event)&255:255)<<(8*k);}
+    lpe_state=s;
+}
+// A contribution e reaching the camera through the path so far, then `event` (8: none), then
+// the light event `light` (5 or 6).
+void lpe_add(uint event,uint light,float3 e){
+    if(!lpe_on || !all(isfinite(e)))return;
+    [unroll]for(uint k=0;k<4;k++){
+        uint st=(lpe_state>>(8*k))&255;if(k>=lpe.x || st==255)continue;
+        if(event!=8){st=lpe_step(k,st,event)&255;if(st==255)continue;}
+        if((lpe_step(k,st,light)>>8)!=0)lpe_sum[k]+=e*lpe_weight;
+    }
+}
+// The glossy event of a material: S below roughness 0.1, else G.
+uint lpe_glossy(Material m){return m.color_rough.a<0.1?2:1;}
 // Charlie sheen (Estevez and Kulla 2017) with their fitted visibility; divided by its albedo
 // where that passes 1 (grazing views at low roughness), so it never adds energy.
 float sheen_lambda_l(float x,float a){float t=(1-a)*(1-a);return lerp(21.5473,25.3245,t)/(1+lerp(3.82987,3.32435,t)*pow(x,lerp(0.19823,0.16801,t)))+lerp(-1.97760,-1.27393,t)*x+lerp(-4.32054,-4.85967,t);}
@@ -487,7 +521,7 @@ float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
     // With a thin film the lost energy follows the film's reflectance (at normal incidence, as
     // f0 does) instead: f0 left a white diffuse base under a film up to 6% dark in some channels.
     float3 fc=m.surface_scale.z>0?spec_fresnel(m,1,f0):f0;
-    float3 r=diff+f*d*gv*gl/max(4*nv*nl,1e-6)*(1+fc*(1/ess-1));
+    float3 r=diff+f*d*gv*gl/max(4*nv*nl,1e-6)*(1+fc*(1/ess-1)),dd=diff;
     if(has_grating(m) && nl>0){
         float3 T,B,orders=0;aniso_frame(n,t,m.sheen.w,T,B);float k=grating_shift(m),op=0;float4 w=order_shares(m,n,B,v);float g=w.x+w.y+w.z+w.w;
         [unroll]for(int o=0;o<4;o++){
@@ -499,17 +533,18 @@ float3 eval_bsdf(Material m,float3 n,float3 t,float3 v,float3 l,out float pdf){
     }
     // The sheen is sampled with the diffuse lobe's cosine directions (it adds no pdf term).
     float s=max3(m.sheen.rgb);
-    if(s>0){float sr=m.layers.z;r=r*(1-s*min(1,sheen_albedo(nv,sr)))+m.sheen.rgb*sheen_lobe(sr,nh,nv,nl);}
+    if(s>0){float sr=m.layers.z;float keep=1-s*min(1,sheen_albedo(nv,sr));r=r*keep+m.sheen.rgb*sheen_lobe(sr,nh,nv,nl);dd*=keep;}
     float cc=m.layers.x;
     if(cc>0){
         float ac=max(0.001,m.layers.y*m.layers.y),dc=ggx_d(nh,ac);
         // The coat is compensated in full (1/E), and the layers below are dimmed by exactly the
         // albedo that leaves the coat (coat_albedo, = coat_fresnel(nv) when smooth): F(nv) nears 1
         // at grazing, where a rough coat's facets mostly see far smaller F(vh).
-        r=r*(1-cc*coat_albedo(nv,m.layers.y))+cc*coat_fresnel(vh)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6)/ggx_albedo(nv,m.layers.y);
+        float keep=1-cc*coat_albedo(nv,m.layers.y);
+        r=r*keep+cc*coat_fresnel(vh)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6)/ggx_albedo(nv,m.layers.y);dd*=keep;
         pdf=lerp(pdf,dc*nh/max(4*vh,1e-6),coat_probability(m));
     }
-    pdf*=1-m.lobes.z;return (1-m.lobes.z)*r;
+    pdf*=1-m.lobes.z;if(lpe_on)lpe_diffuse=(1-m.lobes.z)*dd;return (1-m.lobes.z)*r;
 }
 // Track 7: analytic emitters have a negative position_area.w: −1 a sphere (centre, radius in
 // edge1_cdf.x), −2 a sun (unit direction to it, 1 − cos of its angular radius in edge1_cdf.x).
@@ -561,9 +596,9 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
 // (solid angle, selection included) and a shadow-ray limit. Shared by surface vertices and
 // volume scattering (track 12); false when nothing was picked.
 bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,out float3 le,out float pl,out float limit){
-    bool nee=false;ld=float3(0,1,0);le=0;pl=0;limit=1e4;
+    bool nee=false;ld=float3(0,1,0);le=0;pl=0;limit=1e4;if(lpe_on)lpe_env_sample=false;
     if(env_nee && random()<p_env){
-        float pe;ld=sample_env(pe);
+        float pe;ld=sample_env(pe);if(lpe_on)lpe_env_sample=true;
         if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
     }else if(tri_nee){
     Emitter light=select_emitter(random());
@@ -721,6 +756,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
         specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
     }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
     float3 batch=0;
+    if(lpe_on){[unroll]for(uint k=0;k<4;k++)lpe_sum[k]=0;}
     for(uint sample_id=0;sample_id<(recording?path_record.z:sampling.y);sample_id++){
         if(recording)path_index=sample_id;
         // The base changes on every reset, so a moving camera never reuses the previous frame's points.
@@ -732,6 +768,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
         float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
         // Recording only (dead code otherwise): why the path ended, and its last bounce.
         uint end_reason=lens_valid?3:5,last_bounce=0;
+        if(lpe_on){lpe_state=0;lpe_weight=1;}
         record(0,0,origin,throughput,0,direction);
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             last_bounce=bounce;
@@ -770,11 +807,11 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                     float3 ld,le;float pl,limit;
                     if(sample_light(x,env_nee,tri_nee,p_env,ld,le,pl,limit)){
                         float pp=hg_pdf(dot(direction,ld),g);
-                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);}
+                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);lpe_add(4,lpe_env_sample?6:5,e);}
                         else record(12,bounce,x,0,limit,ld);
                     }
                     float pp;direction=hg_sample(direction,g,pp);
-                    record(5,bounce,x,arriving,0,direction);
+                    record(5,bounce,x,arriving,0,direction);lpe_advance(4);
                     previous_pdf=pp;previous_delta=false;previous_position=x;origin=x;
                     if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
                     continue;
@@ -785,7 +822,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                 // The camera sees the background colour when the HDRI is hidden from it.
                 float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
-                float3 e=throughput*env*weight;
+                float3 e=throughput*env*weight;lpe_add(8,6,e);
                 // Suns (they lead the emitter table): seen inside their disk, weighted against
                 // light sampling as triangles are; a hidden one only from bounce 1 on.
                 for(uint i=0;i<(uint)lights.x;i++){Emitter sun=emitters[i];
@@ -794,7 +831,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                     if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
                     float w=1;if(bounce>0 && !previous_delta)w=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
-                    e+=throughput*sun.emission_material.rgb*w;}
+                    float3 se=throughput*sun.emission_material.rgb*w;e+=se;lpe_add(8,5,se);}
                 radiance+=e;if(bounce<=1)direct+=e;record(10,bounce,origin,throughput,luminance(e),direction);end_reason=0;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
             float3 arriving=throughput;
@@ -830,7 +867,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
-            float emitted_l=luminance(e);
+            float emitted_l=luminance(e);lpe_add(8,5,e);
             if(((uint)m.lobes.w&1u)!=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=1;break;}
             // Light sampling (sample_light), then one shared BSDF evaluation: eval_bsdf is inlined
             // once here instead of once per strategy (code size and registers cost even scenes
@@ -841,7 +878,8 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
                 if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(mis==1?pl:pl+pdf,1e-8);
                     if(fog.x>0 || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
-                    radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);}
+                    radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);
+                    if(lpe_on){float3 ed=e*lpe_diffuse/max(f,1e-30);uint light=lpe_env_sample?6:5;lpe_add(0,light,ed);lpe_add(lpe_glossy(m),light,e-ed);}}
                 else record(12,bounce,h.p,0,limit,ld);
             }
             float3 next;bool delta=false;float bsdf_pdf=0;uint lobe=1;
@@ -855,7 +893,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                 // by what it leaves, the transmission: choose by the mean, weight per channel.
                 float3 frc=fr.xxx;
                 if(m.surface_scale.z>0 && fr<1){frc=lerp(frc,m.base_scale.rgb,m.surface_scale.z);fr=clamp((frc.r+frc.g+frc.b)/3,1e-4,1-1e-4);}
-                bool reflected=random()<fr;lobe=reflected?3:4;
+                bool reflected=random()<fr;lobe=reflected?3:4;lpe_advance(reflected?2:3);
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
                 if(m.surface_scale.z>0)throughput*=reflected?frc/fr:(1-frc)/(1-fr);
                 if(!reflected){media=after;int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;throughput*=eta*eta;}
@@ -876,6 +914,12 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}
                 if(dot(h.n,next)<=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=4;break;}
                 float3 bsdf=eval_bsdf(m,h.n,h.tangent,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
+                if(lpe_on){
+                    // One label for the rest of the path, by the luminance shares at `next`.
+                    float3 share=saturate(lpe_diffuse/max(bsdf,1e-30));float pd=luminance(bsdf)>0?saturate(luminance(lpe_diffuse)/luminance(bsdf)):0;
+                    float u=(hash(pixel_seed^(sequence_index*0x9e3779b9u)^(bounce*0x85ebca6bu)^0x5bd1e995u)>>8)*(1.0/16777216.0);
+                    if(u<pd){lpe_weight*=share/pd;lpe_advance(0);}else{lpe_weight*=(1-share)/(1-pd);lpe_advance(lpe_glossy(m));}
+                }
             }
             if(bounce==0 && delta)first_spec=true;
             previous_pdf=bsdf_pdf;previous_delta=delta;previous_position=h.p;
@@ -893,6 +937,8 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
     #ifdef PATH_RECORD
     PathVertex header=(PathVertex)0;header.info=path_count;path_vertices[0]=header;return;
     #endif
+    if(lpe_on){uint base=(p.y*dimensions.x+p.x)*lpe.x;float n=sampling.x+sampling.y;
+        [unroll]for(uint k=0;k<4;k++)if(k<lpe.x){float3 old=sampling.x>0?lpe_aov[base+k].rgb:0;lpe_aov[base+k]=float4((old*sampling.x+lpe_sum[k])/n,1);}}
     if(sample_albedo){diffuse_albedo[p]=damean;specular_albedo[p]=float4(samean,1);}
     trace_stats[p]=float2(bounces_used/max(1,sampling.y),proceed_steps);
     noisy[p]=float4(batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);

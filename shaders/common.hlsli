@@ -33,6 +33,7 @@ cbuffer Frame:register(b0) {
     float4 fog; // track 12: density, phase g, top height, half extent on x / z
     float4 fog_color; // albedo rgb
     uint4 path_record; // track 14, the PATH_RECORD variant of trace only: render pixel x, y, paths, record capacity
+    uint4 lpe; // track 14: light path expression slots in use (0 = off), the slot the LPE view shows
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -45,6 +46,11 @@ StructuredBuffer<Vertex> static_vertices:register(t6); // floor, room and lights
 // One per TLAS instance (InstanceID). material 0xffffffff = the static instance (per-vertex ids).
 struct Instance{uint vertex_base;uint material;uint emitter_base;uint object;};
 StructuredBuffer<Instance> instances:register(t7);
+// Light path expressions (track 14, lpe.rs): per slot, state and event, the next DFA state | its
+// accept flag << 8 (255 = no match possible); and each slot's AOV, the running mean per render
+// pixel (index (y * render width + x) * slots + slot), written by the LPE variant of trace.
+StructuredBuffer<uint> lpe_table:register(t8);
+RWStructuredBuffer<float4> lpe_aov:register(u1,space2);
 Texture2D<float4> maps[]:register(t0,space1); // mesh texture maps (gpu.rs MAX_MAPS)
 SamplerState map_sampler:register(s1); // linear, wrap
 RWTexture2D<float4> noisy:register(u0);

@@ -582,6 +582,11 @@ pub struct Settings {
     /// Light sampling (roadmap 5e): 0 MIS (both strategies), 1 light sampling (NEE) only,
     /// 2 BSDF sampling only. 1 and 2 show what MIS combines, as in Veach's plates.
     pub mis_mode: u32,
+    /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
+    /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
+    pub lpe: Vec<String>,
+    /// The LPE slot the "Light path (LPE)" view shows.
+    pub lpe_slot: u32,
     /// An equirectangular HDRI (.hdr or .exr) lighting the scene instead of the sky gradient
     /// (roadmap core track 3). Relative paths are relative to the scenes folder; empty = none.
     pub hdri: String,
@@ -700,6 +705,8 @@ impl Default for Settings {
             lut_path: String::new(),
             lut_strength: 1.,
             mis_mode: 0,
+            lpe: vec![],
+            lpe_slot: 0,
             hdri: String::new(),
             hdri_strength: 1.,
             hdri_rotation: 0.,
@@ -788,6 +795,8 @@ impl Settings {
         self.hdr_mode = from.hdr_mode;
         self.hdr_peak = from.hdr_peak;
         self.hdr_white = from.hdr_white;
+        self.lpe = from.lpe.clone();
+        self.lpe_slot = from.lpe_slot;
     }
     pub fn preset(&mut self, id: usize) {
         // Presets 0–8 share the Cornell box, so moving between them keeps the
@@ -803,6 +812,7 @@ impl Settings {
             (self.dlss_preset, self.native_aa),
             (self.hdr_mode, self.hdr_peak, self.hdr_white),
             (self.pixel_filter, self.filter_width, self.anisotropy),
+            (std::mem::take(&mut self.lpe), self.lpe_slot),
         );
         *self = Self::default();
         match id {
@@ -909,6 +919,7 @@ impl Settings {
             (self.dlss_preset, self.native_aa),
             (self.hdr_mode, self.hdr_peak, self.hdr_white),
             (self.pixel_filter, self.filter_width, self.anisotropy),
+            (self.lpe, self.lpe_slot),
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {
@@ -990,9 +1001,18 @@ impl Settings {
             (0.1..=4.).contains(&self.gamma)
                 && (0. ..=10.).contains(&self.exposure)
                 && self.tonemap < 8
-                && self.view < 12,
+                && self.view < 13,
             "Invalid display settings"
         );
+        anyhow::ensure!(
+            self.lpe.len() <= crate::lpe::SLOTS && (self.lpe_slot as usize) < crate::lpe::SLOTS,
+            "At most {} light path expressions",
+            crate::lpe::SLOTS
+        );
+        for e in self.lpe.iter().filter(|e| !e.trim().is_empty()) {
+            crate::lpe::compile(e)
+                .map_err(|err| anyhow::anyhow!("Light path expression {e:?}: {err}"))?;
+        }
         anyhow::ensure!(
             (0. ..=4.).contains(&self.direct)
                 && (0. ..=4.).contains(&self.indirect)

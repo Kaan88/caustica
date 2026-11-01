@@ -615,8 +615,10 @@ impl Job {
             v.pitch = options.pitch.clamp(-89., 89.);
             v.distance = options.distance;
         }
-        // The beauty, whatever debug view is on.
+        // The beauty, whatever debug view is on; light path expressions would only cost time
+        // (and a buffer of the export's size).
         v.view = 0;
+        v.lpe.clear();
         let [w, h] = options.size();
         // Back to the window's size when the export can't start (out of memory at 8K, ffmpeg).
         let writer = g
