@@ -52,7 +52,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `tools/verify.ps1` runs release via `Start-Process` with stdout and stderr redirected.
 - `build.rs` does the following:
   - Asserts that `vendor/dlss`, `vendor/fsr` and `vendor/xess` exist.
-  - Compiles 8 shader entries: `trace`, `restir_presample`, `restir_initial`, `restir_spatial`, `filter` and `display` as cs_6_5; `vs_main` and `ps_main` as 6_0. `trace` is built four times: plain, `trace_maps` (`-D TEXTURE_MAPS`), `trace_paths` (plus `-D PATH_RECORD`, the path visualizer) and `trace_lpe` (plus `-D LPE`, light path expressions). The three ReSTIR DI passes come from the same file with `-D TEXTURE_MAPS`.
+  - Compiles 13 shader entries: `trace`, `restir_presample`, `restir_initial`, `restir_spatial`, `filter` and `display` as cs_6_5; `vs_main` and `ps_main` as 6_0. `trace` is built four times: plain, `trace_maps` (`-D TEXTURE_MAPS`), `trace_paths` (plus `-D PATH_RECORD`, the path visualizer) and `trace_lpe` (plus `-D LPE`, light path expressions). The three ReSTIR DI passes come from the same file with `-D TEXTURE_MAPS`. Track 15's integrators come from `integrators.hlsl` (which includes pathtrace.hlsl), also with `-D TEXTURE_MAPS`: `bdpt`, `bdpt_resolve`, `photon_clear`, `photon_trace`, `photon_gather`.
   - Compiles the bridge and links `nvsdk_ngx_d`.
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
 - Headless runs need a real GPU and use a hidden window:
@@ -61,8 +61,8 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:
-  - `--self-test`: 285 scripted frames (`SCENES_FROM`), then one frame per scene file (462 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
-    - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize).
+  - `--self-test`: 290 scripted frames (`SCENES_FROM`), then one frame per scene file (464 with the built-in, generated, mesh, environment and materials packs); implies headless and `--debug`. It fails on any D3D12 warning.
+    - Frames 10–125 cycle all 24 presets; frames 130–140 make live edits (lights, all shapes, emission, hide, delete, pick, frame, randomize); 285–287 run BDPT, photon mapping and battle mode on preset 3 and check the image and every quadrant.
     - Every frame it asserts that the GPU triangle and emitter counts match the settings.
     - The script lives in `redraw()`. Add new edits on unused frame numbers and assert after `render`.
   - `--debug`: needs the Windows Graphics Tools.
@@ -92,6 +92,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `src/hotreload.rs` | Roadmap 5a. `HotReload::new()` (debug builds, not the self-test) watches `CORNELL_SHADERS` (build.rs bakes the source path and the DXC path `CORNELL_DXC`); `poll()` every 0.5 s on the newest mtime; `compile()` runs all 11 entries of `ENTRIES` (keep in sync with build.rs) with build.rs's flags. `Gpu::reload_shaders` builds all PSOs before swapping, so an error keeps the old ones; prints `SHADERS RELOADED` / `SHADER ERROR`. Tested by editing post.hlsl under a running instance (valid, broken, restored). |
 | `src/paths.rs` | Track 14 path visualizer: `Record` (the shader's `PathVertex`), `parse`, `draw`, `window`, `PathView` (in `UiState`). See engine-notes "Path visualizer". |
 | `src/lpe.rs` | Track 14 light path expressions: parser, NFA → minimal DFA (`compile`), the GPU `table`, `PRESETS`. See engine-notes "Light path expressions". |
+| BDPT, photon mapping, battle mode | Track 15 part 2: `shaders/integrators.hlsl`, `Gpu::integrate` / `battle_frame` / `prepare_aux`, `Settings::integrator` / `photons` / `photon_radius` / `battle`, the `region` constant. See engine-notes "BDPT and photon mapping". |
 | ReSTIR DI | Track 15: `restir_presample` / `restir_initial` / `restir_spatial` in pathtrace.hlsl (before `trace`), `lighting::alias_records`, `Gpu::prepare_restir`, `Settings::restir*`. See engine-notes "ReSTIR DI". |
 | `src/look.rs` | Roadmap 5c: `read_cube` (.cube 3D LUT) and `color_wheel` (lift/gamma/gain widget: chroma from a dragged dot in an orthonormal RGB chroma plane, level from a slider, double-click resets). |
 | `src/walk.rs`, `video.rs`, `saver.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), screensaver mode, phone remote (see "Toys"). |
@@ -199,6 +200,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 12 | Root UAV u1 space 2, LPE AOVs (`trace_lpe` writes, `display` view 12 reads; the path buffer stands in while none) |
 | 13 | Root SRV t8 LPE DFA table |
 | 14 | Root UAV u2 space 2, ReSTIR DI reservoirs (bound for every dispatch; the path buffer stands in while ReSTIR is off) |
+| 15 | Root UAV u3 space 2, raw: the photon grid and photons at 0, BDPT's light-tracing splats at `splat_offset` (the path buffer stands in while neither runs) |
 
 Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips (texture maps). The heap holds 512 + 4096 descriptors: UAVs 0–31, egui textures 32–511, texture maps from 512.
 

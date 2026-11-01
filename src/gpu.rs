@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 use crate::scene::{Settings, Upscaler, Vertex};
 use anyhow::{Context, Result, ensure};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use std::{
     ffi::c_void,
     mem::{ManuallyDrop, size_of},
@@ -89,10 +89,41 @@ struct Constants {
     /// Track 15 ReSTIR DI: flags (bit 0 on, bit 1 history valid), candidates, spatial
     /// neighbours, history cap.
     restir: [u32; 4],
+    /// Track 15: the render pixels a dispatch covers (x0, y0, x1, y1).
+    region: [u32; 4],
+    /// Track 15 (integrators.hlsl): photons this frame, photon capacity, splat offset in `aux`
+    /// (bytes), flags (bit 0 light tracing).
+    integrator: [u32; 4],
+    /// Gather radius, image-plane area at distance 1 times the region's share.
+    photon: [f32; 4],
+    /// The scene's bounding sphere (centre, radius).
+    bounds: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
-const TIMESTAMPS: u32 = 5;
+const TIMESTAMPS: u32 = 5 + 8;
+/// Battle mode's quadrant timestamps (start and end of each) follow the frame's five.
+const BATTLE_QUERY: u32 = 5;
+/// Battle mode quadrants (track 15): top left, top right, bottom left, bottom right.
+pub const BATTLE_NAMES: [&str; 4] = ["Path tracing", "Path + ReSTIR DI", "BDPT", "Photon mapping"];
+/// integrators.hlsl: the photon counter and grid heads before the photons.
+const PHOTON_HASH: u64 = 1 << 20;
+const PHOTON_BASE: u64 = 16 + 4 * PHOTON_HASH;
+/// integrators.hlsl traces photons for at most this many bounces (one deposit each at most).
+const PHOTON_BOUNCES: u32 = 10;
+/// Per-quadrant state of battle mode: samples, GPU time spent (ms), measured ms per sample
+/// (0 = not measured yet) and the fractional samples carried to the next frame.
+#[derive(Clone, Copy, Default)]
+pub struct BattleQuadrant {
+    pub samples: u32,
+    pub ms: f64,
+    pub cost: f64,
+    carry: f64,
+    /// Samples dispatched this frame (0 = skipped).
+    last: u32,
+    /// Photon mapping's work per sample this frame: its photon count's multiple (1 elsewhere).
+    scale: f64,
+}
 /// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
 const CB_STRIDE: u64 = 1024;
 const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
@@ -243,6 +274,26 @@ pub struct Gpu {
     reservoirs_len: u64,
     restir_history: bool,
     restir_ran: bool,
+    /// Track 15 integrators (integrators.hlsl): BDPT and its splat resolve, photon mapping's
+    /// grid clear, photon trace and gather. `aux` (u3 space 2) holds the photon grid at 0 and
+    /// the BDPT splats at `splat_offset`.
+    bdpt: ID3D12PipelineState,
+    bdpt_resolve: ID3D12PipelineState,
+    photon_clear: ID3D12PipelineState,
+    photon_trace: ID3D12PipelineState,
+    photon_gather: ID3D12PipelineState,
+    aux: Option<ID3D12Resource>,
+    aux_len: u64,
+    splat_offset: u64,
+    /// Photon mapping's radius schedule since the last reset: frames done and r² / r0².
+    photon_frames: u32,
+    photon_scale: f32,
+    /// The scene's bounding sphere for sun and sky photons, measured when photon mapping runs
+    /// after a rebuild (`bounds_valid`).
+    bounds: [f32; 4],
+    bounds_valid: bool,
+    /// Battle mode (track 15), reset with the accumulation.
+    pub battle: [BattleQuadrant; 4],
     textured: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
@@ -594,6 +645,17 @@ impl Gpu {
                 },
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
+            // Track 15 integrators: BDPT splats and the photon grid (u3 space 2, raw).
+            D3D12_ROOT_PARAMETER {
+                ParameterType: D3D12_ROOT_PARAMETER_TYPE_UAV,
+                Anonymous: D3D12_ROOT_PARAMETER_0 {
+                    Descriptor: D3D12_ROOT_DESCRIPTOR {
+                        ShaderRegister: 3,
+                        RegisterSpace: 2,
+                    },
+                },
+                ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
+            },
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -684,6 +746,23 @@ impl Gpu {
             env!("OUT_DIR"),
             "/restir_spatial.dxil"
         )))?;
+        let bdpt = compute(include_bytes!(concat!(env!("OUT_DIR"), "/bdpt.dxil")))?;
+        let bdpt_resolve = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/bdpt_resolve.dxil"
+        )))?;
+        let photon_clear = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/photon_clear.dxil"
+        )))?;
+        let photon_trace = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/photon_trace.dxil"
+        )))?;
+        let photon_gather = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/photon_gather.dxil"
+        )))?;
         let filter = compute(include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")))?;
         let display = compute(include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")))?;
         let (vs, ps): (&[u8], &[u8]) = (
@@ -697,7 +776,7 @@ impl Gpu {
         let env_cdf = env_texture(&device, 1, 2, DXGI_FORMAT_R32_FLOAT)?;
         let constants = buffer(
             &device,
-            CB_STRIDE * 9,
+            CB_STRIDE * 13,
             D3D12_HEAP_TYPE_UPLOAD,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -788,6 +867,19 @@ impl Gpu {
             restir_history: false,
             restir_layers: 0,
             restir_ran: false,
+            bdpt,
+            bdpt_resolve,
+            photon_clear,
+            photon_trace,
+            photon_gather,
+            aux: None,
+            aux_len: 0,
+            splat_offset: 0,
+            photon_frames: 0,
+            photon_scale: 1.,
+            bounds: [0., 0., 0., 2.],
+            bounds_valid: false,
+            battle: [BattleQuadrant::default(); 4],
             textured: false,
             filter,
             display,
@@ -902,6 +994,14 @@ impl Gpu {
         // never reuses the previous frame's sample points.
         self.restarts = self.restarts.wrapping_add(1);
         self.sequence_base = self.restarts.wrapping_mul(0x9E37_79B1) & !8191;
+        self.photon_frames = 0;
+        self.photon_scale = 1.;
+        for q in &mut self.battle {
+            *q = BattleQuadrant {
+                cost: q.cost,
+                ..Default::default()
+            };
+        }
         if reset_history {
             self.rr_reset = true;
             self.history_valid = false;
@@ -947,6 +1047,10 @@ impl Gpu {
         }
         if self.painting {
             self.upscale_status = "Light painting accumulates at render resolution".into();
+            return None;
+        }
+        if s.battle {
+            self.upscale_status = "Battle mode compares raw samples".into();
             return None;
         }
         // At 100% only DLAA / Native AA (a temporal upscaler, when asked for) runs.
@@ -1421,6 +1525,11 @@ impl Gpu {
             create_compute_pipeline(&self.device, &self.root, &sh.restir_presample)?;
         let restir_initial = create_compute_pipeline(&self.device, &self.root, &sh.restir_initial)?;
         let restir_spatial = create_compute_pipeline(&self.device, &self.root, &sh.restir_spatial)?;
+        let bdpt = create_compute_pipeline(&self.device, &self.root, &sh.bdpt)?;
+        let bdpt_resolve = create_compute_pipeline(&self.device, &self.root, &sh.bdpt_resolve)?;
+        let photon_clear = create_compute_pipeline(&self.device, &self.root, &sh.photon_clear)?;
+        let photon_trace = create_compute_pipeline(&self.device, &self.root, &sh.photon_trace)?;
+        let photon_gather = create_compute_pipeline(&self.device, &self.root, &sh.photon_gather)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
         let gui = create_gui_pipeline(
@@ -1446,6 +1555,13 @@ impl Gpu {
             self.restir_presample,
             self.restir_initial,
             self.restir_spatial,
+            (
+                self.bdpt,
+                self.bdpt_resolve,
+                self.photon_clear,
+                self.photon_trace,
+                self.photon_gather,
+            ),
             self.filter,
             self.display,
             self.gui,
@@ -1458,11 +1574,19 @@ impl Gpu {
             restir_presample,
             restir_initial,
             restir_spatial,
+            (
+                bdpt,
+                bdpt_resolve,
+                photon_clear,
+                photon_trace,
+                photon_gather,
+            ),
             filter,
             display,
             gui,
             gui_hdr,
         );
+
         self.integrated_valid = false;
         self.reset(true);
         Ok(())
@@ -1634,6 +1758,9 @@ impl Gpu {
         // ranges: triangles that need the any-hit loop first (lights hidden from the camera),
         // then the rest as opaque geometry, which the hardware commits without Proceed().
         let soup = crate::geometry::static_geometry(s);
+        // Measured by photon mapping when it next runs: it walks every object's vertices, which
+        // made each frame of a timeline export (a rebuild per frame) 10 ms slower.
+        self.bounds_valid = false;
         let (special, opaque): (Vec<&[Vertex; 3]>, Vec<&[Vertex; 3]>) = soup
             .as_chunks::<3>()
             .0
@@ -2034,6 +2161,240 @@ impl Gpu {
                 .unwrap_or(&self.path_buffer)
                 .GetGPUVirtualAddress(),
         );
+        // Only the BDPT and photon passes read u3 space 2, and they run only with a buffer.
+        self.list.SetComputeRootUnorderedAccessView(
+            15,
+            self.aux
+                .as_ref()
+                .unwrap_or(&self.path_buffer)
+                .GetGPUVirtualAddress(),
+        );
+    }
+    /// Sizes `aux` (u3 space 2) for the integrators in use: the photon grid and photons at 0
+    /// (photon mapping), the light-tracing splats after them (BDPT, one rgb float triple per
+    /// render pixel, zeroed here and by bdpt_resolve after every frame).
+    unsafe fn prepare_aux(&mut self, s: &Settings, keep: &mut Vec<ID3D12Resource>) -> Result<()> {
+        let photons = s.integrator == 2 || s.battle;
+        let splats = s.integrator == 1 || s.battle;
+        let photon_bytes = if photons {
+            PHOTON_BASE + s.photons as u64 * s.bounces.clamp(1, PHOTON_BOUNCES) as u64 * 32
+        } else {
+            0
+        };
+        let splat_bytes = if splats {
+            self.rw as u64 * self.rh as u64 * 12
+        } else {
+            0
+        };
+        let len = photon_bytes + splat_bytes;
+        if len == self.aux_len && photon_bytes == self.splat_offset {
+            return Ok(());
+        }
+        self.splat_offset = photon_bytes;
+        self.aux_len = len;
+        if len == 0 {
+            self.aux = None;
+            return Ok(());
+        }
+        let aux = buffer(
+            &self.device,
+            len,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        if splat_bytes > 0 {
+            let zero = upload(&self.device, &vec![0u8; splat_bytes as usize])?;
+            self.list
+                .CopyBufferRegion(&aux, photon_bytes, &zero, 0, splat_bytes);
+            transition(
+                &self.list,
+                &aux,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            );
+            keep.push(zero);
+        }
+        if let Some(old) = self.aux.replace(aux) {
+            keep.push(old);
+        }
+        Ok(())
+    }
+    /// Runs one integrator over `region` with the constants `c` (written at `offset`): ReSTIR's
+    /// passes and the path tracer (0), BDPT and its splat resolve (1), or photon mapping's
+    /// grid clear, photon trace and gather (2). `photon_boost` multiplies the photon count
+    /// (battle mode's photon quadrant spends its time share on photons).
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn integrate(
+        &mut self,
+        s: &Settings,
+        c: &Constants,
+        offset: u64,
+        integrator: u32,
+        restir: bool,
+        region: [u32; 4],
+        n: u32,
+        photon_boost: f32,
+    ) -> Result<()> {
+        let mut c = *c;
+        if integrator == 2 && !self.bounds_valid {
+            // The bounding sphere sun and sky photons start from. The floor (material 3) is
+            // left out: it often reaches far past the scene.
+            let (mut lo, mut hi) = s.objects_bounds();
+            for v in self.static_cache.iter().filter(|v| v.material != 3) {
+                lo = lo.min(Vec3::from(v.position));
+                hi = hi.max(Vec3::from(v.position));
+            }
+            self.bounds = if lo.is_finite() {
+                let c = (lo + hi) * 0.5;
+                [c.x, c.y, c.z, ((hi - lo).length() * 0.5).max(0.5)]
+            } else {
+                [0., 0., 0., 2.]
+            };
+            self.bounds_valid = true;
+        }
+        c.bounds = self.bounds;
+        let (w, h) = (region[2] - region[0], region[3] - region[1]);
+        let share = (w * h) as f32 / (self.rw * self.rh).max(1) as f32;
+        c.region = region;
+        c.sampling[1] = n;
+        if !restir {
+            c.restir[0] = 0;
+        }
+        let photons = ((s.photons as f32 * share * photon_boost) as u32).clamp(1024, s.photons);
+        let capacity = (self.splat_offset.saturating_sub(PHOTON_BASE) / 32) as u32;
+        // Light tracing needs a pinhole perspective camera and samples spread over each pixel.
+        let light_tracing = (s.projection == 0 || s.projection == 4)
+            && s.aperture <= 0.
+            && c.scene_info[3] & 1 == 0;
+        c.integrator = [
+            photons,
+            capacity,
+            self.splat_offset as u32,
+            light_tracing as u32,
+        ];
+        c.photon = [
+            s.photon_radius * self.bounds[3] * self.photon_scale.sqrt(),
+            4. * c.environment[1] * c.environment[2] * share,
+            0.,
+            0.,
+        ];
+        write_buffer(&self.constants, offset, bytemuck::bytes_of(&c))?;
+        self.bind(offset);
+        let (gx, gy) = (w.div_ceil(8), h.div_ceil(8));
+        match integrator {
+            1 => {
+                for pass in [&self.bdpt, &self.bdpt_resolve] {
+                    self.list.SetPipelineState(pass);
+                    self.list.Dispatch(gx, gy, 1);
+                    uav(&self.list, None);
+                }
+            }
+            2 => {
+                self.list.SetPipelineState(&self.photon_clear);
+                self.list.Dispatch((PHOTON_HASH / 64) as u32, 1, 1);
+                uav(&self.list, None);
+                self.list.SetPipelineState(&self.photon_trace);
+                self.list.Dispatch(photons.div_ceil(64), 1, 1);
+                uav(&self.list, None);
+                self.list.SetPipelineState(&self.photon_gather);
+                self.list.Dispatch(gx, gy, 1);
+                uav(&self.list, None);
+                // Knaus and Zwicker's radius schedule, alpha = 2/3.
+                self.photon_frames += 1;
+                let i = self.photon_frames as f32;
+                self.photon_scale *= (i + 2. / 3.) / (i + 1.);
+            }
+            _ => {
+                if restir {
+                    // ReSTIR DI: initial candidates and the temporal merge, then the spatial
+                    // merge into the final reservoirs the trace reads.
+                    self.list.SetPipelineState(&self.restir_presample);
+                    self.list.Dispatch((RESTIR_TILES / 64) as u32, 1, 1);
+                    uav(&self.list, None);
+                    for pass in [&self.restir_initial, &self.restir_spatial] {
+                        self.list.SetPipelineState(pass);
+                        self.list.Dispatch(gx, gy, self.restir_layers);
+                        uav(&self.list, None);
+                    }
+                }
+                self.list.SetPipelineState(if self.lpe_slots > 0 {
+                    &self.trace_lpe
+                } else if self.textured {
+                    &self.trace_maps
+                } else {
+                    &self.trace
+                });
+                self.list.Dispatch(gx, gy, 1);
+                uav(&self.list, None);
+            }
+        }
+        Ok(())
+    }
+    /// Battle mode (track 15): the four quadrants, each with its own integrator and sample
+    /// count, at equal GPU time: the slowest takes `spp` samples per frame and the others as
+    /// many as fit in its time (measured per quadrant with timestamps, at most 64).
+    unsafe fn battle_frame(&mut self, s: &Settings, c: &Constants, restir: bool) -> Result<()> {
+        let (hw, hh) = (self.rw / 2, self.rh / 2);
+        let regions = [
+            [0, 0, hw, hh],
+            [hw, 0, self.rw, hh],
+            [0, hh, hw, self.rh],
+            [hw, hh, self.rw, self.rh],
+        ];
+        let slowest = self.battle.iter().map(|q| q.cost).fold(0., f64::max);
+        let budget = slowest * s.spp as f64;
+        for (i, region) in regions.into_iter().enumerate() {
+            let q = &mut self.battle[i];
+            let want = if q.cost > 0. && budget > 0. {
+                budget / q.cost + q.carry
+            } else {
+                s.spp as f64
+            };
+            // Photon mapping spends its share on photons, not on gathers: each frame's gathers
+            // share one photon map, so one sample per frame keeps its samples independent (and
+            // its sample cap as far away as the others').
+            let photons = i == 3;
+            let spp = if photons {
+                1
+            } else {
+                (want.floor() as u32).clamp(1, 64)
+            };
+            q.scale = if photons { want.clamp(1., 4.) } else { 1. };
+            q.carry = if photons {
+                0.
+            } else {
+                (want - spp as f64).clamp(0., 1.)
+            };
+            let n = spp.min(s.max_samples.saturating_sub(q.samples));
+            q.last = n;
+            let samples = q.samples;
+            let query = BATTLE_QUERY + 2 * i as u32;
+            self.list
+                .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, query);
+            if n > 0 {
+                let mut qc = *c;
+                qc.sampling[0] = samples;
+                let offset = (9 + i as u64) * CB_STRIDE;
+                let scale = self.battle[i].scale as f32;
+                self.integrate(
+                    s,
+                    &qc,
+                    offset,
+                    [0, 0, 1, 2][i],
+                    i == 1 && restir,
+                    region,
+                    n,
+                    scale,
+                )?;
+            }
+            self.list
+                .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, query + 1);
+        }
+        if restir && self.battle[1].last > 0 {
+            self.restir_history = true;
+        }
+        Ok(())
     }
     /// Reservoir layers of the last frame's ReSTIR passes (0 when they did not run).
     pub fn restir_layers(&self) -> u32 {
@@ -2048,7 +2409,8 @@ impl Gpu {
     /// later samples use plain light sampling. A new buffer has no history. True when the
     /// passes run this frame.
     unsafe fn prepare_restir(&mut self, s: &Settings) -> Result<bool> {
-        let on = s.restir && self.emitter_count > 0;
+        // Battle mode's second quadrant is path tracing with ReSTIR.
+        let on = (s.restir || s.battle) && self.emitter_count > 0;
         // At most 1 GiB of reservoirs (4K: two layers).
         let pixels = (self.rw as u64 * self.rh as u64).max(1);
         self.restir_layers = s
@@ -2056,7 +2418,7 @@ impl Gpu {
             .clamp(1, 4)
             .min(((1 << 30) / (pixels * 64)).max(1) as u32);
         // Plus the light tiles (pathtrace.hlsl RESTIR_TILES × RESTIR_TILE, 32 B each).
-        let len = if s.restir {
+        let len = if s.restir || s.battle {
             self.rw as u64 * self.rh as u64 * self.restir_layers as u64 * 64 + RESTIR_TILES * 32
         } else {
             0
@@ -2352,8 +2714,9 @@ impl Gpu {
         let vp = proj * view;
         let reset = self.rr_reset;
         // RR and the temporal upscalers need a perspective camera (motion vectors, guides).
-        self.rr_active =
-            s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective() && !self.painting;
+        self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective() && !self.painting
+                // Battle mode compares raw samples.
+                && !s.battle;
         if !s.rr && !self.ngx.is_null() {
             self.rr_status = "DLSS RR ready (disabled)".into();
         }
@@ -2451,7 +2814,12 @@ impl Gpu {
             light_color_aspect: [lc[0], lc[1], lc[2], s.light_aspect],
             background: [s.background[0], s.background[1], s.background[2], 0.],
             display: [s.exposure, s.gamma, s.direct, s.indirect],
-            modes: [s.view, s.tonemap, s.denoise as u32, self.rr_active as u32],
+            modes: [
+                s.view,
+                s.tonemap,
+                (s.denoise && !s.battle) as u32,
+                self.rr_active as u32,
+            ],
             options: [
                 s.firefly,
                 s.denoise_strength,
@@ -2538,6 +2906,10 @@ impl Gpu {
             ],
             fog: [s.fog.density, s.fog.phase, s.fog.height, s.fog.extent],
             fog_color: [s.fog.color[0], s.fog.color[1], s.fog.color[2], 0.],
+            region: [0, 0, self.rw, self.rh],
+            integrator: [0; 4],
+            photon: [0.; 4],
+            bounds: [0.; 4],
             path_record: [0; 4],
             lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
             restir: [
@@ -2589,34 +2961,27 @@ impl Gpu {
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             );
         }
-        self.restir_ran = n > 0 && restir;
-        if n > 0 && restir {
-            // ReSTIR DI: initial candidates and the temporal merge, then the spatial merge into
-            // the final reservoirs the trace reads.
-            self.bind(0);
-            self.list.SetPipelineState(&self.restir_presample);
-            self.list.Dispatch((RESTIR_TILES / 64) as u32, 1, 1);
-            uav(&self.list, None);
-            for pass in [&self.restir_initial, &self.restir_spatial] {
-                self.list.SetPipelineState(pass);
-                self.list
-                    .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), self.restir_layers);
-                uav(&self.list, None);
-            }
-            self.restir_history = true;
-        }
+        self.prepare_aux(s, &mut keep)?;
+        self.restir_ran = n > 0 && restir && (s.battle || s.integrator == 0);
         if n > 0 {
-            self.bind(0);
-            self.list.SetPipelineState(if self.lpe_slots > 0 {
-                &self.trace_lpe
-            } else if self.textured {
-                &self.trace_maps
+            if s.battle {
+                self.battle_frame(s, &c, restir)?;
             } else {
-                &self.trace
-            });
-            self.list
-                .Dispatch(self.rw.div_ceil(8), self.rh.div_ceil(8), 1);
-            uav(&self.list, None);
+                let path_restir = restir && s.integrator == 0;
+                self.integrate(
+                    s,
+                    &c,
+                    0,
+                    s.integrator,
+                    path_restir,
+                    [0, 0, self.rw, self.rh],
+                    n,
+                    1.,
+                )?;
+                if path_restir {
+                    self.restir_history = true;
+                }
+            }
             self.list
                 .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
             if self.rr_active {
@@ -2662,7 +3027,7 @@ impl Gpu {
             self.previous_vp = vp;
             self.rr_reset = false;
         }
-        if !self.rr_active && s.denoise {
+        if !self.rr_active && s.denoise && !s.battle {
             // Pass 0 warps the last integrated frame into this view after a camera move; a
             // still camera keeps that history frozen. Pass 1 integrates new samples (skipped
             // while paused). Passes 2–6 are the à-trous filter.
@@ -2792,6 +3157,14 @@ impl Gpu {
         self.draw_gui(primitives, pixels_per_point, &mut keep)?;
         self.list
             .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 4);
+        if !(s.battle && n > 0) {
+            // Every query the resolve reads must have been ended this frame.
+            for i in BATTLE_QUERY..TIMESTAMPS {
+                self.list
+                    .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, i);
+            }
+        }
+
         self.list.ResolveQueryData(
             &self.query,
             D3D12_QUERY_TYPE_TIMESTAMP,
@@ -2873,7 +3246,29 @@ impl Gpu {
         self.gpu_ms = span(0, 3);
         self.pass_ms = [span(0, 1), span(1, 2), span(2, 3), span(3, 4)];
         self.timing.Unmap(0, None);
-        self.samples += n;
+        if s.battle {
+            for (i, q) in self.battle.iter_mut().enumerate() {
+                if q.last == 0 {
+                    continue;
+                }
+                let ms = span(
+                    BATTLE_QUERY as usize + 2 * i,
+                    BATTLE_QUERY as usize + 2 * i + 1,
+                );
+                let per = ms / (q.last as f64 * q.scale.max(1.));
+                q.cost = if q.cost > 0. {
+                    0.8 * q.cost + 0.2 * per
+                } else {
+                    per
+                };
+                q.ms += ms;
+                q.samples += q.last;
+                q.last = 0;
+            }
+            self.samples = self.battle.iter().map(|q| q.samples).min().unwrap_or(0);
+        } else {
+            self.samples += n;
+        }
         if n > 0 {
             self.frame = self.frame.wrapping_add(1);
         }

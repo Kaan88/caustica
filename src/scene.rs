@@ -591,6 +591,16 @@ pub struct Settings {
     pub restir_neighbors: u32,
     /// Cap on the history's confidence M in the temporal merge (0 = no temporal reuse).
     pub restir_history: u32,
+    /// Integrator (track 15): 0 path tracing, 1 bidirectional (BDPT), 2 progressive photon
+    /// mapping (see engine-notes "BDPT and photon mapping").
+    pub integrator: u32,
+    /// Photon mapping: photons emitted per frame.
+    pub photons: u32,
+    /// Photon mapping: the starting gather radius as a share of the scene's bounding radius.
+    pub photon_radius: f32,
+    /// Battle mode (track 15): the image split into four quadrants rendered at equal GPU time
+    /// by path tracing, path tracing with ReSTIR DI, BDPT and photon mapping.
+    pub battle: bool,
     /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
     /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
     pub lpe: Vec<String>,
@@ -718,6 +728,10 @@ impl Default for Settings {
             restir_candidates: 8,
             restir_neighbors: 4,
             restir_history: 20,
+            integrator: 0,
+            photons: 1 << 18,
+            photon_radius: 0.01,
+            battle: false,
             lpe: vec![],
             lpe_slot: 0,
             hdri: String::new(),
@@ -810,6 +824,7 @@ impl Settings {
         self.hdr_white = from.hdr_white;
         self.lpe = from.lpe.clone();
         self.lpe_slot = from.lpe_slot;
+        self.battle = from.battle;
     }
     pub fn preset(&mut self, id: usize) {
         // Presets 0–8 share the Cornell box, so moving between them keeps the
@@ -1047,6 +1062,13 @@ impl Settings {
                 && self.restir_history <= 64
                 && self.tilt.abs() <= 60.,
             "Invalid lens or camera model"
+        );
+        // At most 1M photons: 16384 dispatch groups, and the photon buffer stays under 400 MB.
+        anyhow::ensure!(
+            self.integrator < 3
+                && ((1 << 12)..=(1 << 20)).contains(&self.photons)
+                && (0.0005..=0.2).contains(&self.photon_radius),
+            "Invalid integrator settings"
         );
         anyhow::ensure!(
             (0. ..=1.).contains(&self.halation)

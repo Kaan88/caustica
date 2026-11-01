@@ -32,6 +32,15 @@ const TONE_MAPS: [&str; 8] = [
     "AgX",
     "Khronos PBR Neutral",
 ];
+/// Settings::integrator (track 15).
+const INTEGRATORS: [&str; 3] = ["Path tracing", "Bidirectional (BDPT)", "Photon mapping"];
+/// Battle mode's quadrant colours in the convergence graph.
+const BATTLE_COLORS: [egui::Color32; 4] = [
+    ACCENT,
+    egui::Color32::from_rgb(236, 176, 76),
+    egui::Color32::from_rgb(214, 104, 196),
+    egui::Color32::from_rgb(130, 214, 110),
+];
 const PROJECTIONS: [&str; 5] = [
     "Perspective",
     "Orthographic",
@@ -156,6 +165,8 @@ pub struct UiState {
     pub reference: Option<(u32, u32, Vec<f32>)>,
     pub reference_path: String,
     pub graph: Vec<(u32, f64)>,
+    /// Battle mode's graph (track 15): per quadrant, (GPU ms spent, RMSE x1000).
+    pub battle_graph: [Vec<(f64, f64)>; 4],
     /// Thumbnails: loaded textures by file, the background render (results, total, done) and
     /// whether this session already asked for the missing ones.
     pub thumbnails: std::collections::HashMap<std::path::PathBuf, egui::TextureHandle>,
@@ -244,6 +255,7 @@ impl Default for UiState {
             reference: None,
             reference_path: "captures/reference.exr".into(),
             graph: Vec::new(),
+            battle_graph: Default::default(),
             thumbnails: Default::default(),
             thumbnail_jobs: None,
             thumbnails_requested: false,
@@ -573,6 +585,9 @@ fn rr_model(id: u32) -> &'static str {
 /// What turns samples into the shown image, in words; true when it is a fallback.
 fn pipeline(app: &App) -> (String, bool) {
     let (g, s) = (app.gpu.as_ref().unwrap(), &app.settings);
+    if s.battle {
+        return ("Battle mode (raw samples)".into(), false);
+    }
     if g.rr_active {
         return (
             format!(
@@ -1582,7 +1597,29 @@ impl App {
             let painter = ui.painter_at(rect);
             painter.rect_filled(rect, 2., egui::Color32::from_gray(16));
             let points = &self.ui.graph;
-            if points.len() >= 2 {
+            if self.settings.battle {
+                // Battle mode: one line per quadrant, error against GPU time (log–log).
+                let lines: Vec<Vec<(f64, f64)>> = self.ui.battle_graph.iter().map(|l| l.iter().map(|(t, e)| (t.max(1e-3).log2(), e.max(1e-3).log2())).collect()).collect();
+                let all: Vec<&(f64, f64)> = lines.iter().flatten().collect();
+                if all.len() >= 2 {
+                    let x0 = all.iter().map(|p| p.0).fold(f64::MAX, f64::min);
+                    let x1 = all.iter().map(|p| p.0).fold(f64::MIN, f64::max).max(x0 + 1.);
+                    let y0 = all.iter().map(|p| p.1).fold(f64::MAX, f64::min) - 0.2;
+                    let y1 = all.iter().map(|p| p.1).fold(f64::MIN, f64::max) + 0.2;
+                    let to = |x: f64, y: f64| egui::pos2(rect.min.x + ((x - x0) / (x1 - x0)) as f32 * rect.width(), rect.max.y - ((y - y0) / (y1 - y0)) as f32 * rect.height());
+                    for (i, l) in lines.iter().enumerate() {
+                        if l.len() >= 2 {
+                            painter.add(egui::Shape::line(l.iter().map(|(x, y)| to(*x, *y)).collect(), egui::Stroke::new(2_f32, BATTLE_COLORS[i])));
+                        }
+                        let last = self.ui.battle_graph[i].last().map_or(String::new(), |(_, e)| format!(" · {e:.2}"));
+                        painter.text(rect.left_top() + egui::vec2(6., 6. + 15. * i as f32), egui::Align2::LEFT_TOP, format!("{}{last}", crate::gpu::BATTLE_NAMES[i]), egui::FontId::proportional(12.), BATTLE_COLORS[i]);
+                    }
+                    painter.text(rect.left_bottom() + egui::vec2(6., -6.), egui::Align2::LEFT_BOTTOM, "x: GPU time per quadrant", egui::FontId::proportional(11.), egui::Color32::from_gray(140));
+                } else {
+                    painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Points appear as the quadrants converge", egui::FontId::proportional(13.), egui::Color32::from_gray(140));
+                }
+            } else if points.len() >= 2 {
+
                 let (xs, ys): (Vec<f64>, Vec<f64>) = points.iter().map(|(s, e)| ((*s as f64).max(1.).log2(), e.max(1e-3).log2())).unzip();
                 let (x0, x1) = (xs[0], xs.last().copied().unwrap().max(xs[0] + 1.));
                 let (y0, y1) = (ys.iter().copied().fold(f64::MAX, f64::min) - 0.2, ys.iter().copied().fold(f64::MIN, f64::max) + 0.2);
@@ -1875,6 +1912,57 @@ impl App {
                     };
                     ui.painter().circle_filled(grip, 6., fill);
                 });
+        }
+        // Battle mode (track 15): the quadrant split and each integrator's samples and GPU time.
+        if self.settings.battle {
+            let screen = ctx.screen_rect();
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Background,
+                egui::Id::new("battle"),
+            ));
+            let c = screen.center();
+            let line = egui::Stroke::new(1.5_f32, egui::Color32::from_white_alpha(150));
+            painter.line_segment(
+                [
+                    egui::pos2(c.x, screen.top()),
+                    egui::pos2(c.x, screen.bottom()),
+                ],
+                line,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(screen.left(), c.y),
+                    egui::pos2(screen.right(), c.y),
+                ],
+                line,
+            );
+            let g = self.gpu.as_ref().unwrap();
+            for (i, q) in g.battle.iter().enumerate() {
+                let at = egui::pos2(
+                    if i % 2 == 0 {
+                        screen.left() + 12.
+                    } else {
+                        c.x + 12.
+                    },
+                    // Below the two toolbar rows.
+                    if i < 2 { screen.top() + 62. } else { c.y + 10. },
+                );
+                let text = format!(
+                    "{}\n{} spp · {:.1} s GPU",
+                    crate::gpu::BATTLE_NAMES[i],
+                    q.samples,
+                    q.ms / 1000.
+                );
+                let font = egui::FontId::proportional(14.);
+                painter.text(
+                    at + egui::vec2(1., 1.),
+                    egui::Align2::LEFT_TOP,
+                    &text,
+                    font.clone(),
+                    egui::Color32::BLACK,
+                );
+                painter.text(at, egui::Align2::LEFT_TOP, text, font, BATTLE_COLORS[i]);
+            }
         }
         // Selection and hover outlines: the projected box of the object.
         if self.settings.perspective() {
@@ -2903,6 +2991,37 @@ impl App {
                     ui.add(crate::slider(&mut s.bounces, 1..=32));
                 },
             );
+            row(
+                ui,
+                "Integrator",
+                "Path tracing follows light backwards from the camera. Bidirectional path tracing (BDPT) also traces paths from the lights and joins the two: it finds light that squeezes through gaps (a door ajar) and caustics seen directly. Photon mapping scatters photons from the lights and gathers them where camera paths land: caustics under glass converge fast, at the cost of a slight blur that fades as samples grow. BDPT and photon mapping ignore volumes and portals and use up to 10 bounces.",
+                |ui| {
+                    egui::ComboBox::from_id_salt("integrator")
+                        .selected_text(INTEGRATORS[s.integrator.min(2) as usize])
+                        .show_ui(ui, |ui| {
+                            for (i, name) in INTEGRATORS.iter().enumerate() {
+                                ui.selectable_value(&mut s.integrator, i as u32, *name);
+                            }
+                        });
+                },
+            );
+            if s.integrator == 2 || s.battle {
+                row(ui, "Photons per frame", "Photons traced from the lights each frame.", |ui| {
+                    ui.add(crate::slider(&mut s.photons, 1 << 12..=1 << 20).logarithmic(true));
+                });
+                row(ui, "Gather radius", "The starting radius photons are gathered in, as a share of the scene's size. It shrinks as samples grow; larger is smoother but blurrier at first.", |ui| {
+                    ui.add(crate::slider(&mut s.photon_radius, 0.0005..=0.2).logarithmic(true));
+                });
+            }
+            row(
+                ui,
+                "Battle mode",
+                "Splits the image into four quadrants rendered at equal GPU time: path tracing, path tracing with ReSTIR DI, BDPT and photon mapping. Raw samples only (no denoiser, Ray Reconstruction or upscaler). Open the convergence graph with a reference to compare their error over time.",
+                |ui| {
+                    ui.checkbox(&mut s.battle, "");
+                },
+            );
+
             row(
                 ui,
                 "Texture filtering",

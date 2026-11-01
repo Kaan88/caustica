@@ -35,6 +35,10 @@ cbuffer Frame:register(b0) {
     uint4 path_record; // track 14, the PATH_RECORD variant of trace only: render pixel x, y, paths, record capacity
     uint4 lpe; // track 14: light path expression slots in use (0 = off), the slot the LPE view shows
     uint4 restir; // track 15 ReSTIR DI: flags (bit 0 on, bit 1 history valid), candidates, spatial neighbours, history cap
+    uint4 region; // track 15: the render pixels this dispatch covers, x0, y0, x1, y1 (battle mode quadrants; else the whole image)
+    uint4 integrator; // track 15 (integrators.hlsl): photons emitted this frame, photon capacity, splat offset in aux (bytes), flags (bit 0 light tracing)
+    float4 photon; // track 15: gather radius, image-plane area at distance 1 times the region's share of the image, -, -
+    float4 bounds; // track 15: the scene's bounding sphere (centre, radius) for sun and sky photons
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};

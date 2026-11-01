@@ -601,7 +601,8 @@ pub const DISK_SEGMENTS: u32 = 64;
 type CachedMesh = Option<(Object, u32, Vec<Vertex>)>;
 static OBJECT_CACHE: std::sync::Mutex<Vec<CachedMesh>> = std::sync::Mutex::new(Vec::new());
 impl Settings {
-    pub fn frame_objects(&mut self, aspect: f32) {
+    /// The world-space box around every visible object (empty: min is infinite).
+    pub fn objects_bounds(&self) -> (Vec3, Vec3) {
         let mut min = Vec3::splat(f32::INFINITY);
         let mut max = Vec3::splat(f32::NEG_INFINITY);
         // Exact (every vertex) up to the old 256-object cap; past it, each mesh's box corners
@@ -643,6 +644,10 @@ impl Settings {
                 max = max.max(p);
             }
         }
+        (min, max)
+    }
+    pub fn frame_objects(&mut self, aspect: f32) {
+        let (min, max) = self.objects_bounds();
         if !min.is_finite() {
             self.target = [0., 0., 0.];
             self.distance = 5.;

@@ -11,6 +11,9 @@ uint superset(uint i){i^=(i>>1)&0x55555555;i^=(i>>2)&0x33333333;i^=(i>>4)&0x0f0f
 static float pair_second;
 // The ReSTIR passes always draw white noise (they are not tied to a sample index).
 static bool white_noise;
+// BDPT and photon mapping (integrators.hlsl) see glass as solid in shadow rays: their caustics
+// come from real paths, not from the path tracer's transparent shadows.
+static bool glass_blocks;
 // Debug statistics for this pixel and frame (views 8 and 9).
 static uint proceed_steps;
 float random(){
@@ -245,12 +248,12 @@ bool occluded(float3 o,float3 d,float limit){
     while(q.Proceed()){proceed_steps++;
         if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;
-            if((jitter.w>0.5 || materials[pi.material].lobes.z<0.5) && sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
+            if((glass_blocks || jitter.w>0.5 || materials[pi.material].lobes.z<0.5) && sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
             continue;
         }
         uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
-        if(jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
+        if(glass_blocks || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
     return q.CommittedStatus()!=COMMITTED_NOTHING;
 }
 Material material_at(uint id,float3 p){
@@ -842,9 +845,29 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
 static const bool recording=false;
 void record(uint kind,uint bounce,float3 position,float3 color,float value,float3 direction){}
 #endif
+// The guide ray (pinhole through the lens centre, at the frame's jitter): RR's guides, the native
+// denoiser's and the temporal upscalers' inputs. Shared by every integrator.
+void write_guides(uint2 p,out Hit guide){
+    float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
+    if(intersect(go,gd,1e4,guide,false,true)){
+        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);prepare_film(m,abs(dot(-gd,guide.n)),1,0);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
+        diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
+        specular_albedo[p]=float4(spec_fresnel(m,abs(dot(-gd,guide.n)),f0_of(m)),1);
+        depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
+        float4 projected=mul(current_vp,float4(guide.p,1));device_depth[p]=projected.z/projected.w;
+        float4 prev=mul(previous_vp,float4(guide.p,1)),curr=mul(current_vp,float4(guide.p,1));
+        float2 delta=prev.xy/prev.w-curr.xy/curr.w;motion[p]=delta*float2(0.5,-0.5)*dimensions.xy;
+        // A stable primary reflection ray gives RR consistent reflection-motion
+        // guidance, instead of alternating random-lobe / zero / sky distances.
+        // Only RR reads it; the native path skips the extra ray.
+        Hit reflected;float3 reflected_direction=reflect(gd,guide.n);
+        specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
+    }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
+}
 [numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy;
     if(recording){if(any(p!=0))return;p=min(path_record.xy,dimensions.xy-1);}
+    else{p+=region.xy;if(any(p>=region.zw))return;}
     if(any(p>=dimensions.xy))return;
     pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
@@ -860,22 +883,9 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
     // Ray cones: one pixel's angle (orthographic: one pixel's width, no spread).
     float pixel_angle=camera_model.x==1?0:2*environment.z/dimensions.y,pixel_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;
     cone_width=pixel_width;cone_spread=pixel_angle;
-    Hit guide;float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
-    if(recording){if(!intersect(go,gd,1e4,guide,false,true))guide.material=0xffffffffu;}
-    else if(intersect(go,gd,1e4,guide,false,true)){
-        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);prepare_film(m,abs(dot(-gd,guide.n)),1,0);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
-        diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
-        specular_albedo[p]=float4(spec_fresnel(m,abs(dot(-gd,guide.n)),f0_of(m)),1);
-        depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
-        float4 projected=mul(current_vp,float4(guide.p,1));device_depth[p]=projected.z/projected.w;
-        float4 prev=mul(previous_vp,float4(guide.p,1)),curr=mul(current_vp,float4(guide.p,1));
-        float2 delta=prev.xy/prev.w-curr.xy/curr.w;motion[p]=delta*float2(0.5,-0.5)*dimensions.xy;
-        // A stable primary reflection ray gives RR consistent reflection-motion
-        // guidance, instead of alternating random-lobe / zero / sky distances.
-        // Only RR reads it; the native path skips the extra ray.
-        Hit reflected;float3 reflected_direction=reflect(gd,guide.n);
-        specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
-    }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
+    Hit guide;
+    if(recording){float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);if(!intersect(go,gd,1e4,guide,false,true))guide.material=0xffffffffu;}
+    else write_guides(p,guide);
     float3 batch=0;
     if(lpe_on){[unroll]for(uint k=0;k<4;k++)lpe_sum[k]=0;}
     for(uint sample_id=0;sample_id<(recording?path_record.z:sampling.y);sample_id++){
@@ -1083,7 +1093,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
 // ReSTIR DI, pass 1 (before trace; z = layer): the guide ray's hit, k fresh candidates, then the
 // temporal merge with last frame's final reservoir of the same layer at the reprojected pixel.
 [numthreads(8,8,1)]void restir_initial(uint3 tid:SV_DispatchThreadID){
-    uint2 p=tid.xy;uint layer=tid.z;if(any(p>=dimensions.xy))return;
+    uint2 p=tid.xy+region.xy;uint layer=tid.z;if(any(p>=min(dimensions.xy,region.zw)))return;
     white_noise=true;pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed^hash(sampling.w*747796405+layer*0x9e3779b9u+0x2545f491u));
     cone_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;cone_spread=camera_model.x==1?0:2*environment.z/dimensions.y;
     Reservoir r;r.light=0;r.uv=0;r.W=0;r.m_material=0xffffffu;r.position=0;r.normal=0;
@@ -1094,7 +1104,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
         uint light,q;float W,M=1;restir_candidates(a,restir.y,tile,light,q,W);
         if((restir.x&2)!=0 && restir.w>0){
             float4 prev=mul(previous_vp,float4(h.p,1));float2 uv=prev.xy/prev.w*float2(0.5,-0.5)+0.5;int2 hp=int2(floor(uv*dimensions.xy));
-            if(prev.w>0 && all(hp>=0) && all(hp<int2(dimensions.xy))){
+            if(prev.w>0 && all(hp>=int2(region.xy)) && all(hp<int2(min(dimensions.xy,region.zw)))){
                 Reservoir hr=reservoirs[restir_slot(0,layer)+hp.y*dimensions.x+hp.x];
                 // Only histories on a similar surface: dissimilar ones would mostly be wasted.
                 if(reservoir_valid(hr)){Domain b=domain_of(hr);
@@ -1114,7 +1124,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
 // to 1, so the result is unbiased. It is the final reservoir that trace reads and next frame's
 // history.
 [numthreads(8,8,1)]void restir_spatial(uint3 tid:SV_DispatchThreadID){
-    uint2 p=tid.xy;uint layer=tid.z;if(any(p>=dimensions.xy))return;
+    uint2 p=tid.xy+region.xy;uint layer=tid.z;if(any(p>=min(dimensions.xy,region.zw)))return;
     uint self=p.y*dimensions.x+p.x;Reservoir c=reservoirs[restir_slot(1,layer)+self];
     if(!reservoir_valid(c) || restir.z==0){reservoirs[restir_slot(0,layer)+self]=c;return;}
     white_noise=true;pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed^hash(sampling.w*2891336453u+layer*0x85ebca6bu+0x68bc21ebu));
@@ -1122,7 +1132,7 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
     uint index[8];uint k=0;
     for(uint t=0;t<min(restir.z,8u);t++){
         float rr=radius*sqrt(random()),ang=2*PI*random();int2 q=int2(p)+int2(round(rr*float2(cos(ang),sin(ang))));
-        if(any(q<0) || any(q>=int2(dimensions.xy)) || all(q==int2(p)))continue;
+        if(any(q<int2(region.xy)) || any(q>=int2(min(dimensions.xy,region.zw))) || all(q==int2(p)))continue;
         uint j=restir_slot(1,layer)+q.y*dimensions.x+q.x;Reservoir r=reservoirs[j];
         if(!reservoir_valid(r))continue;
         Domain b=domain_of(r);if(dot(b.n,a.n)<0.9 || abs(dot(a.n,b.p-a.p))>reach)continue;

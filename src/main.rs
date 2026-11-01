@@ -152,7 +152,7 @@ struct App {
     timeline: anim::Timeline,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 285;
+const SCENES_FROM: u32 = 290;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -1361,6 +1361,20 @@ impl App {
                     self.settings.cornell_room = false;
                     self.ui.selection = ui::Selection::Light(0);
                 }
+                // Track 15: BDPT, photon mapping and battle mode on the glass and mirror box.
+                285 => {
+                    self.settings.preset(3);
+                    self.settings.integrator = 1;
+                }
+                286 => self.settings.integrator = 2,
+                287 => {
+                    self.settings.integrator = 0;
+                    self.settings.battle = true;
+                }
+                288 => {
+                    self.settings.battle = false;
+                    self.settings.restir = false;
+                }
                 // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
                 // scene files below load with the window still open.
                 203 => {
@@ -1834,8 +1848,44 @@ impl App {
             if g.samples < self.ui.graph.last().map_or(0, |p| p.0) {
                 self.ui.graph.clear();
             }
+            // Battle mode: per quadrant, error against the GPU time it has spent.
+            let spent = g.battle.iter().map(|q| q.ms).fold(0., f64::max);
+            let battle_last = self
+                .ui
+                .battle_graph
+                .iter()
+                .flatten()
+                .map(|p| p.0)
+                .fold(0., f64::max);
+            if !s.battle || spent < battle_last {
+                self.ui.battle_graph = Default::default();
+            }
+            if s.battle && spent > 0. && (battle_last == 0. || spent >= battle_last * 1.25) {
+                let image = unsafe { g.read_floats(18)? };
+                let (w, h) = (g.width as usize, g.height as usize);
+                let compress = |p: &[f32]| {
+                    let l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+                    (l / (1. + l.max(0.))) as f64
+                };
+                let mut sums = [(0f64, 0usize); 4];
+                for y in 0..h {
+                    for x in 0..w {
+                        let q = (x >= w / 2) as usize + 2 * (y >= h / 2) as usize;
+                        let i = (y * w + x) * 4;
+                        let d = compress(&image[i..i + 4]) - compress(&reference[i..i + 4]);
+                        sums[q].0 += d * d;
+                        sums[q].1 += 1;
+                    }
+                }
+                for (q, (sum, n)) in sums.iter().enumerate() {
+                    if g.battle[q].ms > 0. {
+                        let e = (sum / (*n).max(1) as f64).sqrt() * 1000.;
+                        self.ui.battle_graph[q].push((g.battle[q].ms, e));
+                    }
+                }
+            }
             let last = self.ui.graph.last().map_or(0, |p| p.0);
-            if g.samples > 0 && (last == 0 || g.samples as f64 >= last as f64 * 1.25) {
+            if !s.battle && g.samples > 0 && (last == 0 || g.samples as f64 >= last as f64 * 1.25) {
                 let image = unsafe { g.read_floats(18)? };
                 let compress = |p: &[f32]| {
                     let l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
@@ -1978,6 +2028,25 @@ impl App {
                     );
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
+                285..=287 => {
+                    let image = unsafe { g.read_floats(18)? };
+                    let pixels = image.as_chunks::<4>().0;
+                    let mean = pixels
+                        .iter()
+                        .map(|p| (p[0] + p[1] + p[2]) as f64 / 3.)
+                        .sum::<f64>()
+                        / pixels.len().max(1) as f64;
+                    anyhow::ensure!(
+                        mean.is_finite() && mean > 0.01,
+                        "Integrator {} rendered a mean of {mean}",
+                        s.integrator
+                    );
+                    anyhow::ensure!(
+                        !s.battle || g.battle.iter().all(|q| q.samples > 0 && q.ms > 0.),
+                        "A battle quadrant did not render"
+                    );
+                }
+
                 283 | 284 => anyhow::ensure!(
                     g.restir_layers() == 2,
                     "ReSTIR did not run with two layers ({})",
