@@ -339,9 +339,11 @@ Original list:
 - **Diffraction grating (CD/DVD):** an anisotropic lobe with a per-channel angular offset as an RGB approximation. It becomes exact after spectral rendering (future goals).
 - **GGX energy compensation:** add Kulla–Conty here (a small LUT), since every layered lobe loses energy.
 
-#### 12. Volumes (J)
+#### 12. Volumes (J) — done 2026-11-01
 
-Homogeneous media inside meshes, plus global fog.
+As built: homogeneous media inside transmissive objects (density, scatter colour, HG phase, on top of the Beer–Lambert colour) through the nested-dielectric stack, and global fog in a floor-to-height box; free-flight sampling, NEE with transmittance at scatter points, MIS with the phase function; four scenes (`cornell-fog`, `stage-beams`, `scattering-materials`, `underwater`). See engine-notes "Volumes".
+
+- Not done: heterogeneous media (VDB / noise density, smoke plumes); spectral (per-channel) extinction, so chromatic media only colour by albedo and Beer absorption; true subsurface (diffusion / random walk tuned for skin) beyond brute-force scattering; equiangular sampling for lights inside fog (beams of small lights converge slowly; multiple scattering into a beam shows as speckles); the native denoiser leaves haze noisy (RR is fine); fog inside glass, fog subtracted where shadow rays cross glass, and fog on segments skipped by nested-dielectric false hits are ignored; NEE out of a scattering object ignores refraction at its surface and, with glass shadows on, is blocked; guides (RR, denoiser) see the first surface, not the medium; fog is not keyable as a whole in the timeline UI (its floats are paths, untested); Vermeer room, The Weather Project and the jack-o'-lantern are not built.
 
 - **Unlocks:**
   - Visible laser beams (item 17).
@@ -349,7 +351,6 @@ Homogeneous media inside meshes, plus global fog.
   - Olafur Eliasson's ***The Weather Project***: a sun disc, fog and a mirrored ceiling.
   - Subsurface jade, milk and a glowing **jack-o'-lantern**.
   - **Underwater mode**: the whole room filled with a medium.
-- RR handles volumes poorly, so compare it against the native denoiser per scene.
 
 #### 13. Procedural primitives and SDFs
 

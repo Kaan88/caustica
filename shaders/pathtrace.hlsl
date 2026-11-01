@@ -483,6 +483,77 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
     if(camera_model.y>0 && length(l-ndc*float2(aspect,1)*camera_model.y*0.7)>1){valid=false;return;}
     o=eye.xyz+(right*l.x+up*l.y)*lens.x;d=normalize(focal-o);
 }
+// Light sampling from x: each strategy picks a direction ld with its radiance le, its pdf pl
+// (solid angle, selection included) and a shadow-ray limit. Shared by surface vertices and
+// volume scattering (track 12); false when nothing was picked.
+bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,out float3 le,out float pl,out float limit){
+    bool nee=false;ld=float3(0,1,0);le=0;pl=0;limit=1e4;
+    if(env_nee && random()<p_env){
+        float pe;ld=sample_env(pe);
+        if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
+    }else if(tri_nee){
+    Emitter light=select_emitter(random());
+    if(light.position_area.w<0){
+        // Sphere or sun: a direction in the cone it covers, then a shadow ray up to the
+        // sphere's true surface (its inscribed mesh lies beyond) or to infinity.
+        float om=0,pc=0;
+        if(light.position_area.w==-1){
+            float3 c=light.position_area.xyz-x;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
+            if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);limit=b-sqrt(max(0,r*r-(d2-b*b)));}
+        }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
+        if(pc>0){le=light.emission_material.rgb;pl=(1-p_env)*light.edge2_probability.w*pc;limit=max(0.0002,limit-0.0006);nee=true;}
+    }else{
+    float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);ld=lp-x;float len=length(ld);ld/=max(len,1e-8);
+    Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
+    if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(x,lp,light);limit=max(0.0002,len-0.0006);nee=true;}
+    }}
+    return nee;
+}
+// Volumes (track 12): homogeneous media, sampled by free flight on their extinction (one grey
+// sigma, so the pdf cancels the transmittance), with the albedo applied at each scatter and a
+// Henyey-Greenstein phase function. c is the cosine between the travel and the new direction.
+float hg_pdf(float c,float g){float d=max(1+g*g-2*g*c,1e-6);return (1-g*g)/(4*PI*d*sqrt(d));}
+float3 hg_sample(float3 d,float g,out float pdf){
+    float u=random(),c;
+    if(abs(g)<1e-3)c=1-2*u;else{float s=(1-g*g)/(1-g+2*g*u);c=(1+g*g-s*s)/(2*g);}
+    c=clamp(c,-1,1);float sn=sqrt(max(0,1-c*c)),a=2*PI*random();pdf=hg_pdf(c,g);
+    return basis(d,float3(sn*cos(a),sn*sin(a),c));
+}
+// Where the fog box (floor to fog.z, ±fog.w on x and z) covers a ray, clipped to [0, tmax].
+bool fog_interval(float3 o,float3 d,float tmax,out float t0,out float t1){
+    float3 inv=1/select(abs(d)>1e-9,d,1e-9),a=(float3(-fog.w,-1,-fog.w)-o)*inv,b=(float3(fog.w,fog.z,fog.w)-o)*inv;
+    float3 lo=min(a,b),hi=max(a,b);t0=max(0,max(lo.x,max(lo.y,lo.z)));t1=min(tmax,min(hi.x,min(hi.y,hi.z)));
+    return fog.x>0 && t1>t0;
+}
+// The scattering medium the path is in: the top of the dielectric stack, else the fog (only
+// outside every object). [t0, t1] is where it fills the ray up to tmax.
+bool medium_params(uint64_t media,float3 o,float3 d,float tmax,out float sigma,out float3 albedo,out float g,out float t0,out float t1){
+    int top=medium_top(media);t0=0;t1=tmax;
+    if(top>=0){Material m=medium_material(media,top);sigma=m.medium.w;albedo=m.medium.rgb;g=m.phase.x;return sigma>0;}
+    sigma=fog.x;albedo=fog_color.rgb;g=fog.y;return fog_interval(o,d,tmax,t0,t1);
+}
+// The distance to the nearest surface (alpha-tested holes skipped), or limit: a medium's exit.
+float surface_distance(float3 o,float3 d,float limit){
+    RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
+    RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    while(q.Proceed()){proceed_steps++;uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
+        if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
+        q.CommitNonOpaqueTriangleHit();}
+    return q.CommittedStatus()==COMMITTED_TRIANGLE_HIT?q.CommittedRayT():limit;
+}
+// A shadow ray's transmittance: through a scattering object's medium up to the first surface
+// (refraction there is ignored, as glass shadows ignore it; clear glass keeps its old
+// behaviour, no absorption), then the fog past that point. Glass crossed on the way is not
+// subtracted from the fog.
+float3 medium_transmittance(uint64_t media,float3 o,float3 d,float limit){
+    float3 tr=1;float start=0;int top=medium_top(media);
+    if(top>=0){Material m=medium_material(media,top);
+        if(m.medium.w>0){start=surface_distance(o,d,limit);tr=exp(-(m.medium.w-log(max(m.color_rough.rgb,0.001)))*start);}
+        else return 1;
+    }
+    float t0,t1;if(fog_interval(o,d,limit,t0,t1)){t0=max(t0,start);if(t1>t0)tr*=exp(-fog.x*(t1-t0));}
+    return tr;
+}
 // Giles' single-precision inverse error function.
 float erfinv(float x){
     float w=-log(max((1-x)*(1+x),1e-30)),p;
@@ -550,7 +621,7 @@ float2 filter_offset(float2 u){
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;
+        float3 throughput=lens_valid?1:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             bounces_used+=1;
             uint mis=(scene_info.w>>4)&3;
@@ -570,10 +641,29 @@ float2 filter_offset(float2 u){
                 if(h.front)skip=top>=0 && (e>>13)<(medium_at(media,top)>>13);
                 else skip=medium_find(media,e)>=0 && medium_at(media,top)!=e;
                 if(!skip)break;
-                media=h.front?medium_push(media,e):medium_remove(media,e);
+                media=h.front?medium_push(media,e):medium_remove(media,e);{int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;}
                 throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
                 false_hits++;origin=h.p-h.ng*0.0003;
             }
+            {float sigma,g,t0,t1;float3 albedo;
+            if((density>0 || (fog.x>0 && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
+                float ts=t0-log(1-random())/sigma;
+                if(ts<t1){
+                    // A scatter before the surface: NEE by the phase function, then a new direction.
+                    throughput*=exp(-absorption*ts)*albedo;cone_width+=cone_spread*ts;
+                    float3 x=origin+direction*ts;
+                    if(bounce==0 && sample_albedo)first_diffuse=float4(albedo,0);
+                    float3 ld,le;float pl,limit;
+                    if(sample_light(x,env_nee,tri_nee,p_env,ld,le,pl,limit)){
+                        float pp=hg_pdf(dot(direction,ld),g);
+                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;}
+                    }
+                    float pp;direction=hg_sample(direction,g,pp);
+                    previous_pdf=pp;previous_delta=false;previous_position=x;origin=x;
+                    if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival)break;throughput/=survival;}
+                    continue;
+                }
+            }}
             if(!found){
                 if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
@@ -622,34 +712,16 @@ float2 filter_offset(float2 u){
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             if(((uint)m.lobes.w&1u)!=0)break;
-            // Light sampling: each strategy picks a direction ld with its radiance le, its pdf pl
-            // (solid angle) and a shadow-ray limit; one shared BSDF evaluation follows, so
-            // eval_bsdf is inlined once here instead of once per strategy (code size and
-            // registers cost even scenes that never take the anisotropic branch).
-            bool nee=false;float3 ld=float3(0,1,0),le=0;float pl=0,limit=1e4;
-            if(env_nee && random()<p_env){
-                float pe;ld=sample_env(pe);
-                if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
-            }else if(tri_nee){
-            Emitter light=select_emitter(random());
-            if(light.position_area.w<0){
-                // Sphere or sun: a direction in the cone it covers, then a shadow ray up to the
-                // sphere's true surface (its inscribed mesh lies beyond) or to infinity.
-                float om=0,pc=0;
-                if(light.position_area.w==-1){
-                    float3 c=light.position_area.xyz-h.p;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
-                    if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);limit=b-sqrt(max(0,r*r-(d2-b*b)));}
-                }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
-                if(pc>0){le=light.emission_material.rgb;pl=(1-p_env)*light.edge2_probability.w*pc;limit=max(0.0002,limit-0.0006);nee=true;}
-            }else{
-            float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);ld=lp-h.p;float len=length(ld);ld/=max(len,1e-8);
-            Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
-            if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(h.p,lp,light);limit=max(0.0002,len-0.0006);nee=true;}
-            }}
+            // Light sampling (sample_light), then one shared BSDF evaluation: eval_bsdf is inlined
+            // once here instead of once per strategy (code size and registers cost even scenes
+            // that never take the anisotropic branch).
+            float3 ld,le;float pl,limit;bool nee=sample_light(h.p,env_nee,tri_nee,p_env,ld,le,pl,limit);
             float nl=dot(h.n,ld);
             if(nee && nl>0){
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
-                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(mis==1?pl:pl+pdf,1e-8);radiance+=e;if(bounce==0)direct+=e;}
+                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(mis==1?pl:pl+pdf,1e-8);
+                    if(fog.x>0 || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
+                    radiance+=e;if(bounce==0)direct+=e;}
             }
             float3 next;bool delta=false;float bsdf_pdf=0;
             if(random()<m.lobes.z){
@@ -665,7 +737,7 @@ float2 filter_offset(float2 u){
                 bool reflected=random()<fr;
                 next=reflected?reflect(direction,h.n):refract(direction,h.n,eta);
                 if(m.surface_scale.z>0)throughput*=reflected?frc/fr:(1-frc)/(1-fr);
-                if(!reflected){media=after;absorption=medium_absorption(media,medium_top(media));throughput*=eta*eta;}
+                if(!reflected){media=after;int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;throughput*=eta*eta;}
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;
             }else{

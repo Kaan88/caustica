@@ -1539,9 +1539,9 @@ scene("layer-sweeps", "Layer sweeps",
       "Rows of spheres sweeping one layer parameter each, 0 to 1 from left to right: clear-coat roughness and "
       "amount over rough red paint, then sheen roughness and amount over navy cloth.",
       ["material", "clearcoat", "sheen", "validation"],
-      studio(light_position=[0.0, 4.5, 1.5], light_size=4.0, light_aspect=0.25, light_intensity=12.0,
+      studio(light_position=[0.0, 4.5, 1.5], light_size=4.0, light_aspect=1.0, light_intensity=6.0,
              lights=[light("Rim", (0, 1.2, -5.0), (6.0, 1.0), (0.9, 0.95, 1.0), 12.0, target=(0, -0.6, 0))],
-             floor=M((0.2, 0.2, 0.2), 0.6, refl=0.04), base=[0.2, 0.2, 0.2], sky=0.05,
+             floor=M((0.2, 0.2, 0.2), 0.6, refl=0.04), base=[0.2, 0.2, 0.2], sky=0.5,
              objects=layer_sweeps(), bounces=12, **camera(0, 30, 8.6, (0, -0.6, 0.15), 40)))
 
 scene("layered-furnace", "Layered white furnace",
@@ -1560,6 +1560,66 @@ scene("layered-furnace", "Layered white furnace",
                 obj("Brushed metal", "sphere", -1.8, 1.6, 1.4, brushed(M((1, 1, 1), 0.3, metal=1), 1.0)),
                 obj("Spun metal", "sphere", 1.8, 1.6, 1.4, brushed(M((1, 1, 1), 0.3, metal=1), 1.0, spun=True))],
              **camera(0, 18, 9, (0, -0.4, 0))))
+
+
+# ================================================================ volumes (track 12)
+def volume(m, density, scatter=(1, 1, 1), phase=0.0):
+    """A transmissive material filled with a scattering medium."""
+    return {**m, "density": density, "scatter_color": [round(c, 4) for c in scatter], "phase": phase}
+
+
+def fog(density, color=(1, 1, 1), phase=0.0, height=3.0, extent=6.0):
+    return {"density": density, "color": [round(c, 4) for c in color], "phase": phase, "height": height, "extent": extent}
+
+
+def spot(name, pos, target, color, intensity, spread=24.0, blend=0.25, size=0.3):
+    return {**light(name, pos, (size, size), color, intensity, target=target), "kind": "spot", "spread": spread, "blend": blend}
+
+
+scene("cornell-fog", "Cornell fog",
+      "The box filled with a thin forward-scattering haze: the ceiling light glows in the air and the blocks cast "
+      "shadow shafts through it.",
+      ["cornell", "volume", "fog"],
+      cornell(light_size=0.35, light_intensity=40.0, bounces=12, fog=fog(0.35, (0.95, 0.95, 0.95), 0.5, 1.0, 1.0),
+              objects=[obj("Tall block", "box", -0.33, -0.3, 0.85, matte((0.72, 0.7, 0.66), 0.85), stretch=1.98, rotation=17),
+                       obj("Short block", "box", 0.33, 0.3, 0.85, matte((0.72, 0.7, 0.66), 0.85), stretch=0.99, rotation=-17)]))
+
+scene("stage-beams", "Stage beams",
+      "Three coloured spotlights cut through a hazy black stage onto a satin metal sphere: visible beams from "
+      "single scattering, lit by next-event estimation from every point of the haze.",
+      ["volume", "fog", "spot", "lights"],
+      dark_stage(fog=fog(0.12, (0.9, 0.9, 0.9), 0.6, 6.0, 10.0), floor=M((0.08, 0.08, 0.08), 0.3, refl=0.06), bounces=8,
+                 lights=[spot("Red", (-2.5, 4.5, -1.0), (-0.4, -1, 0), (1.0, 0.15, 0.08), 120.0),
+                         spot("Green", (0.0, 4.8, -2.2), (0, -1, 0.1), (0.15, 1.0, 0.25), 120.0),
+                         spot("Blue", (2.5, 4.5, -1.0), (0.4, -1, 0), (0.12, 0.3, 1.0), 120.0)],
+                 objects=[obj("Satin metal sphere", "sphere", 0, 0, 1.3, M((0.92, 0.94, 0.97), 0.3, metal=1))],
+                 **camera(0, 4, 9, (0, 1.2, 0), 45)))
+
+scene("scattering-materials", "Scattering materials",
+      "Objects filled with participating media, backlit to show light passing through them: milk, jade, "
+      "smoke in an invisible box (IOR 1), candle wax and a ruby-red syrup.",
+      ["volume", "subsurface", "material"],
+      studio(light_position=[0.0, 3.5, -4.0], light_size=3.0, light_intensity=14.0, sky=0.15,
+             lights=[light("Front fill", (2.0, 2.5, 4.0), (2, 2), (1.0, 0.95, 0.9), 3.0, target=(0, -0.5, 0))],
+             floor=M((0.3, 0.3, 0.3), 0.5, refl=0.05), bounces=32,
+             objects=[obj("Milk", "sphere", -2.4, 0, 1.2, volume(M((1, 1, 1), 0.0, trans=1, ior=1.35), 40.0, (0.999, 0.998, 0.995))),
+                      obj("Jade", "bunny", -1.1, 0, 1.5, volume(M((0.55, 0.85, 0.6), 0.15, trans=1, ior=1.62), 12.0, (0.7, 0.95, 0.75), 0.2), rotation=25),
+                      obj("Smoke", "box", 0.2, 0, 1.2, volume(M((1, 1, 1), 0.0, trans=1, ior=1.0), 3.0, (0.8, 0.8, 0.8), 0.4)),
+                      obj("Wax", "cylinder", 1.35, 0, 1.0, volume(M((1.0, 0.9, 0.75), 0.3, trans=1, ior=1.45), 25.0, (0.98, 0.85, 0.6)), stretch=1.6),
+                      obj("Syrup", "sphere", 2.5, 0, 1.0, volume(M((0.8, 0.12, 0.08), 0.0, trans=1, ior=1.45), 6.0, (0.95, 0.3, 0.2), 0.3))],
+             **camera(0, 10, 7.5, (0, -0.4, 0), 40)))
+
+scene("underwater", "Underwater",
+      "The whole stage under blue-green water: a forward-scattering medium that swallows the distance, with sun "
+      "shafts around the pillars.",
+      ["volume", "fog", "underwater", "sun"],
+      dark_stage(fog=fog(0.07, (0.35, 0.75, 0.8), 0.8, 8.0, 30.0), floor=M((0.6, 0.55, 0.42), 0.8, refl=0.02),
+                 floor_extent=30.0, bounces=10,
+                 lights=[{**light("Sun", (0, 10, 0), (1, 1), (1.0, 0.97, 0.9), 6.0, target=(0.5, 0, 0.3)), "kind": "sun", "angle": 2.0}],
+                 objects=[obj(f"Pillar {i}", "cylinder", -3 + 2 * i, -1.5 + (i % 2) * 1.5, 1.6, matte((0.5, 0.48, 0.42), 0.8), stretch=6.0)
+                          for i in range(4)]
+                 + [obj("Amphora", "pawn", 0.3, 1.2, 1.2, M((0.6, 0.3, 0.15), 0.6, refl=0.04))],
+                 **camera(10, 4, 8, (0, 0.8, 0), 55)))
 
 
 def lounge():

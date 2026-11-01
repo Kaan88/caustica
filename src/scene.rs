@@ -70,6 +70,42 @@ pub struct Material {
     pub grating: f32,
     #[serde(skip_serializing_if = "is_default_grating_spacing")]
     pub grating_spacing: f32,
+    /// Volume (track 12): a transmissive object filled with a scattering medium (smoke, milk,
+    /// jade). `density` is the extinction per unit length (0 = clear), `scatter_color` the
+    /// single-scattering albedo, `phase` the Henyey-Greenstein g (−0.9 back, 0.9 forward).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub density: f32,
+    #[serde(skip_serializing_if = "is_white")]
+    pub scatter_color: [f32; 3],
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub phase: f32,
+}
+/// Global fog (track 12): a homogeneous medium filling a box from the floor (y = −1) up to
+/// `height`, `extent` units out from the centre on x and z.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Fog {
+    pub density: f32,
+    pub color: [f32; 3],
+    pub phase: f32,
+    pub height: f32,
+    pub extent: f32,
+}
+impl Default for Fog {
+    fn default() -> Self {
+        Self {
+            density: 0.,
+            color: [1.; 3],
+            phase: 0.,
+            height: 3.,
+            extent: 6.,
+        }
+    }
+}
+impl Fog {
+    pub fn is_default(&self) -> bool {
+        self.density == 0.
+    }
 }
 fn is_false(v: &bool) -> bool {
     !*v
@@ -129,6 +165,9 @@ impl Default for Material {
             iridescence_ior: 1.3,
             grating: 0.,
             grating_spacing: 1.6,
+            density: 0.,
+            scatter_color: [1.; 3],
+            phase: 0.,
         }
     }
 }
@@ -504,6 +543,9 @@ pub struct Settings {
     /// Physical sky and sun (track 9); replaces the HDRI and the sky light while on.
     #[serde(skip_serializing_if = "crate::sky::PhysicalSky::is_default")]
     pub physical_sky: crate::sky::PhysicalSky,
+    /// Global fog (track 12).
+    #[serde(skip_serializing_if = "Fog::is_default")]
+    pub fog: Fog,
     /// Keyframes (track 8); the playhead is `anim::Timeline` in the app.
     #[serde(skip_serializing_if = "crate::anim::Animation::is_default")]
     pub animation: crate::anim::Animation,
@@ -612,6 +654,7 @@ impl Default for Settings {
             hdri_rotation: 0.,
             hdri_visible: true,
             physical_sky: Default::default(),
+            fog: Default::default(),
             animation: Default::default(),
         }
     }
@@ -818,6 +861,15 @@ impl Settings {
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {
+        let f = &self.fog;
+        anyhow::ensure!(
+            (0. ..=10.).contains(&f.density)
+                && f.color.iter().all(|v| (0. ..=1.).contains(v))
+                && (-0.95..=0.95).contains(&f.phase)
+                && (-1. ..=50.).contains(&f.height)
+                && (0.1..=100.).contains(&f.extent),
+            "Invalid fog"
+        );
         for o in &mut self.objects {
             if o.sphere {
                 o.sphere = false;
@@ -965,7 +1017,10 @@ impl Settings {
                     && (-180. ..=180.).contains(&m.anisotropy_rotation)
                     && (0. ..=2000.).contains(&m.iridescence_thickness)
                     && (1. ..=2.5).contains(&m.iridescence_ior)
-                    && (0.3..=10.).contains(&m.grating_spacing),
+                    && (0.3..=10.).contains(&m.grating_spacing)
+                    && (0. ..=100.).contains(&m.density)
+                    && m.scatter_color.iter().all(|v| (0. ..=1.).contains(v))
+                    && (-0.95..=0.95).contains(&m.phase),
                 "Invalid material"
             );
             anyhow::ensure!(

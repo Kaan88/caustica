@@ -1,0 +1,330 @@
+{
+ "format": 1,
+ "title": "Underwater",
+ "description": "The whole stage under blue-green water: a forward-scattering medium that swallows the distance, with sun shafts around the pillars.",
+ "tags": [
+  "volume",
+  "fog",
+  "underwater",
+  "sun"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 30.0,
+  "sky": 0.0,
+  "base": [
+   0.05,
+   0.05,
+   0.055
+  ],
+  "floor": {
+   "color": [
+    0.6,
+    0.55,
+    0.42
+   ],
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "reflectivity": 0.02,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Sun",
+    "position": [
+     0,
+     10,
+     0
+    ],
+    "rotation": [
+     3.337,
+     -120.964,
+     0.0
+    ],
+    "size": [
+     1,
+     1
+    ],
+    "color": [
+     1.0,
+     0.97,
+     0.9
+    ],
+    "intensity": 6.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "sun",
+    "angle": 2.0
+   }
+  ],
+  "bounces": 10,
+  "yaw": 10,
+  "pitch": 4,
+  "distance": 8,
+  "target": [
+   0,
+   0.8,
+   0
+  ],
+  "fov": 55,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "fog": {
+   "density": 0.07,
+   "color": [
+    0.35,
+    0.75,
+    0.8
+   ],
+   "phase": 0.8,
+   "height": 8.0,
+   "extent": 30.0
+  },
+  "objects": [
+   {
+    "name": "Pillar 0",
+    "shape": "cylinder",
+    "position": [
+     -3,
+     -1.5
+    ],
+    "size": 1.6,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.48,
+      0.42
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pillar 1",
+    "shape": "cylinder",
+    "position": [
+     -1,
+     0.0
+    ],
+    "size": 1.6,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.48,
+      0.42
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pillar 2",
+    "shape": "cylinder",
+    "position": [
+     1,
+     -1.5
+    ],
+    "size": 1.6,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.48,
+      0.42
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pillar 3",
+    "shape": "cylinder",
+    "position": [
+     3,
+     0.0
+    ],
+    "size": 1.6,
+    "stretch": 6.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.48,
+      0.42
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Amphora",
+    "shape": "pawn",
+    "position": [
+     0.3,
+     1.2
+    ],
+    "size": 1.2,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.3,
+      0.15
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

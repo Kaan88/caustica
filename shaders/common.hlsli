@@ -2,7 +2,7 @@
 // base_scale.rgb and surface_scale.xy (roughness, metallic) = value / map average (core track 5);
 // surface_scale.zw the thin film (track 11: strength, thickness + 2048 × IOR in hundredths).
 // layers: clear coat, coat roughness, sheen roughness, -; sheen: colour times strength, - (track 11).
-struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;float4 layers;float4 sheen;};
+struct Material {float4 color_rough;float4 lobes;float4 optical;float4 secondary;uint4 maps;float4 base_scale;float4 surface_scale;float4 layers;float4 sheen;float4 medium;float4 phase;};
 cbuffer Frame:register(b0) {
     float4x4 inverse_vp;
     float4x4 current_vp;
@@ -30,6 +30,8 @@ cbuffer Frame:register(b0) {
     float4 grade_gamma; // rgb, w = LUT strength
     float4 gain; // rgb, w = frame noise seed
     float4 environment_map; // HDRI strength, rotation (radians), flags (bit 0 loaded, bit 1 seen by the camera), pdf normalization (environment.rs)
+    float4 fog; // track 12: density, phase g, top height, half extent on x / z
+    float4 fog_color; // albedo rgb
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};

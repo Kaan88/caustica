@@ -3245,6 +3245,53 @@ impl App {
         });
     }
 }
+/// Global fog rows of the Stage grid (track 12).
+fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
+    let f = &mut s.fog;
+    row(
+        ui,
+        "Fog",
+        "A homogeneous medium from the floor up to a height: god rays and visible light beams. Extinction per unit length; 0 is off.",
+        |ui| {
+            ui.add(crate::slider(&mut f.density, 0. ..=10.).logarithmic(true));
+        },
+    );
+    if f.density <= 0. {
+        return;
+    }
+    row(
+        ui,
+        "Fog colour",
+        "The share of light each scattering keeps, per channel.",
+        |ui| {
+            ui.color_edit_button_rgb(&mut f.color);
+        },
+    );
+    row(
+        ui,
+        "Fog phase",
+        "Henyey-Greenstein g: positive scatters forward, which makes beams glow toward the camera.",
+        |ui| {
+            ui.add(crate::slider(&mut f.phase, -0.95..=0.95));
+        },
+    );
+    row(
+        ui,
+        "Fog height",
+        "The fog's top, in world units (the floor is at −1).",
+        |ui| {
+            ui.add(crate::slider(&mut f.height, -1. ..=50.));
+        },
+    );
+    row(
+        ui,
+        "Fog extent",
+        "How far the fog reaches from the centre on x and z.",
+        |ui| {
+            ui.add(crate::slider(&mut f.extent, 0.1..=100.).logarithmic(true));
+        },
+    );
+}
 /// Physical sky rows of the Stage grid (track 9).
 fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(
@@ -3414,6 +3461,7 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
             },
         );
         physical_sky_ui(ui, s);
+        fog_ui(ui, s);
         row(
             ui,
             "HDRI",

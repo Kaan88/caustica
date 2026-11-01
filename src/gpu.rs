@@ -78,6 +78,10 @@ struct Constants {
     grade_gamma: [f32; 4],
     gain: [f32; 4],
     environment_map: [f32; 4],
+    /// Track 12 fog: density, phase g, top height, half extent on x / z.
+    fog: [f32; 4],
+    /// Fog albedo (rgb).
+    fog_color: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -2195,6 +2199,8 @@ impl Gpu {
                 },
                 self.env_inv_norm * self.env_scale,
             ],
+            fog: [s.fog.density, s.fog.phase, s.fog.height, s.fog.extent],
+            fog_color: [s.fog.color[0], s.fog.color[1], s.fog.color[2], 0.],
         };
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
         if self.hdr_active {

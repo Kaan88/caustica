@@ -21,6 +21,10 @@ pub struct PackedMaterial {
     pub layers: [f32; 4],
     /// Sheen colour times its strength; w the anisotropy's rotation (radians).
     pub sheen: [f32; 4],
+    /// Track 12: scattering albedo (rgb), w the medium's extinction per unit (0 = clear).
+    pub medium: [f32; 4],
+    /// Track 12: x the phase function's g; yzw unused.
+    pub phase: [f32; 4],
 }
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -90,6 +94,14 @@ fn pack(m: &Material) -> PackedMaterial {
             m.sheen_color[2] * m.sheen,
             m.anisotropy_rotation.to_radians(),
         ],
+        // A medium only exists inside something transmissive (the dielectric stack).
+        medium: [
+            m.scatter_color[0],
+            m.scatter_color[1],
+            m.scatter_color[2],
+            if m.transmission > 0. { m.density } else { 0. },
+        ],
+        phase: [m.phase, 0., 0., 0.],
     }
 }
 pub fn materials(s: &Settings) -> Vec<PackedMaterial> {

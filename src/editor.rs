@@ -238,6 +238,29 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         ui.add(crate::slider(&mut m.iridescence_ior, 1. ..=2.5));
                     });
                 }
+                if m.transmission > 0. {
+                    row(
+                        ui,
+                        "Volume density",
+                        "Fills the object with a scattering medium (smoke, milk, jade): extinction per unit                          length. 0 is clear; the colour above still tints by absorption.",
+                        |ui| {
+                            ui.add(crate::slider(&mut m.density, 0. ..=100.).logarithmic(true));
+                        },
+                    );
+                    if m.density > 0. {
+                        row(ui, "Scatter colour", "The share of light each scattering keeps, per channel.", |ui| {
+                            ui.color_edit_button_rgb(&mut m.scatter_color);
+                        });
+                        row(
+                            ui,
+                            "Phase",
+                            "Henyey-Greenstein g: negative scatters back, 0 evenly, positive forward (fog, milk ~0.8).",
+                            |ui| {
+                                ui.add(crate::slider(&mut m.phase, -0.95..=0.95));
+                            },
+                        );
+                    }
+                }
                 row(
                     ui,
                     "Priority",

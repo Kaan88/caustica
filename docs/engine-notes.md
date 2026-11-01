@@ -33,6 +33,19 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 **Disk use.** `target/` is about 3.5 GB and `vendor/` about 0.3 GB. The root `.gitignore` already lists `native/target`, `native/vendor` and `native/captures`.
 
+## Volumes (track 12, 2026-11-01)
+
+- **Media.** Homogeneous only. An object's medium rides the nested-dielectric stack: a transmissive material with `density` > 0 (extinction per unit), `scatter_color` (single-scattering albedo) and `phase` (Henyey-Greenstein g). The colour still absorbs by Beer–Lambert as before. An IOR of 1 with roughness 0 makes an invisible boundary (smoke in a box). Global fog (`Settings::fog`) fills a box from the floor (y = −1) to `height`, ±`extent` on x and z, and exists only where the stack is empty (not inside glass).
+- **Transport** (`pathtrace.hlsl`, after the false-hit loop): free-flight sampling on the grey extinction, so the pdf cancels the transmittance; a scatter before the surface multiplies by the albedo, does NEE through `sample_light` (shared with surfaces) weighted by the phase pdf with MIS, then samples HG. `previous_pdf` = phase pdf, so emission hits after a scatter are MIS-weighted like after a surface.
+- **Shadow rays** (`medium_transmittance`): through a scattering object's medium up to the nearest surface (`surface_distance`, a minimal closest-hit query; refraction there ignored, as glass shadows do), then the fog past that point. Surface NEE applies it only when fog is on or the path is in a scattering medium. Clear glass keeps its old behaviour.
+- **Packing:** `PackedMaterial` grew to 176 B (`medium` = albedo rgb + density, zeroed unless transmissive; `phase.x` = g). `Constants` gained `fog` (density, g, height, extent) and `fog_color`.
+- **Cost:** a per-path `density` (the stack top's, updated with `absorption`) gates the volume code, so scenes without media pay ~1–3% GPU time (preset 0: 4.29 → ~4.35 ms; glass preset 3 within noise). Before that gate glass scenes paid 19%.
+- **Checked:** non-volume renders match the previous build to 5e-7; Cornell box in fog, 32k spp: MIS vs NEE-only differ by 0.06% ± 0.13%.
+- **Bounce budget:** a scatter uses one of the path's bounces, so dense media darken at the default 6 bounces; raise `bounces` in such scenes (the volume scenes use 8–32).
+- **Absorption after false hits** (fixed with this track): the false-hit loop changed the medium stack without refreshing `absorption`, so leaving a higher-priority glass wall into water kept the glass's absorption; it now refreshes it (nested-dielectric scenes change slightly).
+- **Denoisers:** RR handles haze well (cornell-fog, stage-beams). The native denoiser leaves the fog speckled: its demodulation and stops are surface-based.
+- **Scenes:** `cornell-fog`, `stage-beams` (multiple scattering into the beams shows as sparse speckles at low spp: real variance), `scattering-materials` (milk, jade, smoke, wax, syrup), `underwater`.
+
 ## Upscalers (2026-10-29)
 
 - **Setting:** `Settings.upscaler` (`Upscaler`: dlss default, fsr, xess, bicubic, bilinear). Used only when RR is off and `rw < width`.

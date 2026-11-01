@@ -84,7 +84,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 | `src/scene.rs` | `Settings`, `Material`, `Object`, `AreaLight`, `Shape` (11) and `Pattern` (4). `PRESETS` holds 24 names. `randomize()` (l.318). `preset()` (l.352) builds 0–8 inline and sends 9+ to `presets::apply`; it keeps the camera only when moving between Cornell presets 0–8. `validate()` (l.456) bounds every field. `camera()` returns `look_at_rh` and `perspective_rh` with near 0.01 and far 500. `light_color()` converts Kelvin to linear RGB at unit luminance, times tint and intensity. |
 | `src/presets.rs` | 12-entry material library (`material(i)`), `studio()` base stage, `apply()` for presets 9–23, `description()`. |
 | `src/geometry.rs` | Unit meshes cached in a `LazyLock`. `object_geometry()` applies scale (size·0.35), YXZ Euler rotation and floor grounding (floor at y = −1). `geometry()` builds one triangle soup. Also frame, focus and CPU pick (Möller–Trumbore over every object, every click). |
-| `src/lighting.rs` | `PackedMaterial` (144 B) and `Emitter` (64 B), `materials()` ordering, `analytic()` and `emitter_table()` (suns, spheres, then triangles; power-weighted CDF plus a per-triangle lookup, 1-based, 0 = not an emitter; see "Analytic lights"). |
+| `src/lighting.rs` | `PackedMaterial` (176 B) and `Emitter` (64 B), `materials()` ordering, `analytic()` and `emitter_table()` (suns, spheres, then triangles; power-weighted CDF plus a per-triangle lookup, 1-based, 0 = not an emitter; see "Analytic lights"). |
 | `src/display.rs` | `Monitor::query(hwnd)`: the DXGI output holding most of the window, `GetDesc1` (HDR on, peak/full-frame/min nits) and the SDR white level via `DisplayConfigGetDeviceInfo`; `current()` = `IDXGIFactory1::IsCurrent`. Also `hdr_map` (CPU copy of the shader transform, for tests) and `write_hdr_png` (16-bit PQ/BT.2020 with a cICP chunk). |
 | `src/ui.rs` | UI plan phase 1 (2026-10-30). `UiState` (tab, advanced, panel_hidden, selection, toasts, export size/samples): never in `Settings`. `impl App { fn ui }` draws top bar, status bar, right `SidePanel` with Scene / Render / Look / Export tabs, toasts. Helpers `row` (2-column grid row, label carries the tooltip), `more` (inline when advanced, else a "More" header), `theme`. `UiState::delete_selected`, `toast`, `error`. |
 | `src/gizmo.rs` | Roadmap 3b (2026-10-30). `View` (camera in physical pixels: project, ray, world-per-pixel), `frame()` (pivot + rotation of the selection; lights are `flat`), `Transform` (mode, constraint, typed value, snap, original settings; `apply` restores the target then transforms; `restore` cancels), `layout`/`hit`/`draw`, `draw_lights`, `pick` (objects via `pick_object_hit` plus light quads). Unit tests cover typed values, arrow drags, screen-angle rotation, Blender's axis toggling and light scaling. |
@@ -154,7 +154,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | 5 … 5+N−1 | Objects |
 | 5+N … | Extra area lights |
 
-**PackedMaterial** fields:
+**PackedMaterial** (176 B) fields:
 
 | Field | Contents |
 |---|---|
@@ -163,6 +163,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
 | `optical` | IOR, emission, pattern id, w: one-sided emitter (1 for lights); negative = a diffraction grating, −(strength ‰ × 16384 + spacing nm) (track 11) |
 | `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
 | `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |
+| `medium`, `phase` | Track 12: scattering albedo rgb + extinction (0 unless transmissive); HG g in x. See "Volumes". |
 | `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
 | `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
 | `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled); z, w the thin film (track 11): strength, thickness nm + 2048 × IOR in hundredths. |
