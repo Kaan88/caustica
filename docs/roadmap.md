@@ -461,6 +461,7 @@ Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.
   - The real Cornell box: measured spectral data and a split view against the photograph. Exact after spectral rendering.
   - Cook's pool balls (item 8).
 - Done 2026-11-02: the Newton's cradle swings with the physics sandbox (owner note): fixed frame, balls hung on their strings by joints, elastic contacts. See engine-notes "Physics sandbox".
+- Done 2026-11-02: `snow-globe` (glass around water, a lit cottage, 160 snowflakes), `hourglass` (glass cones, sand pile and stream) and `birthday-cake` (seven candles with keyframed flicker) as built-in scenes. Not done: the lava lamp (needs blobby SDFs: metaballs), the jack-o'-lantern (needs carving: CSG or a mesh), an hourglass with flowing sand (needs particles), Nighthawks, the measured Cornell box (spectral).
 - **Miniatures:**
   - Snow globe (10), aquarium (10, 12) and lava lamp (13).
   - Newton's cradle (8) and an hourglass (mesh import).
@@ -473,6 +474,7 @@ Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.
   - The prompt carries the `Settings` schema, the shape, pattern and material-library lists, and a few example files. The model returns JSON, which goes through `validate()`; on failure, retry with the error.
   - **Art critic mode:** send the render back and ask for concrete lighting and composition changes as `key=json` edits.
 - **Scripting console** (`rhai`): script animations, generators and batch renders, for example rendering every preset at 4,096 spp. Add a `--script file` CLI flag.
+  - Done 2026-11-02: `--script file.rhai` (headless or windowed) with `load`, `set` (nested `/` paths, validated), `frames`, `reset`, `capture`, `samples`, `scenes`; `examples/scripts/batch.rhai`. See engine-notes "Scripting". Not done: an in-app console (a text box running lines against the live scene), access to generators and keyframes from scripts, reading settings back (`get`), a script that runs per frame (procedural animation).
 - **Audio-reactive lights:** WASAPI loopback capture (`cpal`) and an FFT drive emitter intensities per frequency band. Runs in per-frame RR mode, since every frame changes the lights.
 - **Live wallpaper:** render behind the desktop icons with the WorkerW trick, at low spp. Pause when a fullscreen app runs or on battery.
 - **Blender live link:** a Blender add-on streams objects, transforms, materials and the camera over a socket. Needs mesh import and instancing.

@@ -26,6 +26,7 @@ mod remote;
 mod saver;
 mod scene;
 mod scenes;
+mod script;
 mod sky;
 mod stats;
 mod teapot_data;
@@ -160,6 +161,8 @@ struct App {
     physics: Option<physics::Sim>,
     /// Track 17 laser puzzle state (`Settings::puzzle`).
     laser: laser::Laser,
+    /// A running `--script` (track 19).
+    script: Option<script::Script>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 292;
@@ -280,6 +283,7 @@ impl App {
         let mut debug = false;
         let mut hidden = false;
         let mut capture_ui = false;
+        let mut script_path: Option<PathBuf> = None;
         let mut interface = ui::UiState::default();
         let mut self_test = false;
         let mut selected_preset = 0;
@@ -432,6 +436,10 @@ impl App {
                 "--debug" => debug = true,
                 "--headless" => hidden = true,
                 "--capture-ui" => capture_ui = true,
+                // A Rhai script that drives the app (see src/script.rs).
+                "--script" => {
+                    script_path = Some(PathBuf::from(args.next().context("--script needs a file")?))
+                }
                 // For UI captures: open a tab, show the advanced rows.
                 "--ui-tab" => {
                     interface.tab = match args.next().context("--ui-tab needs a name")?.as_str() {
@@ -503,7 +511,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -530,7 +538,16 @@ impl App {
         if turntable_cli.is_some() && frames.is_none() {
             frames = Some(4);
         }
-        anyhow::ensure!(!hidden || frames.is_some(), "--headless requires --frames");
+        anyhow::ensure!(
+            !hidden || frames.is_some() || script_path.is_some(),
+            "--headless requires --frames or --script"
+        );
+        // A script decides its own frames and captures; a frame limit would cut it short.
+        anyhow::ensure!(
+            script_path.is_none() || (frames.is_none() && capture.is_none() && !self_test),
+            "--script replaces --frames, --capture and --self-test (use frames() and capture())"
+        );
+        let script = script_path.map(script::Script::start).transpose()?;
         let egui = egui::Context::default();
         ui::theme(&egui);
         Ok(Self {
@@ -598,7 +615,105 @@ impl App {
             timeline: anim::Timeline::default(),
             physics: None,
             laser: laser::Laser::default(),
+            script,
         })
+    }
+    /// Handles the script's requests until it asks for frames or has nothing to ask. Returns
+    /// whether to render this frame: false when the app is exiting, and in a headless run
+    /// unless the script is waiting for frames (so the frame count is the script's alone).
+    fn poll_script(&mut self, event_loop: &ActiveEventLoop) -> bool {
+        use script::{Reply, Request};
+        loop {
+            let sc = self.script.as_mut().unwrap();
+            if let Some(result) = sc.finished() {
+                self.script = None;
+                match result {
+                    Ok(()) => {
+                        println!("SCRIPT_OK frames={}", self.rendered);
+                        if self.hidden {
+                            event_loop.exit();
+                            return false;
+                        }
+                        self.ui.toast("Script finished");
+                    }
+                    Err(e) => {
+                        println!("SCRIPT_ERROR {e}");
+                        if self.hidden {
+                            self.fail(event_loop, anyhow::anyhow!("script: {e}"));
+                            return false;
+                        }
+                        self.ui.error(format!("Script: {e}"));
+                    }
+                }
+                return true;
+            }
+            let wait = std::time::Duration::from_millis(if self.hidden { 50 } else { 0 });
+            let Some((request, tx)) = sc.next(wait) else {
+                return !self.hidden || sc.waiting.is_some();
+            };
+            let done = |r: Result<()>| Reply::Done(r.map_err(|e| format!("{e:#}")));
+            let changes = matches!(
+                request,
+                Request::Load(_) | Request::Set(..) | Request::Reset
+            );
+            if sc.stale && matches!(request, Request::Capture(_) | Request::Samples) {
+                let _ = tx.send(Reply::Done(Err(
+                    "nothing rendered since the last load/set/reset: call frames(n) first".into(),
+                )));
+                continue;
+            }
+            let reply = match request {
+                Request::Load(name) => {
+                    self.ui.checkpoint(&self.settings);
+                    self.ui.selection = ui::Selection::Stage;
+                    self.laser = laser::Laser::default();
+                    self.physics = None;
+                    // A scene file, or a built-in preset by its slug (as --preset takes it).
+                    match scenes::find(&name) {
+                        Ok(p) => done(scenes::load_into(&mut self.settings, &p)),
+                        Err(e) => match PRESETS.iter().position(|p| scenes::slug(p) == name) {
+                            Some(i) => {
+                                self.settings.preset(i);
+                                self.preset = i;
+                                done(Ok(()))
+                            }
+                            None => done(Err(e)),
+                        },
+                    }
+                }
+                Request::Set(key, value) => done(script::set(&mut self.settings, &key, &value)),
+                Request::Frames(0) => done(Ok(())),
+                Request::Frames(n) => {
+                    sc.waiting = Some((n, tx));
+                    return true;
+                }
+                Request::Reset => {
+                    self.actions.reset = true;
+                    done(Ok(()))
+                }
+                Request::Capture(path) => {
+                    let path = PathBuf::from(path);
+                    let hdr = path.extension().is_some_and(|v| v == "exr");
+                    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                    done(match self.gpu.as_mut() {
+                        Some(g) => unsafe { g.capture(&path, hdr, false) },
+                        None => Err(anyhow::anyhow!("no GPU yet")),
+                    })
+                }
+                Request::Samples => {
+                    Reply::Number(self.gpu.as_ref().map_or(0, |g| g.samples as i64))
+                }
+                Request::Scenes => {
+                    Reply::List(scenes::list().into_iter().map(|e| e.title).collect())
+                }
+            };
+            if changes {
+                self.script.as_mut().unwrap().stale = true;
+            }
+            let _ = tx.send(reply);
+        }
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
         eprintln!("ERROR: {error:#}");
@@ -2394,9 +2509,15 @@ impl App {
         if self.gpu.is_none() || self.frames.is_some_and(|f| self.rendered >= f) {
             return;
         }
+        if self.script.is_some() && !self.poll_script(event_loop) {
+            return;
+        }
         if let Err(e) = self.redraw() {
             self.fail(event_loop, e);
             return;
+        }
+        if let Some(sc) = &mut self.script {
+            sc.frame_done();
         }
         let gpu_ms = self.gpu.as_ref().unwrap().gpu_ms;
         match &mut self.timing {
@@ -3099,6 +3220,7 @@ impl ApplicationHandler for App {
                 || self.export.is_some()
                 || self.timeline.playing
                 || self.settings.rotate
+                || self.script.is_some()
         });
         event_loop.set_control_flow(if active {
             ControlFlow::Poll
