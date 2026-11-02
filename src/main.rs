@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod anim;
 mod assets;
+mod audio;
 mod browser;
 mod display;
 mod editor;
@@ -163,6 +164,8 @@ struct App {
     laser: laser::Laser,
     /// A running `--script` (track 19).
     script: Option<script::Script>,
+    /// Loopback capture while `settings.audio.enabled` (track 19), never headless.
+    audio: Option<audio::Audio>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 292;
@@ -171,6 +174,8 @@ fn transport_key(s: &Settings) -> String {
     for k in [
         "physics",
         "puzzle",
+        // Its effect reaches the key through the scaled intensities of the frame copy.
+        "audio",
         "exposure",
         "gamma",
         "tonemap",
@@ -616,6 +621,7 @@ impl App {
             physics: None,
             laser: laser::Laser::default(),
             script,
+            audio: None,
         })
     }
     /// Handles the script's requests until it asks for frames or has nothing to ask. Returns
@@ -1707,9 +1713,35 @@ impl App {
         if self.export.is_none() {
             self.remote_and_gamepad(dt);
         }
+        // Audio-reactive lights scale this frame's copy only (track 19).
+        let mut frame = self.settings.clone();
+        if frame.audio.enabled && !self.hidden && self.export.is_none() {
+            if self.audio.is_none() {
+                match audio::Audio::start() {
+                    Ok(a) => self.audio = Some(a),
+                    Err(e) => {
+                        self.ui.error(format!("Audio capture: {e:#}"));
+                        self.settings.audio.enabled = false;
+                    }
+                }
+            }
+            if let Some(a) = &mut self.audio {
+                a.update(&frame.audio, dt);
+                // Light painting keeps exposing through light changes, not emitter changes.
+                audio::apply(&mut frame, a.levels, !self.painting);
+            }
+            if self.audio.as_ref().is_some_and(|a| a.failed()) {
+                self.audio = None;
+                self.settings.audio.enabled = false;
+                self.ui
+                    .error("Audio capture stopped (output device changed?): switch it on again");
+            }
+        } else {
+            self.audio = None;
+        }
         let g = self.gpu.as_mut().unwrap();
         g.painting = self.painting && self.export.is_none();
-        let s = &self.settings.clone();
+        let s = &frame;
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
         // display setup (HDR toggled, calibration rerun, SDR brightness moved).
         if self.display_dirty

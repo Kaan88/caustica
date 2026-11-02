@@ -487,6 +487,34 @@ impl Physics {
         *self == Self::default()
     }
 }
+/// Track 19 audio-reactive lights: what the PC plays scales the lights and emitters of each
+/// rendered frame (see audio.rs). The scene's own intensities are never changed.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct AudioReact {
+    pub enabled: bool,
+    /// Added intensity at full level (×, on top of `floor`).
+    pub gain: f32,
+    /// Intensity at silence (×).
+    pub floor: f32,
+    /// How much of the last level each frame keeps (at 60 fps), 0 = none.
+    pub smoothing: f32,
+}
+impl Default for AudioReact {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            gain: 1.5,
+            floor: 0.3,
+            smoothing: 0.6,
+        }
+    }
+}
+impl AudioReact {
+    pub fn is_off(&self) -> bool {
+        *self == Self::default()
+    }
+}
 /// Track 17 laser puzzle: a laser from `origin` along `direction`, routed by mirrors, splitters
 /// and glass to the object `target` (−1 = none) in at most `par` moves. A zero direction is
 /// treated as +x.
@@ -729,6 +757,9 @@ pub struct Settings {
     /// Track 17 laser puzzle (see laser.rs).
     #[serde(skip_serializing_if = "Puzzle::is_off")]
     pub puzzle: Puzzle,
+    /// Track 19 audio-reactive lights (see audio.rs).
+    #[serde(skip_serializing_if = "AudioReact::is_off")]
+    pub audio: AudioReact,
     /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
     /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
     pub lpe: Vec<String>,
@@ -869,6 +900,7 @@ impl Default for Settings {
             battle: false,
             physics: Physics::default(),
             puzzle: Puzzle::default(),
+            audio: AudioReact::default(),
             lpe: vec![],
             lpe_slot: 0,
             hdri: String::new(),
@@ -1238,6 +1270,12 @@ impl Settings {
                 && (0. ..=1.).contains(&self.physics.bounce)
                 && (0. ..=2.).contains(&self.physics.friction),
             "Invalid physics"
+        );
+        anyhow::ensure!(
+            (0. ..=8.).contains(&self.audio.gain)
+                && (0. ..=1.).contains(&self.audio.floor)
+                && (0. ..=0.99).contains(&self.audio.smoothing),
+            "Invalid audio settings"
         );
         let p = &self.puzzle;
         anyhow::ensure!(

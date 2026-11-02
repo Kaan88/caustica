@@ -2810,6 +2810,25 @@ impl App {
                 ui.label(egui::RichText::new(format!("{awake} awake")).small());
             });
         }
+        // Track 19 audio-reactive lights (see audio.rs).
+        section(ui, "Audio");
+        let a = &mut s.audio;
+        ui.checkbox(&mut a.enabled, "Lights follow the music").on_hover_text(
+            "Captures what the PC plays (loopback) and scales the lights by bass, mid and treble: the main light follows the bass, area light and emitter i band i mod 3. Every frame changes, so use DLSS RR. The scene's intensities are not changed.",
+        );
+        if a.enabled {
+            egui::Grid::new("audio").num_columns(2).show(ui, |ui| {
+                row(ui, "Gain", "Added intensity at full level (×)", |ui| {
+                    ui.add(egui::Slider::new(&mut a.gain, 0. ..=8.));
+                });
+                row(ui, "Floor", "Intensity at silence (×)", |ui| {
+                    ui.add(egui::Slider::new(&mut a.floor, 0. ..=1.));
+                });
+                row(ui, "Smoothing", "Higher is calmer", |ui| {
+                    ui.add(egui::Slider::new(&mut a.smoothing, 0. ..=0.99));
+                });
+            });
+        }
         // Track 17 laser puzzle (see laser.rs).
         section(ui, "Laser puzzle");
         let p = &mut s.puzzle;
