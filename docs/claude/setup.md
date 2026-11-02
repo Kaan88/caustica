@@ -20,7 +20,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
   - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.
-- **Git:** the repo root is `cornell/` (the folder and the GitHub repo kept the old name), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
+- **Git:** the repo root is the local folder `cornell/` (it kept the old name), with a private GitHub remote, `Kaan88/caustica`. `main` is the verified state. Commit and push only when the user asks.
 
 ### Machine (2026-10-29)
 
