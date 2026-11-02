@@ -20,7 +20,7 @@ The owner wants routine work on cheaper models, without wasting tokens. Every su
 
 - Caustica, a Windows-only path tracer (it began as a Cornell box): Rust 2024, D3D12 with DXR 1.1 inline `RayQuery`, HLSL compiled by DXC in build.rs, egui 0.31, C++ bridges to NGX (DLSS RR/SR), FSR and XeSS.
 - Personal project, never published: license terms don't limit assets or SDK use.
-- Git: `main` is the verified state. Commit and push only when the user asks. Every push to `main` that passes CI publishes a release `vX.Y.Z` with an installer (`.github/workflows/ci.yml`, `installer/caustica.iss`; patch auto-increments, bump `Cargo.toml` for minor/major). The icon is `assets/caustica.ico` from `tools/make_icon.py`, embedded by build.rs with rc.exe.
+- Git: `main` is the verified state. Commit and push only when the user asks. CI checks every push; only a pushed tag `vX.Y.Z` publishes a release with an installer (`.github/workflows/ci.yml`, `installer/caustica.iss`). Tag when a feature is complete or a fix warrants it (say so, and bump `Cargo.toml` to the tagged version in the same push); don't tag routine commits. The icon is `assets/caustica.ico` from `tools/make_icon.py`, embedded by build.rs with rc.exe.
 - Write each new feature's notes in `docs/engine-notes.md`. Record open items in `docs/roadmap.md`.
 
 ## Build and verify

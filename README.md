@@ -30,7 +30,7 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
 
 ## Releases and versions
 
-Every push to `main` that passes CI (format, Clippy, unit tests, release build on a Windows runner) becomes a GitHub release `vX.Y.Z` with an installer (`caustica-vX.Y.Z-setup.exe`: per-user, no admin prompt, Start menu entry, uninstaller; updates install over the previous version) and a zip of the app, plus the commit list since the previous release. Local builds don't make an installer; a manual run of the CI workflow on any branch builds one without releasing. The patch number counts up on its own; to start a new minor or major version, set it in `Cargo.toml` (for example `0.2.0`) and push. The version shows in the window title, at the top of the Menu and with `--version`; local builds say `-dev`.
+CI (format, Clippy, unit tests, release build on a Windows runner) checks every push to `main`. A pushed version tag (`git tag v0.2.0 && git push origin v0.2.0`) makes a GitHub release `vX.Y.Z` with an installer (`caustica-vX.Y.Z-setup.exe`: per-user, no admin prompt, Start menu entry, uninstaller; updates install over the previous version) and a zip of the app, plus the commit list since the previous release. Local builds don't make an installer; a manual run of the CI workflow on any branch builds one without releasing. Releases are tagged when a feature is complete or a fix warrants one; `Cargo.toml` carries the same version. The version shows in the window title, at the top of the Menu and with `--version`; local builds say `-dev`.
 
 ## Rendering
 

@@ -1,27 +1,27 @@
-# Roadmap 17b: build and check every push on a Windows runner. A push to main that passes
-# becomes a release: the next version tag, an installer, a zip of the app and notes from the
-# commits. A manual run (workflow_dispatch) on any branch builds both without releasing.
-#
-# Versioning: Cargo.toml holds major.minor.patch. If no tag v<that version> exists yet, the
-# release is exactly that version (bump Cargo.toml to start 0.3.0 or 1.0.0); otherwise it is
-# the next patch above the highest v<major>.<minor>.* tag.
+# Roadmap 17b: build and check every push to main and every PR on a Windows runner. Only a
+# pushed tag v<X.Y.Z> makes a release: that version, an installer, a zip of the app and the
+# commits since the previous tag. Tag when a feature is complete or a fix warrants it:
+#   git tag v0.2.0 && git push origin v0.2.0
+# Keep Cargo.toml's version in step with the latest tag (untagged builds say <it>-ci.<sha>).
+# A manual run (workflow_dispatch) on any branch builds the installer without releasing.
 name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
   contents: write
-# Pushes to main queue up (a release never races another for the same version number).
+# A newer push to the same branch cancels the older run; tag runs always finish.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 jobs:
   build:
     runs-on: windows-latest
     env:
-      RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      RELEASE: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,15 +41,12 @@ jobs:
       - name: Version
         shell: pwsh
         run: |
-          $base = (Select-String -Path Cargo.toml -Pattern '^version = "(\d+)\.(\d+)\.(\d+)"').Matches[0].Groups
-          $major, $minor, $patch = [int]$base[1].Value, [int]$base[2].Value, [int]$base[3].Value
-          $tags = @(git tag --list "v$major.$minor.*" | ForEach-Object { if ($_ -match '^v\d+\.\d+\.(\d+)$') { [int]$Matches[1] } })
-          if ($tags -notcontains $patch -and ($tags.Count -eq 0 -or $patch -gt ($tags | Measure-Object -Maximum).Maximum)) {
-            $version = "$major.$minor.$patch"
+          if ($env:RELEASE -eq 'true') {
+            $version = $env:GITHUB_REF_NAME.TrimStart('v')
           } else {
-            $version = "$major.$minor.$((($tags | Measure-Object -Maximum).Maximum) + 1)"
+            $base = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
+            $version = "$base-ci.$($env:GITHUB_SHA.Substring(0, 7))"
           }
-          if ($env:RELEASE -ne 'true') { $version = "$version-ci.$($env:GITHUB_SHA.Substring(0, 7))" }
           "CAUSTICA_VERSION=$version" >> $env:GITHUB_ENV
           "Version $version"
       - name: Format
@@ -98,7 +95,8 @@ jobs:
         if: env.RELEASE == 'true'
         shell: pwsh
         run: |
-          $previous = git describe --tags --abbrev=0 --match 'v*' 2>$null
+          # The tag before this one (HEAD itself carries the new tag).
+          $previous = git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>$null
           $range = if ($previous) { "$previous..HEAD" } else { 'HEAD' }
           $log = git log $range --no-merges --format='- %s (%h)'
           $header = if ($previous) { "Changes since $previous`n" } else { "First release`n" }
