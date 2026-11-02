@@ -218,6 +218,18 @@ pub struct UiState {
     pub tool: gizmo::Tool,
     pub local: bool,
     pub hover: Option<gizmo::Handle>,
+    /// Multi-select (3b): the selected items besides `selection` (the active one), the pivot
+    /// they turn and scale around, the 3D cursor, and what Ctrl snaps a move to.
+    pub also: Vec<Selection>,
+    pub pivot: gizmo::Pivot,
+    pub cursor3d: glam::Vec3,
+    pub snap_to: crate::snap::Target,
+    /// Box select: B arms it for the next drag (the Select tool always drags a box); the
+    /// corner where the drag started, in points.
+    pub box_armed: bool,
+    pub box_start: Option<egui::Pos2>,
+    /// Object and light counts `also` belongs to; any other change drops it.
+    also_counts: (usize, usize),
     /// The object under the pointer (from the GPU object-id probe), outlined faintly.
     pub hovered: Option<usize>,
     /// Status bar: when samples were last counted, how many, and samples per second.
@@ -278,7 +290,7 @@ impl Default for UiState {
                     [1920, 1080],
                     120,
                     32,
-                    "cornell-turntable.mp4".into(),
+                    "caustica-turntable.mp4".into(),
                 )
             },
             show_video: false,
@@ -321,6 +333,13 @@ impl Default for UiState {
             tool: gizmo::Tool::Move,
             local: false,
             hover: None,
+            also: vec![],
+            pivot: gizmo::Pivot::Median,
+            cursor3d: glam::Vec3::new(0., -1., 0.),
+            snap_to: crate::snap::Target::Increment,
+            box_armed: false,
+            box_start: None,
+            also_counts: (0, 0),
             hovered: None,
             sample_rate: (Instant::now(), 0, 0.),
             context_menu: None,
@@ -402,57 +421,156 @@ impl UiState {
         self.undo.push(std::mem::replace(s, next));
         true
     }
-    /// Duplicates the selected object or area light next to it and selects the copy; returns
-    /// the copy's name.
-    pub fn duplicate_selected(&mut self, s: &mut Settings) -> Option<String> {
-        let copy_name = |n: &str| format!("{} copy", n.chars().take(110).collect::<String>());
-        match self.selection {
-            Selection::Object(i) if i < s.objects.len() && s.objects.len() < scene::MAX_OBJECTS => {
-                self.checkpoint(s);
-                let mut o = s.objects[i].clone();
-                o.name = copy_name(&o.name);
-                // A pair is two-way: a copy starts unpaired.
-                o.portal = -1;
-                o.position[0] += 0.25;
-                o.position[1] += 0.15;
-                let name = o.name.clone();
-                s.objects.push(o);
-                self.selection = Selection::Object(s.objects.len() - 1);
-                Some(name)
+    /// Every selected item that can be transformed, the active one first.
+    pub fn targets(&self) -> Vec<Selection> {
+        let mut v = vec![];
+        if transformable(self.selection) {
+            v.push(self.selection);
+        }
+        for s in &self.also {
+            if !v.contains(s) {
+                v.push(*s);
             }
-            Selection::Light(i) if i < s.lights.len() && s.lights.len() < scene::MAX_LIGHTS => {
-                self.checkpoint(s);
-                let mut l = s.lights[i].clone();
-                l.name = copy_name(&l.name);
-                l.position[0] += 0.25;
-                let name = l.name.clone();
-                s.lights.push(l);
-                self.selection = Selection::Light(s.lights.len() - 1);
-                Some(name)
+        }
+        v
+    }
+    pub fn is_selected(&self, sel: Selection) -> bool {
+        self.selection == sel || self.also.contains(&sel)
+    }
+    /// A plain click: only `sel`.
+    pub fn select(&mut self, sel: Selection) {
+        self.selection = sel;
+        self.also.clear();
+    }
+    /// Shift+click: adds `sel` and makes it active, or removes it when already selected.
+    pub fn toggle(&mut self, sel: Selection) {
+        if self.selection == sel {
+            self.selection = self.also.pop().unwrap_or(Selection::None);
+        } else if let Some(k) = self.also.iter().position(|x| *x == sel) {
+            self.also.remove(k);
+        } else {
+            if transformable(self.selection) {
+                self.also.push(self.selection);
             }
-            _ => None,
+            self.selection = sel;
         }
     }
-    /// Hides or shows the selected object or area light (camera visibility); returns a toast.
-    pub fn toggle_hidden_selected(&mut self, s: &mut Settings) -> Option<String> {
-        let ok = matches!(self.selection, Selection::Object(i) if i < s.objects.len())
-            || matches!(self.selection, Selection::Light(i) if i < s.lights.len());
-        if !ok {
+    /// `toggle` with the counts recorded, so `tidy_selection` keeps what it added.
+    pub fn toggle_in(&mut self, sel: Selection, s: &Settings) {
+        self.also_counts = (s.objects.len(), s.lights.len());
+        self.toggle(sel);
+    }
+    /// Selects `items`, keeping the active one when it is among them.
+    pub fn select_many(&mut self, items: Vec<Selection>, s: &Settings) {
+        self.also_counts = (s.objects.len(), s.lights.len());
+        let active = if items.contains(&self.selection) {
+            self.selection
+        } else {
+            items.first().copied().unwrap_or(Selection::None)
+        };
+        self.selection = active;
+        self.also = items.into_iter().filter(|x| *x != active).collect();
+    }
+    /// Drops the extra selections when the active item is not an object or light, and after
+    /// objects or lights were added or removed elsewhere (undo, a load): their indices moved.
+    pub fn tidy_selection(&mut self, s: &Settings) {
+        let counts = (s.objects.len(), s.lights.len());
+        if counts != self.also_counts || !transformable(self.selection) {
+            self.also.clear();
+        }
+        self.also_counts = counts;
+        let active = self.selection;
+        self.also.retain(|x| *x != active);
+    }
+    /// Duplicates the selected objects and area lights (next to the originals when `offset`,
+    /// else in place, for Alt-drag) and selects the copies; returns a name for the toast.
+    pub fn duplicate_selected(&mut self, s: &mut Settings, offset: bool) -> Option<String> {
+        let copy_name = |n: &str| format!("{} copy", n.chars().take(110).collect::<String>());
+        let targets = self.targets();
+        let (objects, lights) = (s.objects.len(), s.lights.len());
+        let copyable = |t: &&Selection| match **t {
+            Selection::Object(i) => i < objects,
+            Selection::Light(i) => i < lights,
+            _ => false,
+        };
+        let targets: Vec<Selection> = targets.iter().filter(copyable).copied().collect();
+        if targets.is_empty() {
             return None;
         }
+        let snapshot = s.clone();
+        let mut copies = vec![];
+        let mut names = vec![];
+        for t in &targets {
+            match *t {
+                Selection::Object(i) if s.objects.len() < scene::MAX_OBJECTS => {
+                    let mut o = s.objects[i].clone();
+                    o.name = copy_name(&o.name);
+                    // A pair is two-way: a copy starts unpaired.
+                    o.portal = -1;
+                    if offset {
+                        o.position[0] += 0.25;
+                        o.position[1] += 0.15;
+                    }
+                    names.push(o.name.clone());
+                    s.objects.push(o);
+                    copies.push(Selection::Object(s.objects.len() - 1));
+                }
+                Selection::Light(i) if s.lights.len() < scene::MAX_LIGHTS => {
+                    let mut l = s.lights[i].clone();
+                    l.name = copy_name(&l.name);
+                    if offset {
+                        l.position[0] += 0.25;
+                    }
+                    names.push(l.name.clone());
+                    s.lights.push(l);
+                    copies.push(Selection::Light(s.lights.len() - 1));
+                }
+                _ => {}
+            }
+        }
+        if copies.is_empty() {
+            return None;
+        }
+        self.checkpoint(&snapshot);
+        self.also_counts = (s.objects.len(), s.lights.len());
+        self.selection = copies[0];
+        self.also = copies[1..].to_vec();
+        Some(if names.len() == 1 {
+            names.remove(0)
+        } else {
+            format!("{} items", names.len())
+        })
+    }
+    /// Hides or shows the selected objects and area lights (camera visibility; all follow the
+    /// first); returns a toast.
+    pub fn toggle_hidden_selected(&mut self, s: &mut Settings) -> Option<String> {
+        let items: Vec<Selection> = self
+            .targets()
+            .into_iter()
+            .filter(|t| match *t {
+                Selection::Object(i) => i < s.objects.len(),
+                Selection::Light(i) => i < s.lights.len(),
+                _ => false,
+            })
+            .collect();
+        let first = *items.first()?;
         self.checkpoint(s);
-        let (name, visible) = match self.selection {
-            Selection::Object(i) => {
-                let o = &mut s.objects[i];
-                o.visible = !o.visible;
-                (o.name.clone(), o.visible)
-            }
-            Selection::Light(i) => {
-                let l = &mut s.lights[i];
-                l.visible = !l.visible;
-                (l.name.clone(), l.visible)
-            }
+        let (name, visible) = match first {
+            Selection::Object(i) => (s.objects[i].name.clone(), !s.objects[i].visible),
+            Selection::Light(i) => (s.lights[i].name.clone(), !s.lights[i].visible),
             _ => unreachable!(),
+        };
+        for t in &items {
+            match *t {
+                Selection::Object(i) => s.objects[i].visible = visible,
+                Selection::Light(i) => s.lights[i].visible = visible,
+                _ => {}
+            }
+        }
+        let name = if items.len() > 1 {
+            format!("{} items", items.len())
+        } else {
+            name
         };
         Some(format!(
             "{} {name}",
@@ -470,49 +588,81 @@ impl UiState {
         }
         hidden
     }
-    /// Deletes the selected object or area light; returns its name.
-    pub fn delete_selected(&mut self, s: &mut Settings) -> Option<String> {
-        if matches!(self.selection, Selection::Object(i) if i < s.objects.len())
-            || matches!(self.selection, Selection::Light(i) if i < s.lights.len())
-        {
-            self.checkpoint(s);
+    /// Removes object `i`, fixing the indices that point at objects (animation tracks, the
+    /// laser target, tethers).
+    fn remove_object(s: &mut Settings, i: usize) -> String {
+        let name = s.objects.remove(i).name;
+        s.animation.removed("objects", i);
+        // The laser puzzle's target and the strings' objects are indices (track 17).
+        let t = &mut s.puzzle.target;
+        if *t == i as i32 {
+            *t = -1;
+        } else if *t > i as i32 {
+            *t -= 1;
         }
-        match self.selection {
-            Selection::Object(i) if i < s.objects.len() => {
-                let name = s.objects.remove(i).name;
-                s.animation.removed("objects", i);
-                // The laser puzzle's target and the strings' objects are indices (track 17).
-                let t = &mut s.puzzle.target;
-                if *t == i as i32 {
-                    *t = -1;
-                } else if *t > i as i32 {
-                    *t -= 1;
+        for o in &mut s.objects {
+            if let Some(t) = &mut o.tether {
+                if t.object as usize == i {
+                    o.tether = None;
+                } else if t.object as usize > i {
+                    t.object -= 1;
                 }
-                for o in &mut s.objects {
-                    if let Some(t) = &mut o.tether {
-                        if t.object as usize == i {
-                            o.tether = None;
-                        } else if t.object as usize > i {
-                            t.object -= 1;
-                        }
-                    }
-                }
-                self.selection = if s.objects.is_empty() {
-                    Selection::Stage
-                } else {
-                    Selection::Object(i.min(s.objects.len() - 1))
-                };
-                Some(name)
             }
-            Selection::Light(i) if i < s.lights.len() => {
-                let name = s.lights.remove(i).name;
-                s.animation.removed("lights", i);
-                self.selection = Selection::MainLight;
-                Some(name)
-            }
-            _ => None,
         }
+        name
     }
+    /// Deletes the selected objects and area lights; returns a name for the toast.
+    pub fn delete_selected(&mut self, s: &mut Settings) -> Option<String> {
+        let mut objects: Vec<usize> = vec![];
+        let mut lights: Vec<usize> = vec![];
+        for t in self.targets() {
+            match t {
+                Selection::Object(i) if i < s.objects.len() => objects.push(i),
+                Selection::Light(i) if i < s.lights.len() => lights.push(i),
+                _ => {}
+            }
+        }
+        if objects.is_empty() && lights.is_empty() {
+            return None;
+        }
+        self.checkpoint(s);
+        let single = objects.len() + lights.len() == 1;
+        // Highest index first, so the lower ones stay valid.
+        objects.sort_unstable_by(|a, b| b.cmp(a));
+        lights.sort_unstable_by(|a, b| b.cmp(a));
+        let mut names = vec![];
+        for &i in &objects {
+            names.push(Self::remove_object(s, i));
+        }
+        for &i in &lights {
+            names.push(s.lights.remove(i).name);
+            s.animation.removed("lights", i);
+        }
+        self.also.clear();
+        self.also_counts = (s.objects.len(), s.lights.len());
+        self.selection = if single && objects.len() == 1 && !s.objects.is_empty() {
+            // One object: its neighbour becomes selected, so Delete can be held down.
+            Selection::Object(objects[0].min(s.objects.len() - 1))
+        } else if single && lights.len() == 1 {
+            Selection::MainLight
+        } else if s.objects.is_empty() {
+            Selection::Stage
+        } else {
+            Selection::None
+        };
+        Some(if single {
+            names.remove(0)
+        } else {
+            format!("{} items", names.len())
+        })
+    }
+}
+/// Items gizmos can move: objects, area lights and the main light.
+pub fn transformable(s: Selection) -> bool {
+    matches!(
+        s,
+        Selection::Object(_) | Selection::Light(_) | Selection::MainLight
+    )
 }
 
 pub fn theme(ctx: &egui::Context) {
@@ -816,8 +966,10 @@ fn hdr_line(app: &App) -> String {
     };
     let mut line = if g.hdr_active {
         format!(
-            "{name}: {windows} · HDR output, {:.0} nits peak, paper white {:.0} nits",
-            g.hdr_levels[1], g.hdr_levels[0]
+            "{name}: {windows} · HDR output ({}), {:.0} nits peak, paper white {:.0} nits",
+            if g.hdr10 { "HDR10" } else { "scRGB" },
+            g.hdr_levels[1],
+            g.hdr_levels[0]
         )
     } else {
         format!("{name}: {windows} · SDR output")
@@ -855,6 +1007,7 @@ impl App {
             crate::reset_source(l, self.reset_baseline.lights.get(i).unwrap_or(&LIGHT));
         }
         crate::reset_source(&self.ui, &*self.ui_defaults);
+        self.ui.tidy_selection(&self.settings);
         self.draw_ui(ctx);
         crate::clear_reset_sources();
     }
@@ -1052,7 +1205,7 @@ impl App {
         let s = &mut self.settings;
         match c {
             Command::Duplicate => {
-                if let Some(name) = self.ui.duplicate_selected(s) {
+                if let Some(name) = self.ui.duplicate_selected(s, true) {
                     self.ui.toast(format!("Duplicated: {name}"));
                 }
             }
@@ -1665,7 +1818,13 @@ impl App {
             }
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut self.ui.reference_path).desired_width(220.));
-                load = ui.button("Load EXR").clicked();
+                if ui.button("Browse…").clicked()
+                    && let Some(p) = rfd::FileDialog::new().add_filter("Linear EXR", &["exr"]).set_directory(std::env::current_dir().unwrap_or_default().join("captures")).pick_file()
+                {
+                    self.ui.reference_path = p.to_string_lossy().into();
+                    load = true;
+                }
+                load |= ui.button("Load EXR").clicked();
                 use_current = ui.button("Use current image").on_hover_text(format!("{} spp now", g.samples)).clicked();
             });
             let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(300.), 200.), egui::Sense::hover());
@@ -1952,7 +2111,8 @@ impl App {
             egui::Order::Background,
             egui::Id::new("gizmo"),
         ));
-        gizmo::draw_lights(&painter, ppp, &view, &self.settings, self.ui.selection);
+        let targets = self.ui.targets();
+        gizmo::draw_lights(&painter, ppp, &view, &self.settings, &targets);
         if self.settings.puzzle.enabled && self.settings.perspective() {
             self.laser
                 .draw(&painter, ppp, &view, self.settings.puzzle.color);
@@ -2046,7 +2206,7 @@ impl App {
         // Selection and hover outlines: the projected box of the object.
         if self.settings.perspective() {
             if let Some(i) = self.ui.hovered
-                && self.ui.selection != Selection::Object(i)
+                && !self.ui.is_selected(Selection::Object(i))
                 && self.ui.transform.is_none()
                 && let Some(o) = self.settings.objects.get(i)
             {
@@ -2059,22 +2219,67 @@ impl App {
                     stroke,
                 );
             }
-            if let Selection::Object(i) = self.ui.selection
-                && let Some(o) = self.settings.objects.get(i)
-            {
-                let stroke = egui::Stroke::new(1.5_f32, ACCENT);
-                gizmo::draw_box_outline(
-                    &painter,
-                    ppp,
-                    &view,
-                    &crate::geometry::object_corners(o),
-                    stroke,
-                );
+            for t in &targets {
+                if let Selection::Object(i) = *t
+                    && let Some(o) = self.settings.objects.get(i)
+                {
+                    // The active item brighter than the rest of the selection.
+                    let stroke = if *t == self.ui.selection {
+                        egui::Stroke::new(1.5_f32, ACCENT)
+                    } else {
+                        egui::Stroke::new(1_f32, ACCENT.gamma_multiply(0.6))
+                    };
+                    gizmo::draw_box_outline(
+                        &painter,
+                        ppp,
+                        &view,
+                        &crate::geometry::object_corners(o),
+                        stroke,
+                    );
+                }
             }
+            // The 3D cursor, while it is the pivot: a red and white ring with a cross.
+            if self.ui.pivot == gizmo::Pivot::Cursor
+                && let Some(c) = view.project(self.ui.cursor3d)
+            {
+                let c = egui::pos2(c.x / ppp, c.y / ppp);
+                for k in 0..8 {
+                    let (a0, a1) = (
+                        k as f32 / 8. * std::f32::consts::TAU,
+                        (k + 1) as f32 / 8. * std::f32::consts::TAU,
+                    );
+                    let color = if k % 2 == 0 {
+                        egui::Color32::from_rgb(232, 72, 82)
+                    } else {
+                        egui::Color32::WHITE
+                    };
+                    painter.line_segment(
+                        [
+                            c + 9. * egui::vec2(a0.cos(), a0.sin()),
+                            c + 9. * egui::vec2(a1.cos(), a1.sin()),
+                        ],
+                        egui::Stroke::new(1.5_f32, color),
+                    );
+                }
+                let cross = egui::Stroke::new(1_f32, egui::Color32::from_black_alpha(200));
+                painter.line_segment([c - egui::vec2(14., 0.), c + egui::vec2(14., 0.)], cross);
+                painter.line_segment([c - egui::vec2(0., 14.), c + egui::vec2(0., 14.)], cross);
+            }
+        }
+        // Box select in progress: the rectangle from where the drag started to the pointer.
+        if let (Some(a), Some(b)) = (self.ui.box_start, ctx.pointer_latest_pos()) {
+            let r = egui::Rect::from_two_pos(a, b);
+            painter.rect_filled(r, 0., egui::Color32::from_white_alpha(12));
+            painter.rect_stroke(
+                r,
+                0.,
+                egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(170)),
+                egui::StrokeKind::Inside,
+            );
         }
         self.ui.hover = None;
         if let Some(t) = &self.ui.transform {
-            if let Some(f) = gizmo::frame(&t.original, t.target) {
+            if let Some(f) = t.frame() {
                 gizmo::draw(
                     &painter,
                     ppp,
@@ -2093,7 +2298,7 @@ impl App {
                 .show(ctx, |ui| {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
                         ui.label(egui::RichText::new(&self.ui.header).strong());
-                        note(ui, "X / Y / Z axis (again: local, again: free) · Shift+X/Y/Z plane · type a value · Ctrl snap · Shift fine · click or Enter to confirm · right-click or Esc to cancel");
+                        note(ui, "X / Y / Z axis (again: local, again: free) · Shift+X/Y/Z plane · type a value (a free move: Tab for the next axis) · Ctrl snap · Shift fine · click or Enter to confirm · right-click or Esc to cancel");
                     });
                 });
             return;
@@ -2101,12 +2306,13 @@ impl App {
         let mode = self.tool_mode();
         // The gizmo's projection math assumes a perspective camera.
         if self.ui.tool == gizmo::Tool::Select
-            || !gizmo::allows(self.ui.selection, mode)
+            || !gizmo::allows(&targets, mode)
             || !self.settings.perspective()
         {
             return;
         }
-        let Some(f) = gizmo::frame(&self.settings, self.ui.selection) else {
+        let Some(f) = gizmo::group_frame(&self.settings, &targets, self.ui.pivot, self.ui.cursor3d)
+        else {
             return;
         };
         if !ctx.is_pointer_over_area()
@@ -2128,17 +2334,28 @@ impl App {
     }
     /// Starts a transform of the selection: from the handle under the pointer, or modal.
     pub fn start_transform(&mut self, mode: gizmo::Mode, handle: Option<gizmo::Handle>) -> bool {
-        let sel = self.ui.selection;
-        if !gizmo::allows(sel, mode) || gizmo::frame(&self.settings, sel).is_none() {
+        let targets = self.ui.targets();
+        if targets.is_empty()
+            || !gizmo::allows(&targets, mode)
+            || gizmo::frame(&self.settings, targets[0]).is_none()
+        {
             return false;
         }
         let mouse = glam::Vec2::new(self.cursor[0] as f32, self.cursor[1] as f32);
-        let t = match handle {
-            Some(h) => {
-                gizmo::Transform::from_handle(mode, h, sel, mouse, &self.settings, self.ui.local)
-            }
-            None => gizmo::Transform::new(mode, sel, mouse, &self.settings, self.ui.local),
+        let mut t = match handle {
+            Some(h) => gizmo::Transform::from_handle(
+                mode,
+                h,
+                targets,
+                mouse,
+                &self.settings,
+                self.ui.local,
+            ),
+            None => gizmo::Transform::new(mode, targets, mouse, &self.settings, self.ui.local),
         };
+        t.pivot = self.ui.pivot;
+        t.cursor = self.ui.cursor3d;
+        t.snap_to = self.ui.snap_to;
         self.ui.transform = Some(t);
         self.update_transform();
         true
@@ -2166,6 +2383,10 @@ impl App {
     pub fn cancel_transform(&mut self) {
         if let Some(t) = self.ui.transform.take() {
             t.restore(&mut self.settings);
+            if t.undo_on_cancel {
+                // The copy made for this move goes too (Blender's Shift+D / Alt-drag).
+                self.ui.undo(&mut self.settings);
+            }
             self.ui.header.clear();
             self.ui.toast("Transform cancelled");
         }
@@ -2217,6 +2438,13 @@ impl App {
             K::Backspace => {
                 t.typed.pop();
             }
+            // A free or plane move takes a value per axis: Tab moves to the next one.
+            K::Tab
+                if t.mode == gizmo::Mode::Move
+                    && !matches!(t.constraint, gizmo::Constraint::Axis(_)) =>
+            {
+                t.next_field();
+            }
             K::Enter | K::NumpadEnter => {
                 self.finish_transform();
                 return true;
@@ -2246,6 +2474,8 @@ impl App {
             // Wraps onto a second row when the window is too narrow, so no control is cut off.
             ui.horizontal_wrapped(|ui| {
                 ui.menu_button("Menu", |ui| {
+                    ui.weak(format!("Caustica {}", crate::VERSION));
+                    ui.separator();
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
                     if ui.button("Phone remote…").clicked() {
                         self.ui.show_remote = true;
@@ -2287,11 +2517,15 @@ impl App {
                         ui.close_menu();
                     }
                     if ui.button("Save settings.json").clicked() {
-                        self.actions.save = true;
+                        self.actions.save = Some("settings.json".into());
                         ui.close_menu();
                     }
-                    if ui.button("Load settings.json").clicked() {
-                        self.actions.load = true;
+                    if ui.button("Save settings as…").clicked() {
+                        self.actions.save = settings_dialog(true);
+                        ui.close_menu();
+                    }
+                    if ui.button("Load settings…").clicked() {
+                        self.actions.load = settings_dialog(false);
                         ui.close_menu();
                     }
                     if ui.button("Reset everything to defaults").clicked() {
@@ -2499,6 +2733,26 @@ impl App {
                     })
                     .response
                     .on_hover_text("Gizmo axes: the world's, or the object's own");
+                egui::ComboBox::from_id_salt("pivot")
+                    .selected_text(self.ui.pivot.label())
+                    .width(120.)
+                    .show_ui(ui, |ui| {
+                        for p in gizmo::Pivot::ALL {
+                            ui.selectable_value(&mut self.ui.pivot, p, p.label());
+                        }
+                    })
+                    .response
+                    .on_hover_text("What several selected items rotate and scale around. Shift+right-click places the 3D cursor");
+                egui::ComboBox::from_id_salt("snap")
+                    .selected_text(format!("Snap: {}", self.ui.snap_to.label()))
+                    .width(120.)
+                    .show_ui(ui, |ui| {
+                        for t in crate::snap::Target::ALL {
+                            ui.selectable_value(&mut self.ui.snap_to, t, t.label());
+                        }
+                    })
+                    .response
+                    .on_hover_text("Hold Ctrl while transforming. Increment: 0.1 units, 15°, 0.1×. Surface / Vertex / Edge: a move goes to what is under the pointer");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let label = if self.ui.panel_hidden {
                         "Show panel"
@@ -3088,6 +3342,17 @@ impl App {
         let state = &mut self.ui;
         note(ui, &description);
         section(ui, "Outliner");
+        // Shift+click adds to the selection or removes from it (multi-select, 3b).
+        let shift = ui.input(|i| i.modifiers.shift);
+        let pick = |state: &mut UiState, r: &egui::Response, sel: Selection| {
+            if r.clicked() {
+                if shift {
+                    state.toggle(sel);
+                } else {
+                    state.select(sel);
+                }
+            }
+        };
         egui::ScrollArea::vertical()
             .id_salt("outliner")
             .max_height(230.)
@@ -3100,18 +3365,20 @@ impl App {
                 ui.selectable_value(&mut state.selection, Selection::Camera, "Camera");
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut s.light_on, "").on_hover_text("On / off");
-                    ui.selectable_value(&mut state.selection, Selection::MainLight, "Main light");
+                    let r =
+                        ui.selectable_label(state.is_selected(Selection::MainLight), "Main light");
+                    pick(state, &r, Selection::MainLight);
                 });
                 for (i, l) in s.lights.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         ui.push_id(("light", i), |ui| {
                             ui.checkbox(&mut l.enabled, "").on_hover_text("On / off");
                         });
-                        ui.selectable_value(
-                            &mut state.selection,
-                            Selection::Light(i),
+                        let r = ui.selectable_label(
+                            state.is_selected(Selection::Light(i)),
                             format!("Light · {}", l.name),
                         );
+                        pick(state, &r, Selection::Light(i));
                     });
                 }
                 ui.separator();
@@ -3137,16 +3404,13 @@ impl App {
                         ui.push_id(("object", i), |ui| {
                             ui.checkbox(&mut o.visible, "").on_hover_text("Visible");
                         });
-                        let r = ui.selectable_value(
-                            &mut state.selection,
-                            Selection::Object(i),
-                            &o.name,
-                        );
-                        if r.double_clicked() {
-                            state.selection = Selection::Object(i);
-                        }
-                        if r.secondary_clicked() {
-                            state.selection = Selection::Object(i);
+                        let r =
+                            ui.selectable_label(state.is_selected(Selection::Object(i)), &o.name);
+                        pick(state, &r, Selection::Object(i));
+                        // A right click keeps a selection the row is part of (its menu acts
+                        // on all of it).
+                        if r.secondary_clicked() && !state.is_selected(Selection::Object(i)) {
+                            state.select(Selection::Object(i));
                         }
                         r.context_menu(|ui| {
                             if let Some(c) = context_items(ui, true) {
@@ -3380,7 +3644,7 @@ impl App {
                         )
                         .clicked()
                     {
-                        state.duplicate_selected(s);
+                        state.duplicate_selected(s, true);
                     }
                     if ui.button("Delete (Del)").clicked()
                         && let Some(name) = state.delete_selected(s)
@@ -3439,9 +3703,10 @@ impl App {
         let s = &mut self.settings;
         let advanced = self.ui.advanced;
         section(ui, "Reconstruction");
-        ui.add_enabled(g.rr_available(), egui::Checkbox::new(&mut s.rr, "DLSS Ray Reconstruction"))
+        let caps = g.capabilities();
+        ui.add_enabled(caps.rr.available || s.rr, egui::Checkbox::new(&mut s.rr, "DLSS Ray Reconstruction"))
             .on_hover_text("NVIDIA's neural denoiser and upscaler in one. When off, the native denoiser and the upscaler below are used.")
-            .on_disabled_hover_text(&g.rr_status);
+            .on_disabled_hover_text(format!("Unavailable: {}", caps.rr.reason));
         if s.rr {
             let color = if g.rr_active {
                 ui.visuals().weak_text_color()
@@ -3488,9 +3753,10 @@ impl App {
                         .width(175.)
                         .show_ui(ui, |ui| {
                             for u in Upscaler::ALL {
-                                ui.add_enabled_ui(g.upscaler_available(u), |ui| {
+                                let backend = caps.upscaler(u);
+                                ui.add_enabled_ui(backend.is_none_or(|b| b.available) || s.upscaler == u, |ui| {
                                     ui.selectable_value(&mut s.upscaler, u, u.label())
-                                        .on_disabled_hover_text("Not available on this system");
+                                        .on_disabled_hover_text(format!("Unavailable: {}", backend.map_or("", |b| b.reason.as_str())));
                                 });
                             }
                         });
@@ -3703,12 +3969,13 @@ impl App {
     /// when RR is not available here.
     fn quality_combo(&mut self, ui: &mut egui::Ui) {
         let g = self.gpu.as_ref().unwrap();
-        let rr_ok = g.rr_available();
+        let caps = g.capabilities();
+        let rr_ok = caps.rr.available;
         let upscaler = [Upscaler::Dlss, Upscaler::Xess, Upscaler::Fsr]
             .into_iter()
-            .find(|u| g.upscaler_available(*u))
+            .find(|u| caps.upscaler(*u).is_some_and(|b| b.available))
             .unwrap_or(Upscaler::Bicubic);
-        let rr_reason = g.rr_status.clone();
+        let rr_reason = caps.rr.reason;
         let current = Bundle::of(&self.settings);
         let mut chosen = None;
         egui::ComboBox::from_id_salt("quality")
@@ -3839,6 +4106,29 @@ impl App {
             }
             row(
                 ui,
+                "Film stock",
+                "Sets grain, grain size and halation to resemble a film stock (rough matches by eye: the grain is monochrome and the colour response is not modelled).",
+                |ui| {
+                    let current = FILM_STOCKS
+                        .iter()
+                        .find(|(_, g, z, h)| (s.grain - g).abs() < 1e-4 && s.grain_size == *z && (s.halation - h).abs() < 1e-4)
+                        .map_or("Custom", |(n, ..)| *n);
+                    egui::ComboBox::from_id_salt("film stock")
+                        .selected_text(current)
+                        .width(170.)
+                        .show_ui(ui, |ui| {
+                            for (name, grain, size, halation) in FILM_STOCKS {
+                                if ui.selectable_label(current == *name, *name).clicked() {
+                                    s.grain = *grain;
+                                    s.grain_size = *size;
+                                    s.halation = *halation;
+                                }
+                            }
+                        });
+                },
+            );
+            row(
+                ui,
                 "Grain",
                 "Film grain, strongest in the midtones.",
                 |ui| {
@@ -3878,6 +4168,13 @@ impl App {
                             .hint_text("path to .cube")
                             .desired_width(170.),
                     );
+                    if ui.small_button("Browse…").clicked()
+                        && let Some(p) = rfd::FileDialog::new()
+                            .add_filter("3D LUT", &["cube"])
+                            .pick_file()
+                    {
+                        s.lut_path = p.to_string_lossy().into();
+                    }
                     if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
                         s.lut_path.clear();
                     }
@@ -3904,6 +4201,12 @@ impl App {
                     }
                 });
             });
+            if g.hdr_active || s.hdr_mode != 1 {
+                row(ui, "Swapchain", "scRGB: 16-bit float, Windows converts it for the panel. HDR10: 10-bit PQ in BT.2020, sent to the panel as it is (for comparison).", |ui| {
+                    ui.selectable_value(&mut s.hdr10, false, "scRGB (FP16)");
+                    ui.selectable_value(&mut s.hdr10, true, "HDR10 (PQ)");
+                });
+            }
             if g.hdr_active {
                 row(ui, "Peak brightness", "From Windows HDR Calibration, or set by hand.", |ui| {
                     let mut windows = s.hdr_peak == 0.;
@@ -3991,7 +4294,7 @@ impl App {
                 } else {
                     format.label().to_string()
                 };
-                let file = format.file("cornell");
+                let file = format.file("caustica");
                 if ui
                     .button(label)
                     .on_hover_text(format!("{}: {}", file.display(), format.description()))
@@ -4060,7 +4363,7 @@ impl App {
             );
         });
         let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
-        let name = self.ui.export_format.file("cornell-high-res");
+        let name = self.ui.export_format.file("caustica-high-res");
         if ui.button("Render high-resolution image").clicked() {
             self.actions.high_res = true;
         }
@@ -4093,12 +4396,27 @@ impl App {
         section(ui, "Scene file");
         ui.horizontal(|ui| {
             if ui.button("Save settings.json").clicked() {
-                self.actions.save = true;
+                self.actions.save = Some("settings.json".into());
             }
-            if ui.button("Load settings.json").clicked() {
-                self.actions.load = true;
+            if ui.button("Save as…").clicked() {
+                self.actions.save = settings_dialog(true);
+            }
+            if ui.button("Load…").clicked() {
+                self.actions.load = settings_dialog(false);
             }
         });
+    }
+}
+/// Picks a settings JSON to save (`save`) or load, starting in the working directory where the
+/// quick buttons keep settings.json.
+fn settings_dialog(save: bool) -> Option<std::path::PathBuf> {
+    let d = rfd::FileDialog::new()
+        .add_filter("Settings", &["json"])
+        .set_directory(std::env::current_dir().unwrap_or_default());
+    if save {
+        d.set_file_name("settings.json").save_file()
+    } else {
+        d.pick_file()
     }
 }
 /// Global fog rows of the Stage grid (track 12).
@@ -4641,6 +4959,19 @@ fn context_items(ui: &mut egui::Ui, selected: bool) -> Option<Command> {
     }
     chosen
 }
+/// Film stock looks (roadmap 5c): name, grain, grain size (0 fine, 1 medium, 2 coarse) and
+/// halation. Matched by eye to the stocks' reputations (fine slow slide film, pushed 3200
+/// speed, CineStill's red halos from the removed anti-halation layer); "None" clears them.
+const FILM_STOCKS: &[(&str, f32, u32, f32)] = &[
+    ("None", 0., 1, 0.),
+    ("Fujichrome Velvia 50", 0.08, 0, 0.),
+    ("Kodak Ektar 100", 0.12, 0, 0.05),
+    ("Kodak Portra 400", 0.25, 0, 0.1),
+    ("Kodak Vision3 500T", 0.3, 1, 0.2),
+    ("CineStill 800T", 0.4, 1, 0.65),
+    ("Kodak Portra 800 pushed", 0.55, 1, 0.12),
+    ("Ilford Delta 3200 (grain only)", 0.85, 2, 0.),
+];
 const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
     (
         "Camera",
@@ -4664,13 +4995,22 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         "Selection",
         &[
             ("Click", "Select (empty space deselects)"),
+            ("Shift+click", "Add to or remove from the selection"),
+            ("B / Select tool drag", "Box select (Shift adds)"),
+            ("Ctrl+A / Alt+A", "Select all / none"),
             ("Right-click", "Menu"),
+            ("Shift+right-click", "Place the 3D cursor"),
             (
                 "G / R / S",
                 "Move / rotate / scale (then X Y Z, a value, Enter)",
             ),
             ("Ctrl+D", "Duplicate"),
-            ("Shift+D", "Duplicate and move"),
+            ("Shift+D / Alt+drag a handle", "Duplicate and move"),
+            (
+                "Ctrl while moving",
+                "Snap (top bar: increment, surface, vertex, edge)",
+            ),
+            ("Tab while moving", "Next axis of a typed vector"),
             ("H / Alt+H", "Hide or show / show all"),
             ("Del", "Delete"),
             ("Esc", "Deselect"),
@@ -4690,7 +5030,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
                 "P / Alt+click",
                 "Path visualizer / trace the paths of a pixel",
             ),
-            ("F12", "Save cornell.png"),
+            ("F12", "Save caustica.png"),
             (
                 "I / Shift+I / Alt+I",
                 "Key the selection / key every edit / delete its keys",

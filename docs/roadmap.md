@@ -1,4 +1,4 @@
-# Cornell RTX roadmap
+# Caustica roadmap
 
 The single ordered plan. Details live in the two research documents:
 [ui-plan.md](ui-plan.md) (UI redesign) and [scene-research.md](scene-research.md) (scenes).
@@ -33,16 +33,16 @@ Let the user choose the DLSS model presets the SDK offers, for both DLSS feature
   | M | Performance default |
 
   A–D were removed from the SDK; E and F are deprecated, and G, H, I, N and O revert to default. Offer only Default, J, K, L and M.
-- **Ray Reconstruction:** keep the current Default, D, E and F list, and check the SDK headers for newer RR presets when updating the SDK.
+- **Ray Reconstruction:** keep the current Default, D, E and F list, and check the SDK headers for newer RR presets when updating the SDK. (Checked 2026-11-02 against the vendored `nvsdk_ngx_defs_dlssd.h`: G–O all revert to default, so nothing new.)
 - **Implementation:**
   - New `Settings.dlss_preset: u32` (0, 10–13).
-  - In `bridge/ngx.cpp` `cornell_ngx_create_sr`, set `NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_{DLAA,Quality,Balanced,Performance,UltraPerformance,UltraQuality}` on `sr_params` before creating the feature, the same way RR sets its hints.
+  - In `bridge/ngx.cpp` `caustica_ngx_create_sr`, set `NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_{DLAA,Quality,Balanced,Performance,UltraPerformance,UltraQuality}` on `sr_params` before creating the feature, the same way RR sets its hints.
   - Add it to the `main.rs` reconfigure trigger list, and add a combo next to the Upscaler choice, shown when DLSS SR is selected.
   - Self-test: cycle the presets once.
 
 ### 2. Native HDR output, with settings taken from Windows — done 2026-10-30
 
-As built: scRGB swapchain, BT.2390 roll-off on the max channel, Auto/SDR/forced modes, Windows peak and SDR white with manual overrides, egui at paper white, and HDR PNG (PQ / BT.2020, cICP). Not done: the optional HDR10 swapchain, and JPEG XR. Details are in docs/engine-notes.md, "Native HDR".
+As built: scRGB swapchain, BT.2390 roll-off on the max channel, Auto/SDR/forced modes, Windows peak and SDR white with manual overrides, egui at paper white, and HDR PNG (PQ / BT.2020, cICP). Added 2026-11-02: the HDR10 swapchain (Display → *Swapchain*, `hdr10`: R10G10B10A2, PQ / BT.2020, falls back to scRGB when refused) and HDR JPEG XR screenshots (scRGB half floats, lossless, through WIC; `--capture *.jxr`). Still open: egui blends on PQ code values in HDR10 (anti-aliased text edges are slightly off); no mastering metadata (`SetHDRMetaData`) is sent in either mode. Details are in docs/engine-notes.md, "Native HDR".
 
 Goal: on an HDR monitor with Windows HDR on, show real HDR, using Windows' own calibration and SDR-brightness setting. With HDR off, keep today's SDR path.
 
@@ -73,18 +73,18 @@ Goal: on an HDR monitor with Windows HDR on, show real HDR, using Windows' own c
 
 Regroup and relabel only. Include the DLSS preset combo and the HDR status line from items 1–2.
 
-Not done from phase 1's list (they belong to ui-plan.md phases 2–5, core track 6): Quality bundles with a `Capabilities` struct, per-pass GPU timing in the status bar, persisted UI prefs (advanced toggle, UI size), modified-row dots, file pickers for settings / LUT / reference EXR (meshes and HDRIs have one), and async high-res export (it blocks the UI today). Done since: undo / redo, viewport handles and hover (3b), the scene browser with thumbnails (4).
+Not done from phase 1's list (they belong to ui-plan.md phases 2–5, core track 6): Quality bundles with a `Capabilities` struct, per-pass GPU timing in the status bar, persisted UI prefs (advanced toggle, UI size), modified-row dots, file pickers for settings / LUT / reference EXR (meshes and HDRIs have one), and async high-res export (it blocks the UI today). Done since: undo / redo, viewport handles and hover (3b), the scene browser with thumbnails (4), Quality bundles, GPU timing, prefs and the async still (core 6). Done 2026-11-02: `gpu::Capabilities` (per backend: available, or the reason: not an NVIDIA GPU, NGX error code, missing DLL, failed while rendering) behind the RR checkbox, the Upscaler combo and the Quality bundles; modified-row dots on every slider (`crate::slider`: a dot when the value differs from the scene as loaded, click to revert); *Browse…* for the LUT and the reference EXR, and *Save settings as…* / *Load settings…* beside the quick settings.json buttons. Still open: dots only on sliders (checkboxes and combos have none); the status bar does not turn amber with the fallback when a backend fails mid-session (the Render tab says so).
 
 ### 3b. Blender-style transform gizmos (owner request, 2026-10-30) — done 2026-10-30
 
 As built: move / rotate / scale gizmos for objects, area lights and the main light (no main-light rotation, since it is always horizontal), G / R / S modal transforms with X / Y / Z, Shift+axis planes, typed values, Ctrl snap, Shift fine and cancel, Global / Local orientation, light outlines and light picking, undo / redo. Drag cost is in docs/engine-notes.md, "Gizmos".
 
-**Not done yet (owner asked to keep this list, 2026-10-30):**
-- **Snapping to other objects:** surface, vertex, edge and face snapping, as Blender's snap menu offers. Today Ctrl only snaps to a 0.1-unit grid, 15° and 0.1×.
-- **Pivot options:** median point, 3D cursor, individual origins and active element. Today the pivot is always the object's own origin.
-- **Multi-select:** Shift-click to add, box select, select all (A), and transforming several items together.
-- **Alt-drag duplicate:** Blender's Shift+D duplicate-then-move as well.
-- **Smaller gaps:** free moves show one vector line in the header, with no per-axis typed vector entry.
+**Not done yet (owner asked to keep this list, 2026-10-30).** Done 2026-11-02, see engine-notes "Multi-select, pivots and snapping":
+- ~~**Snapping to other objects**~~: a *Snap* combo in the top bar (Increment / Surface / Vertex / Edge) for Ctrl during a move; surface snapping rests the moved group on the surface along its normal. Still open: no rotation aligned to the surface normal; no snapping of rotate or scale to targets; no edge-centre or volume targets; lights are not snap targets; the CPU ray cast tests every triangle of every object each pointer move (not measured on 20M-triangle files).
+- ~~**Pivot options**~~: median point, active element, individual origins and the 3D cursor (Shift+right-click places it on the surface under the pointer). Still open: the cursor shows only while it is the pivot; no "cursor to selected" / "selection to cursor".
+- ~~**Multi-select**~~: Shift+click (viewport and outliner), box select (B, or a drag with the Select tool; Shift adds), Ctrl+A / Alt+A (A stays auto orbit), and G / R / S, gizmos, duplicate, hide and delete on the whole selection. Still open: box select tests each item's origin, not its outline; the inspector edits the active item only; the timeline keys (I) and physics grabs use the active item only; lights get no hover outline.
+- ~~**Alt-drag duplicate**~~: Alt+drag on a gizmo handle copies the selection in place and drags the copies (Shift+D already duplicated then moved); cancelling either removes the copies. Still open (review 2026-11-02): the snap ray cast rebuilds every object's triangles on each pointer move; HDR10 once refused stays refused until a restart (no retry after a display change), and the R10G10B10A2 typed UAV store is not checked with CheckFeatureSupport.
+- ~~**Smaller gaps**~~: a free or plane move takes a typed vector (1 Tab 2 Tab 3, Blender style).
 - ~~Light outlines always on~~: hidden by default since item 6.
 - ~~Cheap drags~~: done with instancing (core track 4): bunny 26 → 5.5 ms, chess 24 → 6.1 ms per drag frame.
 
@@ -136,7 +136,7 @@ As built: hot reload spawns the build's own `dxc.exe` (path baked in by build.rs
 
 #### 5b. Seeing the invisible: debug views and meters — done 2026-10-30
 
-As built: views 8–11 (bounces, BVH cost, variance heat maps, false colour), zebras, scopes binned with atomics in the display pass (no extra pass; cleared by a copy), light meter (one-texel readback of linear output and albedo), convergence graph in egui (reference from an EXR or the current image, log–log with a 1/√n guide), lifetime stats and 8 achievements in `%APPDATA%\CornellRTX\stats.json`.
+As built: views 8–11 (bounces, BVH cost, variance heat maps, false colour), zebras, scopes binned with atomics in the display pass (no extra pass; cleared by a copy), light meter (one-texel readback of linear output and albedo), convergence graph in egui (reference from an EXR or the current image, log–log with a 1/√n guide), lifetime stats and 8 achievements in `%APPDATA%\Caustica\stats.json`.
 
 Each is a new `modes.x` view in `display` or a small compute pass:
 
@@ -154,7 +154,7 @@ Each is a new `modes.x` view in `display` or a small compute pass:
 
 #### 5c. Camera and look — done 2026-10-30
 
-As built: thin lens with round or 3–12-blade apertures, blade rotation, cat-eye (blocked lens samples contribute nothing, so corners also darken), Ctrl+click focus with an eased pull; camera models orthographic, 360° equirect, little planet and tilt-shift (non-perspective models switch RR, temporal upscalers, picking and the gizmo off); tone maps AgX (Wrensch's polynomial fit) and **Khronos PBR Neutral instead of Tony McMapface** (Tony needs its 48³ LUT; load it as a .cube through the LUT slot instead); halation, grain (three sizes), vignette, lift / gamma / gain wheels and a .cube LUT loader. Not done: grain matched to named film stocks, and equirect metadata for VR viewers.
+As built: thin lens with round or 3–12-blade apertures, blade rotation, cat-eye (blocked lens samples contribute nothing, so corners also darken), Ctrl+click focus with an eased pull; camera models orthographic, 360° equirect, little planet and tilt-shift (non-perspective models switch RR, temporal upscalers, picking and the gizmo off); tone maps AgX (Wrensch's polynomial fit) and **Khronos PBR Neutral instead of Tony McMapface** (Tony needs its 48³ LUT; load it as a .cube through the LUT slot instead); halation, grain (three sizes), vignette, lift / gamma / gain wheels and a .cube LUT loader. Not done: grain matched to named film stocks, and equirect metadata for VR viewers. Both done 2026-11-02: a *Film stock* combo (Look → Film) with seven stocks setting grain, grain size and halation (matched by eye; the grain is still monochrome and no stock's colour response is modelled; true per-stock grain needs colour grain and measured spectra), and GPano XMP on PNG and JPEG saves while the camera is 360° equirect (quick saves, the still, image sequences, `--capture` and script captures; not UI captures). Still open: spherical metadata in equirect videos (ffmpeg's mov muxer writes `sv3d` only from stream side data, not from a CLI flag; Google's spatial-media tool can inject it afterwards); `--capture` and script captures still take no JPEG.
 
 - **Thin-lens depth of field** (the native camera is a pinhole today):
   - Aperture and focus-distance settings.
@@ -256,7 +256,7 @@ Order is from scene-research.md section 5, unchanged:
    - Not done: maps are uncompressed RGBA8 (a 4k map is 85 MB with mips; BC7 would be a quarter); sRGB maps are mip-filtered in sRGB; the ray-cone widening for rough bounces is a heuristic (0.5·α or 0.5 per bounce), not the lobe's real spread; the alpha test samples LOD 0.
    - Not done: the material editor picks a file (no folder picker, no previews); downloading sets from inside the app belongs to the asset browser (item 6); texture painting and the lightmap baker (feature tracks) can build on the UVs now.
 6. UI phases 2–5. — done 2026-10-30 (phase 5 in part). Phase 2: right-click menus (viewport and outliner), Ctrl+D / Shift+D duplicate, H / Alt+H hide, Home, Page Up / Down, F frames the selection, double-click frames, middle-drag pan, an F1 shortcut sheet, selection and hover outlines. Phases 3–5: favourite and recent scenes, Ctrl+S / Ctrl+Shift+S / Ctrl+O, `--preset` names, persisted preferences (UI size, advanced, first-run hint), Quality bundles in the top bar, per-pass GPU time and time-to-cap in the status bar, the high-resolution still as a non-blocking job up to 8192 (PNG or EXR), Show in folder toasts, a draggable A/B split, a wrapping top bar.
-   - Not done: Alt-drag duplicate (Shift+D instead); outlines for lights and silhouette outlines from the id buffer (outlines are projected boxes and vanish while a corner is behind the camera); the preset registry refactor (slugs only); a capabilities struct with per-backend reasons; the "what the denoiser is doing" line; export file name templates; lens shift to centre the subject in the free viewport (touches the camera and RR, needs `tools/rr_stability.py`); material ball and light thumbnails.
+   - Not done: Alt-drag duplicate (Shift+D instead); outlines for lights and silhouette outlines from the id buffer (outlines are projected boxes and vanish while a corner is behind the camera); the preset registry refactor (slugs only); ~~a capabilities struct with per-backend reasons~~ (done 2026-11-02, item 3); the "what the denoiser is doing" line; export file name templates; lens shift to centre the subject in the free viewport (touches the camera and RR, needs `tools/rr_stability.py`); material ball and light thumbnails.
 
 ### Known issues (not scheduled)
 
@@ -459,7 +459,7 @@ Laser puzzle done 2026-11-02 (part 3): a CPU-traced laser beam (mirrors, splitte
 
 #### 17b. GitHub builds and releases (owner request, 2026-11-02) — workflows added 2026-11-02
 
-Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.ps1 -SkipBuild` for the SDKs with `vendor/` cached, then fmt, clippy, unit tests and a release build; no GPU on the runner, so no self-test) and `release.yml` (a `v*` tag, or a manual run: release build, a zip of the exe, its DLLs, ffmpeg, `scenes/` and the README, uploaded as an artifact and, for tags, attached to a GitHub release with generated notes). No tag has been pushed yet. Not done: the self-test in CI (needs a GPU runner); DXC is the runner's Windows SDK copy, not pinned; downloaded assets are not in the zip.
+Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.ps1 -SkipBuild` for the SDKs with `vendor/` cached, then fmt, clippy, unit tests and a release build; no GPU on the runner, so no self-test) and `release.yml` (a `v*` tag, or a manual run: release build, a zip of the exe, its DLLs, ffmpeg, `scenes/` and the README, uploaded as an artifact and, for tags, attached to a GitHub release with generated notes). No tag has been pushed yet. **Changed 2026-11-02 (owner: releases automatic, versioned from now on):** `release.yml` is gone; `ci.yml` releases every push to main that passes fmt, clippy, tests and the release build. Version: the Cargo.toml version if its tag does not exist yet and is above the highest `v<major>.<minor>.*` tag, else the next patch (Cargo.toml stays at 0.1.0, so pushes go 0.1.0, 0.1.1, …; bump it to start a new minor or major). The exe carries it (`CAUSTICA_VERSION` from build.rs: window title, Menu, `--version`; local builds say `-dev`, PR builds `-ci.<sha>`); the release is `v<version>` with the zip and the commit subjects since the previous tag. **Also 2026-11-02 (owner):** the project is renamed Caustica (crate and exe `caustica`, window title, docs, scene credits; `%APPDATA%\CornellRTX` moves to `%APPDATA%\Caustica` on first start; the Cornell box scenes and the `cornell_box` setting keep their names), the WebGL app (`webgl/`) and every mention of it are gone, the exe has an icon (`assets/caustica.ico`, drawn by `tools/make_icon.py` as a traced coffee-cup caustic; build.rs embeds it with version info through rc.exe, and the window and taskbar use it), and releases carry an Inno Setup installer (`installer/caustica.iss`: per-user, Start menu, optional desktop icon, uninstaller, launch after install; built in CI with Inno Setup from Chocolatey, never locally). Still open: the GitHub repo and the local folder are still called `cornell`; the installer is unsigned (SmartScreen warns on first run) and was first built on the runner, not tried on a clean machine; uninstalling leaves files the app wrote beside itself (settings, captures, downloads, thumbnails). Not done: the self-test in CI (needs a GPU runner); DXC is the runner's Windows SDK copy, not pinned; downloaded assets are not in the zip.
 
 - GitHub Actions on a Windows runner: `cargo fmt --check`, clippy, tests and a release build on every push (DXC from the Windows SDK or a pinned download; the vendor SDKs that cannot be fetched in CI need a stub or a cache, see docs/claude/setup.md).
 - Releases: a tag builds the exe with its DLLs, shaders and `scenes/` into a zip and attaches it to a GitHub release with notes from the roadmap entry.
@@ -492,7 +492,7 @@ Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.
   - Done 2026-11-02: `--script file.rhai` (headless or windowed) with `load`, `set` (nested `/` paths, validated), `frames`, `reset`, `capture`, `samples`, `scenes`; `examples/scripts/batch.rhai`. See engine-notes "Scripting". Not done: an in-app console (a text box running lines against the live scene), access to generators and keyframes from scripts, reading settings back (`get`), a script that runs per frame (procedural animation).
 - **Audio-reactive lights:** WASAPI loopback capture (`cpal`) and an FFT drive emitter intensities per frequency band. Runs in per-frame RR mode, since every frame changes the lights.
   - Done 2026-11-02: Scene → Audio (`Settings::audio`): WASAPI loopback through cpal (an input stream on the default output device), a 2048-sample FFT (rustfft) into bass/mid/treble with automatic gain and smoothing, scaling the main light (bass), area light i and emitter i (band i mod 3) in the frame's copy of the settings. See engine-notes "Audio-reactive lights". Not done: a demo scene, per-light band choice, a beat detector (strobe on kicks), colour shifts per band, non-f32 output formats (24-bit integer shared mode), video export synced to an audio file.
-- Removed 2026-11-02 (owner decision, not planned): the live wallpaper (rendering behind the desktop icons with the WorkerW trick), the Blender live link (an add-on streaming objects, materials and the camera over a socket) and web viewer parity (the WebGL app loading native scene files).
+- Removed 2026-11-02 (owner decision, not planned): the live wallpaper (rendering behind the desktop icons with the WorkerW trick) and the Blender live link (an add-on streaming objects, materials and the camera over a socket).
 
 #### 20. Shader Execution Reordering (DXR 1.2)
 

@@ -206,12 +206,12 @@ pub fn qr_image(text: &str) -> Option<egui::ColorImage> {
     })
 }
 const PAGE: &str = r#"<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cornell RTX remote</title><style>
+<title>Caustica remote</title><style>
 body{font-family:system-ui,sans-serif;background:#16181c;color:#e8e8e8;margin:0;padding:16px;max-width:520px}
 h1{font-size:18px;color:#60cad8;margin:0 0 12px}label{display:block;margin:14px 0 4px;font-size:14px}
 input[type=range]{width:100%}button,select{font-size:16px;padding:8px 14px;margin:4px 4px 0 0;background:#2a2e35;color:#eee;border:1px solid #444;border-radius:6px}
 .row{display:flex;gap:8px;align-items:center}.v{color:#9ab;font-size:13px}</style></head><body>
-<h1>Cornell RTX</h1>
+<h1>Caustica</h1>
 <div class="row"><button onclick="send('preset',-1)">&#9664; Scene</button><button onclick="send('preset',1)">Scene &#9654;</button><button onclick="send('restart',true)">Restart</button></div>
 <label>Exposure <span class="v" id="ev"></span></label><input type="range" min="-6" max="3.3" step="0.1" id="exposure" oninput="ev.textContent=this.value+' EV';send('exposure',Math.pow(2,+this.value))">
 <label>Light intensity <span class="v" id="li"></span></label><input type="range" min="0" max="7.6" step="0.05" id="light_intensity" oninput="li.textContent=Math.exp(this.value).toFixed(1)+'x';send('light_intensity',Math.exp(+this.value))">
@@ -256,7 +256,7 @@ mod tests {
             out
         };
         assert!(ask("GET /?t=wrong HTTP/1.1\r\n\r\n".into()).starts_with("HTTP/1.1 403"));
-        assert!(ask(format!("GET /?t={} HTTP/1.1\r\n\r\n", r.token)).contains("Cornell RTX"));
+        assert!(ask(format!("GET /?t={} HTTP/1.1\r\n\r\n", r.token)).contains("Caustica"));
         assert!(
             ask(format!(
                 "POST /set?t={}&k=gpu_hack HTTP/1.1\r\nContent-Length: 1\r\n\r\n1",

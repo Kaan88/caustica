@@ -514,6 +514,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "caustica"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cc",
+ "cpal",
+ "egui",
+ "egui-winit",
+ "gilrs",
+ "glam 0.30.10",
+ "gltf",
+ "image",
+ "native-tls",
+ "qrcode",
+ "rapier3d",
+ "raw-window-handle",
+ "rfd",
+ "rhai",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tobj",
+ "ureq",
+ "windows",
+ "winit",
+ "zip",
+]
+
+[[package]]
 name = "cc"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -660,37 +691,6 @@ dependencies = [
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-core-foundation",
-]
-
-[[package]]
-name = "cornell-rtx"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "cc",
- "cpal",
- "egui",
- "egui-winit",
- "gilrs",
- "glam 0.30.10",
- "gltf",
- "image",
- "native-tls",
- "qrcode",
- "rapier3d",
- "raw-window-handle",
- "rfd",
- "rhai",
- "rustfft",
- "serde",
- "serde_json",
- "sha2",
- "tobj",
- "ureq",
- "windows",
- "winit",
- "zip",
 ]
 
 [[package]]

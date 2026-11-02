@@ -6,7 +6,7 @@
   "generated",
   "mandelbulb"
  ],
- "credits": "Cornell RTX generators",
+ "credits": "Caustica generators",
  "generator": {
   "family": "mandelbulb",
   "seed": 1

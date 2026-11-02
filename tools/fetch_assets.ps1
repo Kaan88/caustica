@@ -86,7 +86,7 @@ foreach ($m in $ambientcg) {
     $target = Join-Path $projectRoot "scenes/textures/$id"
     if (Test-Path -LiteralPath (Join-Path $target "$($id)_2K-JPG_Color.jpg")) { continue }
     $zip = Join-Path ([IO.Path]::GetTempPath()) "$id-cornell.zip"
-    Invoke-WebRequest -Uri "https://ambientcg.com/get?file=$($id)_2K-JPG.zip" -OutFile $zip -UserAgent 'cornell-rtx'
+    Invoke-WebRequest -Uri "https://ambientcg.com/get?file=$($id)_2K-JPG.zip" -OutFile $zip -UserAgent 'caustica'
     $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
     if ($actual -ne $sha256) { Remove-Item -LiteralPath $zip; throw "$id checksum mismatch: $actual" }
     New-Item -ItemType Directory -Force $target | Out-Null

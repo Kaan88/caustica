@@ -145,9 +145,9 @@ const PATH_CAPACITY: usize = 16384;
 /// ReSTIR light-tile samples per frame (pathtrace.hlsl: 128 tiles of 1024).
 const RESTIR_TILES: u64 = 128 * 1024;
 unsafe extern "C" {
-    fn cornell_ngx_release(ngx: *mut c_void);
-    fn cornell_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
-    fn cornell_ngx_create(
+    fn caustica_ngx_release(ngx: *mut c_void);
+    fn caustica_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
+    fn caustica_ngx_create(
         ngx: *mut c_void,
         cmd: *mut c_void,
         w: u32,
@@ -156,7 +156,7 @@ unsafe extern "C" {
         oh: u32,
         preset: u32,
     ) -> u32;
-    fn cornell_ngx_eval(
+    fn caustica_ngx_eval(
         ngx: *mut c_void,
         cmd: *mut c_void,
         resources: *const *mut c_void,
@@ -169,9 +169,9 @@ unsafe extern "C" {
         view: *const f32,
         proj: *const f32,
     ) -> u32;
-    fn cornell_ngx_destroy(ngx: *mut c_void);
-    fn cornell_ngx_caps(ngx: *mut c_void) -> u32;
-    fn cornell_ngx_create_sr(
+    fn caustica_ngx_destroy(ngx: *mut c_void);
+    fn caustica_ngx_caps(ngx: *mut c_void) -> u32;
+    fn caustica_ngx_create_sr(
         ngx: *mut c_void,
         cmd: *mut c_void,
         w: u32,
@@ -180,7 +180,7 @@ unsafe extern "C" {
         oh: u32,
         preset: u32,
     ) -> u32;
-    fn cornell_ngx_eval_sr(
+    fn caustica_ngx_eval_sr(
         ngx: *mut c_void,
         cmd: *mut c_void,
         color: *mut c_void,
@@ -194,11 +194,11 @@ unsafe extern "C" {
         reset: i32,
         dt: f32,
     ) -> u32;
-    fn cornell_fsr_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
-    fn cornell_fsr_release(fsr: *mut c_void);
-    fn cornell_fsr_destroy(fsr: *mut c_void);
-    fn cornell_fsr_create(fsr: *mut c_void, w: u32, h: u32, ow: u32, oh: u32) -> u32;
-    fn cornell_fsr_eval(
+    fn caustica_fsr_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
+    fn caustica_fsr_release(fsr: *mut c_void);
+    fn caustica_fsr_destroy(fsr: *mut c_void);
+    fn caustica_fsr_create(fsr: *mut c_void, w: u32, h: u32, ow: u32, oh: u32) -> u32;
+    fn caustica_fsr_eval(
         fsr: *mut c_void,
         cmd: *mut c_void,
         color: *mut c_void,
@@ -217,11 +217,16 @@ unsafe extern "C" {
         near: f32,
         far: f32,
     ) -> u32;
-    fn cornell_xess_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
-    fn cornell_xess_destroy(xess: *mut c_void);
-    fn cornell_xess_create(xess: *mut c_void, w: u32, ow: u32, oh: u32, velocity_scale: f32)
-    -> u32;
-    fn cornell_xess_eval(
+    fn caustica_xess_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
+    fn caustica_xess_destroy(xess: *mut c_void);
+    fn caustica_xess_create(
+        xess: *mut c_void,
+        w: u32,
+        ow: u32,
+        oh: u32,
+        velocity_scale: f32,
+    ) -> u32;
+    fn caustica_xess_eval(
         xess: *mut c_void,
         cmd: *mut c_void,
         color: *mut c_void,
@@ -241,6 +246,32 @@ fn ngx_ok(code: u32) -> bool {
 pub struct Texture {
     pub resource: ID3D12Resource,
     pub format: DXGI_FORMAT,
+}
+/// One reconstruction backend: usable, or why not ("needs an NVIDIA RTX GPU", a missing DLL,
+/// an init error code, a failure while rendering).
+#[derive(Clone, Debug, Default)]
+pub struct Backend {
+    pub available: bool,
+    pub reason: String,
+}
+/// Every reconstruction backend's availability, from `Gpu::capabilities`.
+#[derive(Clone, Debug, Default)]
+pub struct Capabilities {
+    pub rr: Backend,
+    pub dlss_sr: Backend,
+    pub fsr: Backend,
+    pub xess: Backend,
+}
+impl Capabilities {
+    /// The backend behind a temporal upscaler; `None` for the spatial ones (always available).
+    pub fn upscaler(&self, u: Upscaler) -> Option<&Backend> {
+        match u {
+            Upscaler::Dlss => Some(&self.dlss_sr),
+            Upscaler::Fsr => Some(&self.fsr),
+            Upscaler::Xess => Some(&self.xess),
+            Upscaler::Bilinear | Upscaler::Bicubic => None,
+        }
+    }
 }
 pub struct Gpu {
     pub device: ID3D12Device5,
@@ -321,8 +352,13 @@ pub struct Gpu {
     display: ID3D12PipelineState,
     gui: ID3D12PipelineState,
     gui_hdr: ID3D12PipelineState,
+    gui_hdr10: ID3D12PipelineState,
     /// The swapchain is RGBA16F scRGB (1.0 = 80 nits) and shows texture 26.
     pub hdr_active: bool,
+    /// With `hdr_active`: the swapchain is HDR10 (R10G10B10A2, PQ / BT.2020) instead of scRGB.
+    pub hdr10: bool,
+    /// The swapchain refused HDR10 once this session; HDR then stays scRGB.
+    pub hdr10_refused: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
     /// Triangles in the non-opaque BLAS range; the opaque range's primitive indices start here.
@@ -420,6 +456,9 @@ pub struct Gpu {
     /// upscaler), display, UI.
     pub pass_ms: [f64; 4],
     pub adapter_name: String,
+    /// Why each reconstruction backend could not start (empty when it did): RR, DLSS SR, FSR,
+    /// XeSS. `capabilities()` adds failures found later, while rendering.
+    init_reasons: [String; 4],
     previous_vp: Mat4,
     rr_reset: bool,
     restarts: u32,
@@ -824,6 +863,7 @@ impl Gpu {
         );
         let gui = create_gui_pipeline(&device, &root, DXGI_FORMAT_R8G8B8A8_UNORM, vs, ps)?;
         let gui_hdr = create_gui_pipeline(&device, &root, DXGI_FORMAT_R16G16B16A16_FLOAT, vs, ps)?;
+        let gui_hdr10 = create_gui_pipeline(&device, &root, DXGI_FORMAT_R10G10B10A2_UNORM, vs, ps)?;
         let lut = texture_3d(&device, 2)?;
         let env = env_texture(&device, 1, 1, DXGI_FORMAT_R32G32B32A32_FLOAT)?;
         let env_cdf = env_texture(&device, 1, 2, DXGI_FORMAT_R32_FLOAT)?;
@@ -859,19 +899,55 @@ impl Gpu {
             D3D12_RESOURCE_STATE_COPY_DEST,
         )?;
         let mut ngx = null_mut();
-        let code = cornell_ngx_init(device.as_raw(), &mut ngx);
+        let code = caustica_ngx_init(device.as_raw(), &mut ngx);
         let rr_status = if ngx_ok(code) {
             "DLSS Ray Reconstruction available".into()
         } else {
             format!("NGX unavailable (0x{code:08x}); using native denoiser")
         };
         let mut fsr = null_mut();
-        let fsr_code = cornell_fsr_init(device.as_raw(), &mut fsr);
+        let fsr_code = caustica_fsr_init(device.as_raw(), &mut fsr);
         let mut xess = null_mut();
-        let xess_code = cornell_xess_init(device.as_raw(), &mut xess);
+        let xess_code = caustica_xess_init(device.as_raw(), &mut xess);
+        let init_reasons = {
+            let nvidia = adapter_name.to_ascii_lowercase().contains("nvidia");
+            let caps = if ngx.is_null() {
+                0
+            } else {
+                caustica_ngx_caps(ngx)
+            };
+            let ngx_reason = |bit: u32, what: &str| {
+                if !ngx_ok(code) && !nvidia {
+                    format!("needs an NVIDIA RTX GPU (this GPU: {adapter_name})")
+                } else if !ngx_ok(code) {
+                    format!(
+                        "NGX did not start (0x{code:08x}); update the driver, and check that nvngx_dlss*.dll is next to the exe"
+                    )
+                } else if caps & bit == 0 {
+                    format!("this GPU or driver does not offer {what}")
+                } else {
+                    String::new()
+                }
+            };
+            [
+                ngx_reason(1, "Ray Reconstruction"),
+                ngx_reason(2, "DLSS Super Resolution"),
+                match fsr_code {
+                    _ if !fsr.is_null() => String::new(),
+                    1 => "amd_fidelityfx_loader_dx12.dll is missing next to the exe".into(),
+                    c => format!("the FidelityFX loader did not start ({c})"),
+                },
+                match xess_code {
+                    _ if !xess.is_null() => String::new(),
+                    1 => "libxess.dll is missing next to the exe".into(),
+                    2 => "libxess.dll lacks a needed function (an old version?)".into(),
+                    c => format!("XeSS did not start (result {})", c & 0xff),
+                },
+            ]
+        };
         eprintln!(
             "GPU: {adapter_name}; {rr_status}; DLSS SR {}; FSR {}; XeSS {}",
-            if !ngx.is_null() && cornell_ngx_caps(ngx) & 2 != 0 {
+            if !ngx.is_null() && caustica_ngx_caps(ngx) & 2 != 0 {
                 "available".to_string()
             } else {
                 "unavailable".into()
@@ -944,7 +1020,10 @@ impl Gpu {
             display,
             gui,
             gui_hdr,
+            gui_hdr10,
             hdr_active: false,
+            hdr10: false,
+            hdr10_refused: false,
             hdr_levels: [200., 1000.],
             opaque_offset: 0,
             painting: false,
@@ -1010,6 +1089,7 @@ impl Gpu {
             fence_wait_ms: 0.,
             pass_ms: [0.; 4],
             adapter_name,
+            init_reasons,
             previous_vp: Mat4::IDENTITY,
             rr_reset: true,
             restarts: 0,
@@ -1081,20 +1161,43 @@ impl Gpu {
         Ok(())
     }
     unsafe fn release_upscalers(&mut self) {
-        cornell_ngx_release(self.ngx);
-        cornell_fsr_release(self.fsr);
+        caustica_ngx_release(self.ngx);
+        caustica_fsr_release(self.fsr);
         self.rr_created = false;
         self.rr_failed = false;
         self.sr_created = None;
         self.sr_failed.clear();
     }
+    /// What each reconstruction backend can do here, with the reason when it can't: the
+    /// startup checks plus failures met while rendering (UI plan 5.2).
+    pub fn capabilities(&self) -> Capabilities {
+        let backend = |ok: bool, i: usize, failed: bool| Backend {
+            available: ok && !failed,
+            reason: if failed && ok {
+                "failed while rendering (see the status line); tried again after a restart".into()
+            } else {
+                self.init_reasons[i].clone()
+            },
+        };
+        let sr = |u: Upscaler, i: usize| {
+            backend(self.upscaler_available(u), i, self.sr_failed.contains(&u))
+        };
+        Capabilities {
+            rr: backend(self.rr_available(), 0, self.rr_failed),
+            dlss_sr: sr(Upscaler::Dlss, 1),
+            fsr: sr(Upscaler::Fsr, 2),
+            xess: sr(Upscaler::Xess, 3),
+        }
+    }
     /// NGX loaded and reports Ray Reconstruction (caps bit 0).
     pub fn rr_available(&self) -> bool {
-        !self.ngx.is_null() && unsafe { cornell_ngx_caps(self.ngx) } & 1 != 0
+        !self.ngx.is_null() && unsafe { caustica_ngx_caps(self.ngx) } & 1 != 0
     }
     pub fn upscaler_available(&self, kind: Upscaler) -> bool {
         match kind {
-            Upscaler::Dlss => !self.ngx.is_null() && unsafe { cornell_ngx_caps(self.ngx) } & 2 != 0,
+            Upscaler::Dlss => {
+                !self.ngx.is_null() && unsafe { caustica_ngx_caps(self.ngx) } & 2 != 0
+            }
             Upscaler::Fsr => !self.fsr.is_null(),
             Upscaler::Xess => !self.xess.is_null(),
             Upscaler::Bilinear | Upscaler::Bicubic => true,
@@ -1136,7 +1239,7 @@ impl Gpu {
         let (w, h, ow, oh) = (self.rw, self.rh, self.width, self.height);
         let (ok, code) = match kind {
             Upscaler::Dlss => {
-                let code = cornell_ngx_create_sr(
+                let code = caustica_ngx_create_sr(
                     self.ngx,
                     self.list.as_raw(),
                     w,
@@ -1148,11 +1251,11 @@ impl Gpu {
                 (ngx_ok(code), code)
             }
             Upscaler::Fsr => {
-                let code = cornell_fsr_create(self.fsr, w, h, ow, oh);
+                let code = caustica_fsr_create(self.fsr, w, h, ow, oh);
                 (code == 0, code)
             }
             _ => {
-                let code = cornell_xess_create(self.xess, w, ow, oh, 1.);
+                let code = caustica_xess_create(self.xess, w, ow, oh, 1.);
                 (code == 0, code)
             }
         };
@@ -1194,24 +1297,35 @@ impl Gpu {
         Ok(())
     }
     fn swap_format(&self) -> DXGI_FORMAT {
-        if self.hdr_active {
+        if self.hdr_active && self.hdr10 {
+            DXGI_FORMAT_R10G10B10A2_UNORM
+        } else if self.hdr_active {
             DXGI_FORMAT_R16G16B16A16_FLOAT
         } else {
             DXGI_FORMAT_R8G8B8A8_UNORM
         }
     }
-    /// Switches the swapchain between 8-bit SDR and RGBA16F scRGB. Recreates the
-    /// render-size textures like a resize. Returns false when the swapchain can't present scRGB.
-    pub unsafe fn set_hdr(&mut self, on: bool, s: &Settings) -> Result<bool> {
-        if on == self.hdr_active {
+    /// Switches the swapchain between 8-bit SDR, RGBA16F scRGB and (with `hdr10`) R10G10B10A2
+    /// HDR10. Recreates the render-size textures like a resize. HDR10 falls back to scRGB when
+    /// refused; returns false when the swapchain can't present scRGB either.
+    pub unsafe fn set_hdr(&mut self, on: bool, hdr10: bool, s: &Settings) -> Result<bool> {
+        if on == self.hdr_active && (!on || hdr10 == self.hdr10) {
             return Ok(true);
         }
         // Color-space support depends on the buffer format, so switch first, then check.
         self.hdr_active = on;
+        self.hdr10 = on && hdr10;
         let [w, h] = self.swap_size;
         self.resize(w, h, s)?;
+        if on && hdr10 && !self.color_space_ok {
+            // HDR10 refused: try scRGB before giving up on HDR.
+            self.hdr10_refused = true;
+            self.hdr10 = false;
+            self.resize(w, h, s)?;
+        }
         if on && !self.color_space_ok {
             self.hdr_active = false;
+            self.hdr10 = false;
             self.resize(w, h, s)?;
             return Ok(false);
         }
@@ -1609,6 +1723,13 @@ impl Gpu {
             &sh.vs,
             &sh.ps,
         )?;
+        let gui_hdr10 = create_gui_pipeline(
+            &self.device,
+            &self.root,
+            DXGI_FORMAT_R10G10B10A2_UNORM,
+            &sh.vs,
+            &sh.ps,
+        )?;
         self.wait_idle()?;
         (
             self.trace,
@@ -1649,6 +1770,7 @@ impl Gpu {
             gui,
             gui_hdr,
         );
+        self.gui_hdr10 = gui_hdr10;
 
         self.integrated_valid = false;
         self.reset(true);
@@ -1676,7 +1798,9 @@ impl Gpu {
             .swap
             .ResizeBuffers(2, w, h, self.swap_format(), DXGI_SWAP_CHAIN_FLAG(0))
             .and_then(|_| {
-                let space = if self.hdr_active {
+                let space = if self.hdr_active && self.hdr10 {
+                    DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020
+                } else if self.hdr_active {
                     DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
                 } else {
                     DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
@@ -1748,6 +1872,8 @@ impl Gpu {
                 5 | 7 | 17 | 19 | 20 | 25 => DXGI_FORMAT_R32_FLOAT,
                 6 => DXGI_FORMAT_R32G32_FLOAT,
                 10 => DXGI_FORMAT_R8G8B8A8_UNORM,
+                // HDR10 writes PQ code values that copy straight into the backbuffer.
+                26 if self.hdr_active && self.hdr10 => DXGI_FORMAT_R10G10B10A2_UNORM,
                 26 => DXGI_FORMAT_R16G16B16A16_FLOAT,
                 27 => DXGI_FORMAT_R32G32_FLOAT,
                 28 => DXGI_FORMAT_R32_UINT,
@@ -2858,7 +2984,7 @@ impl Gpu {
             self.rr_status = "DLSS Ray Reconstruction active".into();
         }
         if self.rr_active && !self.rr_created {
-            let code = cornell_ngx_create(
+            let code = caustica_ngx_create(
                 self.ngx,
                 self.list.as_raw(),
                 self.rw,
@@ -2990,7 +3116,7 @@ impl Gpu {
                 self.hdr_active as u32 as f32,
                 self.hdr_levels[0],
                 self.hdr_levels[1],
-                0.,
+                (self.hdr_active && self.hdr10) as u32 as f32,
             ],
             tools: [
                 self.zebras as u32 as f32,
@@ -3074,8 +3200,9 @@ impl Gpu {
             ];
         }
         // eye.w scales the UI to paper white in HDR (gui.hlsl); the trace ignores it.
+        // Negative: HDR10, so gui.hlsl encodes PQ / BT.2020 instead of scRGB.
         if self.hdr_active {
-            c.eye[3] = self.hdr_levels[0] / 80.;
+            c.eye[3] = self.hdr_levels[0] / 80. * if self.hdr10 { -1. } else { 1. };
         }
         write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
         self.list
@@ -3139,7 +3266,7 @@ impl Gpu {
                     );
                 }
                 let resources: Vec<_> = self.textures.iter().map(|t| t.resource.as_raw()).collect();
-                let code = cornell_ngx_eval(
+                let code = caustica_ngx_eval(
                     self.ngx,
                     self.list.as_raw(),
                     resources.as_ptr(),
@@ -3446,7 +3573,7 @@ impl Gpu {
         let (cmd, w, h) = (self.list.as_raw(), self.rw, self.rh);
         let code = match kind {
             Upscaler::Dlss => {
-                let code = cornell_ngx_eval_sr(
+                let code = caustica_ngx_eval_sr(
                     self.ngx,
                     cmd,
                     r(color),
@@ -3462,7 +3589,7 @@ impl Gpu {
                 );
                 if ngx_ok(code) { 0 } else { code }
             }
-            Upscaler::Fsr => cornell_fsr_eval(
+            Upscaler::Fsr => caustica_fsr_eval(
                 self.fsr,
                 cmd,
                 r(color),
@@ -3481,7 +3608,7 @@ impl Gpu {
                 0.01,
                 500.,
             ),
-            _ => cornell_xess_eval(
+            _ => caustica_xess_eval(
                 self.xess,
                 cmd,
                 r(color),
@@ -3631,11 +3758,14 @@ impl Gpu {
         self.list.SetGraphicsRootSignature(&self.root);
         self.list
             .SetGraphicsRootConstantBufferView(0, self.constants.GetGPUVirtualAddress());
-        self.list.SetPipelineState(if self.hdr_active {
-            &self.gui_hdr
-        } else {
-            &self.gui
-        });
+        self.list
+            .SetPipelineState(if self.hdr_active && self.hdr10 {
+                &self.gui_hdr10
+            } else if self.hdr_active {
+                &self.gui_hdr
+            } else {
+                &self.gui
+            });
         self.list
             .IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         self.list.RSSetViewports(&[D3D12_VIEWPORT {
@@ -3786,8 +3916,9 @@ impl Gpu {
         self.submit()?;
         let mut p = null_mut();
         staging.Map(0, None, Some(&mut p))?;
-        // A UI capture in HDR mode copies the RGBA16F scRGB backbuffer.
+        // A UI capture in HDR mode copies the RGBA16F scRGB backbuffer (HDR10: R10G10B10A2 PQ).
         let ui_hdr = include_ui && self.hdr_active;
+        let ui_hdr10 = ui_hdr && self.hdr10;
         // The UI frame has the swapchain's size, the output textures the output's.
         let (width, height) = if include_ui {
             (self.swap_size[0], self.swap_size[1])
@@ -3797,7 +3928,7 @@ impl Gpu {
         let row_size = width as usize
             * if hdr {
                 16
-            } else if ui_hdr {
+            } else if ui_hdr && !ui_hdr10 {
                 8
             } else {
                 4
@@ -3813,13 +3944,25 @@ impl Gpu {
         if ui_hdr {
             // Back to SDR: paper white becomes 1.0, then sRGB-encode.
             let scale = 80. / self.hdr_levels[0];
-            packed = packed
-                .as_chunks::<2>()
-                .0
+            let scrgb: Vec<f32> = if ui_hdr10 {
+                packed
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .flat_map(|b| crate::display::hdr10_to_scrgb(u32::from_le_bytes(*b)))
+                    .collect()
+            } else {
+                packed
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|b| half_to_f32(u16::from_le_bytes(*b)))
+                    .collect()
+            };
+            packed = scrgb
                 .iter()
                 .enumerate()
-                .map(|(i, b)| {
-                    let v = half_to_f32(u16::from_le_bytes(*b));
+                .map(|(i, &v)| {
                     if i % 4 == 3 {
                         (v.clamp(0., 1.) * 255.).round() as u8
                     } else {
@@ -3912,6 +4055,7 @@ impl Gpu {
     pub unsafe fn read_floats(&mut self, index: usize) -> Result<Vec<f32>> {
         let resource = self.textures[index].resource.clone();
         let half = self.textures[index].format == DXGI_FORMAT_R16G16B16A16_FLOAT;
+        let packed10 = self.textures[index].format == DXGI_FORMAT_R10G10B10A2_UNORM;
         let (layout, bytes) = footprint(&self.device, &resource);
         let staging = buffer(
             &self.device,
@@ -3950,6 +4094,13 @@ impl Gpu {
         let mut out = Vec::with_capacity(self.width as usize * self.height as usize * 4);
         for y in 0..self.height as usize {
             let row = (p as *const u8).add(y * layout.Footprint.RowPitch as usize);
+            if packed10 {
+                for x in 0..self.width as usize {
+                    let word = (row.add(x * 4) as *const u32).read_unaligned();
+                    out.extend_from_slice(&crate::display::hdr10_to_scrgb(word));
+                }
+                continue;
+            }
             for i in 0..self.width as usize * 4 {
                 out.push(if half {
                     half_to_f32((row.add(i * 2) as *const u16).read_unaligned())
@@ -3991,15 +4142,15 @@ impl Drop for Gpu {
     fn drop(&mut self) {
         unsafe {
             let _ = self.wait_idle();
-            cornell_ngx_destroy(self.ngx);
-            cornell_fsr_destroy(self.fsr);
-            cornell_xess_destroy(self.xess);
+            caustica_ngx_destroy(self.ngx);
+            caustica_fsr_destroy(self.fsr);
+            caustica_xess_destroy(self.xess);
             let _ = CloseHandle(self.event);
         }
     }
 }
 /// Round-to-nearest-even f32 → IEEE half; values past 65504 become infinity.
-fn f32_to_half(v: f32) -> u16 {
+pub fn f32_to_half(v: f32) -> u16 {
     let bits = v.to_bits();
     let sign = ((bits >> 16) & 0x8000) as u16;
     let exponent = ((bits >> 23) & 0xff) as i32 - 127 + 15;

@@ -1,7 +1,10 @@
 //! Blender-style transform gizmos (roadmap item 3b): move arrows and planes, rotation rings,
-//! scale handles, and the modal G / R / S transforms with axis constraints, typed values,
-//! snapping and cancel. All math is in physical pixels; egui drawing converts to points.
+//! scale handles, and the modal G / R / S transforms with axis constraints, typed values and
+//! vectors, snapping (increments, or other surfaces, vertices and edges) and cancel. Several
+//! items transform together around a pivot (median, active, individual origins, 3D cursor).
+//! All math is in physical pixels; egui drawing converts to points.
 use crate::scene::{LightKind, Settings};
+use crate::snap;
 use crate::ui::Selection;
 use glam::{EulerRot, Mat3, Mat4, Quat, Vec2, Vec3, Vec4};
 
@@ -43,6 +46,34 @@ pub enum Handle {
     Center,
     /// Rotate around the view axis.
     ViewRing,
+}
+/// The point rotations and scales turn around when several items transform together.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Pivot {
+    /// The mean of the items' origins.
+    Median,
+    /// The active (last clicked) item's origin.
+    Active,
+    /// Each item around its own origin.
+    Individual,
+    /// The 3D cursor (Shift+right-click places it).
+    Cursor,
+}
+impl Pivot {
+    pub const ALL: [Pivot; 4] = [
+        Pivot::Median,
+        Pivot::Active,
+        Pivot::Individual,
+        Pivot::Cursor,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Pivot::Median => "Median point",
+            Pivot::Active => "Active element",
+            Pivot::Individual => "Individual origins",
+            Pivot::Cursor => "3D cursor",
+        }
+    }
 }
 
 /// The camera as seen by the gizmo, in physical pixels.
@@ -106,6 +137,14 @@ impl View {
         let p = self.inverse * ndc;
         (self.eye, (p.truncate() / p.w - self.eye).normalize())
     }
+    /// The world point of a GPU probe at `pixel`: its first-hit id (0 = miss) and view depth.
+    pub fn surface_point(&self, pixel: [f32; 2], id: u32, depth: f32) -> Option<Vec3> {
+        if id == 0 || !depth.is_finite() || depth <= 0. {
+            return None;
+        }
+        let (o, d) = self.ray(Vec2::from(pixel));
+        Some(o + d * (depth / d.dot(self.forward()).max(1e-4)))
+    }
     /// World length of one pixel at depth of `p`.
     fn world_per_pixel(&self, p: Vec3) -> f32 {
         let depth = (-self.view.transform_point3(p).z).max(0.01);
@@ -146,9 +185,30 @@ pub fn frame(s: &Settings, selection: Selection) -> Option<Frame> {
         _ => None,
     }
 }
-/// The main light is always horizontal, so it has no rotate gizmo.
-pub fn allows(selection: Selection, mode: Mode) -> bool {
-    !(selection == Selection::MainLight && mode == Mode::Rotate)
+/// The gizmo of several items: the active one's (first) orientation, at the pivot.
+pub fn group_frame(
+    s: &Settings,
+    targets: &[Selection],
+    pivot: Pivot,
+    cursor: Vec3,
+) -> Option<Frame> {
+    let mut f = frame(s, *targets.first()?)?;
+    let frames: Vec<Frame> = targets.iter().filter_map(|t| frame(s, *t)).collect();
+    f.flat = frames.iter().all(|f| f.flat);
+    f.pivot = match pivot {
+        Pivot::Active => f.pivot,
+        Pivot::Cursor => cursor,
+        // Individual origins turn each item in place; the gizmo sits at their middle.
+        Pivot::Median | Pivot::Individual => {
+            frames.iter().map(|f| f.pivot).sum::<Vec3>() / frames.len().max(1) as f32
+        }
+    };
+    Some(f)
+}
+/// The main light is always horizontal, so it has no rotate gizmo on its own (in a group it
+/// only moves around the pivot).
+pub fn allows(targets: &[Selection], mode: Mode) -> bool {
+    !(targets == [Selection::MainLight] && mode == Mode::Rotate)
 }
 fn axes(f: &Frame, local: bool) -> [Vec3; 3] {
     if local {
@@ -186,12 +246,26 @@ pub struct Transform {
     pub local: bool,
     /// The orientation chosen in the top bar; the axis-key toggle flips away from it.
     base_local: bool,
-    pub target: Selection,
+    /// What moves: the active item first (its axes orient the gizmo), then the rest.
+    pub targets: Vec<Selection>,
+    /// Where rotations and scales turn around, and the 3D cursor for `Pivot::Cursor`.
+    pub pivot: Pivot,
+    pub cursor: Vec3,
     /// Pointer position at the start, and now (Shift moves it at a tenth of the speed).
     pub start: Vec2,
     pub mouse: Vec2,
+    /// The value being typed. In a free or plane move it belongs to axis `field`, and Tab
+    /// moves on to the next axis, keeping the earlier ones in `vector`.
     pub typed: String,
+    pub vector: [String; 3],
+    pub field: usize,
+    /// Ctrl held, and what it snaps to.
     pub snap: bool,
+    pub snap_to: snap::Target,
+    /// The real pointer (`mouse` moves at a tenth with Shift); snapping casts from here.
+    pub pointer: Vec2,
+    /// Started by Alt-drag or Shift+D: cancelling also undoes the copy.
+    pub undo_on_cancel: bool,
     pub from_handle: bool,
     /// The settings before the transform: cancel restores them, undo stores them.
     pub original: Settings,
@@ -199,7 +273,7 @@ pub struct Transform {
 impl Transform {
     pub fn new(
         mode: Mode,
-        target: Selection,
+        targets: Vec<Selection>,
         mouse: Vec2,
         original: &Settings,
         local: bool,
@@ -209,11 +283,18 @@ impl Transform {
             constraint: Constraint::Free,
             local,
             base_local: local,
-            target,
+            targets,
+            pivot: Pivot::Median,
+            cursor: Vec3::new(0., -1., 0.),
             start: mouse,
             mouse,
             typed: String::new(),
+            vector: Default::default(),
+            field: 0,
             snap: false,
+            snap_to: snap::Target::Increment,
+            pointer: mouse,
+            undo_on_cancel: false,
             from_handle: false,
             original: original.clone(),
         }
@@ -221,12 +302,12 @@ impl Transform {
     pub fn from_handle(
         mode: Mode,
         handle: Handle,
-        target: Selection,
+        targets: Vec<Selection>,
         mouse: Vec2,
         original: &Settings,
         local: bool,
     ) -> Self {
-        let mut t = Self::new(mode, target, mouse, original, local);
+        let mut t = Self::new(mode, targets, mouse, original, local);
         t.from_handle = true;
         t.constraint = match handle {
             Handle::Axis(a) => Constraint::Axis(a),
@@ -234,6 +315,10 @@ impl Transform {
             Handle::Center | Handle::ViewRing => Constraint::Free,
         };
         t
+    }
+    /// The gizmo frame at the start of the transform.
+    pub fn frame(&self) -> Option<Frame> {
+        group_frame(&self.original, &self.targets, self.pivot, self.cursor)
     }
     /// X / Y / Z (Shift: plane). Pressing the same axis again switches global ↔ local, a
     /// third time frees it, as in Blender.
@@ -252,83 +337,208 @@ impl Transform {
             self.constraint = Constraint::Free;
             self.local = self.base_local;
         }
+        // A plane has no field for the axis it excludes.
+        if let Constraint::Plane(n) = self.constraint
+            && self.field == n
+        {
+            self.next_field();
+        }
+    }
+    /// Tab in a free or plane move: keep the typed value for this axis, edit the next one.
+    pub fn next_field(&mut self) {
+        self.vector[self.field] = std::mem::take(&mut self.typed);
+        loop {
+            self.field = (self.field + 1) % 3;
+            if self.constraint != Constraint::Plane(self.field) {
+                break;
+            }
+        }
+        self.typed = std::mem::take(&mut self.vector[self.field]);
+    }
+    /// A free or plane move typed per axis (Tab between axes).
+    fn typed_vector(&self) -> Option<[f32; 3]> {
+        let mut text = self.vector.clone();
+        text[self.field] = self.typed.clone();
+        if text.iter().all(|t| t.is_empty()) {
+            return None;
+        }
+        Some(text.map(|t| t.parse::<f32>().unwrap_or(0.)))
     }
     pub fn typed_value(&self) -> Option<f32> {
         self.typed.parse::<f32>().ok()
     }
-    /// Restores the target from `original`, then applies the transform. Returns header text.
+    /// Restores the targets from `original`, then applies the transform. Returns header text.
     pub fn apply(&self, s: &mut Settings, view: &View) -> String {
         if !self.restore(s) {
             return String::new();
         }
         self.transform(s, view)
     }
-    /// Puts the target back as it was before the transform (cancel). False if it is gone.
+    /// Puts the targets back as they were before the transform (cancel). False if one is gone.
     pub fn restore(&self, s: &mut Settings) -> bool {
-        match self.target {
-            Selection::Object(i) if i < s.objects.len() && i < self.original.objects.len() => {
-                s.objects[i] = self.original.objects[i].clone();
+        let mut ok = !self.targets.is_empty();
+        for t in &self.targets {
+            match *t {
+                Selection::Object(i) if i < s.objects.len() && i < self.original.objects.len() => {
+                    s.objects[i] = self.original.objects[i].clone();
+                }
+                Selection::Light(i) if i < s.lights.len() && i < self.original.lights.len() => {
+                    s.lights[i] = self.original.lights[i].clone();
+                }
+                Selection::MainLight => {
+                    s.light_position = self.original.light_position;
+                    s.light_size = self.original.light_size;
+                    s.light_aspect = self.original.light_aspect;
+                }
+                _ => ok = false,
             }
-            Selection::Light(i) if i < s.lights.len() && i < self.original.lights.len() => {
-                s.lights[i] = self.original.lights[i].clone();
-            }
-            Selection::MainLight => {
-                s.light_position = self.original.light_position;
-                s.light_size = self.original.light_size;
-                s.light_aspect = self.original.light_aspect;
-            }
-            _ => return false,
         }
-        true
+        ok
+    }
+    /// Object indices among the targets (a snap ray passes through them).
+    fn moved_objects(&self) -> Vec<usize> {
+        self.targets
+            .iter()
+            .filter_map(|t| match t {
+                Selection::Object(i) => Some(*i),
+                _ => None,
+            })
+            .collect()
+    }
+    /// Snapping a move to another surface, vertex or edge: the move that brings the pivot
+    /// there (on a surface, the group's lowest point along the normal rests on it), and what
+    /// it snapped to. `None` when nothing is under the pointer.
+    fn snap_move(&self, view: &View, pivot: Vec3) -> Option<(Vec3, &'static str)> {
+        let (o, d) = view.ray(self.pointer);
+        let hit = snap::cast(&self.original, o, d, &self.moved_objects())?;
+        let p = snap::point(self.snap_to, &hit);
+        if self.snap_to != snap::Target::Surface {
+            return Some((p - pivot, self.snap_to.label()));
+        }
+        // How far the group reaches below the pivot along the surface normal.
+        let reach = self
+            .targets
+            .iter()
+            .flat_map(|t| match t {
+                Selection::Object(i) => self
+                    .original
+                    .objects
+                    .get(*i)
+                    .map(|o| crate::geometry::object_corners(o).to_vec())
+                    .unwrap_or_default(),
+                t => frame(&self.original, *t)
+                    .map(|f| vec![f.pivot])
+                    .unwrap_or_default(),
+            })
+            .map(|c| (pivot - c).dot(hit.normal))
+            .fold(0_f32, f32::max);
+        Some((p + hit.normal * reach - pivot, "Surface"))
     }
     fn transform(&self, s: &mut Settings, view: &View) -> String {
-        let Some(f) = frame(&self.original, self.target) else {
+        let Some(f) = self.frame() else {
             return String::new();
         };
         let axes = axes(&f, self.local);
         let space = if self.local { "local" } else { "global" };
         let typed = self.typed_value();
+        let count = if self.targets.len() > 1 {
+            format!(" ({} items)", self.targets.len())
+        } else {
+            String::new()
+        };
+        // Each target's own origin, for turning and scaling around the pivot.
+        let origins: Vec<Option<Vec3>> = self
+            .targets
+            .iter()
+            .map(|t| frame(&self.original, *t).map(|f| f.pivot))
+            .collect();
+        let around_pivot = self.pivot != Pivot::Individual;
         match self.mode {
             Mode::Move => {
-                let (delta, text) = match self.constraint {
-                    Constraint::Axis(a) => {
-                        let t = typed.unwrap_or_else(|| {
-                            let t = along_axis(view, f.pivot, axes[a], self.start, self.mouse);
-                            if self.snap {
-                                (t * 10.).round() / 10.
-                            } else {
-                                t
-                            }
-                        });
-                        (
-                            axes[a] * t,
-                            format!("Move {} ({space}): {t:.3} units", AXES[a]),
-                        )
-                    }
-                    c => {
-                        let normal = match c {
-                            Constraint::Plane(n) => axes[n],
-                            _ => view.forward(),
-                        };
-                        let mut d = on_plane(view, f.pivot, normal, self.start, self.mouse);
-                        if self.snap {
-                            d = axes
-                                .iter()
-                                .map(|a| *a * (a.dot(d) * 10.).round() / 10.)
-                                .sum();
+                let snapped = (self.snap && self.snap_to != snap::Target::Increment)
+                    .then(|| self.snap_move(view, f.pivot))
+                    .flatten();
+                let (delta, text) = if let Some((d, what)) = snapped {
+                    // Snapping keeps the constraint: only the allowed part of the move.
+                    let d = match self.constraint {
+                        Constraint::Axis(a) => axes[a] * axes[a].dot(d),
+                        Constraint::Plane(n) => d - axes[n] * axes[n].dot(d),
+                        Constraint::Free => d,
+                    };
+                    (
+                        d,
+                        format!("Move to {what}: {:.3}, {:.3}, {:.3} units", d.x, d.y, d.z),
+                    )
+                } else {
+                    match self.constraint {
+                        Constraint::Axis(a) => {
+                            let t = typed.unwrap_or_else(|| {
+                                let t = along_axis(view, f.pivot, axes[a], self.start, self.mouse);
+                                if self.snap {
+                                    (t * 10.).round() / 10.
+                                } else {
+                                    t
+                                }
+                            });
+                            (
+                                axes[a] * t,
+                                format!("Move {} ({space}): {t:.3} units", AXES[a]),
+                            )
                         }
-                        let label = match c {
-                            Constraint::Plane(n) => format!("Move (not {}, {space})", AXES[n]),
-                            _ => "Move".into(),
-                        };
-                        (
-                            d,
-                            format!("{label}: {:.3}, {:.3}, {:.3} units", d.x, d.y, d.z),
-                        )
+                        c => {
+                            let label = match c {
+                                Constraint::Plane(n) => {
+                                    format!("Move (not {}, {space})", AXES[n])
+                                }
+                                _ => "Move".into(),
+                            };
+                            if let Some(v) = self.typed_vector() {
+                                // Typed per axis, as in Blender: 1 Tab 2 Tab 3.
+                                let d: Vec3 = (0..3)
+                                    .filter(|k| c != Constraint::Plane(*k))
+                                    .map(|k| axes[k] * v[k])
+                                    .sum();
+                                let fields: Vec<String> = (0..3)
+                                    .filter(|k| c != Constraint::Plane(*k))
+                                    .map(|k| {
+                                        let text = if k == self.field {
+                                            format!("{}|", self.typed)
+                                        } else if self.vector[k].is_empty() {
+                                            "0".into()
+                                        } else {
+                                            self.vector[k].clone()
+                                        };
+                                        format!("{} {text}", AXES[k])
+                                    })
+                                    .collect();
+                                (
+                                    d,
+                                    format!("{label}: {} (Tab: next axis)", fields.join(", ")),
+                                )
+                            } else {
+                                let normal = match c {
+                                    Constraint::Plane(n) => axes[n],
+                                    _ => view.forward(),
+                                };
+                                let mut d = on_plane(view, f.pivot, normal, self.start, self.mouse);
+                                if self.snap {
+                                    d = axes
+                                        .iter()
+                                        .map(|a| *a * (a.dot(d) * 10.).round() / 10.)
+                                        .sum();
+                                }
+                                (
+                                    d,
+                                    format!("{label}: {:.3}, {:.3}, {:.3} units", d.x, d.y, d.z),
+                                )
+                            }
+                        }
                     }
                 };
-                translate(s, self.target, delta);
-                text
+                for t in &self.targets {
+                    translate(s, *t, delta);
+                }
+                text + count.as_str()
             }
             Mode::Rotate => {
                 let (axis, name) = match self.constraint {
@@ -345,12 +555,15 @@ impl Transform {
                         d
                     }
                 });
-                rotate(
-                    s,
-                    self.target,
-                    Quat::from_axis_angle(axis, degrees.to_radians()),
-                );
-                format!("Rotate {name}: {degrees:.1}°")
+                let q = Quat::from_axis_angle(axis, degrees.to_radians());
+                for (t, origin) in self.targets.iter().zip(&origins) {
+                    rotate(s, *t, q);
+                    // Around a shared pivot the origins swing round it too.
+                    if around_pivot && let Some(o) = origin {
+                        translate(s, *t, f.pivot + q * (*o - f.pivot) - *o);
+                    }
+                }
+                format!("Rotate {name}: {degrees:.1}°{count}")
             }
             Mode::Scale => {
                 let factor = typed.unwrap_or_else(|| {
@@ -368,8 +581,26 @@ impl Transform {
                     Constraint::Plane(n) => format!(" (not {})", AXES[n]),
                     Constraint::Free => String::new(),
                 };
-                scale(s, self.target, self.constraint, factor);
-                format!("Scale{name}: {factor:.3}×")
+                // The pivot-to-origin offsets stretch along the same axes as the items.
+                let on = match self.constraint {
+                    Constraint::Free => [true; 3],
+                    Constraint::Axis(a) => [a == 0, a == 1, a == 2],
+                    Constraint::Plane(n) => [n != 0, n != 1, n != 2],
+                };
+                for (t, origin) in self.targets.iter().zip(&origins) {
+                    scale(s, *t, self.constraint, factor);
+                    if around_pivot && let Some(o) = origin {
+                        let d = *o - f.pivot;
+                        let stretched: Vec3 = (0..3)
+                            .map(|k| {
+                                let part = axes[k] * axes[k].dot(d);
+                                if on[k] { part * factor } else { part }
+                            })
+                            .sum();
+                        translate(s, *t, stretched - d);
+                    }
+                }
+                format!("Scale{name}: {factor:.3}×{count}")
             }
         }
     }
@@ -776,17 +1007,18 @@ pub fn draw_lights(
     ppp: f32,
     view: &View,
     s: &Settings,
-    selected: Selection,
+    selected: &[Selection],
 ) {
     for (sel, outline) in light_outlines(s, view.forward()) {
-        if sel != selected && !outline_on(s, sel) {
+        let chosen = selected.contains(&sel);
+        if !chosen && !outline_on(s, sel) {
             continue;
         }
         let pts: Vec<_> = outline.iter().filter_map(|p| view.project(*p)).collect();
         if pts.len() != outline.len() {
             continue;
         }
-        let (width, color) = if sel == selected {
+        let (width, color) = if chosen {
             (2., HOVER)
         } else {
             (
@@ -975,7 +1207,7 @@ mod tests {
         let before = s.clone();
         let mut t = Transform::new(
             Mode::Move,
-            Selection::Object(0),
+            vec![Selection::Object(0)],
             Vec2::new(600., 300.),
             &s,
             false,
@@ -987,14 +1219,26 @@ mod tests {
         assert_eq!(s.objects[0].position[1], before.objects[0].position[1]);
 
         let mut s = before.clone();
-        let mut t = Transform::new(Mode::Rotate, Selection::Object(0), Vec2::ZERO, &s, false);
+        let mut t = Transform::new(
+            Mode::Rotate,
+            vec![Selection::Object(0)],
+            Vec2::ZERO,
+            &s,
+            false,
+        );
         t.constrain(1, false);
         t.typed = "30".into();
         t.apply(&mut s, &view);
         assert!((wrap(s.objects[0].rotation - before.objects[0].rotation) - 30.).abs() < 1e-3);
 
         let mut s = before.clone();
-        let mut t = Transform::new(Mode::Scale, Selection::Object(0), Vec2::ZERO, &s, false);
+        let mut t = Transform::new(
+            Mode::Scale,
+            vec![Selection::Object(0)],
+            Vec2::ZERO,
+            &s,
+            false,
+        );
         t.typed = "2".into();
         t.apply(&mut s, &view);
         assert!((s.objects[0].size - before.objects[0].size * 2.).abs() < 1e-5);
@@ -1021,7 +1265,7 @@ mod tests {
         let mut t = Transform::from_handle(
             Mode::Move,
             Handle::Axis(0),
-            Selection::Object(0),
+            vec![Selection::Object(0)],
             grab,
             &s,
             false,
@@ -1049,7 +1293,7 @@ mod tests {
         let c = view.project(f.pivot).unwrap();
         let mut t = Transform::new(
             Mode::Rotate,
-            Selection::Object(0),
+            vec![Selection::Object(0)],
             c + Vec2::new(80., 0.),
             &s,
             false,
@@ -1064,7 +1308,13 @@ mod tests {
     #[test]
     fn constraint_toggles_like_blender() {
         let (s, _) = setup();
-        let mut t = Transform::new(Mode::Move, Selection::Object(0), Vec2::ZERO, &s, false);
+        let mut t = Transform::new(
+            Mode::Move,
+            vec![Selection::Object(0)],
+            Vec2::ZERO,
+            &s,
+            false,
+        );
         t.constrain(0, false);
         assert_eq!((t.constraint, t.local), (Constraint::Axis(0), false));
         t.constrain(0, false);
@@ -1082,7 +1332,13 @@ mod tests {
             pick(&s, c.to_array(), [1280, 720]),
             Some(Selection::MainLight)
         );
-        let mut t = Transform::new(Mode::Scale, Selection::MainLight, Vec2::ZERO, &s, false);
+        let mut t = Transform::new(
+            Mode::Scale,
+            vec![Selection::MainLight],
+            Vec2::ZERO,
+            &s,
+            false,
+        );
         let depth = s.light_size * s.light_aspect;
         t.constrain(0, false);
         t.typed = "2".into();
@@ -1091,6 +1347,102 @@ mod tests {
             (s.light_size * s.light_aspect - depth).abs() < 1e-4,
             "depth kept"
         );
-        assert!(!allows(Selection::MainLight, Mode::Rotate));
+        assert!(!allows(&[Selection::MainLight], Mode::Rotate));
+        assert!(allows(
+            &[Selection::MainLight, Selection::Object(0)],
+            Mode::Rotate
+        ));
+    }
+    /// Two objects, side by side on the floor.
+    fn pair() -> Settings {
+        let mut s = Settings::default();
+        s.objects.truncate(1);
+        s.objects[0].position = [-0.5, 0.];
+        s.objects[0].rotation = 0.;
+        s.objects[0].tilt = [0., 0.];
+        let mut o = s.objects[0].clone();
+        o.position = [0.5, 0.];
+        s.objects.push(o);
+        s
+    }
+    #[test]
+    fn a_group_turns_around_its_median_or_in_place() {
+        let (_, view) = setup();
+        let both = vec![Selection::Object(0), Selection::Object(1)];
+        let mut s = pair();
+        let before = s.clone();
+        let mut t = Transform::new(Mode::Rotate, both.clone(), Vec2::ZERO, &s, false);
+        t.constrain(1, false);
+        t.typed = "90".into();
+        t.apply(&mut s, &view);
+        // Around the median (0, 0): x = ±0.5 swings onto the z axis, and both turn 90°.
+        for (i, z) in [(0, 0.5), (1, -0.5)] {
+            let p = s.objects[i].position;
+            assert!(p[0].abs() < 1e-4 && (p[1] - z).abs() < 1e-4, "{i}: {p:?}");
+            assert!((wrap(s.objects[i].rotation - before.objects[i].rotation) - 90.).abs() < 1e-3);
+        }
+        // Individual origins: same turn, no move.
+        let mut s = before.clone();
+        t.pivot = Pivot::Individual;
+        t.original = s.clone();
+        t.apply(&mut s, &view);
+        for i in 0..2 {
+            assert_eq!(s.objects[i].position, before.objects[i].position);
+            assert!((wrap(s.objects[i].rotation - before.objects[i].rotation) - 90.).abs() < 1e-3);
+        }
+        // Scaling 2x around the median doubles the gap.
+        let mut s = before.clone();
+        let mut t = Transform::new(Mode::Scale, both.clone(), Vec2::ZERO, &s, false);
+        t.typed = "2".into();
+        t.apply(&mut s, &view);
+        assert!((s.objects[1].position[0] - s.objects[0].position[0] - 2.).abs() < 1e-4);
+        // Cancel restores every target.
+        assert!(t.restore(&mut s));
+        assert!(s == before);
+    }
+    #[test]
+    fn a_free_move_takes_a_typed_vector() {
+        let (_, view) = setup();
+        let mut s = pair();
+        let before = s.clone();
+        let mut t = Transform::new(
+            Mode::Move,
+            vec![Selection::Object(0), Selection::Object(1)],
+            Vec2::ZERO,
+            &s,
+            false,
+        );
+        t.typed = "1".into();
+        t.next_field();
+        t.next_field();
+        t.typed = "-0.5".into();
+        let header = t.apply(&mut s, &view);
+        for i in 0..2 {
+            let (a, b) = (s.objects[i].position, before.objects[i].position);
+            assert!((a[0] - b[0] - 1.).abs() < 1e-5 && (a[1] - b[1] + 0.5).abs() < 1e-5);
+        }
+        assert!(header.contains("2 items"), "{header}");
+        // A plane skips the axis it excludes: Shift+Y leaves X and Z.
+        t.constrain(1, true);
+        assert_ne!(t.field, 1);
+        t.next_field();
+        assert_ne!(t.field, 1);
+        // A value typed for Y before Shift+Y must not move along Y.
+        let mut t = Transform::new(
+            Mode::Move,
+            vec![Selection::Object(0)],
+            Vec2::ZERO,
+            &before,
+            false,
+        );
+        let mut s = before.clone();
+        t.next_field();
+        t.typed = "2".into();
+        t.constrain(1, true);
+        t.apply(&mut s, &view);
+        assert_eq!(
+            s.objects[0].elevation, before.objects[0].elevation,
+            "Y stayed"
+        );
     }
 }

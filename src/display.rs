@@ -249,7 +249,82 @@ pub fn scrgb_to_pq(scrgb: &[f32]) -> Vec<u16> {
     }
     pixels
 }
-fn crc32(bytes: &[u8]) -> u32 {
+/// Writes scRGB pixels (RGBA, 1.0 = 80 nits) as a lossless JPEG XR of half floats through the
+/// Windows Imaging Component, the format Game Bar and the Snipping Tool use for HDR screenshots.
+pub fn write_jxr(path: &std::path::Path, scrgb: &[f32], width: u32, height: u32) -> Result<()> {
+    use windows::Win32::Graphics::Imaging::*;
+    use windows::Win32::System::Com::StructuredStorage::{IPropertyBag2, PROPBAG2};
+    use windows::Win32::System::Com::*;
+    use windows::Win32::System::Variant::VARIANT;
+    use windows::core::{HSTRING, PWSTR};
+    anyhow::ensure!(
+        scrgb.len() == width as usize * height as usize * 4,
+        "JPEG XR size mismatch"
+    );
+    let bytes: Vec<u8> = scrgb
+        .iter()
+        .enumerate()
+        .flat_map(|(i, &v)| {
+            // Opaque alpha; negative scRGB stays (it is valid out-of-gamut colour).
+            let v = if i % 4 == 3 { 1. } else { v };
+            crate::gpu::f32_to_half(v).to_le_bytes()
+        })
+        .collect();
+    unsafe {
+        // Already initialised on this thread (any model) is fine.
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let factory: IWICImagingFactory =
+            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
+        let stream = factory.CreateStream()?;
+        stream.InitializeFromFilename(
+            &HSTRING::from(path.as_os_str()),
+            windows::Win32::Foundation::GENERIC_WRITE.0,
+        )?;
+        let encoder = factory.CreateEncoder(&GUID_ContainerFormatWmp, std::ptr::null())?;
+        encoder.Initialize(&stream, WICBitmapEncoderNoCache)?;
+        let mut frame: Option<IWICBitmapFrameEncode> = None;
+        let mut options: Option<IPropertyBag2> = None;
+        encoder.CreateNewFrame(&mut frame, &mut options)?;
+        let frame = frame.ok_or_else(|| anyhow::anyhow!("No JPEG XR frame"))?;
+        if let Some(options) = &options {
+            let mut name: Vec<u16> = "Lossless\0".encode_utf16().collect();
+            let bag = PROPBAG2 {
+                pstrName: PWSTR(name.as_mut_ptr()),
+                ..Default::default()
+            };
+            options.Write(1, &bag, &VARIANT::from(true))?;
+        }
+        frame.Initialize(options.as_ref())?;
+        frame.SetSize(width, height)?;
+        let mut format = GUID_WICPixelFormat64bppRGBAHalf;
+        frame.SetPixelFormat(&mut format)?;
+        anyhow::ensure!(
+            format == GUID_WICPixelFormat64bppRGBAHalf,
+            "The JPEG XR encoder does not take half floats"
+        );
+        frame.WritePixels(height, width * 8, &bytes)?;
+        frame.Commit()?;
+        encoder.Commit()?;
+    }
+    Ok(())
+}
+/// One R10G10B10A2 pixel of the HDR10 path (PQ code values in BT.2020) back to scRGB RGBA
+/// (BT.709, 1.0 = 80 nits): readbacks of the HDR10 output and backbuffer go through this.
+pub fn hdr10_to_scrgb(word: u32) -> [f32; 4] {
+    const TO_709: [[f32; 3]; 3] = [
+        [1.660_491, -0.587_641, -0.072_850],
+        [-0.124_550, 1.132_9, -0.008_349],
+        [-0.018_151, -0.100_579, 1.118_73],
+    ];
+    let decode = |e: f32| {
+        let p = e.clamp(0., 1.).powf(1. / 78.84375);
+        10000. * ((p - 0.835_937_5).max(0.) / (18.851_563 - 18.6875 * p)).powf(1. / 0.159_301_76)
+    };
+    let c = [0, 10, 20].map(|shift| decode(((word >> shift) & 1023) as f32 / 1023.) / 80.);
+    let [r, g, b] = TO_709.map(|row| row[0] * c[0] + row[1] * c[1] + row[2] * c[2]);
+    [r, g, b, (word >> 30) as f32 / 3.]
+}
+pub fn crc32(bytes: &[u8]) -> u32 {
     let mut crc = !0u32;
     for b in bytes {
         crc ^= *b as u32;
@@ -266,7 +341,7 @@ fn crc32(bytes: &[u8]) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{hdr_map, tone_curve};
+    use super::{hdr_map, hdr10_to_scrgb, scrgb_to_pq, tone_curve};
     #[test]
     fn hdr_tone_maps_keep_the_sdr_midtones_and_fill_the_headroom() {
         for mode in 1..6 {
@@ -288,6 +363,31 @@ mod tests {
                 last > 200. / 80. * 1.5,
                 "mode {mode} stays at paper white: {last}"
             );
+        }
+    }
+    #[test]
+    fn hdr10_decodes_what_the_pq_writer_encodes() {
+        // scRGB in, the HDR PNG's 16-bit PQ / BT.2020, truncated to 10 bits, back to scRGB.
+        for c in [
+            [1., 1., 1.],
+            [0.02, 0.5, 3.],
+            [12.5, 0.1, 0.],
+            [100., 100., 100.],
+        ] {
+            let pq = scrgb_to_pq(&[c[0], c[1], c[2], 1.]);
+            let ten: Vec<u32> = pq
+                .iter()
+                .map(|&v| ((v as f32 / 65535. * 1023.).round() as u32).min(1023))
+                .collect();
+            let word = ten[0] | ten[1] << 10 | ten[2] << 20 | 3 << 30;
+            let back = hdr10_to_scrgb(word);
+            for i in 0..3 {
+                // Relative to the brightest channel: the BT.2020 to BT.709 matrix spreads a
+                // bright channel's 10-bit step into the dim ones of saturated colours.
+                let err = (back[i] - c[i]).abs() / (c[0].max(c[1]).max(c[2]) + 0.01);
+                assert!(err < 0.01, "{c:?} -> {back:?}");
+            }
+            assert_eq!(back[3], 1.);
         }
     }
     #[test]

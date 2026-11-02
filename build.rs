@@ -2,7 +2,7 @@ use std::{env, path::PathBuf, process::Command};
 fn main() {
     assert!(
         env::var("TARGET").unwrap().contains("windows-msvc"),
-        "Cornell RTX requires 64-bit Windows and the MSVC Rust toolchain"
+        "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
     );
     assert!(
         PathBuf::from("vendor/dlss/include/nvsdk_ngx.h").exists(),
@@ -11,6 +11,15 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders");
     println!("cargo:rerun-if-changed=bridge/ngx.cpp");
     println!("cargo:rerun-if-env-changed=DXC_PATH");
+    // The release version: CI sets CAUSTICA_VERSION (the tag it is about to create, without
+    // the v); local builds are the Cargo.toml version marked -dev.
+    println!("cargo:rerun-if-env-changed=CAUSTICA_VERSION");
+    let version = env::var("CAUSTICA_VERSION")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| format!("{}-dev", env::var("CARGO_PKG_VERSION").unwrap()));
+    println!("cargo:rustc-env=CAUSTICA_VERSION={version}");
+    resources(&version);
     let dxc = env::var_os("DXC_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -30,9 +39,9 @@ fn main() {
             candidates.pop().unwrap_or_else(|| PathBuf::from("dxc.exe"))
         });
     // Debug builds recompile shaders at runtime with the same DXC (src/hotreload.rs).
-    println!("cargo:rustc-env=CORNELL_DXC={}", dxc.display());
+    println!("cargo:rustc-env=CAUSTICA_DXC={}", dxc.display());
     println!(
-        "cargo:rustc-env=CORNELL_SHADERS={}",
+        "cargo:rustc-env=CAUSTICA_SHADERS={}",
         PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
             .join("shaders")
             .display()
@@ -179,7 +188,7 @@ fn main() {
         .include("vendor/xess/inc")
         .flag("/std:c++17")
         .flag("/EHsc")
-        .compile("cornell_ngx");
+        .compile("caustica_ngx");
     println!(
         "cargo:rustc-link-search=native={}",
         std::fs::canonicalize("vendor/dlss/lib/Windows_x86_64/x64")
@@ -210,4 +219,82 @@ fn main() {
             );
         }
     }
+}
+/// The exe's icon (assets/caustica.ico, drawn by tools/make_icon.py) and version info, compiled
+/// by the Windows SDK's rc.exe (`RC_PATH` overrides) and linked into the binary. Without
+/// rc.exe the build goes on with a warning and a plain exe.
+fn resources(version: &str) {
+    println!("cargo:rerun-if-changed=assets/caustica.ico");
+    println!("cargo:rerun-if-env-changed=RC_PATH");
+    let rc = env::var_os("RC_PATH").map(PathBuf::from).or_else(|| {
+        let root = PathBuf::from(
+            env::var_os("ProgramFiles(x86)").unwrap_or_else(|| "C:\\Program Files (x86)".into()),
+        )
+        .join("Windows Kits/10/bin");
+        let mut found: Vec<_> = std::fs::read_dir(root)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path().join("x64/rc.exe"))
+            .filter(|p| p.exists())
+            .collect();
+        found.sort();
+        found.pop()
+    });
+    let Some(rc) = rc else {
+        println!("cargo:warning=rc.exe not found: the exe gets no icon (set RC_PATH)");
+        return;
+    };
+    let icon =
+        PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("assets/caustica.ico");
+    // VERSIONINFO wants four numbers: major, minor, patch, 0 (a -dev suffix is dropped).
+    let mut n = version
+        .split(|c: char| !c.is_ascii_digit())
+        .filter_map(|p| p.parse::<u16>().ok());
+    let v = [
+        n.next().unwrap_or(0),
+        n.next().unwrap_or(0),
+        n.next().unwrap_or(0),
+    ];
+    let numbers = format!("{},{},{},0", v[0], v[1], v[2]);
+    let script = format!(
+        r#"1 ICON "{icon}"
+1 VERSIONINFO
+FILEVERSION {numbers}
+PRODUCTVERSION {numbers}
+FILEOS 0x40004
+FILETYPE 0x1
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Kaan"
+      VALUE "FileDescription", "Caustica path tracer"
+      VALUE "FileVersion", "{version}"
+      VALUE "InternalName", "caustica"
+      VALUE "OriginalFilename", "caustica.exe"
+      VALUE "ProductName", "Caustica"
+      VALUE "ProductVersion", "{version}"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
+"#,
+        icon = icon.display().to_string().replace('\\', "\\\\"),
+    );
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let (rc_file, res) = (out.join("caustica.rc"), out.join("caustica.res"));
+    std::fs::write(&rc_file, script).unwrap();
+    let status = Command::new(&rc)
+        .args(["/nologo", "/fo"])
+        .arg(&res)
+        .arg(&rc_file)
+        .status()
+        .unwrap_or_else(|e| panic!("{}: {e}", rc.display()));
+    assert!(status.success(), "rc.exe failed on {}", rc_file.display());
+    println!("cargo:rustc-link-arg-bins={}", res.display());
 }

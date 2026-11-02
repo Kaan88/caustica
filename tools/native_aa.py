@@ -13,8 +13,8 @@ Scores are RMSE x1000 of compressed luminance l/(1+l) over all pixels and over e
 noise mostly does not).
 
 Usage, from the repo root:
-    python tools/native_aa.py --exe target/validation/debug/cornell-rtx.exe --tag new --filter bh
-    python tools/native_aa.py --exe target/baseline/debug/cornell-rtx.exe --tag main --filter none
+    python tools/native_aa.py --exe target/validation/debug/caustica.exe --tag new --filter bh
+    python tools/native_aa.py --exe target/baseline/debug/caustica.exe --tag main --filter none
 --filter none passes no pixel_filter (builds before the setting, which are box filtered);
 box / gauss / bh set it. --width sets the filter width. References are rendered once per
 scene, filter and width, and reused. Edge crops go to <out>/<tag>_<scene>_<case>.png.
@@ -65,7 +65,7 @@ def blur3(x):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/cornell-rtx.exe")
+    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/caustica.exe")
     parser.add_argument("--out", type=Path, default=ROOT / "captures/native-aa")
     parser.add_argument("--tag", required=True)
     parser.add_argument("--filter", choices=FILTERS, default="none")

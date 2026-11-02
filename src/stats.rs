@@ -1,4 +1,4 @@
-//! Lifetime statistics and achievements (roadmap 5b), kept in %APPDATA%\CornellRTX\stats.json.
+//! Lifetime statistics and achievements (roadmap 5b), kept in %APPDATA%\Caustica\stats.json.
 //! Interactive runs only: headless captures and the self-test never touch the file.
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -46,7 +46,7 @@ pub const ACHIEVEMENTS: [(&str, &str, &str); 8] = [
     ),
 ];
 fn path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("CornellRTX").join("stats.json"))
+    crate::prefs::app_dir().map(|d| d.join("stats.json"))
 }
 impl Stats {
     pub fn load() -> Self {

@@ -29,6 +29,7 @@ mod scene;
 mod scenes;
 mod script;
 mod sky;
+mod snap;
 mod stats;
 mod teapot_data;
 mod textscene;
@@ -52,14 +53,16 @@ use winit::{
     event::*,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
+    platform::windows::WindowAttributesExtWindows,
     window::{Window, WindowId},
 };
 
 #[derive(Default)]
 struct Actions {
     reset: bool,
-    save: bool,
-    load: bool,
+    /// Settings JSON to write or read (the quick buttons use ./settings.json).
+    save: Option<PathBuf>,
+    load: Option<PathBuf>,
     /// Save the current image (Export tab, F12) in this format.
     save_image: Option<video::ImageFormat>,
     reference: bool,
@@ -139,8 +142,12 @@ struct App {
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
     focus_target: Option<f32>,
-    /// A click waiting for the object-id readback at this pixel.
+    /// A click waiting for the object-id readback at this pixel; Shift was held (the pick
+    /// adds to or removes from the selection).
     pick_point: Option<[f64; 2]>,
+    pick_toggle: bool,
+    /// Shift+right-click: the 3D cursor goes to the surface under this pixel (probe depth).
+    cursor_pick: Option<[f64; 2]>,
     /// Light painting (L): light edits keep the accumulation; progressive path only.
     painting: bool,
     /// Walk mode (`): WASD and mouse look; the keys held down right now.
@@ -192,6 +199,7 @@ fn transport_key(s: &Settings) -> String {
         "hdr_mode",
         "hdr_peak",
         "hdr_white",
+        "hdr10",
         "rotate",
         "rotate_speed",
         "halation",
@@ -541,9 +549,14 @@ impl App {
                     frames = Some(SCENES_FROM + scenes::list().len() as u32);
                 }
                 "--no-vsync" => s.vsync = false,
+                "--version" => {
+                    println!("Caustica {VERSION}");
+                    std::process::exit(0);
+                }
                 "--help" => {
+                    println!("Caustica {VERSION}");
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -635,6 +648,8 @@ impl App {
             focus_pending: false,
             focus_target: None,
             pick_point: None,
+            pick_toggle: false,
+            cursor_pick: None,
             painting: false,
             walking: None,
             keys_down: Default::default(),
@@ -731,7 +746,8 @@ impl App {
                         let _ = std::fs::create_dir_all(dir);
                     }
                     done(match self.gpu.as_mut() {
-                        Some(g) => unsafe { g.capture(&path, hdr, false) },
+                        Some(g) => unsafe { g.capture(&path, hdr, false) }
+                            .and_then(|_| video::tag_capture(&path, g.width, g.height)),
                         None => Err(anyhow::anyhow!("no GPU yet")),
                     })
                 }
@@ -843,17 +859,17 @@ impl App {
                 // high-resolution still (one pass, so it ends within the next frame).
                 141 => {
                     for f in video::ImageFormat::ALL {
-                        let _ = std::fs::remove_file(f.file("cornell"));
-                        let _ = std::fs::remove_file(f.file("cornell-high-res"));
+                        let _ = std::fs::remove_file(f.file("caustica"));
+                        let _ = std::fs::remove_file(f.file("caustica-high-res"));
                     }
                     self.actions.save_image = Some(video::ImageFormat::Jpeg);
                 }
                 142 => {
-                    self.expect_image(video::ImageFormat::Jpeg.file("cornell"), None)?;
+                    self.expect_image(video::ImageFormat::Jpeg.file("caustica"), None)?;
                     self.actions.save_image = Some(video::ImageFormat::Exr);
                 }
                 143 => {
-                    self.expect_image(video::ImageFormat::Exr.file("cornell"), None)?;
+                    self.expect_image(video::ImageFormat::Exr.file("caustica"), None)?;
                     self.ui.export_scale = 1;
                     self.ui.export_samples = 4;
                     self.ui.export_format = video::ImageFormat::Jpeg;
@@ -864,7 +880,7 @@ impl App {
                     let g = self.gpu.as_ref().unwrap();
                     let size = [g.width, g.height];
                     self.expect_image(
-                        video::ImageFormat::Jpeg.file("cornell-high-res"),
+                        video::ImageFormat::Jpeg.file("caustica-high-res"),
                         Some(size),
                     )?;
                     self.ui.export_format = video::ImageFormat::Png;
@@ -896,7 +912,7 @@ impl App {
                     );
                     let a = &mut self.settings.animation;
                     (a.length, a.fps, a.shutter) = (0.2, 10, 0.5);
-                    let folder = std::env::temp_dir().join("cornell-self-test-timeline");
+                    let folder = std::env::temp_dir().join("caustica-self-test-timeline");
                     let _ = std::fs::remove_dir_all(&folder);
                     let mut o = video::Options::turntable(
                         &self.settings,
@@ -910,7 +926,7 @@ impl App {
                 }
                 149 => {
                     anyhow::ensure!(self.export.is_none(), "The timeline export did not finish");
-                    let folder = std::env::temp_dir().join("cornell-self-test-timeline");
+                    let folder = std::env::temp_dir().join("caustica-self-test-timeline");
                     let frames = std::fs::read_dir(&folder)?.count();
                     anyhow::ensure!(frames == 2, "The timeline export wrote {frames} frames");
                     self.settings.animation = Default::default();
@@ -955,14 +971,14 @@ impl App {
                     self.ui.export_scale = 1;
                     // One pass (4 spp), so the job ends within frame 171; no stale file counts.
                     self.ui.export_samples = 4;
-                    let _ = std::fs::remove_file("cornell-high-res.png");
+                    let _ = std::fs::remove_file("caustica-high-res.png");
                     self.actions.high_res = true;
                 }
                 // Every upscaler on the native path at half resolution, then back to RR.
                 172..=176 => {
                     anyhow::ensure!(
                         self.export.is_none()
-                            && std::path::Path::new("cornell-high-res.png").is_file(),
+                            && std::path::Path::new("caustica-high-res.png").is_file(),
                         "The high-resolution still did not finish"
                     );
                     self.settings.rr = false;
@@ -995,7 +1011,7 @@ impl App {
                 }
                 187 => self.actions.save_image = Some(video::ImageFormat::HdrPng),
                 188 => {
-                    self.expect_image(video::ImageFormat::HdrPng.file("cornell"), None)?;
+                    self.expect_image(video::ImageFormat::HdrPng.file("caustica"), None)?;
                     self.settings.hdr_mode = 1;
                 }
                 189 => {
@@ -1119,9 +1135,94 @@ impl App {
                             }
                         }
                     }
-                    let path = std::env::temp_dir().join("cornell-self-test.cube");
+                    let path = std::env::temp_dir().join("caustica-self-test.cube");
                     std::fs::write(&path, text)?;
                     self.settings.lut_path = path.to_string_lossy().into();
+                }
+                // Multi-select (3b): a typed group move, duplicate, select all, delete, undo.
+                233 => {
+                    if self.settings.objects.len() < 2 {
+                        let o = self.settings.objects[0].clone();
+                        self.settings.objects.push(o);
+                    }
+                    let both = vec![ui::Selection::Object(0), ui::Selection::Object(1)];
+                    self.ui.select_many(both, &self.settings);
+                    let before = self.settings.clone();
+                    anyhow::ensure!(
+                        self.start_transform(gizmo::Mode::Move, None),
+                        "The group move did not start"
+                    );
+                    if let Some(t) = &mut self.ui.transform {
+                        t.typed = "0.25".into();
+                    }
+                    self.update_transform();
+                    self.finish_transform();
+                    for i in 0..2 {
+                        let (a, b) = (
+                            self.settings.objects[i].position,
+                            before.objects[i].position,
+                        );
+                        anyhow::ensure!(
+                            (a[0] - b[0] - 0.25).abs() < 1e-4 && a[1] == b[1],
+                            "Object {i} moved to {a:?} from {b:?}"
+                        );
+                    }
+                    let n = self.settings.objects.len();
+                    anyhow::ensure!(
+                        self.ui
+                            .duplicate_selected(&mut self.settings, false)
+                            .is_some()
+                            && self.settings.objects.len() == n + 2
+                            && self.ui.targets().len() == 2,
+                        "Duplicating two objects made {} objects",
+                        self.settings.objects.len()
+                    );
+                    self.ui.undo(&mut self.settings);
+                }
+                234 => {
+                    let (objects, lights) =
+                        (self.settings.objects.len(), self.settings.lights.len());
+                    self.select_all();
+                    anyhow::ensure!(
+                        self.ui.targets().len()
+                            == self.settings.objects.iter().filter(|o| o.visible).count()
+                                + self.settings.lights.iter().filter(|l| l.enabled).count(),
+                        "Select all chose {} items",
+                        self.ui.targets().len()
+                    );
+                    self.ui.delete_selected(&mut self.settings);
+                    self.ui.undo(&mut self.settings);
+                    anyhow::ensure!(
+                        self.settings.objects.len() == objects
+                            && self.settings.lights.len() == lights,
+                        "Deleting all and undoing left {} objects",
+                        self.settings.objects.len()
+                    );
+                    self.ui.select(ui::Selection::None);
+                }
+                // The HDR10 swapchain (10-bit PQ / BT.2020) with fixed levels, then Auto again.
+                226 => {
+                    self.settings.hdr_mode = 2;
+                    self.settings.hdr10 = true;
+                    self.settings.hdr_peak = 1000.;
+                    self.settings.hdr_white = 200.;
+                }
+                227 => self.actions.save_image = Some(video::ImageFormat::HdrPng),
+                228 => {
+                    self.expect_image(video::ImageFormat::HdrPng.file("caustica"), None)?;
+                    let _ = std::fs::remove_file(video::ImageFormat::Jxr.file("caustica"));
+                    self.actions.save_image = Some(video::ImageFormat::Jxr);
+                }
+                229 => {
+                    // The image crate has no JPEG XR decoder: check WIC wrote a plausible file.
+                    let jxr = video::ImageFormat::Jxr.file("caustica");
+                    let size = std::fs::metadata(&jxr).map(|m| m.len()).unwrap_or(0);
+                    anyhow::ensure!(size > 1000, "{} was not written", jxr.display());
+                    let _ = std::fs::remove_file(&jxr);
+                    self.settings.hdr_mode = 0;
+                    self.settings.hdr10 = false;
+                    self.settings.hdr_peak = 0.;
+                    self.settings.hdr_white = 0.;
                 }
                 225 => {
                     self.settings.lut_path.clear();
@@ -1190,7 +1291,7 @@ impl App {
                 }
                 // A three-frame turntable (PNG frames when ffmpeg is missing).
                 253 => {
-                    let path = std::env::temp_dir().join("cornell-self-test-turntable.mp4");
+                    let path = std::env::temp_dir().join("caustica-self-test-turntable.mp4");
                     let folder = path.with_extension("");
                     let _ = std::fs::remove_dir_all(&folder);
                     let g = self.gpu.as_mut().unwrap();
@@ -1263,7 +1364,7 @@ impl App {
                 // Mesh import: an OBJ pyramid, plus an object whose mesh file is missing (it
                 // falls back to its shape). The per-frame GPU counts check both.
                 258 => {
-                    let path = std::env::temp_dir().join("cornell-self-test-pyramid.obj");
+                    let path = std::env::temp_dir().join("caustica-self-test-pyramid.obj");
                     std::fs::write(
                         &path,
                         "v -1 0 -1\nv 1 0 -1\nv 1 0 1\nv -1 0 1\nv 0 2 0\n\
@@ -1295,7 +1396,7 @@ impl App {
                         let sun = if (x, y) == (40, 9) { 400. } else { 0. };
                         image::Rgb([0.3 + sun, 0.35 + y as f32 * 0.01, 0.5])
                     });
-                    let path = std::env::temp_dir().join("cornell-self-test-sky.hdr");
+                    let path = std::env::temp_dir().join("caustica-self-test-sky.hdr");
                     image::DynamicImage::ImageRgb32F(map).save(&path)?;
                     self.settings.hdri = path.to_string_lossy().into();
                     self.settings.hdri_rotation = 30.;
@@ -1343,7 +1444,7 @@ impl App {
                 // Texture maps (core track 5): a masked, normal-mapped glTF quad uploads two
                 // maps; switching its maps off releases them.
                 269 => {
-                    let path = std::env::temp_dir().join("cornell-self-test-tiles.gltf");
+                    let path = std::env::temp_dir().join("caustica-self-test-tiles.gltf");
                     mesh::write_test_gltf(&path)?;
                     let mut quad = mesh::import_objects(&path)?.remove(0);
                     quad.position = [0., 0.4];
@@ -1376,7 +1477,7 @@ impl App {
                 // Video export through the dialog: three EXR frames at their own (odd) size while
                 // the window keeps its own, then a long PNG export cancelled while it runs.
                 273 => {
-                    let folder = std::env::temp_dir().join("cornell-self-test-video");
+                    let folder = std::env::temp_dir().join("caustica-self-test-video");
                     let _ = std::fs::remove_dir_all(&folder);
                     self.open_video_dialog();
                     let o = &mut self.ui.video;
@@ -1387,7 +1488,7 @@ impl App {
                 }
                 276 => {
                     anyhow::ensure!(self.export.is_none(), "The EXR export did not finish");
-                    let folder = std::env::temp_dir().join("cornell-self-test-video");
+                    let folder = std::env::temp_dir().join("caustica-self-test-video");
                     for i in 1..=3 {
                         let path = folder.join(format!("{i:05}.exr"));
                         let size = image::image_dimensions(&path)
@@ -1468,7 +1569,7 @@ impl App {
                 // (title kept), the favourite and recent lists drawn, quality bundles, the A/B
                 // split handle and a Show in folder toast.
                 281 => {
-                    let path = std::env::temp_dir().join("cornell-self-test-scene.json");
+                    let path = std::env::temp_dir().join("caustica-self-test-scene.json");
                     let mut s = self.settings.clone();
                     s.exposure = 1.7;
                     scenes::save_to(&path, &s, "Self test scene", "")?;
@@ -1651,19 +1752,17 @@ impl App {
             }
         }
         let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
-        if self.actions.save {
-            self.actions.save = false;
+        if let Some(path) = self.actions.save.take() {
             match serde_json::to_string_pretty(&self.settings)
                 .map_err(anyhow::Error::from)
-                .and_then(|j| std::fs::write("settings.json", j).map_err(Into::into))
+                .and_then(|j| std::fs::write(&path, j).map_err(Into::into))
             {
-                Ok(()) => self.ui.toast("Saved settings.json"),
+                Ok(()) => self.ui.toast(format!("Saved {}", path.display())),
                 Err(e) => self.ui.error(format!("Save failed: {e}")),
             }
         }
-        if self.actions.load {
-            self.actions.load = false;
-            match std::fs::read("settings.json")
+        if let Some(path) = self.actions.load.take() {
+            match std::fs::read(&path)
                 .map_err(anyhow::Error::from)
                 .and_then(|b| serde_json::from_slice::<Settings>(&b).map_err(Into::into))
                 .and_then(|mut s| {
@@ -1671,8 +1770,9 @@ impl App {
                     Ok(s)
                 }) {
                 Ok(s) => {
+                    self.ui.checkpoint(&self.settings);
                     self.settings = s;
-                    self.ui.toast("Loaded settings.json");
+                    self.ui.toast(format!("Loaded {}", path.display()));
                 }
                 Err(e) => self.ui.error(format!("Load rejected: {e}")),
             }
@@ -1799,8 +1899,13 @@ impl App {
             _ => true,
         };
         self.hdr_note.clear();
-        if want != g.hdr_active && self.export.is_none() && !unsafe { g.set_hdr(want, s)? } {
+        let hdr10 = s.hdr10 && !g.hdr10_refused;
+        let switch = want != g.hdr_active || (want && hdr10 != g.hdr10);
+        if switch && self.export.is_none() && !unsafe { g.set_hdr(want, hdr10, s)? } {
             self.hdr_note = "The swapchain can't present scRGB; staying SDR.".into();
+        }
+        if want && s.hdr10 && g.hdr10_refused {
+            self.hdr_note = "The swapchain can't present HDR10; using scRGB.".into();
         }
         g.hdr_levels = [
             if s.hdr_white > 0. {
@@ -1889,7 +1994,8 @@ impl App {
         // Zebras would be drawn into the exported frames.
         g.zebras = self.ui.zebras && self.export.is_none();
         g.scopes_on = self.ui.show_scopes && self.export.is_none();
-        let probe_at = self.pick_point.unwrap_or(self.cursor);
+        video::set_equirect(s.projection == 2);
+        let probe_at = self.pick_point.or(self.cursor_pick).unwrap_or(self.cursor);
         // Hovering the viewport reads the object id under the pointer for its outline.
         let hovering = self.drag.is_none()
             && self.ui.transform.is_none()
@@ -1900,6 +2006,7 @@ impl App {
         g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area())
             || self.focus_pending
             || self.pick_point.is_some()
+            || self.cursor_pick.is_some()
             || hovering)
             .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
         if s.lut_path != self.lut_loaded && self.export.is_none() {
@@ -2026,10 +2133,16 @@ impl App {
         let frame_pick = std::mem::take(&mut self.frame_pick);
         if let (Some(point), Some(p)) = (point, g.probe_result) {
             let pixel = [point[0] as f32, point[1] as f32];
+            let menu = self.ui.context_menu.is_some();
             match gizmo::pick_from_probe(&self.settings, pixel, [g.width, g.height], p.id, p.depth)
             {
                 Some(sel) => {
-                    self.ui.selection = sel;
+                    if self.pick_toggle {
+                        self.ui.toggle_in(sel, &self.settings);
+                    } else if !(menu && self.ui.is_selected(sel)) {
+                        // A right click on part of the selection keeps all of it for the menu.
+                        self.ui.select(sel);
+                    }
                     self.ui.tab = ui::Tab::Scene;
                     self.ui.panel_hidden = false;
                     self.show_ui = true;
@@ -2040,9 +2153,31 @@ impl App {
                             .toast(format!("Framed {}", self.settings.objects[i].name));
                     }
                 }
-                // A right-click on empty space keeps the selection for its menu.
-                None if self.ui.context_menu.is_some() => {}
-                None => self.ui.selection = ui::Selection::None,
+                // A right-click on empty space keeps the selection for its menu, and so
+                // does a Shift+click.
+                None if menu || self.pick_toggle => {}
+                None => self.ui.select(ui::Selection::None),
+            }
+        }
+        // Shift+right-click: the 3D cursor onto the surface under the pointer.
+        if let Some(point) = self.cursor_pick
+            && let Some(p) = g.probe_result
+        {
+            self.cursor_pick = None;
+            let view = gizmo::View::new(&self.settings, [g.width, g.height]);
+            match view.surface_point([point[0] as f32, point[1] as f32], p.id, p.depth) {
+                Some(c) => {
+                    self.ui.cursor3d = c;
+                    self.ui.toast(if self.ui.pivot == gizmo::Pivot::Cursor {
+                        "3D cursor placed".to_string()
+                    } else {
+                        "3D cursor placed (pick 3D cursor as the pivot to turn around it)"
+                            .to_string()
+                    });
+                }
+                None => self
+                    .ui
+                    .toast("No surface under the pointer for the 3D cursor"),
             }
         }
         // Ctrl+click focus: the depth under the click becomes the focus target.
@@ -2227,29 +2362,40 @@ impl App {
                     s.max_samples == 100_000,
                     "Drawing the UI changed a loaded value"
                 ),
+                // RGBA16F keeps 11 significant bits.
                 187 => {
                     anyhow::ensure!(g.hdr_active, "Forced HDR output did not start");
-                    let (linear, out) = unsafe { (g.read_floats(18)?, g.read_floats(26)?) };
-                    let (mut worst, mut brightest) = (0f32, 0f32);
-                    for (l, h) in linear.as_chunks::<4>().0.iter().zip(out.as_chunks::<4>().0) {
-                        let want = display::hdr_map(
-                            [l[0], l[1], l[2]],
-                            s.exposure,
-                            s.gamma,
-                            s.tonemap,
-                            200.,
-                            1000.,
+                    check_hdr_output(g, s, 2e-3)?;
+                }
+                227 => {
+                    anyhow::ensure!(g.hdr_active, "Forced HDR10 output did not start");
+                    if g.hdr10_refused {
+                        println!(
+                            "SELF-TEST NOTE: the swapchain refused HDR10; checked scRGB instead"
                         );
-                        for i in 0..3 {
-                            worst = worst.max((h[i] - want[i]).abs() / (want[i].abs() + 0.01));
-                            brightest = brightest.max(h[i]);
-                        }
+                    } else {
+                        anyhow::ensure!(g.hdr10, "The HDR10 swapchain did not start");
                     }
-                    // RGBA16F keeps 11 significant bits.
-                    anyhow::ensure!(
-                        worst < 2e-3 && brightest <= 12.5 * 1.001 && brightest > 4.,
-                        "HDR transform mismatch: relative error {worst}, brightest {brightest}"
-                    );
+                    // 10-bit PQ: a code step is under 1% of the value above 1 nit.
+                    check_hdr_output(g, s, 2e-2)?;
+                }
+                229 => anyhow::ensure!(!g.hdr10, "HDR10 stayed on after Auto"),
+                // Every reconstruction backend is either usable or says why not.
+                231 => {
+                    let caps = g.capabilities();
+                    for (name, b) in [
+                        ("RR", &caps.rr),
+                        ("DLSS SR", &caps.dlss_sr),
+                        ("FSR", &caps.fsr),
+                        ("XeSS", &caps.xess),
+                    ] {
+                        anyhow::ensure!(
+                            b.available == b.reason.is_empty(),
+                            "{name}: available {} with reason {:?}",
+                            b.available,
+                            b.reason
+                        );
+                    }
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
                 285..=287 => {
@@ -2459,8 +2605,8 @@ impl App {
         }
         // A text-to-scene critique: the render as a PNG, scaled to fit what vision models take.
         if std::mem::take(&mut self.ui.critique_capture) {
-            let path = std::env::temp_dir()
-                .join(format!("cornell-rtx-critique-{}.png", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("caustica-critique-{}.png", std::process::id()));
             let png = unsafe { video::save_current(g, video::ImageFormat::Png, 92, &path) }
                 .and_then(|()| {
                     let img = image::open(&path)?;
@@ -2484,7 +2630,7 @@ impl App {
             }
         }
         if let Some(format) = self.actions.save_image.take() {
-            let path = format.file("cornell");
+            let path = format.file("caustica");
             match unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) } {
                 Ok(()) => {
                     self.ui.toast_file(
@@ -2511,7 +2657,7 @@ impl App {
                 size,
                 1,
                 self.ui.export_samples,
-                format.file("cornell-high-res"),
+                format.file("caustica-high-res"),
             );
             o.still = true;
             o.degrees = 0.;
@@ -2575,7 +2721,7 @@ impl App {
             }
         }
         window.set_title(&format!(
-            "Cornell RTX · {} · {} spp · {:.2} ms GPU · {}",
+            "Caustica · {} · {} spp · {:.2} ms GPU · {}",
             g.adapter_name,
             g.samples,
             g.gpu_ms,
@@ -2629,17 +2775,30 @@ impl App {
             if let Some(path) = &self.capture {
                 let hdr = path.extension().is_some_and(|v| v == "exr");
                 // name.hdr.png: the HDR screen image as a PQ PNG (needs HDR output).
-                let result = if path.to_string_lossy().ends_with(".hdr.png") {
+                let name = path.to_string_lossy().to_lowercase();
+                let hdr_screen = if name.ends_with(".hdr.png") {
+                    Some((".hdr.png", video::ImageFormat::HdrPng))
+                } else if name.ends_with(".jxr") {
+                    Some((".jxr", video::ImageFormat::Jxr))
+                } else {
+                    None
+                };
+                let result = if let Some((suffix, format)) = hdr_screen {
                     if g.hdr_active {
-                        unsafe { g.read_floats(26) }
-                            .and_then(|p| display::write_hdr_png(path, &p, g.width, g.height))
+                        unsafe { video::save_current(g, format, video::JPEG_QUALITY, path) }
                     } else {
                         Err(anyhow::anyhow!(
-                            "--capture *.hdr.png needs HDR output (--set hdr_mode=2)"
+                            "--capture *{suffix} needs HDR output (--set hdr_mode=2)"
                         ))
                     }
                 } else {
-                    unsafe { g.capture(path, hdr, self.capture_ui && !hdr) }
+                    unsafe { g.capture(path, hdr, self.capture_ui && !hdr) }.and_then(|_| {
+                        if self.capture_ui {
+                            Ok(())
+                        } else {
+                            video::tag_capture(path, g.width, g.height)
+                        }
+                    })
                 };
                 if let Err(e) = result {
                     self.fail(event_loop, e);
@@ -2684,6 +2843,14 @@ fn slider<'a, N: egui::emath::Numeric>(
             None => false,
         }
     });
+    // Modified: the value differs from the reset reference (the scene as loaded).
+    let modified: Box<dyn Fn() -> bool + 'a> = Box::new(move || {
+        // SAFETY: as above.
+        unsafe { reset_value::<N>(target as *const N) }.is_some_and(|r| {
+            let (v, r) = (unsafe { (*target).to_f64() }, r.to_f64());
+            (v - r).abs() > 1e-6 * r.abs().max(1.)
+        })
+    });
     let range = range.start().to_f64()..=range.end().to_f64();
     let inner = egui::Slider::from_get_set(range, move |v: Option<f64>| {
         // SAFETY: as above; egui calls this only while the slider is being shown.
@@ -2698,12 +2865,14 @@ fn slider<'a, N: egui::emath::Numeric>(
     Slider {
         inner: if N::INTEGRAL { inner.integer() } else { inner },
         reset,
+        modified,
     }
 }
-/// `egui::Slider` plus a double-click reset (see `slider`).
+/// `egui::Slider` plus a double-click reset and a "modified" dot (see `slider`).
 pub struct Slider<'a> {
     inner: egui::Slider<'a>,
     reset: Box<dyn FnOnce() -> bool + 'a>,
+    modified: Box<dyn Fn() -> bool + 'a>,
 }
 impl<'a> Slider<'a> {
     pub fn suffix(mut self, s: impl ToString) -> Self {
@@ -2737,7 +2906,23 @@ impl<'a> Slider<'a> {
 impl egui::Widget for Slider<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let mut response = ui.add(self.inner);
-        if slider_double_clicked(ui, &response) && (self.reset)() {
+        // A dot after a value that differs from the scene as loaded; clicking it reverts.
+        // The space is always taken, so the row does not shift when the dot appears.
+        let size = egui::vec2(8., response.rect.height());
+        let (rect, dot) = ui.allocate_exact_size(size, egui::Sense::click());
+        let mut reset = slider_double_clicked(ui, &response);
+        if (self.modified)() {
+            let color = if dot.hovered() {
+                ui.visuals().strong_text_color()
+            } else {
+                ui::ACCENT
+            };
+            ui.painter().circle_filled(rect.center(), 2.5, color);
+            reset |= dot
+                .on_hover_text("Changed from the scene as loaded. Click to revert.")
+                .clicked();
+        }
+        if reset && (self.reset)() {
             response.mark_changed();
         }
         response.on_hover_text_at_pointer("Double-click to reset")
@@ -2794,7 +2979,10 @@ impl ApplicationHandler for App {
             let window = Arc::new(
                 event_loop.create_window(
                     Window::default_attributes()
-                        .with_title("Cornell RTX")
+                        .with_title(format!("Caustica {VERSION}"))
+                        // The icon build.rs linked in (resource 1); none if rc.exe was missing.
+                        .with_window_icon(app_icon(None))
+                        .with_taskbar_icon(app_icon(Some(256)))
                         .with_inner_size(winit::dpi::PhysicalSize::new(self.size[0], self.size[1]))
                         .with_visible(!self.hidden)
                         .with_fullscreen(
@@ -2944,13 +3132,25 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let transforming = self.ui.transform.as_ref().map(|t| t.from_handle);
+                let armed = state == ElementState::Pressed
+                    && button == MouseButton::Left
+                    && std::mem::take(&mut self.ui.box_armed);
                 if state == ElementState::Released {
                     // A grabbed body is thrown with the velocity the spring gave it; a click
                     // without a drag still selects below.
                     if button == MouseButton::Left {
                         self.physics_release();
                     }
-                    if transforming == Some(true) && button == MouseButton::Left {
+                    // A box drag selects what it encloses; a short one is an ordinary click.
+                    let boxed = button == MouseButton::Left
+                        && self.ui.box_start.take().is_some_and(|a| {
+                            self.drag_distance >= 3. && {
+                                self.box_select(a);
+                                true
+                            }
+                        });
+                    if boxed {
+                    } else if transforming == Some(true) && button == MouseButton::Left {
                         self.finish_transform();
                     } else if self.drag == Some(MouseButton::Left)
                         && self.drag_distance < 3.
@@ -2978,6 +3178,15 @@ impl ApplicationHandler for App {
                         });
                         self.last_click = (!self.frame_pick).then_some((now, self.cursor));
                         self.pick_point = Some(self.cursor);
+                        self.pick_toggle = self.shift;
+                    } else if self.drag == Some(MouseButton::Right)
+                        && self.drag_distance < 3.
+                        && self.shift
+                        && self.settings.perspective()
+                        && !self.egui.is_pointer_over_area()
+                    {
+                        // Shift+right-click places the 3D cursor, as in Blender.
+                        self.cursor_pick = Some(self.cursor);
                     } else if self.drag == Some(MouseButton::Right)
                         && self.drag_distance < 3.
                         && !self.egui.is_pointer_over_area()
@@ -2986,6 +3195,7 @@ impl ApplicationHandler for App {
                         // allows picking) and opens the menu there.
                         if self.settings.perspective() {
                             self.pick_point = Some(self.cursor);
+                            self.pick_toggle = false;
                         }
                         let ppp = self.egui.pixels_per_point() as f64;
                         self.ui.context_menu = Some(egui::pos2(
@@ -3007,6 +3217,24 @@ impl ApplicationHandler for App {
                 } else if !consumed
                     && button == MouseButton::Left
                     && self.ui.hover.is_none()
+                    && self.settings.perspective()
+                    && (armed
+                        || (self.ui.tool == gizmo::Tool::Select
+                            && !self.shift
+                            && !self.alt
+                            && !self.settings.physics.enabled))
+                {
+                    // Box select (B, or a drag with the Select tool); a click still picks.
+                    let ppp = self.egui.pixels_per_point() as f64;
+                    self.ui.box_start = Some(egui::pos2(
+                        (self.cursor[0] / ppp) as f32,
+                        (self.cursor[1] / ppp) as f32,
+                    ));
+                    self.drag = Some(button);
+                    self.drag_distance = 0.;
+                } else if !consumed
+                    && button == MouseButton::Left
+                    && self.ui.hover.is_none()
                     && self.walking.is_none()
                     && self.physics_grab()
                 {
@@ -3016,16 +3244,35 @@ impl ApplicationHandler for App {
                     self.drag_distance = 0.;
                 } else if !consumed {
                     let mode = self.tool_mode();
+                    // Alt-drag on a handle: copies in place, then the drag moves the copies.
+                    let mut copied = false;
+                    if button == MouseButton::Left
+                        && self.ui.hover.is_some()
+                        && self.alt
+                        && let Some(name) = self.ui.duplicate_selected(&mut self.settings, false)
+                    {
+                        self.ui.toast(format!("Duplicated: {name}"));
+                        copied = true;
+                    }
                     if button == MouseButton::Left
                         && let Some(h) = self.ui.hover
                         && self.start_transform(mode, Some(h))
                     {
+                        if copied && let Some(t) = &mut self.ui.transform {
+                            t.undo_on_cancel = true;
+                        }
                         self.drag = None;
                     } else {
                         self.drag = Some(button);
                         self.drag_distance = 0.;
                     }
                 }
+            }
+            // A box drag whose release went to another window ends here.
+            WindowEvent::Focused(false) => {
+                self.ui.box_start = None;
+                self.ui.box_armed = false;
+                self.drag = None;
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let dx = (position.x - self.cursor[0]) as f32;
@@ -3037,7 +3284,11 @@ impl ApplicationHandler for App {
                     // Shift moves the pointer's effect at a tenth of the speed.
                     let k = if self.shift { 0.1 } else { 1. };
                     t.mouse += glam::Vec2::new(dx, dy) * k;
+                    t.pointer = glam::Vec2::new(position.x as f32, position.y as f32);
                     self.update_transform();
+                } else if self.ui.box_start.is_some() {
+                    // Drawing a selection box: the camera stays put.
+                    self.drag_distance += dx.abs() + dy.abs();
                 } else if self.walking.is_some() && self.drag == Some(MouseButton::Left) {
                     self.drag_distance += dx.abs() + dy.abs();
                     walk::Walk::look(&mut self.settings, dx, dy);
@@ -3128,10 +3379,7 @@ impl ApplicationHandler for App {
                         }
                         return;
                     }
-                    let selected = !matches!(
-                        self.ui.selection,
-                        ui::Selection::None | ui::Selection::Stage | ui::Selection::Camera
-                    );
+                    let selected = !self.ui.targets().is_empty();
                     let over_view = !self.egui.is_pointer_over_area();
                     match code {
                         KeyCode::KeyZ | KeyCode::KeyY if self.ctrl => {
@@ -3161,6 +3409,9 @@ impl ApplicationHandler for App {
                             self.run_command(ui::Command::Duplicate);
                             if self.ui.selection != before {
                                 self.run_command(ui::Command::Move);
+                                if let Some(t) = &mut self.ui.transform {
+                                    t.undo_on_cancel = true;
+                                }
                             }
                         }
                         // Ctrl+D or Shift+D with nothing to copy: not the denoiser (D).
@@ -3193,10 +3444,19 @@ impl ApplicationHandler for App {
                         }
                         // Escape deselects; closing the window is the only way to quit.
                         KeyCode::Escape => {
-                            if self.ui.context_menu.take().is_none() {
-                                self.ui.selection = ui::Selection::None;
+                            if self.ui.context_menu.take().is_none()
+                                && !std::mem::take(&mut self.ui.box_armed)
+                            {
+                                self.ui.select(ui::Selection::None);
                             }
                         }
+                        // Multi-select (3b): B boxes, Ctrl+A selects all, Alt+A none.
+                        KeyCode::KeyB if over_view && self.settings.perspective() => {
+                            self.ui.box_armed = true;
+                            self.ui.toast("Box select: drag a rectangle (Shift adds)");
+                        }
+                        KeyCode::KeyA if self.ctrl => self.select_all(),
+                        KeyCode::KeyA if self.alt => self.ui.select(ui::Selection::None),
                         // Tab: all → top bar only → nothing (screenshot mode) → all.
                         KeyCode::Tab => {
                             if !self.show_ui {
@@ -3324,6 +3584,100 @@ impl ApplicationHandler for App {
             w.request_redraw();
         }
     }
+}
+impl App {
+    /// Box select (3b): the objects and lights whose origin projects inside the box from `a`
+    /// (points) to the pointer. Shift adds to the selection.
+    fn box_select(&mut self, a: egui::Pos2) {
+        let Some(g) = self.gpu.as_ref() else { return };
+        let ppp = self.egui.pixels_per_point();
+        let b = egui::pos2(self.cursor[0] as f32 / ppp, self.cursor[1] as f32 / ppp);
+        let rect = egui::Rect::from_two_pos(a, b);
+        let view = gizmo::View::new(&self.settings, [g.width, g.height]);
+        let s = &self.settings;
+        let inside = |p: glam::Vec3| {
+            view.project(p)
+                .is_some_and(|q| rect.contains(egui::pos2(q.x / ppp, q.y / ppp)))
+        };
+        let mut hits: Vec<ui::Selection> = vec![];
+        for (i, o) in s.objects.iter().enumerate().filter(|(_, o)| o.visible) {
+            if inside(geometry::object_frame(o).0) {
+                hits.push(ui::Selection::Object(i));
+            }
+        }
+        for (i, l) in s.lights.iter().enumerate().filter(|(_, l)| l.enabled) {
+            if inside(glam::Vec3::from(l.position)) {
+                hits.push(ui::Selection::Light(i));
+            }
+        }
+        if s.light_on && inside(glam::Vec3::from(s.light_position)) {
+            hits.push(ui::Selection::MainLight);
+        }
+        let n = hits.len();
+        let items = if self.shift {
+            let mut all = self.ui.targets();
+            for h in hits {
+                if !all.contains(&h) {
+                    all.push(h);
+                }
+            }
+            all
+        } else {
+            hits
+        };
+        self.ui.select_many(items, &self.settings);
+        self.ui.toast(format!("Box selected {n}"));
+    }
+    /// Ctrl+A: every visible object and every area light that is on.
+    fn select_all(&mut self) {
+        let s = &self.settings;
+        let items: Vec<ui::Selection> = (0..s.objects.len())
+            .filter(|i| s.objects[*i].visible)
+            .map(ui::Selection::Object)
+            .chain(
+                (0..s.lights.len())
+                    .filter(|i| s.lights[*i].enabled)
+                    .map(ui::Selection::Light),
+            )
+            .collect();
+        let n = items.len();
+        self.ui.select_many(items, &self.settings);
+        self.ui.toast(format!("Selected {n}"));
+    }
+}
+/// Self-test: the HDR output (texture 26, scRGB or HDR10 decoded back to scRGB) against
+/// `display::hdr_map` of the linear output, with paper white 200 and peak 1000 nits.
+fn check_hdr_output(g: &mut gpu::Gpu, s: &Settings, tolerance: f32) -> Result<()> {
+    let (linear, out) = unsafe { (g.read_floats(18)?, g.read_floats(26)?) };
+    let (mut worst, mut brightest) = (0f32, 0f32);
+    for (l, h) in linear.as_chunks::<4>().0.iter().zip(out.as_chunks::<4>().0) {
+        let want = display::hdr_map(
+            [l[0], l[1], l[2]],
+            s.exposure,
+            s.gamma,
+            s.tonemap,
+            200.,
+            1000.,
+        );
+        let top = want[0].abs().max(want[1].abs()).max(want[2].abs());
+        for i in 0..3 {
+            worst = worst.max((h[i] - want[i]).abs() / (top + 0.01));
+            brightest = brightest.max(h[i]);
+        }
+    }
+    anyhow::ensure!(
+        worst < tolerance && brightest <= 12.5 * (1. + tolerance) && brightest > 4.,
+        "HDR transform mismatch: relative error {worst}, brightest {brightest}"
+    );
+    Ok(())
+}
+
+/// The release version (`v` tag without the v) or the Cargo.toml version with -dev; build.rs.
+pub const VERSION: &str = env!("CAUSTICA_VERSION");
+/// The exe's icon resource at `size` (None: the system's small-icon size).
+fn app_icon(size: Option<u32>) -> Option<winit::window::Icon> {
+    use winit::platform::windows::IconExtWindows;
+    winit::window::Icon::from_resource(1, size.map(|s| winit::dpi::PhysicalSize::new(s, s))).ok()
 }
 fn main() {
     if let Err(e) = run() {

@@ -683,6 +683,8 @@ pub struct Settings {
     /// HDR peak and paper white in nits; 0 takes the values Windows reports.
     pub hdr_peak: f32,
     pub hdr_white: f32,
+    /// HDR swapchain encoding: false scRGB (RGBA16F, Windows converts), true HDR10 (10-bit PQ / BT.2020).
+    pub hdr10: bool,
     pub temporal: bool,
     pub yaw: f32,
     pub pitch: f32,
@@ -854,6 +856,7 @@ impl Default for Settings {
             anisotropy: 16,
             hdr_mode: 0,
             hdr_peak: 0.,
+            hdr10: false,
             hdr_white: 0.,
             temporal: true,
             yaw: 0.,
@@ -991,6 +994,7 @@ impl Settings {
         self.hdr_mode = from.hdr_mode;
         self.hdr_peak = from.hdr_peak;
         self.hdr_white = from.hdr_white;
+        self.hdr10 = from.hdr10;
         self.lpe = from.lpe.clone();
         self.lpe_slot = from.lpe_slot;
         self.battle = from.battle;
@@ -1007,7 +1011,7 @@ impl Settings {
             self.rr_preset,
             self.upscaler,
             (self.dlss_preset, self.native_aa),
-            (self.hdr_mode, self.hdr_peak, self.hdr_white),
+            (self.hdr_mode, self.hdr_peak, self.hdr_white, self.hdr10),
             (self.pixel_filter, self.filter_width, self.anisotropy),
             (std::mem::take(&mut self.lpe), self.lpe_slot, self.battle),
         );
@@ -1114,7 +1118,7 @@ impl Settings {
             self.rr_preset,
             self.upscaler,
             (self.dlss_preset, self.native_aa),
-            (self.hdr_mode, self.hdr_peak, self.hdr_white),
+            (self.hdr_mode, self.hdr_peak, self.hdr_white, self.hdr10),
             (self.pixel_filter, self.filter_width, self.anisotropy),
             (self.lpe, self.lpe_slot, self.battle),
         ) = output;

@@ -1,12 +1,12 @@
-# Cornell RTX — Rust / Direct3D 12
+# Caustica — Rust / Direct3D 12
 
-A native Windows port of the Cornell box path tracer. The renderer and application are Rust; path tracing and postprocessing are HLSL. A small C++ C-ABI bridge calls NVIDIA's NGX SDK. The original WebGL application remains in `webgl/` (open `webgl/index.html`).
+Caustica is a Windows path tracer on hardware ray tracing (it began as a Cornell box renderer). The renderer and application are Rust; path tracing and postprocessing are HLSL. A small C++ C-ABI bridge calls NVIDIA's NGX SDK.
 
 Startup defaults favor image quality: **native-resolution DLAA with Ray Reconstruction and 4 samples per frame**. Select Quality/Balanced/Performance explicitly when you want a lower internal resolution.
 
 ## Run
 
-Double-click **`launch.cmd`**, or run `target/release/cornell-rtx.exe`. The launch script builds the application if the release executable is missing.
+Double-click **`launch.cmd`**, or run `target/release/caustica.exe`. The launch script builds the application if the release executable is missing.
 
 For a clean checkout:
 
@@ -28,9 +28,13 @@ Setup fetches three vendor SDKs, each pinned to a commit and sparse-checked-out 
 
 Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelityfx_loader_dx12.dll`, `amd_fidelityfx_upscaler_dx12.dll`, `libxess.dll`) next to the executable. The FSR and XeSS DLLs are loaded at runtime, so the app still starts if one is missing; that upscaler is then shown as unavailable. No DLL downloads occur during application startup. The NGX bridge uses a stable local-development project GUID; replace it with your registered project identity before distribution.
 
+## Releases and versions
+
+Every push to `main` that passes CI (format, Clippy, unit tests, release build on a Windows runner) becomes a GitHub release `vX.Y.Z` with an installer (`caustica-vX.Y.Z-setup.exe`: per-user, no admin prompt, Start menu entry, uninstaller; updates install over the previous version) and a zip of the app, plus the commit list since the previous release. Local builds don't make an installer; a manual run of the CI workflow on any branch builds one without releasing. The patch number counts up on its own; to start a new minor or major version, set it in `Cargo.toml` (for example `0.2.0`) and push. The version shows in the window title, at the top of the Menu and with `--version`; local builds say `-dev`.
+
 ## Rendering
 
-- **Hardware ray tracing:** triangle BLAS and TLAS, built with `ID3D12Device5`; HLSL `RayQuery` traversal for every primary, bounce and shadow ray. This uses DXR tier 1.1 inline ray tracing, including the GPU's acceleration-structure traversal hardware. No software intersection loop or WebGL renderer is involved.
+- **Hardware ray tracing:** triangle BLAS and TLAS, built with `ID3D12Device5`; HLSL `RayQuery` traversal for every primary, bounce and shadow ray. This uses DXR tier 1.1 inline ray tracing, including the GPU's acceleration-structure traversal hardware. No software intersection loop is involved.
 - **Path tracing:** progressive FP32 HDR accumulation, per-sample Welford luminance variance, next-event estimation over every emissive triangle, sphere light and sun (power-weighted, so all lights and emissive meshes share one sampler; spheres and suns are sampled by the solid angle they cover), balance-heuristic MIS, Russian roulette, and an optional firefly clamp.
 - **Scenes:** up to 4096 objects (TLAS instances of shared meshes, so moving one only rebuilds the top level) and 32 extra area lights, plus the main ceiling light. Eleven shapes: box, sphere, cylinder, cone, torus, trefoil knot, Utah teapot (tessellated from Martin Newell's Bézier patches), Stanford bunny (the 69,451-triangle scan), octahedron, chess pawn and thin ring. Each object has yaw/pitch/roll, nonuniform scale, and either rests on the floor or floats at a set height. The stage can be the Cornell enclosure or an open floor of any size with sky light. Lights can be hidden from the camera while still lighting the scene and appearing in reflections.
 - **Materials:** Lambertian/GGX reflection, dielectric Fresnel, refraction, total internal reflection, Beer–Lambert absorption, metallic color, roughness, reflectivity, IOR, transmission and emission, with optional emission-only (unlit) surfaces. Procedural checker, stripe and marble patterns, and a 12-entry material library (porcelain, chrome, gold, copper, glasses, jade, lacquer, marble, emitters).
@@ -57,13 +61,13 @@ Cargo copies the runtime DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `amd_fidelit
   - **Portals:** in an object's inspector, *Portal to* pairs it with another object. Rays that hit one continue from the matching point of the other, from either side, so corridors and impossible rooms are possible. Light sampling does not see through portals.
   - **Walk mode** (` or *Walk*): a first-person walk with gravity. WASD to move, Space to jump, C or Ctrl to crouch, Shift to run, drag to look, the wheel to make yourself bigger or smaller, B for head bob, Esc to stop. You step up small ledges and stairs, follow slopes and stop at walls. F switches to flying (Q / E down / up), which is also where you start when there is nothing to stand on below the camera.
   - **Video** (Export tab → *Export video…*): an orbit around the target (angle, elevation, distance, linear or eased) rendered frame by frame at any size up to 8192 (independent of the window), any frame rate and length, to a sample count or a time limit per frame. Formats: H.264, H.265, HDR10 HEVC (10-bit PQ, with HDR output on), ProRes, or a PNG / linear EXR sequence. The window stays responsive with a preview, progress, time left and *Cancel*. From the command line: `--turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr`, plus `--turntable-timeline` to follow the scene's keyframes (with motion blur when its shutter is open).
-  - **Screensaver:** `powershell -File tools/make_screensaver.ps1` builds `builds/screensaver/CornellRTX.scr`; right-click it and choose *Install*. It cycles every preset and scene with a slow orbit.
+  - **Screensaver:** `powershell -File tools/make_screensaver.ps1` builds `builds/screensaver/Caustica.scr`; right-click it and choose *Install*. It cycles every preset and scene with a slow orbit.
   - **Gamepad:** sticks orbit and zoom, the triggers set light intensity, the bumpers switch scenes, A pauses, B restarts, the D-pad sets exposure, Start hides the panel.
   - **Phone remote** (Menu → *Phone remote*): serves a page on the local network with a QR code. It has sliders for exposure, light, orbit, zoom and aperture, scene buttons and the tone map. It is off by default, and every request needs a random per-session token.
 - **Look tools** (Look tab → Tools): zebras on clipped areas; scopes (RGB and luma histogram, luma waveform, vectorscope of the displayed image); a light meter that shows luminance (nits, 1.0 = 80 nits as in HDR) and illuminance (lux, assuming a Lambertian surface) under the cursor; and a convergence graph that plots RMSE against a reference EXR, or against the current image once converged, as samples grow. The **path visualizer** (P, or *Path visualizer* in Tools) re-traces the paths through a pixel you click (Alt+click works any time) with that frame's samples and draws them in 3D, coloured by bounce, throughput or event, with the light samples (yellow: reached the light, red: blocked); orbit around them, pick one path to step through its vertices, and see what each vertex adds. **Light path expressions** (Look tab): up to four regular expressions over a path's events, each rendered into its own image (View → *Light path (LPE)*, raw samples, also what an EXR capture saves): `C D L` direct diffuse, `C D [ST]+ [LB]` caustics, `C [ST]+ .* [LB]` reflections and refractions, `C .* B` light from the sky. Events from the camera: D diffuse, G glossy, S specular, T transmission, V volume, then L a light or B the background; `.` any, `[DG]`, `[^S]`, `*`, `+`, `?`, `|`, `( )`. From the command line: `--set 'lpe=["C D L"]' --set view=12 --set lpe_slot=0`. Menu → *Statistics and achievements* shows lifetime totals (paths traced, GPU time, images saved, record sample count, presets and scenes visited) and eight achievements.
 - **Captures:** PNG, JPEG (with a quality setting), linear RGB32F OpenEXR, and a 16-bit PQ / BT.2020 HDR PNG while HDR output is on. *Render high-resolution image* (Export tab) renders fresh paths at up to 8192 on the longest side with a chosen sample budget, in any of those formats, while the window stays responsive (progress, Cancel). Saved files get a toast with *Show in folder*.
 - **Quality** (top bar): Best / Balanced / Fast / Fastest (DLSS Ray Reconstruction at 100 / 67 / 50 / 33%), Native denoiser, Native upscaled (with the best temporal upscaler available) and Reference (no denoiser). It picks the Render tab's settings in one go and shows *Custom quality* when they match no bundle. The status bar shows the time left to the sample cap and, on hover (or inline with advanced settings), GPU time per pass.
-- **Scene files and preferences:** Menu → *Open scene…* (Ctrl+O), *Save scene* (Ctrl+S), *Save scene as…* (Ctrl+Shift+S); the Scenes window lists Favorites and Recent. Favorites, recent scenes, the UI size (Ctrl +/−) and *Show advanced settings* are remembered in `%APPDATA%\CornellRTX\prefs.json`. `--preset` takes a name such as `mirror-corridor`. While comparing A/B, drag the split line.
+- **Scene files and preferences:** Menu → *Open scene…* (Ctrl+O), *Save scene* (Ctrl+S), *Save scene as…* (Ctrl+Shift+S); the Scenes window lists Favorites and Recent. Favorites, recent scenes, the UI size (Ctrl +/−) and *Show advanced settings* are remembered in `%APPDATA%\Caustica\prefs.json`. `--preset` takes a name such as `mirror-corridor`. While comparing A/B, drag the split line.
 
 ## Controls
 
@@ -104,7 +108,7 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 | D | Toggle the native denoiser |
 | C | Freeze the A/B reference |
 | 1–8 | Select view |
-| F12 | Save `cornell.png` |
+| F12 | Save `caustica.png` |
 | I / Shift+I / Alt+I | Key the selection at the playhead (the camera when nothing is selected) / key every value edited since the playhead last moved / delete the selection's keys there |
 | K | Play or stop the timeline |
 | Shift+Left / Right | Step the playhead one frame |
@@ -129,7 +133,7 @@ Rarely used rows sit under **More**; Menu → *Show advanced settings* shows the
 - `--scene NAME` loads a scene by file name, title or path on the command line; `--help` lists them.
 - `tools/build_scenes.py` generates the built-in pack (edit scenes there, then rerun it); `tools/scene_sheet.py` renders every scene into a labelled contact sheet in `captures/scenes/`.
 
-Save/load uses `settings.json` in the working directory. The image buttons write `cornell.png` / `.jpg` / `.exr` / `.hdr.png`; high-resolution export writes `cornell-high-res` with the chosen format's extension. These are native settings; the browser JSON schema is separate. All material colors are linear RGB. Lighting temperature is normalized to unit luminance, then multiplied by the gel and intensity.
+Save/load uses `settings.json` in the working directory. The image buttons write `caustica.png` / `.jpg` / `.exr` / `.hdr.png`; high-resolution export writes `caustica-high-res` with the chosen format's extension. These are native settings; the browser JSON schema is separate. All material colors are linear RGB. Lighting temperature is normalized to unit luminance, then multiplied by the gel and intensity.
 
 ## Offline rendering and verification
 
@@ -137,18 +141,18 @@ From the repo root:
 
 ```powershell
 # 4K output, RR quality, 256 frames; omit --headless to watch the render.
-.\target\release\cornell-rtx.exe --headless --width 3840 --height 2160 --scale 0.666667 --frames 256 --require-rr --capture cornell-4k.png
+.\target\release\caustica.exe --headless --width 3840 --height 2160 --scale 0.666667 --frames 256 --require-rr --capture cornell-4k.png
 
 # Native-resolution DLAA and linear HDR output.
-.\target\release\cornell-rtx.exe --headless --width 1920 --height 1080 --scale 1 --frames 128 --require-rr --capture cornell.exr
+.\target\release\caustica.exe --headless --width 1920 --height 1080 --scale 1 --frames 128 --require-rr --capture caustica.exr
 
 # Unfiltered progressive DXR reference: 1024 frames × 2 spp = 2048 spp.
-.\target\release\cornell-rtx.exe --headless --width 960 --height 720 --scale 1 --frames 1024 --samples 2048 --no-rr --raw --capture reference.exr
+.\target\release\caustica.exe --headless --width 960 --height 720 --scale 1 --frames 1024 --samples 2048 --no-rr --raw --capture reference.exr
 
 # Preset indices 0–23 follow the UI order (--help lists them). Native settings can be loaded
 # from a file; --set then overrides single top-level settings with JSON values.
-.\target\release\cornell-rtx.exe --headless --frames 64 --preset 12 --set bounces=20 --set exposure=1.3 --capture teapots.png
-.\target\release\cornell-rtx.exe --settings settings.json
+.\target\release\caustica.exe --headless --frames 64 --preset 12 --set bounces=20 --set exposure=1.3 --capture teapots.png
+.\target\release\caustica.exe --settings settings.json
 
 # Full verification; uses target/validation so an open development build can stay running.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1
@@ -219,7 +223,7 @@ The integration self-test (285 scripted frames, then one per scene file: 450 fra
 | `src/look.rs` | .cube LUT reader and the colour-wheel widget |
 | `src/walk.rs`, `src/video.rs`, `src/saver.rs`, `src/remote.rs` | Walk mode, video export, screensaver mode, phone remote |
 | `src/video_ui.rs` | Video export dialog and progress window |
-| `src/stats.rs` | Lifetime statistics and achievements (`%APPDATA%\CornellRTX\stats.json`) |
+| `src/stats.rs` | Lifetime statistics and achievements (`%APPDATA%\Caustica\stats.json`) |
 | `src/generators.rs` | Seeded scene generators (15 families) |
 | `src/environment.rs` | HDRI loading and its importance-sampling tables |
 | `src/procedural.rs` | Procedural meshes for generators: Mandelbulb, terrain, Menger sponge, trees |
@@ -242,7 +246,7 @@ All frame submissions are fenced before upload buffers or descriptors can be reu
 ## Current limits
 
 - The path tracer retains the original approximation for rough glass and does not importance-sample refractive caustics. GGX uses a single-scattering model. Every shape is a triangle mesh; spheres use 64×32 tessellation with smooth normals. The built-in sky gradient is not importance-sampled (HDRIs are). Procedural patterns are evaluated in world space, so they slide across an object that moves.
-- The native sampler has Sobol scrambling but does not carry over the browser's generated blue-noise texture. The native denoiser follows SVGF but at very low sample counts it can leave faint low-frequency blotches on flat walls.
+- The native sampler has Sobol scrambling but has no blue-noise texture. The native denoiser follows SVGF but at very low sample counts it can leave faint low-frequency blotches on flat walls.
 - RR albedo guides use a material/Fresnel estimate; glass guides describe the primary glass surface. Neural reconstruction can leave artifacts in difficult glossy/refractive scenes, especially during disocclusion or at aggressive render scales.
 - Direct/indirect sliders are exact AOV recomposition for raw native output. On filtered/RR output they apply the accumulated AOV ratio to reconstructed beauty; that operation is an approximation. Diagnostic AOVs remain progressive raw estimates.
 - Memory scales with pixel count. Guides/history use FP32, and large output targets can allocate several GB. There is one frame in flight and no frame generation or Reflex; ReSTIR covers only first-bounce direct light. Imported meshes are part of the one scene BLAS, so moving one rebuilds it all.

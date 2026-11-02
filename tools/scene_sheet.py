@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exe", default=str(ROOT / "target" / "release" / "cornell-rtx.exe"))
+    ap.add_argument("--exe", default=str(ROOT / "target" / "release" / "caustica.exe"))
     ap.add_argument("--out", default=str(ROOT / "captures" / "scenes"))
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--frames", type=int, default=48)

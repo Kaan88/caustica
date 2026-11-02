@@ -6,7 +6,7 @@
   "generated",
   "sierpinski"
  ],
- "credits": "Cornell RTX generators",
+ "credits": "Caustica generators",
  "generator": {
   "family": "sierpinski",
   "seed": 18

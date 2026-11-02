@@ -99,7 +99,7 @@ Licenses were checked on the source pages on 2026-10-29 where they were reachabl
 
 ### Licensing cautions
 
-- **Stanford models** (bunny, dragon, Buddha, armadillo, Lucy, Thai statue, Asian dragon) allow research use and free redistribution with credit, but **not commercial use or inclusion in a product for sale without Stanford's permission**. The bunny is already bundled under these terms. If Cornell RTX is ever sold or bundled commercially, the bunny must be removed or licensed. Keep all Stanford models in a separate `research` pack, flagged in the UI.
+- **Stanford models** (bunny, dragon, Buddha, armadillo, Lucy, Thai statue, Asian dragon) allow research use and free redistribution with credit, but **not commercial use or inclusion in a product for sale without Stanford's permission**. The bunny is already bundled under these terms. If Caustica is ever sold or bundled commercially, the bunny must be removed or licensed. Keep all Stanford models in a separate `research` pack, flagged in the UI.
 - **CC BY / CC BY 3.0 / 4.0**: commercial use is fine, but the attribution must ship with the scene. The pack manifest (section 5) should carry author, source and license fields, and the gallery should display them.
 - **CC BY-NC** (Yuksel hair, Lego Digger, old DamagedHelmet, likely Sun Temple): no commercial use. Keep these out of default packs.
 - **CC BY-ND** (Kroken, Watercolor): you may render them, but converted or modified files must not be redistributed. Load them from the user's own download.
@@ -309,7 +309,7 @@ Scene file: a small wrapper around the existing `Settings` JSON. `Settings` uses
   "description": "Box stones, a low 2800 K sun quad, long shadows.",
   "tags": ["architecture", "sunset", "open-stage"],
   "license": "CC0-1.0",
-  "credits": "Cornell RTX",
+  "credits": "Caustica",
   "environment": null,
   "settings": { "...": "the current Settings object, unchanged" }
 }

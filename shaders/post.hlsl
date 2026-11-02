@@ -145,6 +145,11 @@ float3 hdr_map(float3 c){
     if(e>knee){float t=(e-knee)/(1-knee),t2=t*t,t3=t2*t;e=(2*t3-3*t2+1)*knee+(t3-2*t2+t)*(1-knee)+(-2*t3+3*t2)*peak;}
     return c*(min(pq_inverse(e),hdr.z)/m)/80;
 }
+// scRGB (BT.709, 1.0 = 80 nits) to HDR10 code values: BT.2020 primaries, PQ per channel.
+float3 hdr10_encode(float3 c){
+    float3 b=max(mul(float3x3(0.627404,0.329282,0.043314,0.069097,0.919540,0.011361,0.016392,0.088013,0.895595),c),0)*80;
+    return float3(pq(b.r),pq(b.g),pq(b.b));
+}
 // An SDR-encoded value (debug views, overlays) shown at paper white in HDR.
 float3 sdr_in_hdr(float3 c){return pow(saturate(c),max(0.1,display_settings.y))*hdr.y/80;}
 float3 native_at(int2 q){q=clamp(q,0,int2(dimensions.xy)-1);return modes.z!=0?ping[q].rgb:accumulation[q].rgb;}
@@ -314,6 +319,7 @@ float film_grain(uint2 op){
     if(tools.x>0 && beauty_view && max(c.r,max(c.g,c.b))>0.97 && ((op.x+op.y)/6)%2==0){c=float3(0.05,0.05,0.05);h=sdr_in_hdr(c);}
     if(tools.y>0)bin_scopes(op,c);
     output_image[op]=float4(c,1);
-    if(hdr.x>0)hdr_output[op]=float4(h,1);
+    // HDR10 (hdr.w): PQ code values in BT.2020 primaries, for the R10G10B10A2 swapchain.
+    if(hdr.x>0)hdr_output[op]=float4(hdr.w>0?hdr10_encode(h):h,1);
 }
 

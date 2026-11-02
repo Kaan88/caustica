@@ -1,5 +1,5 @@
 // Batch render: each listed scene at 64 frames, plus a turned box in the classic scene.
-// Run: cornell-rtx.exe --headless --width 640 --height 400 --script examples/scripts/batch.rhai
+// Run: caustica.exe --headless --width 640 --height 400 --script examples/scripts/batch.rhai
 for name in ["hourglass", "snow-globe"] {
     load(name);
     frames(64);

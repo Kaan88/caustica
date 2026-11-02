@@ -1,4 +1,4 @@
-# Cornell RTX UI redesign plan
+# Caustica UI redesign plan
 
 Status: plan only, nothing implemented. Written 2026-10-29 against the source as it stood that day.
 
@@ -88,7 +88,7 @@ CLAUDE.md says editor ranges were aligned with `validate()`; the main panel and 
 - Convergence is "N spp" plus the word "Converged" (`main.rs:702`); no progress bar, no target, no time estimate.
 - GPU time is one number for the whole frame (`gpu.rs:1077`); no split between tracing, denoising and display, so the user cannot see what a setting costs.
 - Changes that restart accumulation (spp, sample limit, any scene edit) give no sign beyond the sample counter dropping.
-- Save/Load use a fixed `settings.json` in the working directory (`main.rs:416-440`), overwrite without asking, and give no file picker. PNG/EXR exports overwrite `cornell.png` / `cornell.exr`.
+- Save/Load use a fixed `settings.json` in the working directory (`main.rs:416-440`), overwrite without asking, and give no file picker. PNG/EXR exports overwrite `caustica.png` / `caustica.exr`.
 - The window title duplicates the stats (`main.rs:~628`), which is fine, but it is the only place the active denoiser is named in plain words ("DLSS RR" / "À-trous" / "Raw").
 
 ### 1.7 Mouse and keyboard gaps
@@ -486,13 +486,13 @@ Two ways to add textures:
    - `gui.hlsl` is unchanged; egui `ColorImage` pixels are premultiplied sRGB like the font atlas, so blending matches.
 2. **`TextureId::User(n)` (for renderer-owned images).** Use when the GPU already has the image, e.g. a live small copy of texture 10 for "save current view as thumbnail" or showing the frozen A/B reference (u13) in a picture-in-picture. `gpu.rs` creates the SRV itself and registers the id in the same map; UI just draws `egui::Image::new((TextureId::User(n), size))`. Same draw-path change as above.
 
-Thumbnail source: a `tools/thumbnails.ps1` that runs `cornell-rtx.exe --headless --preset N --width 320 --height 200 --frames 64 --capture assets/thumbs/<slug>.png` per preset (the CLI already does all of this). Load with the `image` crate (already a dependency with `png`). Missing thumbnail → placeholder card painted with the category colour and the scene's initial. User scenes: on save, downscale the current output (`capture()` readback path) to 320×200 and write `<name>.png` next to `<name>.json`. Generate thumbnails lazily on a worker thread? Not needed: 320×200 PNG decode is ~1 ms; decode on demand for visible cards, a few per frame.
+Thumbnail source: a `tools/thumbnails.ps1` that runs `caustica.exe --headless --preset N --width 320 --height 200 --frames 64 --capture assets/thumbs/<slug>.png` per preset (the CLI already does all of this). Load with the `image` crate (already a dependency with `png`). Missing thumbnail → placeholder card painted with the category colour and the scene's initial. User scenes: on save, downscale the current output (`capture()` readback path) to 320×200 and write `<name>.png` next to `<name>.json`. Generate thumbnails lazily on a worker thread? Not needed: 320×200 PNG decode is ~1 ms; decode on demand for visible cards, a few per frame.
 
 ### 7.6 Theming and DPI
 
 - `theme.rs::apply(ctx)` once at startup, replacing `egui.set_visuals(egui::Visuals::dark())` (`main.rs:260`): dark base; one accent colour constant (today two different cyans: `Color32::from_rgb(93,194,211)` at `main.rs:699` and `(100,210,220)` at `editor.rs:57`); `spacing.item_spacing = [8,6]`, `interact_size.y = 24`, `button_padding = [8,4]`; text styles Body 14, Small 12 (minimum for anything informative), Heading 16, Monospace 13 for numbers in the status bar; panel fill with slight transparency over the render.
 - DPI: `egui_winit::State::new(..., Some(window.scale_factor()))` (`main.rs:806`) and `draw_gui` multiplying by `ppp` already handle per-monitor scale. Add a "UI size" setting (90/100/125/150 %) in ☰ that calls `ctx.set_zoom_factor`, and mention Ctrl +/− in the shortcuts sheet. Persist it with the other UI prefs.
-- Persist UI prefs (advanced toggle, panel width, tab, UI size, favorites, recent) in `%APPDATA%\CornellRTX\ui.json`, separate from `settings.json`.
+- Persist UI prefs (advanced toggle, panel width, tab, UI size, favorites, recent) in `%APPDATA%\Caustica\ui.json`, separate from `settings.json`.
 
 ### 7.7 Keep `Settings` and dirty tracking untouched
 

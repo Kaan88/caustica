@@ -15,24 +15,24 @@ static HMODULE load_next_to_exe(const wchar_t* name) {
     wcscat_s(path,name); return LoadLibraryW(path);
 }
 extern "C" {
-unsigned cornell_fsr_init(ID3D12Device* device, Fsr** out) {
+unsigned caustica_fsr_init(ID3D12Device* device, Fsr** out) {
     *out=nullptr;
     HMODULE m=load_next_to_exe(L"amd_fidelityfx_loader_dx12.dll"); if(!m) return 1;
     Fsr* f=new Fsr; f->module=m; f->device=device; ffxLoadFunctions(&f->f,m);
     if(!f->f.CreateContext||!f->f.Dispatch||!f->f.DestroyContext){FreeLibrary(m);delete f;return 2;}
     *out=f; return 0;
 }
-void cornell_fsr_release(Fsr* f) { if(f && f->ctx){f->f.DestroyContext(&f->ctx,nullptr);f->ctx=nullptr;} }
-void cornell_fsr_destroy(Fsr* f) { if(!f) return; cornell_fsr_release(f); FreeLibrary(f->module); delete f; }
-unsigned cornell_fsr_create(Fsr* f,unsigned w,unsigned h,unsigned ow,unsigned oh) {
-    cornell_fsr_release(f);
+void caustica_fsr_release(Fsr* f) { if(f && f->ctx){f->f.DestroyContext(&f->ctx,nullptr);f->ctx=nullptr;} }
+void caustica_fsr_destroy(Fsr* f) { if(!f) return; caustica_fsr_release(f); FreeLibrary(f->module); delete f; }
+unsigned caustica_fsr_create(Fsr* f,unsigned w,unsigned h,unsigned ow,unsigned oh) {
+    caustica_fsr_release(f);
     ffxCreateContextDescUpscaleVersion version={}; version.header.type=FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE_VERSION; version.version=FFX_UPSCALER_VERSION;
     ffxCreateBackendDX12Desc backend={}; backend.header.type=FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_DX12; backend.header.pNext=&version.header; backend.device=f->device;
     ffxCreateContextDescUpscale d={}; d.header.type=FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE; d.header.pNext=&backend.header;
     d.maxRenderSize={w,h}; d.maxUpscaleSize={ow,oh}; d.flags=FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE|FFX_UPSCALE_ENABLE_AUTO_EXPOSURE;
     return f->f.CreateContext(&f->ctx,&d.header,nullptr);
 }
-unsigned cornell_fsr_eval(Fsr* f,ID3D12GraphicsCommandList* cmd,ID3D12Resource* color,ID3D12Resource* depth,ID3D12Resource* motion,ID3D12Resource* output,
+unsigned caustica_fsr_eval(Fsr* f,ID3D12GraphicsCommandList* cmd,ID3D12Resource* color,ID3D12Resource* depth,ID3D12Resource* motion,ID3D12Resource* output,
                           unsigned w,unsigned h,unsigned ow,unsigned oh,float jx,float jy,int reset,float dt,float fov_y,float near_plane,float far_plane) {
     ffxDispatchDescUpscale d={}; d.header.type=FFX_API_DISPATCH_DESC_TYPE_UPSCALE; d.commandList=cmd;
     d.color=ffxApiGetResourceDX12(color,FFX_API_RESOURCE_STATE_COMPUTE_READ);

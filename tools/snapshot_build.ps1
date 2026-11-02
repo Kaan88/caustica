@@ -8,11 +8,11 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $release = Join-Path $root "target\release"
-if (-not (Test-Path (Join-Path $release "cornell-rtx.exe"))) { throw "Build the release exe first (cargo build --release)" }
+if (-not (Test-Path (Join-Path $release "caustica.exe"))) { throw "Build the release exe first (cargo build --release)" }
 $date = Get-Date -Format "yyyy-MM-dd"
 $dest = Join-Path $root "builds\$date-$Name"
 New-Item -ItemType Directory -Force $dest | Out-Null
-Copy-Item (Join-Path $release "cornell-rtx.exe") $dest -Force
+Copy-Item (Join-Path $release "caustica.exe") $dest -Force
 Get-ChildItem $release -Filter *.dll | Copy-Item -Destination $dest -Force
 if (Test-Path (Join-Path $release "ffmpeg.exe")) { Copy-Item (Join-Path $release "ffmpeg.exe") $dest -Force }
 $scenes = Join-Path $root "scenes"
@@ -38,7 +38,7 @@ $body = @"
 # $Name
 
 - Built: $date, commit $commit
-- Run: ``cornell-rtx.exe`` (double-click). Scenes are read from ``scenes\`` next to the exe; thumbnails render on first use.
+- Run: ``caustica.exe`` (double-click). Scenes are read from ``scenes\`` next to the exe; thumbnails render on first use.
 
 $Notes
 "@

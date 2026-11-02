@@ -9,7 +9,7 @@ $env:CARGO_TARGET_DIR="target/validation"   # keep checks away from target/relea
 cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; cargo build --locked
 ```
 
-- `launch.cmd` starts `target/release/cornell-rtx.exe` and only builds it if it is missing. It never rebuilds a stale exe.
+- `launch.cmd` starts `target/release/caustica.exe` and only builds it if it is missing. It never rebuilds a stale exe.
 - Release builds use `lto = "thin"` and `codegen-units = 1`, so they are slow.
 - **Release is a GUI-subsystem exe with no console output.** Debug builds have a console.
   - `tools/verify.ps1` runs release via `Start-Process` with stdout and stderr redirected.
@@ -19,7 +19,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - Compiles the bridge and links `nvsdk_ngx_d`.
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
 - Headless runs need a real GPU and use a hidden window:
-  - Command: `cornell-rtx.exe --headless --frames N [--width W --height H --scale s --spp n --samples cap --preset 0..23 --settings f.json --scene name --rr|--no-rr|--require-rr --raw --debug] --capture out.png|out.exr`.
+  - Command: `caustica.exe --headless --frames N [--width W --height H --scale s --spp n --samples cap --preset 0..23 --settings f.json --scene name --rr|--no-rr|--require-rr --raw --debug] --capture out.png|out.exr`.
   - Success prints `RENDER_OK frames= samples= gpu_ms= rr= size= gpu_ms_mean= frame_ms_mean=`. The means are taken from frame 10 on, so use ≥ 200 frames with `--no-vsync` for benchmarks.
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
@@ -39,9 +39,9 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
 - `--set key=json` overrides one top-level setting after `--preset` or `--settings`. Unknown keys are rejected. Example: `--set direct=0 --set indirect=1`.
 - Python on Windows needs Windows paths. Use `cygpath -w` when calling it from the Bash tool.
 
-## Measurement conventions (carried over from the WebGL work)
+## Measurement conventions
 
-- Error metric: RMSE ×1000 on compressed luminance l/(1+l) against a high-spp reference. The WebGL reference was 16,384 spp.
+- Error metric: RMSE ×1000 on compressed luminance l/(1+l) against a high-spp reference. The reference used 16,384 spp.
 - Also track a 5×5-blurred error, which catches ghosting that plain RMSE hides.
 - Compare against an **independent** reference: a white-noise reference when testing Sobol.
 - Use numpy on EXR captures. imageio has no EXR backend here, and OpenEXR and cv2 are not installed.

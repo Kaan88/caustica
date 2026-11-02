@@ -238,7 +238,7 @@ mod tests {
     }
     #[test]
     fn a_folder_becomes_one_set() {
-        let dir = std::env::temp_dir().join("cornell-test-set");
+        let dir = std::env::temp_dir().join("caustica-test-set");
         std::fs::create_dir_all(&dir).unwrap();
         let save = |name: &str, c: [u8; 4]| {
             image::RgbaImage::from_pixel(4, 4, image::Rgba(c))

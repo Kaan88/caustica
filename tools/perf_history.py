@@ -43,7 +43,7 @@ def plot():
                 ax.plot(*zip(*pts), style, marker="o", label=f"preset {preset} {mode}")
     ax.set_xticks(range(len(commits)), commits, rotation=45, ha="right", fontsize=8)
     ax.set_ylabel("GPU ms per frame (mean)")
-    ax.set_title("Cornell RTX performance history (1440x900, 4 spp)")
+    ax.set_title("Caustica performance history (1440x900, 4 spp)")
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8, ncol=2)
     fig.tight_layout()
@@ -52,7 +52,7 @@ def plot():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exe", default=str(ROOT / "target" / "release" / "cornell-rtx.exe"))
+    ap.add_argument("--exe", default=str(ROOT / "target" / "release" / "caustica.exe"))
     ap.add_argument("--frames", type=int, default=200)
     a = ap.parse_args()
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()

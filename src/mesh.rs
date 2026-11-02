@@ -891,7 +891,7 @@ mod tests {
     #[test]
     fn obj_files_load_and_normalize() {
         let p = temp(
-            "cornell-test-quad.obj",
+            "caustica-test-quad.obj",
             "v 0 0 0\nv 4 0 0\nv 4 2 0\nv 0 2 0\nf 1 2 3 4\n",
         );
         let m = read(&p).unwrap().whole();
@@ -921,7 +921,7 @@ mod tests {
             "bufferViews":[{{"buffer":0,"byteLength":36}}],
             "buffers":[{{"byteLength":36,"uri":"data:application/octet-stream;base64,{b64}"}}]}}"#
         );
-        let p = temp("cornell-test-triangle.gltf", &json);
+        let p = temp("caustica-test-triangle.gltf", &json);
         let m = read(&p).unwrap();
         assert_eq!(m.whole().len(), 3);
         let mat = m.material().unwrap();
@@ -930,11 +930,11 @@ mod tests {
                 && (mat.color[0] - 0.8).abs() < 1e-6
                 && (mat.roughness - 0.2).abs() < 1e-6
         );
-        assert!(read(&temp("cornell-test.stl", "solid")).is_err());
+        assert!(read(&temp("caustica-test.stl", "solid")).is_err());
     }
     #[test]
     fn gltf_texture_maps_load_with_uvs_and_averages() {
-        let p = std::env::temp_dir().join("cornell-test-textured.gltf");
+        let p = std::env::temp_dir().join("caustica-test-textured.gltf");
         write_test_gltf(&p).unwrap();
         let m = read(&p).unwrap();
         let part = &m.parts[0];
@@ -977,7 +977,7 @@ mod tests {
     }
     #[test]
     fn materials_split_into_parts_that_share_the_file_box() {
-        let dir = std::env::temp_dir().join("cornell-test-parts");
+        let dir = std::env::temp_dir().join("caustica-test-parts");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("two.mtl"),

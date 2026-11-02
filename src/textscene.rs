@@ -218,7 +218,7 @@ fn system() -> String {
         .map(|(id, name, what)| format!("{id} ({name}): {what}\n"))
         .collect();
     format!(
-        "You design scenes for Cornell RTX, a path tracer. Reply with one scene file as JSON: \
+        "You design scenes for Caustica, a path tracer. Reply with one scene file as JSON: \
          {{\"format\": 1, \"title\": ..., \"description\": ..., \"tags\": [...], \"settings\": {{...}}}}. \
          `settings` is the serde form of the Rust `Settings` struct below; omitted fields take their defaults, \
          so set only what the scene needs. Every value must pass `Settings::validate()` (the ranges are in its \
@@ -633,7 +633,7 @@ impl CallDir {
         static CALLS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = CALLS.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir()
-            .join("cornell-rtx-describe")
+            .join("caustica-describe")
             .join(format!("{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir)?;
         Ok(Self(dir))

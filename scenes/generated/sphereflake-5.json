@@ -6,7 +6,7 @@
   "generated",
   "sphereflake"
  ],
- "credits": "Cornell RTX generators",
+ "credits": "Caustica generators",
  "generator": {
   "family": "sphereflake",
   "seed": 5

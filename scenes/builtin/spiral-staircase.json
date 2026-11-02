@@ -6,7 +6,7 @@
   "architecture",
   "shadows"
  ],
- "credits": "Cornell RTX built-in scenes",
+ "credits": "Caustica built-in scenes",
  "settings": {
   "cornell_room": false,
   "floor_extent": 15.0,

@@ -75,13 +75,17 @@ pub enum ImageFormat {
     Exr,
     /// What the HDR screen shows: 16-bit PQ / BT.2020 with a cICP chunk (texture 26, HDR only).
     HdrPng,
+    /// What the HDR screen shows as scRGB half floats in JPEG XR, as Game Bar and the
+    /// Snipping Tool save HDR screenshots (texture 26, HDR only).
+    Jxr,
 }
 impl ImageFormat {
-    pub const ALL: [ImageFormat; 4] = [
+    pub const ALL: [ImageFormat; 5] = [
         ImageFormat::Png,
         ImageFormat::Jpeg,
         ImageFormat::Exr,
         ImageFormat::HdrPng,
+        ImageFormat::Jxr,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -89,6 +93,7 @@ impl ImageFormat {
             ImageFormat::Jpeg => "JPEG",
             ImageFormat::Exr => "HDR EXR",
             ImageFormat::HdrPng => "HDR PNG",
+            ImageFormat::Jxr => "HDR JPEG XR",
         }
     }
     pub fn description(self) -> &'static str {
@@ -99,6 +104,9 @@ impl ImageFormat {
             ImageFormat::HdrPng => {
                 "What the HDR screen shows, 16-bit PQ / BT.2020 (HDR output only)."
             }
+            ImageFormat::Jxr => {
+                "What the HDR screen shows, scRGB half floats, lossless, as Windows' HDR screenshots (HDR output only)."
+            }
         }
     }
     pub fn extension(self) -> &'static str {
@@ -107,6 +115,7 @@ impl ImageFormat {
             ImageFormat::Jpeg => "jpg",
             ImageFormat::Exr => "exr",
             ImageFormat::HdrPng => "hdr.png",
+            ImageFormat::Jxr => "jxr",
         }
     }
     /// `stem` plus this format's extension (`hdr.png` keeps the PQ PNG apart from the plain one).
@@ -114,7 +123,7 @@ impl ImageFormat {
         PathBuf::from(format!("{stem}.{}", self.extension()))
     }
     pub fn needs_hdr(self) -> bool {
-        self == ImageFormat::HdrPng
+        matches!(self, ImageFormat::HdrPng | ImageFormat::Jxr)
     }
 }
 /// Reads the texture `format` is written from.
@@ -122,11 +131,87 @@ unsafe fn read_image(g: &mut Gpu, format: ImageFormat) -> Result<Frame> {
     Ok(match format {
         ImageFormat::Png | ImageFormat::Jpeg => Frame::Rgba8(g.read_rgba8(10)?),
         ImageFormat::Exr => Frame::Linear(g.read_floats(18)?),
-        ImageFormat::HdrPng => {
-            anyhow::ensure!(g.hdr_active, "HDR PNG needs HDR output");
+        ImageFormat::HdrPng | ImageFormat::Jxr => {
+            anyhow::ensure!(g.hdr_active, "{} needs HDR output", format.label());
             Frame::Scrgb(g.read_floats(26)?)
         }
     })
+}
+/// The camera is the 360° equirectangular model: PNG and JPEG saves carry Google's GPano XMP,
+/// so panorama viewers (Google Photos, VR players, Facebook) show them as a sphere. Set from
+/// the settings every frame (an export renders the same camera).
+static EQUIRECT: AtomicBool = AtomicBool::new(false);
+pub fn set_equirect(on: bool) {
+    EQUIRECT.store(on, Ordering::Relaxed);
+}
+/// GPano XMP for a full-sphere equirectangular image of `w` × `h`.
+fn gpano_xmp(w: u32, h: u32) -> String {
+    format!(
+        concat!(
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">",
+            "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
+            "<rdf:Description rdf:about=\"\" xmlns:GPano=\"http://ns.google.com/photos/1.0/panorama/\" ",
+            "GPano:ProjectionType=\"equirectangular\" GPano:UsePanoramaViewer=\"True\" ",
+            "GPano:FullPanoWidthPixels=\"{w}\" GPano:FullPanoHeightPixels=\"{h}\" ",
+            "GPano:CroppedAreaImageWidthPixels=\"{w}\" GPano:CroppedAreaImageHeightPixels=\"{h}\" ",
+            "GPano:CroppedAreaLeftPixels=\"0\" GPano:CroppedAreaTopPixels=\"0\"/>",
+            "</rdf:RDF></x:xmpmeta>"
+        ),
+        w = w,
+        h = h
+    )
+}
+/// Adds the panorama XMP to a written PNG (an iTXt chunk after IHDR) or JPEG (an APP1
+/// segment after SOI).
+fn tag_equirect(path: &Path, format: ImageFormat, w: u32, h: u32) -> Result<()> {
+    let xmp = gpano_xmp(w, h);
+    let mut bytes = std::fs::read(path)?;
+    match format {
+        ImageFormat::Png => {
+            let mut body = b"iTXtXML:com.adobe.xmp\0\0\0\0\0".to_vec();
+            body.extend_from_slice(xmp.as_bytes());
+            let mut chunk = ((body.len() - 4) as u32).to_be_bytes().to_vec();
+            chunk.extend_from_slice(&body);
+            chunk.extend_from_slice(&crate::display::crc32(&body).to_be_bytes());
+            // 8-byte signature + 25-byte IHDR chunk.
+            bytes.splice(33..33, chunk);
+        }
+        ImageFormat::Jpeg => {
+            let mut seg = b"http://ns.adobe.com/xap/1.0/\0".to_vec();
+            seg.extend_from_slice(xmp.as_bytes());
+            let mut app1 = vec![0xFF, 0xE1];
+            app1.extend_from_slice(&((seg.len() + 2) as u16).to_be_bytes());
+            app1.extend_from_slice(&seg);
+            // After SOI and, when present, the JFIF APP0 segment (which strict readers want
+            // first).
+            let at = if bytes.get(2..4) == Some(&[0xFF, 0xE0]) {
+                4 + u16::from_be_bytes([bytes[4], bytes[5]]) as usize
+            } else {
+                2
+            };
+            bytes.splice(at..at, app1);
+        }
+        _ => return Ok(()),
+    }
+    std::fs::write(path, bytes)?;
+    Ok(())
+}
+/// Tags a PNG or JPEG written elsewhere (`Gpu::capture`: `--capture`, scripts) when the
+/// camera is equirectangular. A UI capture shows more than the panorama, so it is left alone.
+pub fn tag_capture(path: &Path, w: u32, h: u32) -> Result<()> {
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let format = match ext.as_str() {
+        "png" if !path.to_string_lossy().ends_with(".hdr.png") => ImageFormat::Png,
+        "jpg" | "jpeg" => ImageFormat::Jpeg,
+        _ => return Ok(()),
+    };
+    if EQUIRECT.load(Ordering::Relaxed) {
+        tag_equirect(path, format, w, h)?;
+    }
+    Ok(())
 }
 /// Writes one image; `quality` is the JPEG quality.
 fn write_image(
@@ -169,7 +254,11 @@ fn write_image(
             .context("EXR size")?
             .save_with_format(path, image::ImageFormat::OpenExr)?,
         (ImageFormat::HdrPng, Frame::Scrgb(f)) => crate::display::write_hdr_png(path, f, w, h)?,
+        (ImageFormat::Jxr, Frame::Scrgb(f)) => crate::display::write_jxr(path, f, w, h)?,
         _ => anyhow::bail!("{format:?} got the wrong pixels"),
+    }
+    if EQUIRECT.load(Ordering::Relaxed) {
+        tag_equirect(path, format, w, h)?;
     }
     Ok(())
 }
@@ -925,5 +1014,23 @@ mod tests {
         o.quality = 3;
         let prores = ffmpeg_args(&o, 1000.).join(" ");
         assert!(prores.contains("prores_ks -profile:v 3") && prores.contains("yuv422p10le"));
+    }
+    #[test]
+    fn equirect_images_carry_the_panorama_xmp() {
+        let dir = std::env::temp_dir();
+        let rgba = vec![128u8; 8 * 4 * 4];
+        for format in [ImageFormat::Png, ImageFormat::Jpeg] {
+            let path = dir.join(format!("caustica-gpano-test.{}", format.extension()));
+            write_image(&path, format, 90, &Frame::Rgba8(rgba.clone()), 8, 4).unwrap();
+            tag_equirect(&path, format, 8, 4).unwrap();
+            let bytes = std::fs::read(&path).unwrap();
+            let text = String::from_utf8_lossy(&bytes);
+            assert!(text.contains("GPano:ProjectionType=\"equirectangular\""));
+            assert!(text.contains("GPano:FullPanoWidthPixels=\"8\""));
+            // Still a valid image of the same size (chunk CRC / segment length right).
+            let img = image::load_from_memory(&bytes).unwrap();
+            assert_eq!((img.width(), img.height()), (8, 4));
+            let _ = std::fs::remove_file(&path);
+        }
     }
 }

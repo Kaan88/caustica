@@ -14,7 +14,7 @@ try {
     $profile = if ($Release) {'release'} else {'debug'}
     if ($Release) {& cargo build --release --locked} else {& cargo build --locked}
     if ($LASTEXITCODE -ne 0) {throw 'Build failed'}
-    $exe = Join-Path $env:CARGO_TARGET_DIR "$profile/cornell-rtx.exe"
+    $exe = Join-Path $env:CARGO_TARGET_DIR "$profile/caustica.exe"
     New-Item -ItemType Directory -Force captures | Out-Null
     function Invoke-Renderer([string]$runName,[string[]]$options) {
         # Release is a GUI-subsystem executable. Explicitly wait and inspect its exit code.

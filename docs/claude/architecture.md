@@ -15,7 +15,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `src/ui.rs` | UI plan phase 1 (2026-10-30). `UiState` (tab, advanced, panel_hidden, selection, toasts, export size/samples): never in `Settings`. `impl App { fn ui }` draws top bar, status bar, right `SidePanel` with Scene / Render / Look / Export tabs, toasts. Helpers `row` (2-column grid row, label carries the tooltip), `more` (inline when advanced, else a "More" header), `theme`. `UiState::delete_selected`, `toast`, `error`. |
 | `src/gizmo.rs` | Roadmap 3b (2026-10-30). `View` (camera in physical pixels: project, ray, world-per-pixel), `frame()` (pivot + rotation of the selection; lights are `flat`), `Transform` (mode, constraint, typed value, snap, original settings; `apply` restores the target then transforms; `restore` cancels), `layout`/`hit`/`draw`, `draw_lights`, `pick` (objects via `pick_object_hit` plus light quads). Unit tests cover typed values, arrow drags, screen-angle rotation, Blender's axis toggling and light scaling. |
 | `src/scenes.rs` | Roadmap 4 (2026-10-30). `folder()` (`./scenes`, next to the exe, or `exe/../../scenes`), `list()` (packs by `pack.json` order; builtin first, user last), `read()` (wrapper `{format, title, description, tags, credits, settings}` or bare `Settings`; validated; title becomes `scene_name`), `find()` (path, stem or title), `load_into()` (uses `Settings::keep_output` so render choices survive), `save_user()`. Test `builtin_scenes_are_valid`. |
-| `src/hotreload.rs` | Roadmap 5a. `HotReload::new()` (debug builds, not the self-test) watches `CORNELL_SHADERS` (build.rs bakes the source path and the DXC path `CORNELL_DXC`); `poll()` every 0.5 s on the newest mtime; `compile()` runs all 17 entries of `ENTRIES` (keep in sync with build.rs) with build.rs's flags. `Gpu::reload_shaders` builds all PSOs before swapping, so an error keeps the old ones; prints `SHADERS RELOADED` / `SHADER ERROR`. Tested by editing post.hlsl under a running instance (valid, broken, restored). |
+| `src/hotreload.rs` | Roadmap 5a. `HotReload::new()` (debug builds, not the self-test) watches `CAUSTICA_SHADERS` (build.rs bakes the source path and the DXC path `CAUSTICA_DXC`); `poll()` every 0.5 s on the newest mtime; `compile()` runs all 17 entries of `ENTRIES` (keep in sync with build.rs) with build.rs's flags. `Gpu::reload_shaders` builds all PSOs before swapping, so an error keeps the old ones; prints `SHADERS RELOADED` / `SHADER ERROR`. Tested by editing post.hlsl under a running instance (valid, broken, restored). |
 | `src/paths.rs` | Track 14 path visualizer: `Record` (the shader's `PathVertex`), `parse`, `draw`, `window`, `PathView` (in `UiState`). See engine-notes "Path visualizer". |
 | `src/lpe.rs` | Track 14 light path expressions: parser, NFA → minimal DFA (`compile`), the GPU `table`, `PRESETS`. See engine-notes "Light path expressions". |
 | BDPT, photon mapping, battle mode | Track 15 part 2: `shaders/integrators.hlsl`, `Gpu::integrate` / `battle_frame` / `prepare_aux`, `Settings::integrator` / `photons` / `photon_radius` / `battle`, the `region` constant. See engine-notes "BDPT and photon mapping". |
@@ -31,7 +31,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `src/sky.rs` | Track 9 physical sky: `PhysicalSky` (`Settings::physical_sky`), solar position, atmosphere bake, the sun light, `environment_key` / `upload_environment`. See "Physical sky". |
 | `src/anim.rs`, `timeline_ui.rs` | Track 8 keyframes and the timeline strip; see "Animation and timeline". |
 | `src/video_ui.rs` | The video export dialog and the progress window shown during an export. |
-| `src/prefs.rs` | UI preferences in %APPDATA%\CornellRTX\prefs.json: favourite and recent scenes, UI size, advanced toggle, first-run hint. |
+| `src/prefs.rs` | UI preferences in %APPDATA%\Caustica\prefs.json: favourite and recent scenes, UI size, advanced toggle, first-run hint. |
 | `src/editor.rs` | Inspectors used by the Scene tab: `object_ui`, `light_ui`, `material_ui`, `shape_combo`, `new_object`. Ranges match `validate()`. |
 | `src/mesh.rs`, `procedural.rs`, `environment.rs`, `texture.rs` | Core tracks 2, 1, 3 and 5: mesh import (parts, UVs, texture maps), `gen:` procedural meshes, HDRI maps and their CDFs, texture sets. See their sections below. |
 | `src/assets.rs`, `browser.rs` | Item 6 asset browser: online catalogs, pinned downloads, the Assets window. See "Asset browser". |
@@ -41,7 +41,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `shaders/pathtrace.hlsl` | `trace` (l.56): guide/AOV ray, then the spp loop. |
 | `shaders/post.hlsl` | `filter` (5 à-trous passes plus temporal) and `display` (views, tonemap, A/B). |
 | `shaders/gui.hlsl` | Declares a partial cbuffer (4 matrices, eye, then `dimensions`) that relies on that offset in `Constants`. |
-| `bridge/ngx.cpp` | NGX C ABI: `cornell_ngx_caps` (bit 0 RR, bit 1 DLSS SR), RR create/eval (DLSSD), SR create/eval (DLSS) with its own parameter block. Contains a development project GUID that must be replaced before distribution. |
+| `bridge/ngx.cpp` | NGX C ABI: `caustica_ngx_caps` (bit 0 RR, bit 1 DLSS SR), RR create/eval (DLSSD), SR create/eval (DLSS) with its own parameter block. Contains a development project GUID that must be replaced before distribution. |
 | `bridge/fsr.cpp` | FSR through the FidelityFX API; `LoadLibrary` of the loader DLL next to the exe. Context = upscale desc → DX12 backend desc → version desc (pNext chain). |
 | `bridge/xess.cpp` | XeSS through `GetProcAddress` on `libxess.dll`; `xessD3D12Init` again on size change. |
 | `docs/ui-plan.md`, `docs/scene-research.md` | Plans written by subagents on 2026-10-29: UI redesign in 5 phases; scene sources, licenses, 42 buildable presets, generators, and an engine-feature roadmap. |
@@ -93,7 +93,7 @@ A change to `rr` or `rr_preset` also calls `reconfigure_rr()`, which releases th
   - The direct/indirect sliders recompose the image from these.
 - **Sampling:**
   - Native mode uses padded 2D Owen-scrambled Sobol. RR mode always uses white noise (NVIDIA's guidance).
-  - There is no blue-noise mask, unlike the WebGL version.
+  - There is no blue-noise mask.
   - The sequence index is `scene_info.z + samples + sample_id`. The base moves to a new 8192-aligned block on every reset, and the per-pixel scramble is fixed.
   - **Performance:**
     - Dimension pairs are computed together, and the second dimension uses a closed form (5-step superset transform). Before this, Sobol cost 6.5 ms vs 1.5 ms for white noise at 1440×900, 4 spp; now 1.7 ms.

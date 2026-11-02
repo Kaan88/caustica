@@ -4,7 +4,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 
 ## What it is
 
-- A Windows-only port of the WebGL Cornell box in `webgl/` (`index.html`, `app.js`, `shaders.js`).
+- Caustica: a Windows-only path tracer that began as a Cornell box renderer.
 - Stack:
   - Rust 2024 for the app; HLSL compute shaders compiled by DXC at build time and embedded as DXIL.
   - Direct3D 12 with DXR 1.1 inline `RayQuery`. There are no RT pipeline state objects or shader tables.
@@ -20,8 +20,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
   - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.
-- **Git:** the repo root is `cornell/` (native app at the root, the original WebGL app in `webgl/`), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
-- The native settings JSON is not compatible with the browser's.
+- **Git:** the repo root is `cornell/` (the folder and the GitHub repo kept the old name), with a private GitHub remote. `main` is the verified state. Commit and push only when the user asks.
 
 ### Machine (2026-10-29)
 

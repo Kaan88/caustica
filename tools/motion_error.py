@@ -10,7 +10,7 @@ raw samples, spatial filter only, and filter + temporal history. Each is scored 
 - the mean blurred error in a band around the ceiling light
 
 Usage, from native/:
-    python tools/motion_error.py --exe target/validation/debug/cornell-rtx.exe --tag mytest [--tag older]
+    python tools/motion_error.py --exe target/validation/debug/caustica.exe --tag mytest [--tag older]
 The reference is rendered once and reused. Light-region crops go to <out>/crop_<tags>.png.
 
 --static 4,16,64,256 instead scores a still camera (yaw 0) at those sample counts, raw against
@@ -69,7 +69,7 @@ def still(exe, out, tag, counts):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/cornell-rtx.exe")
+    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/caustica.exe")
     parser.add_argument("--out", type=Path, default=ROOT / "captures/motion")
     parser.add_argument("--static", help="Comma-separated sample counts for the still-camera check")
     parser.add_argument("--tag", action="append", required=True,

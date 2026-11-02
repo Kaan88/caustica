@@ -1,4 +1,4 @@
-# Cornell RTX (native): working notes for Claude
+# Caustica: working notes for Claude
 
 `README.md` is the user-facing doc. Paths are relative to the repo root. Read these on demand; they hold the detail that used to be here:
 - `docs/claude/data-layouts.md`: material IDs, PackedMaterial, Emitter, root signature, Vertex, acceleration structures, UAV slots. **Read before changing anything Rust and HLSL share.**
@@ -18,9 +18,9 @@ The owner wants routine work on cheaper models, without wasting tokens. Every su
 
 ## Project
 
-- Windows-only port of the WebGL Cornell box in `webgl/`: Rust 2024, D3D12 with DXR 1.1 inline `RayQuery`, HLSL compiled by DXC in build.rs, egui 0.31, C++ bridges to NGX (DLSS RR/SR), FSR and XeSS.
+- Caustica, a Windows-only path tracer (it began as a Cornell box): Rust 2024, D3D12 with DXR 1.1 inline `RayQuery`, HLSL compiled by DXC in build.rs, egui 0.31, C++ bridges to NGX (DLSS RR/SR), FSR and XeSS.
 - Personal project, never published: license terms don't limit assets or SDK use.
-- Git: `main` is the verified state. Commit and push only when the user asks.
+- Git: `main` is the verified state. Commit and push only when the user asks. Every push to `main` that passes CI publishes a release `vX.Y.Z` with an installer (`.github/workflows/ci.yml`, `installer/caustica.iss`; patch auto-increments, bump `Cargo.toml` for minor/major). The icon is `assets/caustica.ico` from `tools/make_icon.py`, embedded by build.rs with rc.exe.
 - Write each new feature's notes in `docs/engine-notes.md`. Record open items in `docs/roadmap.md`.
 
 ## Build and verify
@@ -32,7 +32,7 @@ cargo fmt; cargo test --locked; cargo clippy --locked -- -D warnings; cargo buil
 
 - Never build into `target/release` for checks and never kill the user's running app: build.rs copies the DLSS DLLs next to the exe, and a running instance locks them.
 - Release is a GUI-subsystem exe with no console: run it with Start-Process and redirected output (see `tools/verify.ps1`).
-- Headless: `cornell-rtx.exe --headless --frames N [--width --height --preset --scene --set key=json --rr|--no-rr --raw] --capture out.png|out.exr`; success prints `RENDER_OK …`. Benchmarks need ≥ 200 frames and `--no-vsync`.
+- Headless: `caustica.exe --headless --frames N [--width --height --preset --scene --set key=json --rr|--no-rr --raw] --capture out.png|out.exr`; success prints `RENDER_OK …`. Benchmarks need ≥ 200 frames and `--no-vsync`.
 - `--self-test`: 292 scripted frames, then one per scene file; it fails on any D3D12 warning. Add edits on unused frame numbers (map in testing.md) and assert after `render`.
 - Python on Windows needs Windows paths (`cygpath -w`). Read EXRs with `tools/exr.py`.
 

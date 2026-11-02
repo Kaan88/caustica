@@ -1,15 +1,31 @@
-# Roadmap 17b: build and check every push on a Windows runner.
+# Roadmap 17b: build and check every push on a Windows runner. A push to main that passes
+# becomes a release: the next version tag, an installer, a zip of the app and notes from the
+# commits. A manual run (workflow_dispatch) on any branch builds both without releasing.
+#
+# Versioning: Cargo.toml holds major.minor.patch. If no tag v<that version> exists yet, the
+# release is exactly that version (bump Cargo.toml to start 0.3.0 or 1.0.0); otherwise it is
+# the next patch above the highest v<major>.<minor>.* tag.
 name: CI
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: write
+# Pushes to main queue up (a release never races another for the same version number).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -22,6 +38,20 @@ jobs:
       - name: Fetch SDKs
         shell: pwsh
         run: ./tools/setup.ps1 -SkipBuild
+      - name: Version
+        shell: pwsh
+        run: |
+          $base = (Select-String -Path Cargo.toml -Pattern '^version = "(\d+)\.(\d+)\.(\d+)"').Matches[0].Groups
+          $major, $minor, $patch = [int]$base[1].Value, [int]$base[2].Value, [int]$base[3].Value
+          $tags = @(git tag --list "v$major.$minor.*" | ForEach-Object { if ($_ -match '^v\d+\.\d+\.(\d+)$') { [int]$Matches[1] } })
+          if ($tags -notcontains $patch -and ($tags.Count -eq 0 -or $patch -gt ($tags | Measure-Object -Maximum).Maximum)) {
+            $version = "$major.$minor.$patch"
+          } else {
+            $version = "$major.$minor.$((($tags | Measure-Object -Maximum).Maximum) + 1)"
+          }
+          if ($env:RELEASE -ne 'true') { $version = "$version-ci.$($env:GITHUB_SHA.Substring(0, 7))" }
+          "CAUSTICA_VERSION=$version" >> $env:GITHUB_ENV
+          "Version $version"
       - name: Format
         run: cargo fmt --check
       - name: Clippy
@@ -31,3 +61,56 @@ jobs:
         run: cargo test --locked
       - name: Release build
         run: cargo build --release --locked
+      # The exe with the DLLs and ffmpeg build.rs copied next to it, the scene packs and the
+      # README. Downloaded assets (scenes/models, hdri, textures) are not in the repo.
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "caustica-v$env:CAUSTICA_VERSION"
+          $dist = "dist/$name"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item target/release/caustica.exe, target/release/*.dll $dist
+          if (Test-Path target/release/ffmpeg.exe) { Copy-Item target/release/ffmpeg.exe $dist }
+          Copy-Item -Recurse scenes $dist/scenes
+          Copy-Item README.md $dist
+          Compress-Archive -Path $dist -DestinationPath "dist/$name.zip"
+          "ZIP=dist/$name.zip" >> $env:GITHUB_ENV
+          "DIST=$((Resolve-Path $dist).Path)" >> $env:GITHUB_ENV
+      # The installer (Inno Setup, per-user) for releases and manual runs; not for PRs.
+      - name: Installer
+        if: env.RELEASE == 'true' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          # The script needs Inno Setup 6.3+ (x64compatible); the image may ship an older one.
+          choco upgrade innosetup -y --no-progress | Out-Null
+          & $iscc /Qp "/DAppVersion=$env:CAUSTICA_VERSION" "/DSourceDir=$env:DIST" installer/caustica.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "SETUP=dist/caustica-v$env:CAUSTICA_VERSION-setup.exe" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: caustica-v${{ env.CAUSTICA_VERSION }}
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.SETUP }}
+      # Notes: every commit subject since the previous release tag.
+      - name: Release notes
+        if: env.RELEASE == 'true'
+        shell: pwsh
+        run: |
+          $previous = git describe --tags --abbrev=0 --match 'v*' 2>$null
+          $range = if ($previous) { "$previous..HEAD" } else { 'HEAD' }
+          $log = git log $range --no-merges --format='- %s (%h)'
+          $header = if ($previous) { "Changes since $previous`n" } else { "First release`n" }
+          Set-Content -Encoding utf8 dist/notes.md ($header + "`n" + ($log -join "`n"))
+      - name: GitHub release
+        if: env.RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.CAUSTICA_VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Caustica v${{ env.CAUSTICA_VERSION }}
+          body_path: dist/notes.md
+          files: |
+            ${{ env.SETUP }}
+            ${{ env.ZIP }}

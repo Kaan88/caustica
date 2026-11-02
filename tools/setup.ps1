@@ -62,6 +62,6 @@ try {
         if ($DebugBuild) { & cargo build --locked } else { & cargo build --release --locked }
         if ($LASTEXITCODE -ne 0) { throw 'Build failed. Install Visual Studio C++ Build Tools and Windows SDK (DXC), or set DXC_PATH.' }
         $profile = if ($DebugBuild) {'debug'} else {'release'}
-        Write-Host "Ready: $projectRoot\target\$profile\cornell-rtx.exe"
+        Write-Host "Ready: $projectRoot\target\$profile\caustica.exe"
     }
 } finally { Pop-Location }

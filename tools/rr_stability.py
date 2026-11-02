@@ -31,7 +31,7 @@ def analyze(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/cornell-rtx.exe")
+    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/caustica.exe")
     parser.add_argument("--output", type=Path, default=ROOT / "captures/rr-stability/regression")
     parser.add_argument("--before", type=Path, help="Optional existing baseline sequence for comparison")
     args = parser.parse_args()

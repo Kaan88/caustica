@@ -1,5 +1,5 @@
 //! UI preferences (UI plan 7.6): favourite and recent scene files, the UI size, the advanced
-//! toggle and the first-run hint, kept in %APPDATA%\CornellRTX\prefs.json beside the stats.
+//! toggle and the first-run hint, kept in %APPDATA%\Caustica\prefs.json beside the stats.
 //! Headless runs (captures, the self-test) use defaults and never write the file.
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -34,8 +34,19 @@ impl Default for Prefs {
         }
     }
 }
+/// %APPDATA%\Caustica (prefs and stats). Builds before the rename kept them in
+/// %APPDATA%\CornellRTX: that folder is moved over once.
+pub fn app_dir() -> Option<PathBuf> {
+    let root = PathBuf::from(std::env::var_os("APPDATA")?);
+    let dir = root.join("Caustica");
+    let old = root.join("CornellRTX");
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &dir);
+    }
+    Some(dir)
+}
 fn path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("CornellRTX").join("prefs.json"))
+    app_dir().map(|d| d.join("prefs.json"))
 }
 impl Prefs {
     pub fn load() -> Self {

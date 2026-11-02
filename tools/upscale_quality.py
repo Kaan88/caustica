@@ -11,7 +11,7 @@ then scores the linear HDR output against a 16,384-spp full-resolution reference
 - RMSE after a 5x5 blur (bias, smearing)
 - edge sharpness: gradient energy relative to the reference (1.0 = as sharp, <1 blurry)
 
-Usage, from native/:  python tools/upscale_quality.py --exe target/validation/release/cornell-rtx.exe
+Usage, from native/:  python tools/upscale_quality.py --exe target/validation/release/caustica.exe
 """
 import argparse
 import subprocess
@@ -56,7 +56,7 @@ def gradient_energy(x):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/cornell-rtx.exe")
+    parser.add_argument("--exe", type=Path, default=ROOT / "target/release/caustica.exe")
     parser.add_argument("--out", type=Path, default=ROOT / "captures/upscale")
     args = parser.parse_args()
     out = args.out.resolve()

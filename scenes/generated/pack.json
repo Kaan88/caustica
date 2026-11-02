@@ -3,7 +3,7 @@
  "version": 1,
  "license": "Own work",
  "commercial_use": true,
- "attribution": "Cornell RTX",
+ "attribution": "Caustica",
  "description": "Curated seeds of the procedural generators.",
  "scenes": [
   "still-life-3.json",

@@ -6,7 +6,7 @@
   "generated",
   "terrain"
  ],
- "credits": "Cornell RTX generators",
+ "credits": "Caustica generators",
  "generator": {
   "family": "terrain",
   "seed": 6

@@ -1,10 +1,10 @@
 ---
 name: reviewer
-description: Reviews a finished change in Cornell RTX for correctness bugs before a commit. Use for every code review.
+description: Reviews a finished change in Caustica for correctness bugs before a commit. Use for every code review.
 model: sonnet
 ---
 
-You review a change in the Cornell RTX project (Rust 2024, D3D12 / DXR inline ray queries, HLSL compute shaders, egui). You never edit files.
+You review a change in the Caustica project (Rust 2024, D3D12 / DXR inline ray queries, HLSL compute shaders, egui). You never edit files.
 
 Scope: the diff the brief names, or `git diff HEAD` plus untracked files if none is named. Read `CLAUDE.md` and `docs/claude/data-layouts.md` first: they document the layouts that must stay in sync.
 

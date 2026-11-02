@@ -120,8 +120,8 @@ pub struct HotReload {
 impl HotReload {
     /// Watches the source tree's `shaders/` (baked in at build time), if it still exists.
     pub fn new() -> Option<Self> {
-        let dir = PathBuf::from(env!("CORNELL_SHADERS"));
-        let dxc = PathBuf::from(env!("CORNELL_DXC"));
+        let dir = PathBuf::from(env!("CAUSTICA_SHADERS"));
+        let dxc = PathBuf::from(env!("CAUSTICA_DXC"));
         (dir.is_dir() && dxc.is_file()).then(|| Self {
             stamp: newest(&dir),
             dir,
@@ -143,7 +143,7 @@ impl HotReload {
         Some(self.compile())
     }
     pub fn compile(&self) -> Result<Shaders, String> {
-        let out = std::env::temp_dir().join("cornell-rtx-shaders");
+        let out = std::env::temp_dir().join("caustica-shaders");
         std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
         let mut blobs = vec![];
         for (file, entry, profile, name, defines) in ENTRIES {

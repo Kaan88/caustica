@@ -92,7 +92,7 @@ static AGENT: LazyLock<Result<ureq::Agent, String>> = LazyLock::new(|| {
     let tls = native_tls::TlsConnector::new().map_err(|e| e.to_string())?;
     Ok(ureq::AgentBuilder::new()
         .tls_connector(Arc::new(tls))
-        .user_agent("cornell-rtx (personal path tracer)")
+        .user_agent("caustica (personal path tracer)")
         .timeout_connect(std::time::Duration::from_secs(15))
         .timeout_read(std::time::Duration::from_secs(60))
         .build())
@@ -730,7 +730,7 @@ mod tests {
     }
     #[test]
     fn zips_give_only_the_maps() {
-        let dir = std::env::temp_dir().join("cornell-test-zip");
+        let dir = std::env::temp_dir().join("caustica-test-zip");
         std::fs::create_dir_all(&dir).unwrap();
         let zip_path = dir.join("set.zip");
         let mut z = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
