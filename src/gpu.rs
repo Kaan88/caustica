@@ -1475,7 +1475,8 @@ impl Gpu {
             .map(f32_to_half)
             .collect();
         let texels = env_texture(&self.device, w, h, DXGI_FORMAT_R16G16B16A16_FLOAT)?;
-        let cdf = env_texture(&self.device, w, h + 1, DXGI_FORMAT_R32_FLOAT)?;
+        // The CDF rows, then their cutpoints (environment::build).
+        let cdf = env_texture(&self.device, w, 2 * (h + 1), DXGI_FORMAT_R32_FLOAT)?;
         self.upload_texture(&texels, bytemuck::cast_slice(&halves), w as usize * 8)?;
         self.upload_texture(&cdf, bytemuck::cast_slice(&env.cdf), w as usize * 4)?;
         self.env = texels;
@@ -2293,9 +2294,11 @@ impl Gpu {
             .any(|m| m.lobes[3] as u32 & 16 != 0 || m.optical[3] < 0.);
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
-        // The alias table for ReSTIR follows the emitters (`emitter_count` stays the table).
+        // The alias table for ReSTIR follows the emitters (`emitter_count` stays the table),
+        // then the CDF's cutpoints for `select_index`.
         let mut table = emitters.clone();
         table.extend(crate::lighting::alias_records(&emitters));
+        table.extend(crate::lighting::guide_records(&emitters));
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&table))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
         self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;

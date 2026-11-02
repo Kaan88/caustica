@@ -156,8 +156,8 @@ pub fn output(name: impl AsRef<Path>) -> PathBuf {
 }
 
 /// Copies what an older installed build wrote beside the exe into the per-user folders, once
-/// (a `migrated` marker in the config folder). Copies, not moves: the exe folder may be
-/// read-only, and the old files go with the uninstall.
+/// (a `migrated` marker in the config folder, written once something was copied). Copies, not
+/// moves: the exe folder may be read-only, and the old files go with the uninstall.
 pub fn migrate() {
     if mode() != Mode::Installed {
         return;
@@ -204,6 +204,11 @@ pub fn migrate() {
     copied += copy_tree(&exe.join("captures"), &out);
     if exe.join("settings.json").is_file() {
         copied += copy_file(&exe.join("settings.json"), &out.join("settings.json"));
+    }
+    // Only a migration that copied something is final: an installed-mode run from a folder
+    // with nothing to bring over (a test copy in a temp folder) must not block the real one.
+    if copied == 0 {
+        return;
     }
     let _ = std::fs::create_dir_all(&config);
     let _ = std::fs::write(

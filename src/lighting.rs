@@ -406,6 +406,39 @@ pub fn alias_records(emitters: &[Emitter]) -> Vec<Emitter> {
         .map(|c| bytemuck::cast(*c))
         .collect()
 }
+/// Guide buckets for a CDF of `count` entries: the largest power of two ≤ count, so the
+/// shader's `u·K` and the bucket edges `k/K` are exact in f32.
+pub fn guide_buckets(count: usize) -> usize {
+    if count == 0 { 0 } else { 1 << count.ilog2() }
+}
+/// Fishman and Moore's cutpoints (track 20a (g)): entry k is the index the shader's binary
+/// search returns for u = k/K (the first i with u < cdf(i), else count − 1). The search for
+/// any u in [k/K, (k+1)/K) then runs between entries k and k + 1 and returns exactly what the
+/// full search returns, since that index never decreases as u grows.
+pub fn cutpoints(count: usize, buckets: usize, cdf: impl Fn(usize) -> f32) -> Vec<u32> {
+    let mut i = 0;
+    (0..buckets)
+        .map(|k| {
+            let u = k as f32 / buckets as f32;
+            while i + 1 < count && u >= cdf(i) {
+                i += 1;
+            }
+            i as u32
+        })
+        .collect()
+}
+/// The emitter CDF's cutpoints, packed after the alias records, sixteen indices per record.
+pub fn guide_records(emitters: &[Emitter]) -> Vec<Emitter> {
+    let n = emitters.len();
+    let mut words = cutpoints(n, guide_buckets(n), |i| emitters[i].edge1_cdf[3]);
+    words.resize(words.len().div_ceil(16) * 16, 0);
+    words
+        .as_chunks::<16>()
+        .0
+        .iter()
+        .map(|c| bytemuck::cast(*c))
+        .collect()
+}
 /// How many suns lead the emitter table.
 pub fn sun_count(emitters: &[Emitter]) -> u32 {
     emitters
@@ -467,6 +500,77 @@ mod tests {
         }
         for (g, p) in got.iter().zip(probs) {
             assert!((g - p as f64).abs() < 1e-6, "{got:?}");
+        }
+    }
+    /// The shader's guided search (`cdf_search`, `select_index`) returns exactly the full binary
+    /// search's index for every u that `random()` can produce (m / 2^24).
+    #[test]
+    fn cutpoints_give_the_binary_search_index() {
+        fn full(cdf: &[f32], u: f32) -> usize {
+            let (mut lo, mut hi) = (0, cdf.len() - 1);
+            while lo < hi {
+                let mid = (lo + hi) / 2;
+                if u < cdf[mid] { hi = mid } else { lo = mid + 1 }
+            }
+            lo
+        }
+        fn guided(cdf: &[f32], guide: &[u32], u: f32) -> usize {
+            let n = guide.len();
+            let k = (u * n as f32) as usize;
+            let mut lo = guide[k] as usize;
+            let mut hi = if k + 1 < n {
+                guide[k + 1] as usize
+            } else {
+                cdf.len() - 1
+            };
+            while lo < hi {
+                let mid = (lo + hi) / 2;
+                if u < cdf[mid] { hi = mid } else { lo = mid + 1 }
+            }
+            lo
+        }
+        // Emitter-style CDFs: f32 running sums with the last entry forced to 1 (the entry
+        // before it can round above 1), zero-weight runs and one dominant entry.
+        let mut tables: Vec<Vec<f32>> = Vec::new();
+        for n in [1usize, 2, 3, 5, 17, 1000, 4099] {
+            let w: Vec<f64> = (0..n)
+                .map(|i| match i % 7 {
+                    0 => 0.,
+                    3 => 1e-7,
+                    _ if i == n / 3 => 5e4,
+                    _ => 1. + (i * 37 % 11) as f64,
+                })
+                .collect();
+            let total: f64 = w.iter().sum::<f64>().max(1.);
+            let mut c = 0f32;
+            let mut cdf: Vec<f32> = w
+                .iter()
+                .map(|x| {
+                    c += (x / total) as f32;
+                    c
+                })
+                .collect();
+            *cdf.last_mut().unwrap() = 1.;
+            tables.push(cdf);
+        }
+        for cdf in &tables {
+            let k = guide_buckets(cdf.len());
+            let guide = cutpoints(cdf.len(), k, |i| cdf[i]);
+            let step = (1u32 << 24) / k as u32;
+            let edges = (0..k as u32).flat_map(|b| [b * step, (b * step).saturating_sub(1)]);
+            for m in (0..1u32 << 24)
+                .step_by(4093)
+                .chain(edges)
+                .chain([(1 << 24) - 1])
+            {
+                let u = m as f32 / 16777216.;
+                assert_eq!(
+                    full(cdf, u),
+                    guided(cdf, &guide, u),
+                    "n {} u {u}",
+                    cdf.len()
+                );
+            }
         }
     }
     #[test]

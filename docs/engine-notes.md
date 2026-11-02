@@ -794,5 +794,40 @@ Sweeps (native): Classic trace 1.03 / 1.55 / 3.52 ms at 1 / 2 / 6 bounces and 0.
 
 - **Occupancy is register-limited everywhere.** Registers allocated / warps active is about 3.5 in every scene: about 150–160 registers per thread, which caps residency near 12–13 of 48 warps per SM. Sponza runs at that cap. The SMs are mostly waiting with too few warps to hide traversal and memory latency, while DRAM bandwidth stays at 12% or below. Fix (b) is first.
 - **The windowed app idles the GPU much more than headless runs show.** GPU busy is 50% in Classic and 67–74% in the mirror corridor and the dragon. The headless bubble was 0.5 ms, but the windowed frame adds Present and egui on the CPU while the GPU waits. Fix (c) is second; confirm it with timestamps in a windowed run first.
-- Not in the export: RT core use and the per-line shader profiler (both are in the saved `.ngfx-gputrace`, viewable in `ngfx-ui`). Pass markers (`BeginEvent`/`EndEvent` around trace, reconstruction, display, UI) would split these metrics per pass in `GPUTRACE_REGIMES.xls`.
+- Pass markers (`BeginEvent`/`EndEvent` around trace, reconstruction, display, UI) would split these metrics per pass in `GPUTRACE_REGIMES.xls`.
 - Pitfall: don't pass `--platform` to `ngfx.exe`. Qt takes it as its own platform-plugin option and fails with "Could not find the Qt platform plugin".
+- Pitfall: the table above came from runs in which the shader profiler never ran. `--metric-set-name`, `--multi-pass-metrics` and `--real-time-shader-profiler` are per-architecture options and are ignored silently without `--architecture` (`REPRO_INFO.xls` then says "Warp State Sampling Disabled" and the metric set falls back to Async Compute Triage). Those traces are kept as `captures/perf/nsight/<scene>-asynctriage/`.
+
+**Nsight GPU Trace with the shader profiler, 2026-11-03** (same script, now `--architecture Ada --metric-set-name "Top-Level Triage" --multi-pass-metrics --real-time-shader-profiler`; traces in `captures/perf/nsight/<scene>/`, read through the `ngfx-mcp` server). Frame averages in % of peak:
+
+| | Sponza | Mirror (17) | Classic (0) | Glass dragon |
+|---|---|---|---|---|
+| RT core busy (`rtcore__cycles_executed`) | 31.0 | 18.6 | 14.6 | 14.5 |
+| SM throughput | 14.6 | 22.5 | 27.9 | 18.1 |
+| Warps active (compute) | 19.2 | 12.7 | 16.0 | 14.3 |
+| Warp launch blocked: registers | 20.7 | 19.5 | 16.9 | 22.7 |
+| Warp launch blocked: shared memory | 4.9 | 10.0 | 9.7 | 4.8 |
+| Stall: no instruction (I-cache) | 5.8 | 2.2 | 2.1 | 6.1 |
+| Stall: long scoreboard, L1/tex | 5.0 | 4.6 | 3.1 | 2.0 |
+| Stall: long scoreboard, RT core | 4.5 | 2.5 | 1.7 | 3.1 |
+| Stall: wait | 2.1 | 3.3 | 3.8 | 2.5 |
+
+Top `trace` hotspots by HLSL line (% of the trace's shader samples; `trace` is 91% of all samples in Sponza and 58% in Classic, where DLSS RR takes most of the rest):
+
+| | Sponza | Mirror | Classic | Dragon |
+|---|---|---|---|---|
+| `intersect` `Proceed` loop (pathtrace.hlsl:192) | 22.4 | 14.6 | 14.0 | 23.1 |
+| `occluded` `Proceed` loop (:264) | 10.9 | 11.1 | 7.6 | 10.1 |
+| `cdf_search`, env map (:298) | 11.7 | – | – | – |
+| `select_index`, emitter CDF (:590) | – | 14.6 | 0.7 | 1.0 |
+| `random` / `hash` (:29, :20, :3) | 5.5 | 4.2 | 5.2 | 5.1 |
+| `env_bilinear` (:319, :315) | 3.6 | – | – | – |
+| `sample_maps` texture reads (:107–115) | 4.0 | – | – | – |
+
+- **RT cores are not the limit.** They are busy 15–31% of the frame. Waiting on them is under 5% of issue stalls. Traversal lines (192, 264) are 22–34% of samples, but they wait for the RT core to return candidates and on memory, with too few warps to hide it.
+- **Registers block warp launch 17–23% of the time** in every scene, and this confirms fix (b). The "no instruction" stalls (6% in Sponza and the dragon) are instruction-cache misses in the large kernel. Smaller variants help here too.
+- **Binary searches are a new, cheap target.** The env-map CDF search costs 11.7% of Sponza's trace samples (two searches per env sample, about 20 dependent loads). The emitter CDF search in plain NEE costs 14.6% in the mirror corridor. Both are chains of dependent memory loads ("long scoreboard"). A guide table (Fishman's cutpoint method) gives exactly the same index from one load plus a short search. Sampling and Sobol stratification stay bit-identical, which an alias table would not (it is why plain NEE keeps its CDF, see `restir_presample`). This is fix (g) in roadmap 20a.
+- `trace` declares no `groupshared`, yet shared-memory allocation blocks launch 5–10% of the time. Probably the driver's RayQuery state; not confirmed.
+- The multi-pass runs report GPU busy 85–93% even in Classic, against 50% single-pass: multi-pass replays a frame back to back, which hides the CPU/GPU gap. Use the single-pass numbers above for the bubble (fix (c)).
+- **Fix (g), cutpoint guide tables, done 2026-11-03.** Both CDFs keep a table of K entries (K = the largest power of two ≤ the entry count, so `u·K` and `k/K` are exact in f32): entry k is the search's result for u = k/K (`lighting::cutpoints`). `cdf_search` and `select_index` search only between entries k and k + 1, which always bracket the old answer because it never decreases as u grows (the predicate `u < cdf[i]` is monotone in i for u < 1, including the emitter table's forced final 1). Layouts: the env CDF texture doubles to width × 2(height + 1), with the guide rows after the CDF rows as f32 indices; the emitter guide follows the alias records in the emitter buffer, sixteen u32 per record (data-layouts.md). `environment::build` now rejects maps taller than wide: the marginal row never fit them, and the doubled texture would pass D3D12's 16384 rows. Renders are bit-identical where the build is deterministic (see roadmap 20a (g)); the first timings are within noise and need repeated runs.
+- Classic's multi-pass trace ran out of frames at `--frames 900` (about 5 ms frames); the script now passes 20000, and ngfx ends the app when the trace is done.

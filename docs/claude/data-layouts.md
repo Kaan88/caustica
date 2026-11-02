@@ -39,6 +39,8 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `edge2_probability` | c−a, selection probability |
 | `emission_material` | Emitted RGB, material id |
 
+The emitter buffer (t4) holds the `n` emitters, then the alias records (`lighting::alias_records`, ⌈n/8⌉ records, eight (threshold, alias) pairs each), then the CDF's cutpoints (`lighting::guide_records`, K = the largest power of two ≤ n, sixteen u32 per record) for `select_index`.
+
 **Root signature:**
 
 | Slot | Binding |
@@ -101,4 +103,4 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
 | 27 | trace_stats: this frame's mean bounces per sample, BVH steps (`Proceed()` calls, all rays) per pixel | RG32F |
 | 28 | scopes: counters, rows 0–3 histogram R,G,B,L; 4–131 luma waveform; 132–259 vectorscope (128 wide) | R32_UINT, **256×260 fixed** |
 | 30 | env_map: HDRI, linear RGB (kept across resizes; 1×1 when none) | RGBA32F, **map size** |
-| 31 | env_cdf: conditional CDF per row, then the marginal CDF in an extra row | R32F, **map width × (height + 1)** |
+| 31 | env_cdf: conditional CDF per row, then the marginal CDF in an extra row; rows height + 1 on: the same CDFs' cutpoints for `cdf_search` (K = the largest power of two ≤ width, f32 indices) | R32F, **map width × 2(height + 1)** |

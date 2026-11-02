@@ -7,6 +7,10 @@
 ; %LOCALAPPDATA%\Caustica. So it installs per user (no admin prompt) by default, or for all users
 ; into Program Files from the setup's dialog. A `portable` file beside the exe keeps everything
 ; beside it instead (for unzipped copies, never written by this installer).
+;
+; SourceDir's scenes\ includes the models, HDRIs and textures the shipped scenes use (~870 MB,
+; fetched by tools/fetch_assets.ps1 in CI); without them those scenes can't load when installed,
+; since the app finds relative asset paths only in the user folder and {app}\scenes.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0-local"
@@ -39,6 +43,8 @@ OutputDir=..\dist
 OutputBaseFilename=caustica-v{#AppVersion}-setup
 Compression=lzma2/max
 SolidCompression=yes
+; The bundled assets make the solid block large: compress it on several threads.
+LZMANumBlockThreads=4
 ; An update installs over the previous version (same AppId); close a running copy first.
 CloseApplications=yes
 

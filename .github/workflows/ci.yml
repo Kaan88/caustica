@@ -58,8 +58,23 @@ jobs:
         run: cargo test --locked
       - name: Release build
         run: cargo build --release --locked
-      # The exe with the DLLs and ffmpeg build.rs copied next to it, the scene packs and the
-      # README. Downloaded assets (scenes/models, hdri, textures) are not in the repo.
+      # The shipped scenes' models, HDRIs and textures (~870 MB, gitignored, pinned by SHA-256 in
+      # the script) go into the release zip and installer; plain pushes and PRs package without
+      # them. Cached by the script's hash, so a release only downloads what changed.
+      - uses: actions/cache@v4
+        if: env.RELEASE == 'true' || github.event_name == 'workflow_dispatch'
+        with:
+          path: |
+            scenes/models
+            scenes/hdri
+            scenes/textures
+          key: assets-${{ hashFiles('tools/fetch_assets.ps1', 'tools/sponza.sha256') }}
+      - name: Fetch assets
+        if: env.RELEASE == 'true' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: ./tools/fetch_assets.ps1
+      # The exe with the DLLs and ffmpeg build.rs copied next to it, the scene packs (with the
+      # assets above on releases) and the README.
       - name: Package
         shell: pwsh
         run: |

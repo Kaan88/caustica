@@ -3,7 +3,10 @@
 # are gitignored. Every file is pinned to a SHA-256 (and the
 # models to a commit), so a changed upstream file fails instead of slipping in.
 #   powershell -File tools/fetch_assets.ps1
+# CI runs it before packaging a release, so the installer ships these files (.github/workflows/ci.yml).
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell's progress bar slows Invoke-WebRequest by an order of magnitude.
+$ProgressPreference = 'SilentlyContinue'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 # Alec Jacobson's common-3d-test-models (scans from Stanford, Georgia Tech and others; see its README).
 $obj = 'https://raw.githubusercontent.com/alecjacobson/common-3d-test-models/8a4f8642acaf43f9cd7b67858a1502e1055ef202/data'

@@ -68,7 +68,16 @@ fn build_capped(
             .collect();
         (w, h) = (nw, nh);
     }
-    let mut cdf = vec![0f32; w * (h + 1)];
+    // The marginal CDF (h entries) is stored in a row of width w, and the doubled CDF texture
+    // must stay within D3D12's 16384 rows: equirectangular maps are 2:1 anyway.
+    ensure!(
+        h <= w,
+        "Environment map {w}×{h} is taller than wide (expected an equirectangular 2:1 map)"
+    );
+    // Rows 0..h: each row's conditional CDF; row h: the marginal CDF over rows; rows h + 1 ..
+    // 2h + 1: the same CDFs' cutpoints (`lighting::cutpoints`, K = guide_buckets(w) of them,
+    // stored as f32 indices, exact below 2^24), read by the shader's `cdf_search`.
+    let mut cdf = vec![0f32; w * 2 * (h + 1)];
     let mut rows = vec![0f64; h];
     for (y, row_sum) in rows.iter_mut().enumerate() {
         let sin = (PI * (y as f32 + 0.5) / h as f32).sin() as f64;
@@ -97,6 +106,15 @@ fn build_capped(
         cdf[h * w + y] = (running / total) as f32;
     }
     cdf[h * w + h - 1] = 1.;
+    let k = crate::lighting::guide_buckets(w);
+    for row in 0..=h {
+        let count = if row < h { w } else { h };
+        let guide = crate::lighting::cutpoints(count, k, |i| cdf[row * w + i]);
+        let base = (h + 1 + row) * w;
+        for (c, g) in cdf[base..base + k].iter_mut().zip(guide) {
+            *c = g as f32;
+        }
+    }
     Ok(EnvMap {
         width: w,
         height: h,

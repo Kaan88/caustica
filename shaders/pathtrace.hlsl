@@ -294,8 +294,13 @@ float env_pdf(float3 d){
     if(!hdri_on())return 0;float s,r;uint2 t=env_texel(d,s,r);
     return luminance(env_map[t].rgb)*environment_map.w*r/max(s,1e-6);
 }
-// First index whose CDF value exceeds u, among `count` entries of row `row`.
-uint cdf_search(uint row,uint count,float u){uint lo=0,hi=count-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<env_cdf[uint2(mid,row)])hi=mid;else lo=mid+1;}return lo;}
+// First index whose CDF value exceeds u, among `count` entries of row `row`. The row's
+// cutpoints (environment::build, rows h + 1 on; K a power of two, so u·K is exact) bracket the
+// answer, and the search between them returns exactly the full binary search's index.
+uint cdf_search(uint row,uint count,float u){
+    uint2 size=env_size();uint K=1u<<firstbithigh(size.x),k=(uint)(u*K),g=size.y+1+row;
+    uint lo=(uint)env_cdf[uint2(k,g)],hi=k+1<K?(uint)env_cdf[uint2(k+1,g)]:count-1;
+    while(lo<hi){uint mid=(lo+hi)/2;if(u<env_cdf[uint2(mid,row)])hi=mid;else lo=mid+1;}return lo;}
 // A direction from the HDRI's luminance · sinθ, uniform within the chosen texel.
 float3 sample_env(out float pdf){
     uint2 size=env_size();
@@ -587,7 +592,18 @@ uint alias_index(float u,float v){
     float4 r=j<2?e.position_area:j<4?e.edge1_cdf:j<6?e.edge2_probability:e.emission_material;
     uint2 pair=asuint((j&1)!=0?r.zw:r.xy);return v<asfloat(pair.x)?i:pair.y;
 }
-uint select_index(float u){uint lo=0,hi=scene_info.x-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return lo;}
+// Word w of the records after the emitters (sixteen u32 per Emitter record).
+uint emitter_word(uint w){
+    Emitter e=emitters[w>>4];uint j=(w>>2)&3;
+    float4 r=j==0?e.position_area:j==1?e.edge1_cdf:j==2?e.edge2_probability:e.emission_material;
+    return asuint(r[w&3]);
+}
+// The emitter CDF's binary search, bracketed by its cutpoints (lighting::guide_records, after
+// the alias records): the same index as the full search, in one or two loads plus a few steps.
+uint select_index(float u){
+    uint n=scene_info.x,K=1u<<firstbithigh(n),k=(uint)(u*K),base=(n+(n+7)/8)*16;
+    uint lo=emitter_word(base+k),hi=k+1<K?emitter_word(base+k+1):n-1;
+    while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return lo;}
 float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 p=mul(inverse_vp,float4(ndc,1,1));return normalize(p.xyz/p.w-eye.xyz);}
 // A point in the unit aperture: a disk, or an n-gon (one triangle of the fan, then uniform in it).
 float2 aperture_point(){
