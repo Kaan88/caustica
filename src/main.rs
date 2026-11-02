@@ -422,15 +422,31 @@ impl App {
                         .context("--scene needs a path or a scene name")?;
                     s = scenes::read(&scenes::find(&name)?)?;
                 }
-                // Track 19: a scene from a description, made by the model chosen in Menu →
-                // Text-to-scene model (prefs.json, only read here); keys from the environment.
-                "--describe" => {
+                // Track 19: a scene from a description (--describe) or the scene so far changed
+                // as described (--describe-edit), by the model chosen in Menu > Text-to-scene
+                // model (prefs.json, only read here); keys from the environment.
+                "--describe" | "--describe-edit" => {
                     let prompt = args.next().context("--describe needs a description")?;
+                    let task = if arg == "--describe" {
+                        textscene::Task::New
+                    } else {
+                        textscene::Task::Edit(s.clone())
+                    };
                     let ai = prefs::Prefs::load().ai;
-                    let mut send = textscene::transport(&ai, "")?;
-                    let mut made = textscene::generate(&prompt, &mut *send)?;
-                    made.keep_output(&s);
-                    s = made;
+                    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                    let mut send = textscene::transport(&ai, "", cancel.clone())?;
+                    let mut made = textscene::generate(
+                        &prompt,
+                        &task,
+                        &mut *send,
+                        &mut |status| eprintln!("describe: {status}"),
+                        &cancel,
+                    )?;
+                    if !made.notes.is_empty() {
+                        println!("DESCRIBE_NOTES {}", made.notes.replace('\n', " | "));
+                    }
+                    made.settings.keep_output(&s);
+                    s = made.settings;
                 }
                 "--set" => {
                     // Override one top-level setting, e.g. --set direct=0.
@@ -527,7 +543,7 @@ impl App {
                 "--no-vsync" => s.vsync = false,
                 "--help" => {
                     println!(
-                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Cornell RTX: --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -2440,6 +2456,32 @@ impl App {
             }
             self.settings.compare = true;
             self.actions.reference = false;
+        }
+        // A text-to-scene critique: the render as a PNG, scaled to fit what vision models take.
+        if std::mem::take(&mut self.ui.critique_capture) {
+            let path = std::env::temp_dir()
+                .join(format!("cornell-rtx-critique-{}.png", std::process::id()));
+            let png = unsafe { video::save_current(g, video::ImageFormat::Png, 92, &path) }
+                .and_then(|()| {
+                    let img = image::open(&path)?;
+                    let _ = std::fs::remove_file(&path);
+                    let size = textscene::CRITIQUE_SIZE;
+                    let img = if img.width().max(img.height()) > size {
+                        img.resize(size, size, image::imageops::FilterType::Triangle)
+                    } else {
+                        img
+                    };
+                    let mut png = std::io::Cursor::new(Vec::new());
+                    img.to_rgb8().write_to(&mut png, image::ImageFormat::Png)?;
+                    Ok(png.into_inner())
+                });
+            match png {
+                // The UI starts the request (next frame).
+                Ok(png) => self.ui.critique_png = Some(png),
+                Err(e) => self
+                    .ui
+                    .error(format!("Saving the render for the critique: {e:#}")),
+            }
         }
         if let Some(format) = self.actions.save_image.take() {
             let path = format.file("cornell");

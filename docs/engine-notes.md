@@ -610,13 +610,52 @@ The gains come from:
 
 ## Text-to-scene
 
-- 2026-11-02, track 19. Scene → "Describe a scene (AI)" (a background thread; the result loads like a scene file, keeping the viewer's output choices, undoable) and `--describe "text"` (before rendering, so it combines with `--headless --frames --capture`).
-- Backends (`textscene::Provider`), picked in Menu → Text-to-scene model and kept in prefs.json (`Prefs::ai`: provider, model, endpoint, protocol; never keys). `--describe` reads the same prefs (read only) and takes keys from the environment.
-  - *Claude Code CLI* (default): `claude -p --output-format json --tools "" --no-session-persistence --system-prompt-file <temp>` with the prompt on stdin, run from a temp folder (no project CLAUDE.md) without a console window; uses the CLI's own login, so a Claude subscription works without an API key. Each call is a fresh session, so a repair sends the whole exchange as one prompt (`cli_prompt`). The reply is the JSON's `result`; `is_error` is an error. `--bare` is not used: it accepts only API keys. First real run: a reading nook, 84 s end to end.
-  - *Claude API*: `/v1/messages` over ureq (Rust has no official SDK): `anthropic-version: 2026-10-21`, model `claude-opus-5-5` unless set, `output_config.effort: medium`, `max_tokens` 32000, server-side refusal fallbacks (`fallbacks: "default"` with `anthropic-beta: server-side-fallback-2026-07-01`), system prompt with `cache_control: ephemeral`. Key from the menu (session only) or `ANTHROPIC_API_KEY`.
-  - *ChatGPT*: `https://api.openai.com/v1/chat/completions`, the model typed in the menu (none is assumed), key from the menu or `OPENAI_API_KEY`.
-  - *Custom endpoint* for local models: a base URL (Ollama `http://localhost:11434/v1` by default; LM Studio `:1234/v1`, llama.cpp `:8080/v1`) and a protocol, OpenAI chat completions or Anthropic messages (plain fields only: no caching, effort or beta headers). Key optional. Both protocols checked against a mock server.
-- All HTTP backends share one ureq agent builder (native-tls, 900 s timeout) with retries on 429/5xx and connection errors (3, with backoff, `retry-after` capped at 60 s); other statuses are errors with the body. Refusals (Anthropic `stop_reason: refusal`, OpenAI `message.refusal`) and cut-off replies (`max_tokens`, `finish_reason: length`) are errors.
-- The schema is the source: the system prompt carries `include_str!("scene.rs")` (field docs, defaults and every `validate()` range) and two small example files. Structured outputs were not used: `Settings` has no JSON Schema (no schemars), and the validation ranges would not fit one anyway. A small local model may not fit that prompt (about 61 KB, roughly 16k tokens) in its context: give the server a large context window.
-- The reply's text (between the first `{` and the last `}`, so a code fence is tolerated) goes through `scenes::parse` (wrapper, generator or bare settings) and `validate()`. On failure the assistant's reply is sent back (Anthropic's content blocks unchanged, thinking included) with the error, up to two repairs.
-- Tests: a rejected scene is sent back and the fix accepted; replies without JSON fail after the repairs; the CLI prompt carries the whole exchange; missing settings (key, model, URL) are reported per provider.
+- 2026-11-02, track 19. Scene → "Describe a scene (AI)", on a background thread. It has three modes:
+  - *New scene*: the result loads like a scene file, keeping the viewer's output choices, and is undoable.
+  - *Edit this scene*: the current scene file goes in the prompt and the changed file replaces it, keeping the open file, so Ctrl+S saves it.
+  - *Critique the render*: main.rs saves the current render as a PNG, scaled to fit 1568 px, and hands it to the UI through `critique_png`. The model answers with up to five notes on lighting, composition, colour and materials, then the improved scene. The notes show under the button, with *Apply the suggestions* and *Dismiss*.
+- Command line: `--describe "text"` makes a new scene and `--describe-edit "text"` changes the scene loaded so far. Both run before rendering, so they combine with `--headless --frames --capture`. Status lines go to stderr; any notes are printed on a `DESCRIBE_NOTES` line.
+- While a request runs, the status ("Waiting for the model", "Fixing the scene (try 2 of 3): …") shows with the elapsed seconds and a Cancel button. Cancel kills a running CLI; an HTTP request finishes in the background and its result is dropped. The model's text arrives whole, not streamed token by token.
+- The settings are kept in prefs.json (`Prefs::ai`: provider, model, effort, endpoint, protocol), never with keys:
+  - The backend, endpoint and key are set in Menu > Text-to-scene model.
+  - Model and reasoning sit under the text box. The model is a text field with a *Pick* list (suggested names plus fetched ones) and, for HTTP backends, *Fetch* (`GET /models`; on the Anthropic protocol `/v1/models?limit=1000` with the version header).
+  - *Reasoning* offers the levels the backend takes ("Default" sends none): `low`, `medium`, `high`, `xhigh`, `max` on Claude, and `minimal`, `low`, `medium`, `high` on OpenAI-style backends.
+  - Changing the provider or endpoint clears the model, the level and the fetched list.
+- Backends (`textscene::Provider`):
+  - *Claude Code CLI* (the default):
+    - Runs `claude -p --output-format json --no-session-persistence --system-prompt-file <file> [--model m] [--effort e]` with the prompt on stdin, with no console window.
+    - Each call gets its own temp folder, removed afterwards, so no project's CLAUDE.md is read.
+    - Tools are off (`--tools ""`), except that a critique allows Read for `render.png` in that folder.
+    - It uses the CLI's own login, so a Claude subscription works without an API key. `--bare` is not used: it accepts only API keys.
+    - Each call is a fresh session, so a repair sends the whole exchange as one prompt (`cli_prompt`).
+    - An npm install (`claude.cmd`) is started through `cmd /c` when `claude.exe` is not found. Runs are killed after 15 minutes.
+    - Real runs: a reading nook (84 s), a chess board (2.5 min), the hourglass changed to night by a single candle (`--describe-edit`, 100 s), and a critique of a render with `--effort low` (24 s).
+  - *ChatGPT via Codex CLI*: `codex exec --skip-git-repo-check --sandbox read-only --color never --output-last-message <file> [--model m] [-c model_reasoning_effort="e"] [--image render.png] -`, with the prompt on stdin. Codex has no system prompt option, so the instructions lead the prompt. It uses the Codex CLI's login (`codex login`: a ChatGPT account or an API key); the app never handles those credentials itself. **Not run here**: Codex is not installed on this machine, and the flags come from its documentation.
+  - *Claude API*: `/v1/messages` over ureq (Rust has no official SDK):
+    - Headers: `anthropic-version: 2026-10-21`, and refusal fallbacks (`fallbacks: "default"` with `anthropic-beta: server-side-fallback-2026-07-01`).
+    - Body: model `claude-opus-5-5` unless set, `max_tokens` 32000, `output_config.effort` when chosen, and the system prompt with `cache_control: ephemeral`. The render goes as a base64 image block.
+    - Key from the menu (session only) or `ANTHROPIC_API_KEY`.
+  - *OpenAI API*: `https://api.openai.com/v1/chat/completions` with `reasoning_effort` when chosen and the render as an `image_url` data URL. Key from the menu or `OPENAI_API_KEY`. A model is required (none is assumed): fetch or type one.
+  - *Custom endpoint* (local models):
+    - A base URL (Ollama `http://localhost:11434/v1` by default; LM Studio `:1234/v1`, llama.cpp `:8080/v1`).
+    - A protocol: OpenAI chat completions, or Anthropic messages with plain fields (no caching or beta headers) and the key as both `x-api-key` and a bearer token. The key is optional.
+    - A critique needs a vision model.
+- All HTTP backends share one ureq agent builder (native-tls, 900 s timeout):
+  - 429, 5xx and connection errors are retried 3 times with backoff; `retry-after` is honoured, capped at 60 s.
+  - A read timeout is not retried. Other statuses are errors with the body.
+  - Refusals (Anthropic `stop_reason: refusal`, OpenAI `message.refusal`) and cut-off replies (`max_tokens`, `finish_reason: length`) are errors.
+- The system prompt is about 61 KB, roughly 16k tokens. A small local model needs a context window at least that large. It holds:
+  - The schema: `include_str!("scene.rs")`, with the field docs, defaults and every `validate()` range.
+  - The material library: every `presets::MATERIAL_NAMES` entry as `Material` JSON.
+  - The generator families, with how a scene file names one with a seed.
+  - Two small example files.
+  - Structured outputs were not used: `Settings` has no JSON Schema (no schemars), and the validation ranges would not fit one anyway.
+- The reply is parsed as follows:
+  - The text between the first `{` and the last `}` goes through `scenes::parse` (wrapper, generator or bare settings) and `validate()`. The text around it, without code fences, becomes the notes.
+  - On failure, the assistant's reply is sent back (Anthropic's content blocks unchanged, thinking included) with the error, up to two repairs.
+- Tests (mocked transport):
+  - A rejected scene is sent back and the fix accepted, and replies without JSON fail after the repairs.
+  - An edit carries the current scene; a critique carries the PNG and returns the notes.
+  - Cancel stops before the next request, and the CLI prompt carries the whole exchange.
+  - Missing settings and effort levels are checked per provider; base64 is checked against the standard.
+  - Ignored live tests: `live_critique_through_the_claude_cli` (`CRITIQUE_PNG`) and `live_fetch_models` (`FETCH_BASE`; checked against a mock serving both formats).
