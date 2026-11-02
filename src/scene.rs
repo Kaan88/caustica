@@ -426,6 +426,36 @@ pub struct Object {
     /// ignored; `kind()` gives the proxy mesh used for picking, framing and grounding).
     #[serde(skip_serializing_if = "Sdf::is_none")]
     pub sdf: Sdf,
+    /// Track 17 physics: how the sandbox simulates this object.
+    #[serde(skip_serializing_if = "Body::is_dynamic")]
+    pub body: Body,
+    /// Track 17 physics: this object is a string (a cylinder) from the fixed point `from` to
+    /// the centre of object `object`. The simulation redraws it every step, and the strings
+    /// pointing at a body become its joint (one: a ball joint, two or more: a hinge through
+    /// the first two points). Strings have no collider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tether: Option<Tether>,
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Body {
+    /// Falls, collides and can be thrown.
+    #[default]
+    Dynamic,
+    /// Collides but never moves (a frame, a table, a wall).
+    Fixed,
+    /// Not simulated at all (no collider).
+    None,
+}
+impl Body {
+    pub fn is_dynamic(&self) -> bool {
+        *self == Self::Dynamic
+    }
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Tether {
+    pub object: u32,
+    pub from: [f32; 3],
 }
 /// Track 17 physics sandbox. `enabled` runs the simulation; a scene file that sets it opens
 /// with the bodies live (stacks settle, then sleep until something touches them).
@@ -546,6 +576,8 @@ impl Default for Object {
             portal: -1,
             mesh: String::new(),
             sdf: Sdf::None,
+            body: Body::Dynamic,
+            tether: None,
         }
     }
 }
@@ -1279,7 +1311,14 @@ impl Settings {
                 "Invalid portal pair"
             );
         }
-        for o in &self.objects {
+        for (i, o) in self.objects.iter().enumerate() {
+            anyhow::ensure!(
+                o.tether
+                    .is_none_or(|t| (t.object as usize) < self.objects.len()
+                        && t.object as usize != i
+                        && t.from.iter().all(|v| v.abs() <= 40.)),
+                "Invalid string (tether)"
+            );
             anyhow::ensure!(
                 (0.05..=30.).contains(&o.size)
                     && (0.05..=10.).contains(&o.stretch)

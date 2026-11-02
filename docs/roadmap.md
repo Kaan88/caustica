@@ -263,7 +263,7 @@ Order is from scene-research.md section 5, unchanged:
 - **Owner notes 2026-11-02 (to review after track 17):**
   - The stained-glass / transparency scene: BDPT with the physical sky may not work. The glass shadow also changes the colour of plain path tracing in this scene.
   - Stained glass shows little colour with path tracing (maybe a limitation: coloured caustics through glass are hard for a path tracer). It works well with photon mapping, and better with BDPT, but BDPT fails with the physical sky.
-  - The Newton's cradle scene: give it real physics (track 17 sandbox), by changing the same scene.
+  - Done 2026-11-02: the Newton's cradle scene: give it real physics (track 17 sandbox), by changing the same scene.
   - The GPU shows full load but low power draw. Find out whether that is normal (latency or occupancy bound, the CPU waiting on the fence with one frame in flight, small dispatches) or a performance problem.
   - Volumes are broken in BDPT and photon mapping (known gap: neither supports media), and both integrators are also broken with certain materials. Check which ones.
 
@@ -460,6 +460,7 @@ Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.
   - Edward Hopper's *Nighthawks*: mesh import plus item 7.
   - The real Cornell box: measured spectral data and a split view against the photograph. Exact after spectral rendering.
   - Cook's pool balls (item 8).
+- Done 2026-11-02: the Newton's cradle swings with the physics sandbox (owner note): fixed frame, balls hung on their strings by joints, elastic contacts. See engine-notes "Physics sandbox".
 - **Miniatures:**
   - Snow globe (10), aquarium (10, 12) and lava lamp (13).
   - Newton's cradle (8) and an hourglass (mesh import).

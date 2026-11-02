@@ -425,12 +425,21 @@ impl UiState {
             Selection::Object(i) if i < s.objects.len() => {
                 let name = s.objects.remove(i).name;
                 s.animation.removed("objects", i);
-                // The laser puzzle's target is an object index (track 17).
+                // The laser puzzle's target and the strings' objects are indices (track 17).
                 let t = &mut s.puzzle.target;
                 if *t == i as i32 {
                     *t = -1;
                 } else if *t > i as i32 {
                     *t -= 1;
+                }
+                for o in &mut s.objects {
+                    if let Some(t) = &mut o.tether {
+                        if t.object as usize == i {
+                            o.tether = None;
+                        } else if t.object as usize > i {
+                            t.object -= 1;
+                        }
+                    }
                 }
                 self.selection = if s.objects.is_empty() {
                     Selection::Stage
@@ -2090,7 +2099,9 @@ impl App {
             if self.settings != t.original {
                 self.ui.checkpoint(&t.original);
                 // Laser puzzle (track 17): each finished transform is one move.
-                self.laser.moves += 1;
+                if self.settings.puzzle.enabled {
+                    self.laser.moves += 1;
+                }
             }
             self.ui.header.clear();
         }

@@ -5,7 +5,7 @@
 //! transforms, so the renderer rebuilds just the TLAS. Any other edit to the objects (gizmo,
 //! inspector, undo, a new scene) rebuilds the simulation from the settings. See engine-notes
 //! "Physics sandbox".
-use crate::scene::{Object, Settings, Shape};
+use crate::scene::{Body, Object, Settings, Shape};
 use glam::{EulerRot, Quat, Vec3};
 use rapier3d::prelude::*;
 
@@ -123,15 +123,19 @@ impl Sim {
             wall(Vec3::new(1.5, 0., 0.), Vec3::new(0.5, 1.5, 1.5));
         }
         for o in &s.objects {
-            if !o.visible || o.portal >= 0 {
+            if !o.visible || o.portal >= 0 || o.body == Body::None || o.tether.is_some() {
                 sim.handles.push(None);
                 continue;
             }
             let (center, r) = crate::geometry::object_frame(o);
             let rotation = Quat::from_mat3(&r).normalize();
-            let body = RigidBodyBuilder::dynamic()
+            let builder = if o.body == Body::Fixed {
+                RigidBodyBuilder::fixed()
+            } else {
+                RigidBodyBuilder::dynamic().ccd_enabled(true)
+            };
+            let body = builder
                 .pose(Pose::from_parts(v(center), q(rotation)))
-                .ccd_enabled(true)
                 .build();
             let h = sim.bodies.insert(body);
             sim.colliders.insert_with_parent(
@@ -145,7 +149,49 @@ impl Sim {
             );
             sim.handles.push(Some(h));
         }
+        sim.attach_strings(s);
         sim
+    }
+    /// Joints from the strings (`Object::tether`): each dynamic body hangs from the fixed
+    /// points of the strings that end at it.
+    fn attach_strings(&mut self, s: &Settings) {
+        let world = self.bodies.insert(RigidBodyBuilder::fixed().build());
+        for (i, h) in self.handles.iter().enumerate() {
+            let Some(h) = *h else { continue };
+            let anchors: Vec<Vec3> = s
+                .objects
+                .iter()
+                .filter_map(|o| o.tether.filter(|t| t.object as usize == i))
+                .map(|t| Vec3::from(t.from))
+                .collect();
+            let Some(b) = self.bodies.get(h) else {
+                continue;
+            };
+            if anchors.is_empty() || !b.is_dynamic() {
+                continue;
+            }
+            let pose = b.position();
+            let r = pose.rotation;
+            let inverse = Quat::from_xyzw(r.x, r.y, r.z, r.w).inverse();
+            let centre = g(pose.translation);
+            let joint = if anchors.len() == 1 {
+                GenericJointBuilder::new(JointAxesMask::LOCKED_SPHERICAL_AXES)
+                    .local_anchor1(v(anchors[0]))
+                    .local_anchor2(v(inverse * (anchors[0] - centre)))
+                    .build()
+            } else {
+                // A hinge along the line through the first two points (a cradle's V of strings).
+                let mid = (anchors[0] + anchors[1]) * 0.5;
+                let axis = (anchors[1] - anchors[0]).normalize_or(Vec3::Z);
+                GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
+                    .local_axis1(v(axis))
+                    .local_axis2(v(inverse * axis))
+                    .local_anchor1(v(mid))
+                    .local_anchor2(v(inverse * (mid - centre)))
+                    .build()
+            };
+            self.impulse_joints.insert(world, h, joint, true);
+        }
     }
     fn stage_key(s: &Settings) -> (bool, u32) {
         (s.cornell_room, s.floor_extent.to_bits())
@@ -221,6 +267,9 @@ impl Sim {
             o.rotation = yaw;
             o.tilt = [x, z];
             moved = true;
+        }
+        if moved {
+            update_strings(s);
         }
         self.written = s.objects.clone();
         moved
@@ -326,9 +375,44 @@ impl Sim {
     }
 }
 
+/// Points every string (`Object::tether`) from its fixed point to its object's centre: the
+/// cylinder's axis (local y, length 2) spans the two, keeping its radius.
+pub fn update_strings(s: &mut Settings) {
+    for i in 0..s.objects.len() {
+        let Some(t) = s.objects[i].tether else {
+            continue;
+        };
+        let Some(end) = s.objects.get(t.object as usize) else {
+            continue;
+        };
+        let b = crate::geometry::object_frame(end).0;
+        let a = Vec3::from(t.from);
+        let d = b - a;
+        let length = d.length();
+        if length < 1e-4 {
+            continue;
+        }
+        let rotation = Quat::from_rotation_arc(Vec3::Y, d / length);
+        let (yaw, x, z) = rotation.to_euler(EulerRot::YXZ);
+        let o = &mut s.objects[i];
+        let mid = (a + b) * 0.5;
+        o.grounded = false;
+        o.position = [mid.x, mid.z];
+        o.elevation = mid.y;
+        o.rotation = yaw.to_degrees();
+        o.tilt = [x.to_degrees(), z.to_degrees()];
+        o.stretch = (length * 0.5 / (o.size * 0.35)).clamp(0.05, 10.);
+    }
+}
+
 /// App side: the per-frame step, the mouse grab and the explosion tool.
 impl crate::App {
     pub(crate) fn step_physics(&mut self, dt: f32) {
+        // Strings follow their objects whether or not the simulation runs (a loaded scene, a
+        // gizmo edit). Recomputing an unchanged string gives the same floats, so no rebuild.
+        if self.settings.objects.iter().any(|o| o.tether.is_some()) {
+            update_strings(&mut self.settings);
+        }
         if !self.settings.physics.enabled {
             self.physics = None;
             return;
@@ -532,5 +616,35 @@ mod tests {
                 .map(|o| (o.position, o.elevation))
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// The cradle scene: ball 1 swings down, the middle balls barely move and ball 5 flies out.
+    #[test]
+    fn newtons_cradle_passes_the_swing_through() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("scenes/builtin/newtons-cradle.json");
+        let mut s = crate::scenes::read(&path).unwrap();
+        let ball = |s: &Settings, n: u32| {
+            s.objects
+                .iter()
+                .find(|o| o.name == format!("Ball {n}"))
+                .unwrap()
+                .position[0]
+        };
+        let mut sim = Sim::new(&s);
+        sim.wake_all();
+        let (mut middle, mut last) = (0f32, 0f32);
+        for _ in 0..150 {
+            sim.advance(&mut s, 1. / 60.);
+            for n in 2..=4 {
+                middle = middle.max((ball(&s, n) - [0., 0., -0.36, 0., 0.36][n as usize]).abs());
+            }
+            last = last.max(ball(&s, 5) - 0.72);
+        }
+        assert!(last > 0.3, "ball 5 swings out ({last})");
+        assert!(middle < 0.12, "the middle balls stay ({middle})");
+        // The strings follow their balls: string 5's lower end sits at ball 5.
+        let string = s.objects.iter().find(|o| o.name == "String 5").unwrap();
+        assert!(!string.grounded);
     }
 }

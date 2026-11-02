@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Newton's cradle",
- "description": "Five chrome balls on strings, one pulled back: mirror spheres reflecting each other.",
+ "description": "Five chrome balls on strings, one pulled back. The physics sandbox swings them (Scene → Physics): ball 1 strikes and ball 5 flies out. Grab a ball to pull it back, Ctrl+Z restarts.",
  "tags": [
   "still life",
   "mirror"
@@ -127,7 +127,8 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Post",
@@ -171,7 +172,8 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Post",
@@ -215,7 +217,8 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Top bar",
@@ -259,7 +262,8 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Post",
@@ -303,7 +307,8 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Post",
@@ -347,7 +352,8 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Top bar",
@@ -391,13 +397,14 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "body": "fixed"
    },
    {
     "name": "Ball 1",
     "shape": "sphere",
     "position": [
-     -1.3683,
+     -1.4083,
      0
     ],
     "size": 0.4857,
@@ -479,7 +486,15 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 7,
+     "from": [
+      -0.72,
+      1.0,
+      -0.45
+     ]
+    }
    },
    {
     "name": "String 1",
@@ -523,13 +538,21 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 7,
+     "from": [
+      -0.72,
+      1.0,
+      0.45
+     ]
+    }
    },
    {
     "name": "Ball 2",
     "shape": "sphere",
     "position": [
-     -0.34,
+     -0.36,
      0
     ],
     "size": 0.4857,
@@ -611,7 +634,15 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 10,
+     "from": [
+      -0.36,
+      1.0,
+      -0.45
+     ]
+    }
    },
    {
     "name": "String 2",
@@ -655,7 +686,15 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 10,
+     "from": [
+      -0.36,
+      1.0,
+      0.45
+     ]
+    }
    },
    {
     "name": "Ball 3",
@@ -743,7 +782,15 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 13,
+     "from": [
+      0.0,
+      1.0,
+      -0.45
+     ]
+    }
    },
    {
     "name": "String 3",
@@ -787,13 +834,21 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 13,
+     "from": [
+      0.0,
+      1.0,
+      0.45
+     ]
+    }
    },
    {
     "name": "Ball 4",
     "shape": "sphere",
     "position": [
-     0.34,
+     0.36,
      0
     ],
     "size": 0.4857,
@@ -875,7 +930,15 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 16,
+     "from": [
+      0.36,
+      1.0,
+      -0.45
+     ]
+    }
    },
    {
     "name": "String 4",
@@ -919,13 +982,21 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 16,
+     "from": [
+      0.36,
+      1.0,
+      0.45
+     ]
+    }
    },
    {
     "name": "Ball 5",
     "shape": "sphere",
     "position": [
-     0.68,
+     0.72,
      0
     ],
     "size": 0.4857,
@@ -1007,7 +1078,15 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 19,
+     "from": [
+      0.72,
+      1.0,
+      -0.45
+     ]
+    }
    },
    {
     "name": "String 5",
@@ -1051,8 +1130,23 @@
      "pattern_scale": 3.0,
      "unlit": false
     },
-    "portal": -1
+    "portal": -1,
+    "tether": {
+     "object": 19,
+     "from": [
+      0.72,
+      1.0,
+      0.45
+     ]
+    }
    }
-  ]
+  ],
+  "physics": {
+   "enabled": true,
+   "gravity": 9.81,
+   "speed": 1.0,
+   "bounce": 1.0,
+   "friction": 0.0
+  }
  }
 }

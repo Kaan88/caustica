@@ -347,6 +347,17 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                     });
                 },
             );
+            row(
+                ui,
+                "Physics",
+                "How the physics sandbox treats it: dynamic bodies fall and collide, fixed ones collide but never move, none are ignored. Strings (tethers) are never bodies.",
+                |ui| {
+                    use crate::scene::Body;
+                    for (b, name) in [(Body::Dynamic, "Dynamic"), (Body::Fixed, "Fixed"), (Body::None, "None")] {
+                        ui.selectable_value(&mut o.body, b, name);
+                    }
+                },
+            );
             if o.mesh.is_empty() && o.sdf.is_none() {
                 row(ui, "Shape", "The mesh used for this object.", |ui| {
                     let mut kind = o.kind();
