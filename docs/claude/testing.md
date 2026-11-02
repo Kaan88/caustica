@@ -20,7 +20,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - **Copies `nvngx_dlss.dll` and `nvngx_dlssd.dll` next to the exe.** A running instance locks them and the build fails. Use a separate `CARGO_TARGET_DIR`, and never kill the user's running app.
 - Headless runs need a real GPU and use a hidden window:
   - Command: `caustica.exe --headless --frames N [--width W --height H --scale s --spp n --samples cap --preset 0..23 --settings f.json --scene name --rr|--no-rr|--require-rr --raw --debug] --capture out.png|out.exr`.
-  - Success prints `RENDER_OK frames= samples= gpu_ms= rr= size= gpu_ms_mean= frame_ms_mean=`. The means are taken from frame 10 on, so use ≥ 200 frames with `--no-vsync` for benchmarks.
+  - Success prints `RENDER_OK frames= samples= gpu_ms= rr= size= gpu_ms_mean= frame_ms_mean= fence_wait_ms_mean= trace_ms_mean= reconstruct_ms_mean= display_ms_mean= ui_ms_mean=` (reconstruct is RR, or the native filter with `--no-rr`). `tools/perf_baseline.ps1` is the track 20a sweep. The means are taken from frame 10 on, so use ≥ 200 frames with `--no-vsync` for benchmarks.
   - `--preset`/`--settings` (only one) is applied before all other switches, so order doesn't matter.
     - **Old builds (including `main` before 2026-10-29's fixes) applied them in order**, so `--raw` and `--spp` given before `--preset` were silently reset. Put `--preset` first when benchmarking an old exe.
 - Other test modes:

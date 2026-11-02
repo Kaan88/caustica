@@ -720,5 +720,707 @@
     "unlit": false
    }
   }
+ ],
+ "Sponza/Sponza.gltf": [
+  {
+   "name": "Sponza \u00b7 material 0",
+   "triangles": 31436,
+   "material": {
+    "color": [
+     0.03281920403242111,
+     0.0290887039154768,
+     0.019010232761502266
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.004149074200540781,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.3892136514186859,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 3",
+   "triangles": 3472,
+   "material": {
+    "color": [
+     0.16730161011219025,
+     0.14256060123443604,
+     0.02980075590312481
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0018486472545191646,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.18974000215530396,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 1",
+   "triangles": 17688,
+   "material": {
+    "color": [
+     0.09316845238208771,
+     0.07322507351636887,
+     0.07429295033216476
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0007933374145068228,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.5809374451637268,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 4",
+   "triangles": 4086,
+   "material": {
+    "color": [
+     0.08707558363676071,
+     0.0710691437125206,
+     0.046837810426950455
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.003921568859368563,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 1.0,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 5",
+   "triangles": 796,
+   "material": {
+    "color": [
+     0.1897038221359253,
+     0.16871671378612518,
+     0.12725724279880524
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.003557033371180296,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.6551456451416016,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 6",
+   "triangles": 10168,
+   "material": {
+    "color": [
+     0.13754819333553314,
+     0.11461284011602402,
+     0.08523363620042801
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.004438632167875767,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.8318360447883606,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 7",
+   "triangles": 5876,
+   "material": {
+    "color": [
+     0.23819787800312042,
+     0.18804094195365906,
+     0.11631181091070175
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.004667394328862429,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.7267459630966187,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 8",
+   "triangles": 2816,
+   "material": {
+    "color": [
+     0.20204463601112366,
+     0.1724335253238678,
+     0.1326494961977005
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0019265568116679788,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.6976638436317444,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 9",
+   "triangles": 21,
+   "material": {
+    "color": [
+     0.26972445845603943,
+     0.21953214704990387,
+     0.15065529942512512
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0021842210553586483,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.9017276167869568,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 10",
+   "triangles": 7088,
+   "material": {
+    "color": [
+     0.22353696823120117,
+     0.20123723149299622,
+     0.15744315087795258
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0014894374180585146,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.5662528872489929,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 11",
+   "triangles": 880,
+   "material": {
+    "color": [
+     0.08570076525211334,
+     0.0770120844244957,
+     0.06606171280145645
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0042151957750320435,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.4900597333908081,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 12",
+   "triangles": 23207,
+   "material": {
+    "color": [
+     0.16557146608829498,
+     0.14059384167194366,
+     0.10456361621618271
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0033344943076372147,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.5471794009208679,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 2",
+   "triangles": 18,
+   "material": {
+    "color": [
+     0.3283042013645172,
+     0.3283042013645172,
+     0.3283042013645172
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 1.0,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 13",
+   "triangles": 16496,
+   "material": {
+    "color": [
+     0.1765233874320984,
+     0.1610455960035324,
+     0.15475796163082123
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.9941942095756531,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.45689111948013306,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 14",
+   "triangles": 16512,
+   "material": {
+    "color": [
+     0.023903662338852882,
+     0.08458667993545532,
+     0.01070858258754015
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.07477135956287384,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.9393789768218994,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 15",
+   "triangles": 16512,
+   "material": {
+    "color": [
+     0.02607383392751217,
+     0.047904130071401596,
+     0.12826621532440186
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.07477135956287384,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.9393789768218994,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 16",
+   "triangles": 11008,
+   "material": {
+    "color": [
+     0.10526580363512039,
+     0.021944621577858925,
+     0.0086507024243474
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.07477135956287384,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.9393789768218994,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 17",
+   "triangles": 14336,
+   "material": {
+    "color": [
+     0.05868833139538765,
+     0.07465436309576035,
+     0.17791812121868134
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.14345571398735046,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.7634283304214478,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 18",
+   "triangles": 18944,
+   "material": {
+    "color": [
+     0.1452634483575821,
+     0.015925750136375427,
+     0.00560764828696847
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.14345571398735046,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.7634283304214478,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 19",
+   "triangles": 14336,
+   "material": {
+    "color": [
+     0.02758554182946682,
+     0.06723305583000183,
+     0.003794448683038354
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.14345571398735046,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.7634283304214478,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 20",
+   "triangles": 32,
+   "material": {
+    "color": [
+     0.21503888070583344,
+     0.03683682903647423,
+     0.010590247809886932
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.7116173505783081,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.3315255641937256,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 21",
+   "triangles": 19828,
+   "material": {
+    "color": [
+     0.012047029100358486,
+     0.013989634811878204,
+     0.013757551088929176
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.9966585636138916,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.4012613296508789,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 22",
+   "triangles": 9184,
+   "material": {
+    "color": [
+     0.22438523173332214,
+     0.18068867921829224,
+     0.12616221606731415
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0027042764704674482,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.3715618848800659,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 23",
+   "triangles": 3042,
+   "material": {
+    "color": [
+     0.10546720027923584,
+     0.08268250524997711,
+     0.048099592328071594
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.0015514898113906384,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.8004990816116333,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  },
+  {
+   "name": "Sponza \u00b7 material 24",
+   "triangles": 14484,
+   "material": {
+    "color": [
+     0.11573995649814606,
+     0.10783118009567261,
+     0.11434637010097504
+    ],
+    "emission": 0.0,
+    "ior": 1.5,
+    "metallic": 0.006165508646517992,
+    "pattern": "solid",
+    "pattern_scale": 3.0,
+    "reflectivity": 0.05000000074505806,
+    "roughness": 0.4069514870643616,
+    "secondary_color": [
+     0.03999999910593033,
+     0.03999999910593033,
+     0.03999999910593033
+    ],
+    "texture": "",
+    "texture_scale": 0.5,
+    "textures": true,
+    "transmission": 0.0,
+    "unlit": false
+   }
+  }
  ]
 }

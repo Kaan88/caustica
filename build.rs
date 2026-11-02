@@ -47,6 +47,14 @@ fn main() {
             .display()
     );
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    // CAUSTICA_SHADER_DEBUG=1 embeds debug info (same -O3 code) so Nsight's shader profiler can
+    // map stalls to HLSL lines (track 20a). Off by default.
+    println!("cargo:rerun-if-env-changed=CAUSTICA_SHADER_DEBUG");
+    let shader_debug: &[&str] = if env::var("CAUSTICA_SHADER_DEBUG").is_ok_and(|v| v == "1") {
+        &["-Zi", "-Qembed_debug"]
+    } else {
+        &[]
+    };
     // Same list as src/hotreload.rs: (file, entry, profile, output name, defines). The path
     // tracer is built twice: scenes without texture maps use the variant without map code
     // (core track 5; the map code alone cost untextured scenes about 7%).
@@ -144,6 +152,7 @@ fn main() {
                 "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-Ges", "-I", "shaders",
             ])
             .args(defines)
+            .args(shader_debug)
             .arg("-Fo")
             .arg(out.join(format!("{name}.dxil")))
             .arg(format!("shaders/{file}"))

@@ -66,8 +66,14 @@ $textures = @(
     @("$phtex/rock_wall_08/rock_wall_08_nor_gl_2k.jpg", '0bd5dd743149ecccdf5ff79abdcc72426d4b4eb97f431fde5171f8e6d82d6259'),
     @("$phtex/rock_wall_08/rock_wall_08_arm_2k.jpg", '91489a16465996beefdeb868d66a56e9f780458f60950a659bd2376ac35d0edb')
 )
+# Crytek Sponza (Khronos glTF copy, same commit): a .gltf, its .bin and 69 textures, pinned in
+# tools/sponza.sha256 ("file sha256" per line). Track 20a's heavy benchmark scene.
+$sponza = Get-Content (Join-Path $PSScriptRoot 'sponza.sha256') | Where-Object { $_ } | ForEach-Object {
+    $name, $sha256 = $_ -split ' '
+    , @("$gltf/Sponza/glTF/$name", $sha256, 'models/Sponza')
+}
 $all = @($models | ForEach-Object { , @($_[0], $_[1], 'models') }) + @($hdris | ForEach-Object { , @($_[0], $_[1], 'hdri') }) +
-    @($textures | ForEach-Object { , @($_[0], $_[1], "textures/$(Split-Path -Leaf (Split-Path -Parent $_[0]))") })
+    @($textures | ForEach-Object { , @($_[0], $_[1], "textures/$(Split-Path -Leaf (Split-Path -Parent $_[0]))") }) + @($sponza)
 foreach ($m in $all) {
     $url, $sha256, $folder = $m
     $target = Join-Path $projectRoot "scenes/$folder"

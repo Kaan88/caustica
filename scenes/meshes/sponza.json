@@ -1,0 +1,1275 @@
+{
+ "format": 1,
+ "title": "Sponza",
+ "description": "Crytek's Sponza atrium under a summer midday sun through the open roof: textured stone, cloth banners and alpha-tested plants, lit mostly by bounce light.",
+ "tags": [
+  "mesh",
+  "interior",
+  "architecture",
+  "gltf",
+  "physical sky",
+  "benchmark"
+ ],
+ "credits": "Sponza: Crytek, Khronos glTF-Sample-Assets (licence in the model's README)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 0.5,
+  "sky": 0.0,
+  "base": [
+   0.5,
+   0.48,
+   0.45
+  ],
+  "floor": {
+   "color": [
+    0.72,
+    0.7,
+    0.66
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 12,
+  "yaw": 90,
+  "pitch": 8,
+  "distance": 4.5,
+  "target": [
+   0,
+   1.6,
+   0
+  ],
+  "fov": 65,
+  "physical_sky": {
+   "on": true,
+   "time": 12.5,
+   "day": 172.0,
+   "latitude": 40.0
+  },
+  "objects": [
+   {
+    "name": "Sponza · material 0",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.03281920403242111,
+      0.0290887039154768,
+      0.019010232761502266
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.004149074200540781,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.3892136514186859,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#0"
+   },
+   {
+    "name": "Sponza · material 3",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.16730161011219025,
+      0.14256060123443604,
+      0.02980075590312481
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0018486472545191646,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.18974000215530396,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#1"
+   },
+   {
+    "name": "Sponza · material 1",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.09316845238208771,
+      0.07322507351636887,
+      0.07429295033216476
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0007933374145068228,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.5809374451637268,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#2"
+   },
+   {
+    "name": "Sponza · material 4",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08707558363676071,
+      0.0710691437125206,
+      0.046837810426950455
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.003921568859368563,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 1.0,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#3"
+   },
+   {
+    "name": "Sponza · material 5",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1897038221359253,
+      0.16871671378612518,
+      0.12725724279880524
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.003557033371180296,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.6551456451416016,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#4"
+   },
+   {
+    "name": "Sponza · material 6",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.13754819333553314,
+      0.11461284011602402,
+      0.08523363620042801
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.004438632167875767,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.8318360447883606,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#5"
+   },
+   {
+    "name": "Sponza · material 7",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.23819787800312042,
+      0.18804094195365906,
+      0.11631181091070175
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.004667394328862429,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.7267459630966187,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#6"
+   },
+   {
+    "name": "Sponza · material 8",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.20204463601112366,
+      0.1724335253238678,
+      0.1326494961977005
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0019265568116679788,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.6976638436317444,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#7"
+   },
+   {
+    "name": "Sponza · material 9",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.26972445845603943,
+      0.21953214704990387,
+      0.15065529942512512
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0021842210553586483,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.9017276167869568,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#8"
+   },
+   {
+    "name": "Sponza · material 10",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.22353696823120117,
+      0.20123723149299622,
+      0.15744315087795258
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0014894374180585146,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.5662528872489929,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#9"
+   },
+   {
+    "name": "Sponza · material 11",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08570076525211334,
+      0.0770120844244957,
+      0.06606171280145645
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0042151957750320435,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.4900597333908081,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#10"
+   },
+   {
+    "name": "Sponza · material 12",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.16557146608829498,
+      0.14059384167194366,
+      0.10456361621618271
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0033344943076372147,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.5471794009208679,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#11"
+   },
+   {
+    "name": "Sponza · material 2",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3283042013645172,
+      0.3283042013645172,
+      0.3283042013645172
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 1.0,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#12"
+   },
+   {
+    "name": "Sponza · material 13",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1765233874320984,
+      0.1610455960035324,
+      0.15475796163082123
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.9941942095756531,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.45689111948013306,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#13"
+   },
+   {
+    "name": "Sponza · material 14",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.023903662338852882,
+      0.08458667993545532,
+      0.01070858258754015
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.07477135956287384,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.9393789768218994,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#14"
+   },
+   {
+    "name": "Sponza · material 15",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02607383392751217,
+      0.047904130071401596,
+      0.12826621532440186
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.07477135956287384,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.9393789768218994,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#15"
+   },
+   {
+    "name": "Sponza · material 16",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.10526580363512039,
+      0.021944621577858925,
+      0.0086507024243474
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.07477135956287384,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.9393789768218994,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#16"
+   },
+   {
+    "name": "Sponza · material 17",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05868833139538765,
+      0.07465436309576035,
+      0.17791812121868134
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.14345571398735046,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.7634283304214478,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#17"
+   },
+   {
+    "name": "Sponza · material 18",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1452634483575821,
+      0.015925750136375427,
+      0.00560764828696847
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.14345571398735046,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.7634283304214478,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#18"
+   },
+   {
+    "name": "Sponza · material 19",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02758554182946682,
+      0.06723305583000183,
+      0.003794448683038354
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.14345571398735046,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.7634283304214478,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#19"
+   },
+   {
+    "name": "Sponza · material 20",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.21503888070583344,
+      0.03683682903647423,
+      0.010590247809886932
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.7116173505783081,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.3315255641937256,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#20"
+   },
+   {
+    "name": "Sponza · material 21",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.012047029100358486,
+      0.013989634811878204,
+      0.013757551088929176
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.9966585636138916,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.4012613296508789,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#21"
+   },
+   {
+    "name": "Sponza · material 22",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.22438523173332214,
+      0.18068867921829224,
+      0.12616221606731415
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0027042764704674482,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.3715618848800659,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#22"
+   },
+   {
+    "name": "Sponza · material 23",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.10546720027923584,
+      0.08268250524997711,
+      0.048099592328071594
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.0015514898113906384,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.8004990816116333,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#23"
+   },
+   {
+    "name": "Sponza · material 24",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 30.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.01,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.11573995649814606,
+      0.10783118009567261,
+      0.11434637010097504
+     ],
+     "emission": 0.0,
+     "ior": 1.5,
+     "metallic": 0.006165508646517992,
+     "pattern": "solid",
+     "pattern_scale": 3.0,
+     "reflectivity": 0.05000000074505806,
+     "roughness": 0.4069514870643616,
+     "secondary_color": [
+      0.03999999910593033,
+      0.03999999910593033,
+      0.03999999910593033
+     ],
+     "texture": "",
+     "texture_scale": 0.5,
+     "textures": true,
+     "transmission": 0.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mesh": "models/Sponza/Sponza.gltf#24"
+   }
+  ],
+  "exposure": 2.5
+ }
+}

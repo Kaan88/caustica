@@ -745,3 +745,54 @@ The gains come from:
 - `hull_points` adds the extreme vertex along 26 directions to its strided subsample, so a big mesh's hull keeps its tips.
 - Playgrounds (the *physics* generator): `cards` (a house of cards, 3–4 storeys: lean 18°, 1 cm cards, friction 1; gaps of 2 mm, as wider gaps let the storeys drop), `chain`, `bridge` (planks jointed at both rope lines between fixed posts, a ball on it), `cloth` (a tablecloth over a fixed table and a pinned curtain in gusty wind), and the domino spiral now makes about three turns.
 - Self-test frames 211–213 run a simulation (a ball falls, a cloth publishes a mesh), spawn a box mid-run and check the simulated time kept running (no restart).
+
+## GPU efficiency (track 20a, 2026-11-02)
+
+Owner rule: performance work never lowers quality (no fewer samples or bounces, no lower render scale, no performance mode). See roadmap 20a.
+
+**Tools.** `RENDER_OK` now also prints `trace_ms_mean`, `reconstruct_ms_mean` (RR, or the native filter with `--no-rr`), `display_ms_mean` and `ui_ms_mean`, from the `Gpu::pass_ms` timestamps. `tools/perf_baseline.ps1` runs the sweep below into `captures/perf/baseline.csv` (the 2026-11-02 run is kept as `baseline-2026-11-02.csv`). `CAUSTICA_SHADER_DEBUG=1` at build time adds `-Zi -Qembed_debug` to DXC (same `-O3` code) so Nsight's shader profiler can map stalls to HLSL lines. Build it into its own target dir (`target/profile`).
+
+**Baseline, 2026-11-02** (RTX 4070 Ti SUPER, 1440×900, 4 spp, each scene's own bounce count (Classic and bunny 6, neon 12, mirror corridor 24, Sponza 12, glass dragon 20), 300 frames, no VSync; ms):
+
+| Scene | Mode | GPU | Frame | Trace | Reconstruct |
+|---|---|---|---|---|---|
+| Classic (0) | RR | 5.23 | 5.77 | 2.85 | 2.29 |
+| Classic (0) | native | 5.13 | 5.53 | 3.52 | 1.51 |
+| Bunny (13) | RR | 5.53 | 6.04 | 3.18 | 2.26 |
+| Mirror corridor (17) | RR | 7.81 | 8.40 | 5.45 | 2.27 |
+| Mirror corridor (17) | native | 8.64 | 9.13 | 6.41 | 2.14 |
+| Neon (21) | RR | 5.83 | 6.36 | 3.48 | 2.26 |
+| Glass dragon | RR | 11.01 | 11.60 | 8.68 | 2.24 |
+| Glass dragon | native | 12.77 | 13.26 | 10.68 | 2.00 |
+| Stained-glass hall | RR | 7.96 | 8.53 | 5.62 | 2.25 |
+| Glass stack | RR | 7.56 | 8.12 | 5.23 | 2.24 |
+| Sponza | RR | 25.43 | 26.11 | 23.00 | 2.33 |
+| Sponza | native | 30.74 | 31.36 | 28.05 | 2.60 |
+
+Sweeps (native): Classic trace 1.03 / 1.55 / 3.52 ms at 1 / 2 / 6 bounces and 0.99 ms at 1 spp; mirror corridor 2.02 / 3.32 / 6.41 ms at 1 / 2 / 24 bounces and 1.85 ms at 1 spp.
+
+**Reading:**
+- **Trace scales linearly with samples** (Classic: about 0.84 ms per spp, a fixed part of about 0.15 ms for the guide ray). There is no large per-pixel overhead to remove. The cost is in the paths themselves.
+- **Per-bounce cost grows with divergence:** Classic adds about 0.5 ms per bounce after the first. The mirror corridor's second bounce adds 1.3 ms, and its remaining 22 bounces only 3.1 ms together (Russian roulette and escaping paths end most of them). Glass scenes cost 2–3× Classic. These are the scenes where traversal returns to the shader for non-opaque candidates (glass, hidden lights) and where SER would help: fixes (a) and later track 20.
+- **Sponza is the heaviest by far** (262k triangles, 69 textures, alpha-tested plants and curtains, an atrium lit mostly by bounce light from the sun through its open roof): 23 ms of trace. It is the main target for fixes (a), (b) and (e).
+- **Fixed costs are a big share of light scenes:** DLSS RR is about 2.25 ms whatever the scene (40% of Classic). The native filter costs 1.5–2.3 ms, which is high for six passes at 1440×900 (fix (f)).
+- **CPU/GPU bubble:** frame − GPU is 0.35–0.6 ms in every scene (5–10% on light scenes), and the fence wait is about the whole GPU time: the CPU records nothing while the GPU works (fix (c)).
+- The low power draw fits these numbers: short frames with an idle gap each, RR's tensor-core work, and traversal that waits on memory. Nsight (occupancy, stall reasons) is still needed to split the trace time further.
+
+**Nsight GPU Trace, 2026-11-03** (`tools/nsight_capture.ps1`: `ngfx.exe` GPU Trace, 3 frames after 6 s, clocks at base, windowed app, metrics auto-exported to `captures/perf/nsight/<scene>/BASE/GPUTRACE_FRAME.xls`; frame-level averages in %, since our passes have no markers yet):
+
+| | Sponza | Mirror (17) | Classic (0) | Glass dragon |
+|---|---|---|---|---|
+| GPU busy (`gr__cycles_active`) | 91 | 74 | 50 | 67 |
+| SM throughput | 14.5 | 18.7 | 15.9 | 13.2 |
+| Warps active (compute) | 21 | 16 | 11 | 14 |
+| SM active, warp slots empty | 66 | 48 | 31 | 46 |
+| SM idle | 13 | 36 | 58 | 40 |
+| Register file allocated | 80 | 56 | 37 | 49 |
+| L1 / L2 hit | 71 / 98 | 77 / 90 | 83 / 81 | 75 / 90 |
+| VRAM throughput | 6 | 12 | 12 | 9 |
+
+- **Occupancy is register-limited everywhere.** Registers allocated / warps active is about 3.5 in every scene: about 150–160 registers per thread, which caps residency near 12–13 of 48 warps per SM. Sponza runs at that cap. The SMs are mostly waiting with too few warps to hide traversal and memory latency, while DRAM bandwidth stays at 12% or below. Fix (b) is first.
+- **The windowed app idles the GPU much more than headless runs show.** GPU busy is 50% in Classic and 67–74% in the mirror corridor and the dragon. The headless bubble was 0.5 ms, but the windowed frame adds Present and egui on the CPU while the GPU waits. Fix (c) is second; confirm it with timestamps in a windowed run first.
+- Not in the export: RT core use and the per-line shader profiler (both are in the saved `.ngfx-gputrace`, viewable in `ngfx-ui`). Pass markers (`BeginEvent`/`EndEvent` around trace, reconstruction, display, UI) would split these metrics per pass in `GPUTRACE_REGIMES.xls`.
+- Pitfall: don't pass `--platform` to `ngfx.exe`. Qt takes it as its own platform-plugin option and fails with "Could not find the Qt platform plugin".

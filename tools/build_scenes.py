@@ -2038,6 +2038,17 @@ mesh_scene("duck-and-lantern", "Duck and lantern",
                   sky=0.12, base=[0.18, 0.2, 0.32], lights=[],
                   objects=[mesh("Lantern.glb", 0, 0, 4.0, rotation=90), mesh("Duck.glb", 1.2, 0.6, 0.9, rotation=-40)],
                   **camera(15, 10, 7.5, (0.3, 0.4, 0))))
+# Crytek Sponza (track 20a's heavy benchmark): 262k triangles in 25 parts, 69 textures, alpha-tested
+# plants and chains. The engine has no floor toggle, so its floor shrinks to the minimum and the
+# atrium sits 1 cm above it. Size 30 makes the long axis about 21 units.
+mesh_scene("sponza", "Sponza",
+           "Crytek's Sponza atrium under a summer midday sun through the open roof: textured stone, cloth "
+           "banners and alpha-tested plants, lit mostly by bounce light.",
+           ["interior", "architecture", "gltf", "physical sky", "benchmark"], "Sponza: Crytek, " + KHRONOS,
+           studio(light_on=False, lights=[], sky=0.0, floor_extent=0.5, base=[0.5, 0.48, 0.45], bounces=12,
+                  physical_sky=sky(12.5, day=172.0, latitude=40.0),
+                  objects=whole("Sponza/Sponza.gltf", 0, 0, 30, elevation=0.01),
+                  exposure=2.5, **camera(90, 8, 4.5, (0, 1.6, 0), 65)))
 
 
 # ---------------------------------------------------------------- environments pack

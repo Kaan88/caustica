@@ -99,7 +99,9 @@ struct App {
     frames: Option<u32>,
     rendered: u32,
     /// Timing for the RENDER_OK line, from frame 10 on (after startup and BVH builds).
-    timing: Option<(Instant, f64, f64)>,
+    /// Start, summed gpu_ms, fence wait at the start, summed per-pass ms (trace, reconstruction,
+    /// display, UI).
+    timing: Option<(Instant, f64, f64, [f64; 4])>,
     capture: Option<PathBuf>,
     capture_sequence: Option<PathBuf>,
     orbit_test: bool,
@@ -2966,27 +2968,36 @@ impl App {
         if let Some(sc) = &mut self.script {
             sc.frame_done();
         }
-        let gpu_ms = self.gpu.as_ref().unwrap().gpu_ms;
+        let (gpu_ms, pass_ms) = {
+            let g = self.gpu.as_ref().unwrap();
+            (g.gpu_ms, g.pass_ms)
+        };
         match &mut self.timing {
-            Some((_, sum, _)) => *sum += gpu_ms,
+            Some((_, sum, _, passes)) => {
+                *sum += gpu_ms;
+                for (p, v) in passes.iter_mut().zip(pass_ms) {
+                    *p += v;
+                }
+            }
             None if self.rendered == 10 => {
                 let wait = self.gpu.as_ref().unwrap().fence_wait_ms;
-                self.timing = Some((Instant::now(), 0., wait))
+                self.timing = Some((Instant::now(), 0., wait, [0.; 4]))
             }
             None => {}
         }
         if self.frames.is_some_and(|f| self.rendered >= f) {
             let wait_now = self.gpu.as_ref().unwrap().fence_wait_ms;
-            let (frame_ms, mean_gpu_ms, wait_ms) = match self.timing {
-                Some((start, sum, wait)) if self.rendered > 10 => {
+            let (frame_ms, mean_gpu_ms, wait_ms, pass_mean) = match self.timing {
+                Some((start, sum, wait, passes)) if self.rendered > 10 => {
                     let n = (self.rendered - 10) as f64;
                     (
                         start.elapsed().as_secs_f64() * 1000. / n,
                         sum / n,
                         (wait_now - wait) / n,
+                        passes.map(|p| p / n),
                     )
                 }
-                _ => (0., 0., 0.),
+                _ => (0., 0., 0., [0.; 4]),
             };
             let g = self.gpu.as_mut().unwrap();
             if let Some(path) = &self.capture {
@@ -3023,7 +3034,7 @@ impl App {
                 }
             }
             println!(
-                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3}",
+                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3} trace_ms_mean={:.3} reconstruct_ms_mean={:.3} display_ms_mean={:.3} ui_ms_mean={:.3}",
                 self.rendered,
                 g.samples,
                 g.gpu_ms,
@@ -3032,7 +3043,11 @@ impl App {
                 g.height,
                 mean_gpu_ms,
                 frame_ms,
-                wait_ms
+                wait_ms,
+                pass_mean[0],
+                pass_mean[1],
+                pass_mean[2],
+                pass_mean[3]
             );
             event_loop.exit();
         }
