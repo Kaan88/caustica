@@ -215,7 +215,15 @@ pub fn read(path: &Path) -> Result<Settings> {
     let bytes = std::fs::read(path).with_context(|| format!("Reading {}", path.display()))?;
     let value: serde_json::Value =
         serde_json::from_slice(&bytes).with_context(|| format!("Parsing {}", path.display()))?;
-    let mut s: Settings = if let Some(g) = value.get("generator") {
+    let mut s = parse(value)?;
+    s.validate()
+        .with_context(|| format!("Scene {} is invalid", path.display()))?;
+    Ok(s)
+}
+/// A scene file's JSON (a wrapper with a title, a generator and seed, or bare settings) as
+/// settings, not yet validated.
+pub fn parse(value: serde_json::Value) -> Result<Settings> {
+    Ok(if let Some(g) = value.get("generator") {
         // A generated scene: family and seed, regenerated exactly on every load.
         let family = g
             .get("family")
@@ -238,10 +246,7 @@ pub fn read(path: &Path) -> Result<Settings> {
         s
     } else {
         serde_json::from_value(value)?
-    };
-    s.validate()
-        .with_context(|| format!("Scene {} is invalid", path.display()))?;
-    Ok(s)
+    })
 }
 /// Finds a scene by path, or by file stem or title in the scenes folder.
 pub fn find(name: &str) -> Result<PathBuf> {

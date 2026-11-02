@@ -212,6 +212,9 @@ pub struct UiState {
     /// Snapshots for Ctrl+Z / Ctrl+Y, taken before each edit that the UI makes.
     undo: Vec<Settings>,
     redo: Vec<Settings>,
+    /// Track 19 text-to-scene: the description, and the request running in the background.
+    pub describe: String,
+    pub describe_job: Option<std::sync::mpsc::Receiver<anyhow::Result<Settings>>>,
 }
 impl Default for UiState {
     fn default() -> Self {
@@ -285,6 +288,8 @@ impl Default for UiState {
             header: String::new(),
             undo: Vec::new(),
             redo: Vec::new(),
+            describe: String::new(),
+            describe_job: None,
         }
     }
 }
@@ -780,6 +785,7 @@ fn hdr_line(app: &App) -> String {
 
 impl App {
     pub fn ui(&mut self, ctx: &egui::Context) {
+        self.poll_describe();
         // Double-click resets: the scene as it was when it got its name (loaded, preset,
         // generated or randomized), each object and light by index, and default UI values.
         if self.reset_baseline.scene_name != self.settings.scene_name {
@@ -2615,7 +2621,83 @@ impl App {
                     });
             });
     }
+    /// Track 19: "Describe a scene" sends the text to Claude and loads the scene it returns.
+    /// Applies a finished text-to-scene request (whatever tab is open).
+    fn poll_describe(&mut self) {
+        let Some(rx) = &self.ui.describe_job else {
+            return;
+        };
+        let result = match rx.try_recv() {
+            Ok(r) => r,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                Err(anyhow::anyhow!("the request stopped unexpectedly"))
+            }
+        };
+        self.ui.describe_job = None;
+        match result {
+            Ok(mut loaded) => {
+                self.ui.checkpoint(&self.settings);
+                self.laser = crate::laser::Laser::default();
+                self.physics = None;
+                self.ui.selection = Selection::Stage;
+                // A new scene: not the file or list entry that was open (Ctrl+S must not
+                // overwrite that file because the titles happen to match).
+                self.ui.loaded_file = None;
+                self.ui.scene_selected = None;
+                loaded.keep_output(&self.settings);
+                if loaded.scene_name.trim().is_empty() {
+                    loaded.scene_name = "Described scene".into();
+                }
+                let title = loaded.scene_name.clone();
+                self.settings = loaded;
+                self.reset_baseline = self.settings.clone();
+                self.ui.toast(format!("Claude made {title}"));
+            }
+            Err(e) => self.ui.error(format!("{e:#}")),
+        }
+    }
+    fn describe_ui(&mut self, ui: &mut egui::Ui) {
+        egui::CollapsingHeader::new("Describe a scene (Claude)")
+            .id_salt("describe")
+            .show(ui, |ui| {
+                let key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.ui.describe)
+                        .hint_text("A lighthouse on a rock at dusk, a warm lamp in its top…")
+                        .desired_rows(3)
+                        .desired_width(f32::INFINITY),
+                );
+                ui.horizontal(|ui| {
+                    let busy = self.ui.describe_job.is_some();
+                    let ready = key.is_some() && !busy && !self.ui.describe.trim().is_empty();
+                    if ui
+                        .add_enabled(ready, egui::Button::new("Generate"))
+                        .on_hover_text("Sends the text to Claude (claude-opus-5-5); the scene it returns replaces this one (Ctrl+Z undoes it)")
+                        .clicked()
+                        && let Some(key) = key.clone()
+                    {
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        let prompt = self.ui.describe.clone();
+                        let ctx = ui.ctx().clone();
+                        std::thread::spawn(move || {
+                            let mut send = crate::textscene::http(key);
+                            let _ = tx.send(crate::textscene::generate(&prompt, &mut send));
+                            ctx.request_repaint();
+                        });
+                        self.ui.describe_job = Some(rx);
+                    }
+                    if busy {
+                        ui.spinner();
+                        ui.label("Claude is building the scene…");
+                    } else if key.is_none() {
+                        ui.label(egui::RichText::new("Set ANTHROPIC_API_KEY to use this").small());
+                    }
+                });
+            });
+    }
     fn scene_tab(&mut self, ui: &mut egui::Ui, known: bool) {
+        self.describe_ui(ui);
         let description = if known {
             crate::presets::description(self.preset).to_string()
         } else if let Some(i) = self.scene_entry() {
