@@ -13,6 +13,8 @@
 //! - the Claude API (Messages API over raw HTTP; Rust has no official SDK), key from
 //!   `ANTHROPIC_API_KEY` or the menu;
 //! - the Codex CLI (`codex exec`), OpenAI's CLI with its own login (a ChatGPT account works);
+//! - the opencode CLI (`opencode run`), with the providers set up in opencode (models picked
+//!   from `opencode models`);
 //! - the OpenAI API, key from `OPENAI_API_KEY` or the menu;
 //! - a custom endpoint, OpenAI- or Anthropic-compatible (Ollama, LM Studio, llama.cpp,
 //!   vLLM and similar local servers), key optional, with its model list fetched.
@@ -46,12 +48,14 @@ pub enum Provider {
     CodexCli,
     OpenAi,
     Custom,
+    OpencodeCli,
 }
 impl Provider {
-    pub const ALL: [Provider; 5] = [
+    pub const ALL: [Provider; 6] = [
         Self::ClaudeCli,
         Self::ClaudeApi,
         Self::CodexCli,
+        Self::OpencodeCli,
         Self::OpenAi,
         Self::Custom,
     ];
@@ -62,6 +66,7 @@ impl Provider {
             Self::CodexCli => "ChatGPT via Codex CLI (your ChatGPT login)",
             Self::OpenAi => "OpenAI API (API key)",
             Self::Custom => "Custom endpoint (local models)",
+            Self::OpencodeCli => "opencode CLI (its providers and logins)",
         }
     }
     /// The environment variable a key falls back to.
@@ -79,6 +84,8 @@ impl Provider {
         match self {
             Self::ClaudeCli | Self::ClaudeApi => claude,
             Self::CodexCli | Self::OpenAi => openai,
+            // Model variants (`provider/model#variant`) differ per model: typed into the name.
+            Self::OpencodeCli => &[""],
             Self::Custom => match protocol {
                 Protocol::OpenAi => openai,
                 Protocol::Anthropic => claude,
@@ -101,7 +108,10 @@ impl Provider {
     }
     /// The model list can be fetched from the server.
     pub fn can_fetch(self) -> bool {
-        matches!(self, Self::ClaudeApi | Self::OpenAi | Self::Custom)
+        matches!(
+            self,
+            Self::ClaudeApi | Self::OpenAi | Self::Custom | Self::OpencodeCli
+        )
     }
 }
 
@@ -178,6 +188,10 @@ impl AiConfig {
             Provider::ClaudeCli | Provider::ClaudeApi => "Claude".into(),
             Provider::CodexCli => "ChatGPT".into(),
             Provider::OpenAi | Provider::Custom => self.model.trim().to_string(),
+            Provider::OpencodeCli => match self.model.trim() {
+                "" => "opencode".into(),
+                m => m.rsplit('/').next().unwrap_or(m).to_string(),
+            },
         }
     }
     fn effort(&self) -> Option<&str> {
@@ -309,6 +323,7 @@ pub fn transport(config: &AiConfig, key: &str, cancel: Arc<AtomicBool>) -> Resul
     Ok(match config.provider {
         Provider::ClaudeCli => Box::new(move |m: &[Msg]| claude_cli(&config, m, &cancel)),
         Provider::CodexCli => Box::new(move |m: &[Msg]| codex_cli(&config, m, &cancel)),
+        Provider::OpencodeCli => Box::new(move |m: &[Msg]| opencode_cli(&config, m, &cancel)),
         _ if config.uses_anthropic() => {
             let mut post = poster();
             Box::new(move |m: &[Msg]| anthropic(&config, key.as_deref(), &mut *post, m))
@@ -503,6 +518,9 @@ fn openai(config: &AiConfig, key: Option<&str>, post: &mut Post, messages: &[Msg
 
 /// The models a server offers (`GET /models`), sorted.
 pub fn fetch_models(config: &AiConfig, key: &str) -> Result<Vec<String>> {
+    if config.provider == Provider::OpencodeCli {
+        return opencode_models();
+    }
     let key = config.key(key);
     if let Some(env) = config.provider.key_env()
         && key.is_none()
@@ -767,6 +785,108 @@ fn codex_cli(config: &AiConfig, messages: &[Msg], cancel: &AtomicBool) -> Result
         raw: Value::String(text.clone()),
         text,
     })
+}
+
+/// The opencode CLI (`opencode run`), with the providers and logins set up in opencode
+/// (`opencode auth login`; models as `provider/model`, listed by `opencode models`). Run from a
+/// private temp folder without `--auto`, so it gets no permission to edit or run anything.
+/// The reply is its JSON event stream: the `text` parts of the last message, or an `error`.
+fn opencode_cli(config: &AiConfig, messages: &[Msg], cancel: &AtomicBool) -> Result<Turn> {
+    let dir = CallDir::new()?;
+    let image = dir.render(messages)?;
+    let mut args: Vec<String> = ["run", "--format", "json"].map(String::from).into();
+    if !config.model.trim().is_empty() {
+        args.extend(["--model".into(), config.model.trim().to_string()]);
+    }
+    if let Some(name) = &image {
+        args.extend([
+            "--file".into(),
+            dir.0.join(name).to_string_lossy().into_owned(),
+        ]);
+    }
+    let prompt = format!(
+        "<instructions>\n{}\n</instructions>\n\nDo not use tools, run commands or edit files: answer in your reply only.\n\n{}",
+        system(),
+        cli_prompt(messages)
+    );
+    let run = run_cli("opencode", &args, &dir.0, &prompt, cancel)?;
+    let text = opencode_reply(&String::from_utf8_lossy(&run.stdout)).map_err(|e| {
+        let err = String::from_utf8_lossy(&run.stderr);
+        let mut tail: Vec<&str> = err.lines().rev().take(4).collect();
+        tail.reverse();
+        anyhow::anyhow!(
+            "the opencode CLI failed: {e}{}",
+            if tail.is_empty() {
+                String::new()
+            } else {
+                format!("\n{}", tail.join("\n"))
+            }
+        )
+    })?;
+    Ok(Turn {
+        raw: Value::String(text.clone()),
+        text,
+    })
+}
+/// The reply in `opencode run --format json`'s event lines: the text parts of the last message
+/// that has any, joined; an `error` event is the failure.
+fn opencode_reply(events: &str) -> Result<String> {
+    let mut message = String::new();
+    let mut parts: Vec<String> = vec![];
+    for line in events.lines() {
+        let Ok(e) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        match e["type"].as_str() {
+            Some("error") => {
+                let m = e["error"]["message"]
+                    .as_str()
+                    .or(e["error"]["data"]["message"].as_str());
+                bail!("{}", m.unwrap_or("unknown error"));
+            }
+            Some("text") => {
+                let id = e["part"]["messageID"].as_str().unwrap_or_default();
+                if id != message {
+                    message = id.to_string();
+                    parts.clear();
+                }
+                parts.push(e["part"]["text"].as_str().unwrap_or_default().to_string());
+            }
+            _ => {}
+        }
+    }
+    let text = parts.concat();
+    if text.trim().is_empty() {
+        bail!("an empty reply");
+    }
+    Ok(text)
+}
+/// `opencode models`: one `provider/model` per line.
+fn opencode_models() -> Result<Vec<String>> {
+    let dir = CallDir::new()?;
+    let run = run_cli(
+        "opencode",
+        &["models".into()],
+        &dir.0,
+        "",
+        &AtomicBool::new(false),
+    )?;
+    let out = String::from_utf8_lossy(&run.stdout);
+    let mut models: Vec<String> = out
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.contains('/') && !l.contains(' '))
+        .map(String::from)
+        .collect();
+    if !run.status.success() || models.is_empty() {
+        bail!(
+            "`opencode models` listed nothing: {}",
+            String::from_utf8_lossy(&run.stderr).trim()
+        );
+    }
+    models.sort();
+    models.dedup();
+    Ok(models)
 }
 
 /// The conversation as one prompt (each CLI call is a fresh session).
@@ -1114,6 +1234,35 @@ mod tests {
         );
     }
 
+    #[test]
+    fn opencode_events_give_the_last_message_or_the_error() {
+        let ev = |kind: &str, msg: &str, text: &str| {
+            json!({"type": kind, "part": {"messageID": msg, "text": text}}).to_string()
+        };
+        let stream = [
+            ev("step_start", "a", ""),
+            ev("text", "a", "thinking aloud"),
+            ev("text", "b", "{\"objects\""),
+            ev("text", "b", ": []}"),
+            "not json".into(),
+        ]
+        .join(
+            "
+",
+        );
+        assert_eq!(opencode_reply(&stream).unwrap(), "{\"objects\": []}");
+        let error = json!({"type": "error", "error": {"message": "Free usage limit reached."}});
+        let e = opencode_reply(&error.to_string()).unwrap_err().to_string();
+        assert!(e.contains("Free usage"), "{e}");
+        assert!(opencode_reply("").is_err());
+        let mut c = AiConfig {
+            provider: Provider::OpencodeCli,
+            ..AiConfig::default()
+        };
+        assert!(c.missing("").is_none(), "opencode needs no key or model");
+        c.model = "lmstudio/qwen/qwen3-30b".into();
+        assert_eq!(c.who(), "qwen3-30b");
+    }
     /// A real critique through the Claude Code CLI (its login): `CRITIQUE_PNG=render.png cargo
     /// test -- --ignored live_critique --nocapture`.
     #[test]
@@ -1139,6 +1288,32 @@ OBJECTS: {}",
             o.settings.objects.len()
         );
         assert!(!o.notes.is_empty());
+    }
+
+    /// A real scene through the opencode CLI: `OPENCODE_MODEL=provider/model cargo test --
+    /// --ignored live_scene_through_opencode --nocapture`.
+    #[test]
+    #[ignore]
+    fn live_scene_through_opencode() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let config = AiConfig {
+            provider: Provider::OpencodeCli,
+            model: std::env::var("OPENCODE_MODEL").unwrap_or_default(),
+            ..AiConfig::default()
+        };
+        assert!(!opencode_models().unwrap().is_empty());
+        let mut send = transport(&config, "", cancel.clone()).unwrap();
+        let task = Task::New;
+        let o = generate(
+            "a red ball on a blue box",
+            &task,
+            &mut *send,
+            &mut |s| println!("{s}"),
+            &cancel,
+        )
+        .unwrap();
+        println!("OBJECTS: {}", o.settings.objects.len());
+        assert!(!o.settings.objects.is_empty());
     }
 
     /// Model listing from a running server: `FETCH_BASE=http://localhost:11434/v1 cargo test

@@ -36,10 +36,12 @@ impl App {
         let mut start = false;
         let camera = (self.settings.pitch, self.settings.distance);
         let animation = self.settings.animation.clone();
-        if animation.is_empty() {
+        // A running simulation plays on the timeline too (keys or not).
+        let simulated = self.settings.physics.enabled;
+        if animation.is_empty() && !simulated {
             self.ui.video.timeline = false;
         }
-        if self.ui.video.timeline {
+        if self.ui.video.timeline && !animation.is_empty() {
             // The keys set the rate and the length.
             self.ui.video.fps = animation.fps;
             self.ui.video.frames = animation.frames();
@@ -139,7 +141,7 @@ impl App {
                         ui.label("×");
                         ui.add(egui::DragValue::new(&mut o.height).range(16..=8192));
                     });
-                    let timed = !o.timeline;
+                    let timed = !o.timeline || animation.is_empty();
                     row(ui, "Frame rate", "Frames per second. A timeline export takes the timeline's.", |ui| {
                         if !timed {
                             ui.disable();
@@ -177,13 +179,16 @@ impl App {
                 grid("video-motion").show(ui, |ui| {
                     row(ui, "Camera", "Orbit turns the camera around its target; Timeline plays the scene's keyframes (camera, objects, lights, materials), with motion blur when the timeline's shutter is open.", |ui| {
                         ui.selectable_value(&mut o.timeline, false, "Orbit");
-                        ui.add_enabled_ui(!animation.is_empty(), |ui| {
+                        ui.add_enabled_ui(!animation.is_empty() || simulated, |ui| {
                             ui.selectable_value(&mut o.timeline, true, "Timeline")
                                 .on_disabled_hover_text("The scene has no keyframes (I keys the selection).");
                         });
                     });
                 });
-                if o.timeline {
+                if o.timeline && simulated {
+                    note(ui, "The physics simulation runs from the scene's current poses, one step per frame in simulated time; keyframed objects drive it. Motion blur is off for it.");
+                }
+                if o.timeline && !animation.is_empty() {
                     note(
                         ui,
                         &format!(

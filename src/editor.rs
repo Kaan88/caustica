@@ -38,8 +38,10 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
             if ui.small_button("Load…").clicked() {
                 let mut dialog =
                     rfd::FileDialog::new().add_filter("Images", &["jpg", "jpeg", "png"]);
-                if let Some(folder) = crate::scenes::folder().map(|f| f.join("textures"))
-                    && folder.is_dir()
+                if let Some(folder) = crate::dirs::scene_roots()
+                    .into_iter()
+                    .map(|f| f.join("textures"))
+                    .find(|f| f.is_dir())
                 {
                     dialog = dialog.set_directory(folder);
                 }
@@ -367,9 +369,44 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                     for (b, name) in [(Body::Dynamic, "Dynamic"), (Body::Fixed, "Fixed"), (Body::None, "None")] {
                         ui.selectable_value(&mut o.body, b, name);
                     }
+                    if !o.links.is_empty() {
+                        ui.label(format!("{} joint(s)", o.links.len()))
+                            .on_hover_text("Ball joints to other bodies (chains, ropes, bridges), set in the scene file.");
+                    }
                 },
             );
-            if o.mesh.is_empty() && o.sdf.is_none() {
+            if o.sdf.is_none() && (o.mesh.is_empty() || o.cloth.is_some()) {
+                row(
+                    ui,
+                    "Cloth",
+                    "Simulates the object as a cloth with the physics sandbox: a particle grid over the object's local x-z square that drapes over bodies (they don't feel it).",
+                    |ui| {
+                        let mut on = o.cloth.is_some();
+                        if ui.checkbox(&mut on, "").changed() {
+                            // Ungrounded where it is: the simulation keeps the frame it starts in.
+                            let centre = crate::geometry::object_frame(o).0;
+                            o.grounded = false;
+                            o.elevation = centre.y;
+                            o.cloth = on.then(crate::scene::Cloth::default);
+                            o.mesh.clear();
+                        }
+                        if let Some(c) = &mut o.cloth {
+                            use crate::scene::ClothPin;
+                            for (p, name) in [(ClothPin::None, "Free"), (ClothPin::Corners, "Corners"), (ClothPin::Edge, "Edge")] {
+                                ui.selectable_value(&mut c.pin, p, name)
+                                    .on_hover_text("Pins: none, the two corners of the far (−z) edge, or that whole edge (a curtain).");
+                            }
+                            ui.add(crate::slider(&mut c.resolution, 4..=48).suffix(" ×"))
+                                .on_hover_text("Particles per side.");
+                            ui.add(crate::slider(&mut c.stiffness, 0. ..=1.))
+                                .on_hover_text("Bending stiffness: 0 silk, 1 canvas.");
+                        }
+                    },
+                );
+            }
+            if o.cloth.is_some() {
+                // The mesh is the simulation's.
+            } else if o.mesh.is_empty() && o.sdf.is_none() {
                 row(ui, "Shape", "The mesh used for this object.", |ui| {
                     let mut kind = o.kind();
                     shape_combo(ui, "object shape", &mut kind);

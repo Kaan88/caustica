@@ -26,6 +26,11 @@ impl std::ops::Deref for Source {
 /// triangles, which names its BLAS, and the triangles.
 pub fn object_source(o: &Object) -> (String, Source) {
     match crate::mesh::of(o).filter(|_| o.sdf.is_none()) {
+        // A cloth not yet simulated shows its rest grid, one per resolution.
+        Some(m) if o.cloth.is_some() => (
+            format!("cloth|{}|{}", o.mesh, o.cloth.map_or(0, |c| c.resolution)),
+            Source::File(m),
+        ),
         Some(m) => (o.mesh.clone(), Source::File(m)),
         None => (
             format!("shape:{:?}", o.kind()),
@@ -474,7 +479,12 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
     }
     let (scale, r) = scale_rotation(o);
     let (_, source) = object_source(o);
-    let ymin = lowest_y(o, scale, r);
+    // Only grounding needs it (a cloth's mesh changes every step: no cache entry per mesh).
+    let ymin = if o.grounded {
+        lowest_y(o, scale, r)
+    } else {
+        0.
+    };
     let center = Vec3::new(
         o.position[0],
         if o.grounded {
@@ -777,11 +787,30 @@ pub fn hull_points(o: &Object, max: usize) -> Vec<Vec3> {
     let ground = crate::mesh::ground(o);
     let source: &Mesh = ground.as_deref().unwrap_or_else(|| mesh(o.kind()));
     let step = source.len().div_ceil(max.max(1)).max(1);
-    source
+    let mut out: Vec<Vec3> = source
         .iter()
         .step_by(step)
         .map(|(p, _)| *p * scale)
-        .collect()
+        .collect();
+    if step > 1 {
+        // The subsample can miss a tip or a corner: add the extreme vertex along each of 26
+        // directions (axes, face and cube diagonals), so the hull keeps the full extent.
+        let dirs = (0..27).filter(|&k| k != 13).map(|k| {
+            Vec3::new(
+                (k % 3) as f32 - 1.,
+                ((k / 3) % 3) as f32 - 1.,
+                (k / 9) as f32 - 1.,
+            )
+        });
+        for d in dirs {
+            let best = source
+                .iter()
+                .map(|(p, _)| *p * scale)
+                .max_by(|a, b| a.dot(d).total_cmp(&b.dot(d)));
+            out.extend(best);
+        }
+    }
+    out
 }
 /// The local scale applied to the unit mesh (size, stretch and X/Z scale).
 pub fn object_scale(o: &Object) -> Vec3 {

@@ -166,17 +166,14 @@ pub fn resolve(path: &str) -> PathBuf {
     if p.is_absolute() || path.starts_with(crate::procedural::PREFIX) {
         return p;
     }
-    crate::scenes::folder().map(|f| f.join(&p)).unwrap_or(p)
+    crate::dirs::resolve_scene_path(&p)
 }
-/// The path to store for a file: relative to the scenes folder when inside it.
+/// The path to store for a file: relative to a scenes folder (user or shipped) when inside one.
 pub fn store(path: &Path) -> String {
-    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    if let Some(root) = crate::scenes::folder().and_then(|f| f.canonicalize().ok())
-        && let Ok(rel) = path.strip_prefix(&root)
-    {
-        return rel.to_string_lossy().replace('\\', "/");
-    }
-    path.to_string_lossy().into()
+    crate::dirs::relative_to_scenes(path).unwrap_or_else(|| {
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        path.to_string_lossy().into()
+    })
 }
 /// Loads a file (a `#part` suffix is ignored here).
 pub fn load(path: &str) -> Result<Arc<Imported>> {
@@ -191,13 +188,17 @@ pub fn load(path: &str) -> Result<Arc<Imported>> {
 }
 /// The part an object uses, or None for the whole file, built-in shapes and unreadable files.
 fn part_of(o: &Object) -> Option<(Arc<Imported>, Option<usize>)> {
-    if o.mesh.is_empty() {
+    // A cloth's mesh is the simulation's (`of`), never a file.
+    if o.mesh.is_empty() || o.cloth.is_some() {
         return None;
     }
     Some((load(&o.mesh).ok()?, split(&o.mesh).1))
 }
 /// The mesh of an object, or None for built-in shapes, unreadable files and missing parts.
 pub fn of(o: &Object) -> Option<Arc<Mesh>> {
+    if let Some(c) = &o.cloth {
+        return Some(crate::physics::cloth_mesh(&o.mesh, c));
+    }
     match part_of(o)? {
         (imported, Some(n)) => imported.parts.get(n).map(|p| p.mesh.clone()),
         (imported, None) => Some(imported.whole()),
@@ -231,6 +232,9 @@ fn file_maps(o: &Object) -> Option<Maps> {
 /// What grounding measures: the whole file, so the parts of one file rest on the floor
 /// together (a chess piece stays on its board).
 pub fn ground(o: &Object) -> Option<Arc<Mesh>> {
+    if o.cloth.is_some() {
+        return of(o);
+    }
     of(o)?;
     load(&o.mesh).ok().map(|m| m.whole())
 }

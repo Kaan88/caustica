@@ -2,8 +2,11 @@
 ;   iscc /DAppVersion=0.1.4 /DSourceDir=<the packaged folder> installer\caustica.iss
 ; Local builds don't need it: run target\release\caustica.exe or launch.cmd.
 ;
-; Per-user install (no admin prompt): the app writes settings, captures, thumbnails and
-; downloaded assets beside itself, which Program Files would not allow.
+; The app never writes beside itself when installed (src/dirs.rs): settings, prefs, user scenes,
+; downloaded assets and captures go to %APPDATA%\Caustica, thumbnails and catalogs to
+; %LOCALAPPDATA%\Caustica. So it installs per user (no admin prompt) by default, or for all users
+; into Program Files from the setup's dialog. A `portable` file beside the exe keeps everything
+; beside it instead (for unzipped copies, never written by this installer).
 
 #ifndef AppVersion
   #define AppVersion "0.0.0-local"
@@ -24,6 +27,7 @@ DefaultDirName={autopf}\Caustica
 DefaultGroupName=Caustica
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -48,5 +52,25 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{autoprograms}\Caustica"; Filename: "{app}\caustica.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\Caustica"; Filename: "{app}\caustica.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
+[UninstallDelete]
+; Caches only (thumbnails, asset catalogs): rebuilt on demand.
+Type: filesandordirs; Name: "{localappdata}\Caustica"
+
 [Run]
 Filename: "{app}\caustica.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Caustica}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// The per-user folder holds the user's own scenes, downloads and captures: ask before removing.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Dir: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    Dir := ExpandConstant('{userappdata}\Caustica');
+    if DirExists(Dir) and not UninstallSilent and
+       (MsgBox('Also delete your Caustica settings, saved scenes, downloaded assets and captures in ' + Dir + '?',
+               mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES) then
+      DelTree(Dir, True, True, True);
+  end;
+end;

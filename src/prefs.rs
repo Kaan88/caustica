@@ -40,16 +40,9 @@ impl Default for Prefs {
         }
     }
 }
-/// %APPDATA%\Caustica (prefs and stats). Builds before the rename kept them in
-/// %APPDATA%\CornellRTX: that folder is moved over once.
+/// %APPDATA%\Caustica, or beside the exe when portable (see `dirs::config`).
 pub fn app_dir() -> Option<PathBuf> {
-    let root = PathBuf::from(std::env::var_os("APPDATA")?);
-    let dir = root.join("Caustica");
-    let old = root.join("CornellRTX");
-    if !dir.exists() && old.is_dir() {
-        let _ = std::fs::rename(&old, &dir);
-    }
-    Some(dir)
+    crate::dirs::config()
 }
 fn path() -> Option<PathBuf> {
     app_dir().map(|d| d.join("prefs.json"))
@@ -105,12 +98,10 @@ impl Prefs {
 /// its favourites.
 pub fn key(scene: &Path) -> String {
     // Both canonical: the list holds relative paths, file dialogs give absolute ones.
-    let full = std::fs::canonicalize(scene).unwrap_or_else(|_| scene.to_path_buf());
-    let relative = crate::scenes::folder()
-        .and_then(|root| std::fs::canonicalize(root).ok())
-        .and_then(|root| full.strip_prefix(root).ok().map(Path::to_path_buf))
-        .unwrap_or(full);
-    relative.to_string_lossy().replace('\\', "/")
+    crate::dirs::relative_to_scenes(scene).unwrap_or_else(|| {
+        let full = std::fs::canonicalize(scene).unwrap_or_else(|_| scene.to_path_buf());
+        full.to_string_lossy().replace('\\', "/")
+    })
 }
 
 #[cfg(test)]

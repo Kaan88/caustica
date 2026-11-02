@@ -1,8 +1,8 @@
 //! Online asset catalogs and downloads for the asset browser (roadmap item 6): Poly Haven
 //! HDRIs, textures and models, ambientCG materials and the Khronos glTF samples. Downloads land
-//! in `scenes/hdri`, `scenes/textures/<id>` and `scenes/models`, each file's SHA-256 goes into
-//! `scenes/assets.json` (a changed upstream file then fails instead of slipping in), and
-//! catalogs and thumbnails are cached under `scenes/thumbnails/assets`.
+//! in the user scenes folder (`dirs::user_scenes`: `hdri`, `textures/<id>`, `models`), each
+//! file's SHA-256 goes into its `assets.json` (a changed upstream file then fails instead of
+//! slipping in), and catalogs and thumbnails are cached under `<dirs::cache>/assets`.
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -330,7 +330,7 @@ pub fn cached_catalog(source: Source) -> Option<Vec<Asset>> {
     serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
 fn cache_dir() -> Option<PathBuf> {
-    crate::scenes::folder().map(|f| f.join("thumbnails").join("assets"))
+    crate::dirs::cache().map(|f| f.join("assets"))
 }
 pub fn thumbnail_path(a: &Asset) -> Option<PathBuf> {
     let safe: String =
@@ -365,7 +365,7 @@ pub fn use_path(a: &Asset, res: &str) -> String {
 }
 /// Already in the scenes folder (from the browser or tools/fetch_assets.ps1).
 pub fn installed(a: &Asset, res: &str) -> bool {
-    crate::scenes::folder().is_some_and(|f| f.join(use_path(a, res)).is_file())
+    crate::dirs::resolve_scene_path(Path::new(&use_path(a, res))).is_file()
 }
 /// A relative path from a catalog is used only if it stays inside its folder.
 fn safe_relative(path: &str) -> Result<&str> {
@@ -502,7 +502,7 @@ pub struct Pinned {
 }
 static MANIFEST_LOCK: Mutex<()> = Mutex::new(());
 fn manifest_path() -> Option<PathBuf> {
-    crate::scenes::folder().map(|f| f.join("assets.json"))
+    crate::dirs::user_scenes().map(|f| f.join("assets.json"))
 }
 pub fn manifest() -> Manifest {
     manifest_path()
@@ -530,7 +530,7 @@ fn pin(rel: &str, pinned: Pinned) -> Result<()> {
 }
 /// Downloads an asset at a resolution (blocking) and returns its `use_path`.
 pub fn install(a: &Asset, res: &str, progress: &Progress) -> Result<String> {
-    let root = crate::scenes::folder().context("No scenes folder")?;
+    let root = crate::dirs::user_scenes().context("No scenes folder")?;
     for (url, rel, zip) in plan(a, res)? {
         let dest = root.join(&rel);
         if !zip && dest.is_file() {

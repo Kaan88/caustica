@@ -55,7 +55,7 @@ pub struct Entry {
     pub hash: u64,
 }
 impl Entry {
-    /// `scenes/thumbnails/<pack folder>--<file>-<hash>.png`.
+    /// `<cache>/<pack folder>--<file>-<hash>.png` (`dirs::cache`).
     pub fn thumbnail(&self) -> Option<PathBuf> {
         let pack = self
             .path
@@ -64,11 +64,7 @@ impl Entry {
             .to_string_lossy()
             .to_string();
         let stem = self.path.file_stem()?.to_string_lossy().to_string();
-        Some(
-            folder()?
-                .join("thumbnails")
-                .join(format!("{pack}--{stem}-{:016x}.png", self.hash)),
-        )
+        Some(crate::dirs::cache()?.join(format!("{pack}--{stem}-{:016x}.png", self.hash)))
     }
 }
 fn fnv(bytes: &[u8]) -> u64 {
@@ -77,29 +73,22 @@ fn fnv(bytes: &[u8]) -> u64 {
     })
 }
 
-/// The scenes folder: next to the working directory (the launcher runs in `native/`), next to
-/// the exe, or two levels up from it (`native/target/release`).
+/// The shipped scenes folder (see `dirs::scenes`).
 pub fn folder() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok();
-    let candidates = [
-        Some(PathBuf::from("scenes")),
-        exe.as_ref()
-            .and_then(|e| e.parent().map(|p| p.join("scenes"))),
-        exe.as_ref()
-            .and_then(|e| e.parent()?.parent()?.parent().map(|p| p.join("scenes"))),
-    ];
-    candidates.into_iter().flatten().find(|p| p.is_dir())
+    crate::dirs::scenes()
 }
 /// Every scene in every pack folder, in pack order (`pack.json`), then by file name.
 pub fn list() -> Vec<Entry> {
-    let Some(root) = folder() else { return vec![] };
-    let mut packs: Vec<PathBuf> = std::fs::read_dir(&root)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_dir())
-        .collect();
+    // Pack folders of every root (the user's first); a name in both counts once (the user's).
+    let mut packs: Vec<PathBuf> = vec![];
+    for root in crate::dirs::scene_roots() {
+        for p in std::fs::read_dir(&root).into_iter().flatten().flatten() {
+            let p = p.path();
+            if p.is_dir() && !packs.iter().any(|q| q.file_name() == p.file_name()) {
+                packs.push(p);
+            }
+        }
+    }
     // Built-in first, the user's own scenes last, others alphabetically.
     packs.sort_by_key(|p| {
         let name = p
@@ -291,7 +280,7 @@ pub(crate) fn slug(title: &str) -> String {
 pub fn save_generated(family: &str, seed: u64, title: &str) -> Result<PathBuf> {
     let title = title.trim();
     ensure!(!title.is_empty(), "Give the scene a title");
-    let dir = folder()
+    let dir = crate::dirs::user_scenes()
         .unwrap_or_else(|| PathBuf::from("scenes"))
         .join("user");
     std::fs::create_dir_all(&dir)?;
@@ -308,7 +297,7 @@ pub fn save_user(s: &Settings, title: &str, description: &str) -> Result<PathBuf
     if title.is_empty() {
         bail!("Give the scene a title");
     }
-    let root = folder().unwrap_or_else(|| PathBuf::from("scenes"));
+    let root = crate::dirs::user_scenes().unwrap_or_else(|| PathBuf::from("scenes"));
     let path = root.join("user").join(format!("{}.json", slug(title)));
     save_to(&path, s, title, description)?;
     Ok(path)

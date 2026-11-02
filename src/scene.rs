@@ -451,6 +451,49 @@ pub struct Object {
     /// the first two points). Strings have no collider.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tether: Option<Tether>,
+    /// Track 17 physics: ball joints from this body to other bodies, each at a world point
+    /// (taken as body-local anchors when the simulation starts). Chain links, rope segments
+    /// and bridge planks hang from each other this way.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<Link>,
+    /// Track 17 physics: this object is a cloth (a particle grid over the object's local x-z
+    /// square, simulated by `physics::Cloth`, drawn as its mesh). Never a rigid body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloth: Option<Cloth>,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Link {
+    pub object: u32,
+    pub at: [f32; 3],
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ClothPin {
+    /// Falls freely (drapes over what is below).
+    #[default]
+    None,
+    /// The two corners of the far edge (-z) hang from where they start.
+    Corners,
+    /// The whole far edge (a curtain or flag).
+    Edge,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Cloth {
+    /// Particles per side (4–48).
+    pub resolution: u32,
+    pub pin: ClothPin,
+    /// Bending stiffness 0–1 (0 silk, 1 stiff canvas).
+    pub stiffness: f32,
+}
+impl Default for Cloth {
+    fn default() -> Self {
+        Self {
+            resolution: 24,
+            pin: ClothPin::None,
+            stiffness: 0.2,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -646,6 +689,8 @@ impl Default for Object {
             mass: 1.,
             locked: false,
             tether: None,
+            links: vec![],
+            cloth: None,
         }
     }
 }
@@ -1408,6 +1453,21 @@ impl Settings {
                         && t.object as usize != i
                         && t.from.iter().all(|v| v.abs() <= 40.)),
                 "Invalid string (tether)"
+            );
+            anyhow::ensure!(
+                o.links.len() <= 8
+                    && o.links
+                        .iter()
+                        .all(|l| (l.object as usize) < self.objects.len()
+                            && l.object as usize != i
+                            && l.at.iter().all(|v| v.is_finite() && v.abs() <= 40.)),
+                "Invalid joint (links)"
+            );
+            anyhow::ensure!(
+                o.cloth.is_none_or(
+                    |c| (4..=48).contains(&c.resolution) && (0. ..=1.).contains(&c.stiffness)
+                ),
+                "Invalid cloth"
             );
             anyhow::ensure!(
                 (0.05..=30.).contains(&o.size)

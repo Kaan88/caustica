@@ -118,9 +118,10 @@ impl ImageFormat {
             ImageFormat::Jxr => "jxr",
         }
     }
-    /// `stem` plus this format's extension (`hdr.png` keeps the PQ PNG apart from the plain one).
+    /// `stem` plus this format's extension (`hdr.png` keeps the PQ PNG apart from the plain one),
+    /// in the output folder (`dirs::output`: the working directory unless installed).
     pub fn file(self, stem: &str) -> PathBuf {
-        PathBuf::from(format!("{stem}.{}", self.extension()))
+        crate::dirs::output(format!("{stem}.{}", self.extension()))
     }
     pub fn needs_hdr(self) -> bool {
         matches!(self, ImageFormat::HdrPng | ImageFormat::Jxr)
@@ -664,6 +665,10 @@ pub struct Job {
     environment_changed: bool,
     /// Passes rendered (motion blur's shutter samples).
     pass: u32,
+    /// Timeline exports with the simulation on run their own one, frame by frame in
+    /// simulated time (keyframed objects drive it as kinematic bodies), and the time it is at.
+    physics: Option<Box<crate::physics::Sim>>,
+    physics_time: f32,
 }
 impl Job {
     /// Resizes the output to the export size and starts the writer. Video formats fall back to
@@ -683,13 +688,16 @@ impl Job {
             "HDR PNG needs HDR output"
         );
         if options.timeline {
-            // The keys set the frame count and rate.
+            // The keys set the frame count and rate; a simulation without keys runs for the
+            // frames asked for at the timeline's rate.
             anyhow::ensure!(
-                !s.animation.is_empty(),
+                !s.animation.is_empty() || s.physics.enabled,
                 "The scene has no keyframes to follow"
             );
-            options.fps = s.animation.fps;
-            options.frames = s.animation.frames();
+            if !s.animation.is_empty() {
+                options.fps = s.animation.fps;
+                options.frames = s.animation.frames();
+            }
         }
         anyhow::ensure!(options.frames > 0, "No frames to render");
         let mut v = s.clone();
@@ -741,7 +749,12 @@ impl Job {
             environment: crate::sky::environment_key(s),
             environment_changed: false,
             pass: 0,
+            physics: None,
+            physics_time: 0.,
         };
+        if job.options.timeline && s.physics.enabled {
+            job.physics = Some(Box::new(crate::physics::Sim::new(&job.base)));
+        }
         if job.options.timeline
             && let Err(e) = job.animate(g, 0.)
         {
@@ -759,7 +772,10 @@ impl Job {
     }
     /// Motion blur: the shutter is open and something is keyed.
     fn blur(&self) -> bool {
-        self.options.timeline && self.base.animation.shutter > 0. && !self.base.animation.is_empty()
+        self.options.timeline
+            && self.base.animation.shutter > 0.
+            && !self.base.animation.is_empty()
+            && self.physics.is_none()
     }
     /// Puts the animation at `t` into the settings and the GPU scene (new BLAS / TLAS or
     /// materials when they changed).
@@ -768,6 +784,18 @@ impl Job {
         self.settings = self.base.animation.apply(&self.base, t);
         if !self.options.timeline {
             self.settings.yaw = yaw;
+        }
+        if let Some(sim) = &mut self.physics {
+            // The bodies' poses are the simulation's; the keys move the kinematic ones. Time
+            // only runs forward (motion-blur passes before the simulated time hold the poses).
+            sim.take_poses(&mut self.settings);
+            if !sim.sync(&self.settings, false) {
+                **sim = crate::physics::Sim::new(&self.settings);
+            }
+            if t > self.physics_time {
+                sim.run(&mut self.settings, t - self.physics_time);
+                self.physics_time = t;
+            }
         }
         let geometry = crate::geometry_key(&self.settings);
         let materials = crate::material_key(&self.settings);

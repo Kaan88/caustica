@@ -245,6 +245,8 @@ pub struct UiState {
     /// A scene file to open after this frame's UI (the puzzle level menu).
     pub open_pending: Option<std::path::PathBuf>,
     pub physics_record_time: f32,
+    /// Objects the running recording keys (cleared first, thinned out when it stops).
+    pub physics_recorded: Vec<usize>,
     /// A command chosen in an outliner menu, run once the panel is drawn.
     pub pending: Option<Command>,
     pub transform: Option<gizmo::Transform>,
@@ -295,7 +297,7 @@ impl Default for UiState {
                     [1920, 1080],
                     120,
                     32,
-                    "caustica-turntable.mp4".into(),
+                    crate::dirs::output("caustica-turntable.mp4"),
                 )
             },
             show_video: false,
@@ -316,7 +318,10 @@ impl Default for UiState {
             remote_qr: None,
             scope_images: None,
             reference: None,
-            reference_path: "captures/reference.exr".into(),
+            reference_path: crate::dirs::captures()
+                .join("reference.exr")
+                .to_string_lossy()
+                .into(),
             graph: Vec::new(),
             battle_graph: Default::default(),
             thumbnails: Default::default(),
@@ -353,6 +358,7 @@ impl Default for UiState {
             physics_record: false,
             open_pending: None,
             physics_record_time: 0.,
+            physics_recorded: vec![],
             pending: None,
             transform: None,
             header: String::new(),
@@ -621,6 +627,12 @@ impl UiState {
                     o.tether = None;
                 } else if t.object as usize > i {
                     t.object -= 1;
+                }
+            }
+            o.links.retain(|l| l.object as usize != i);
+            for l in &mut o.links {
+                if l.object as usize > i {
+                    l.object -= 1;
                 }
             }
         }
@@ -1119,7 +1131,7 @@ impl App {
         let (path, description) = match current {
             Some(e) if !as_new => (e.path, e.description),
             _ => {
-                let dir = crate::scenes::folder()
+                let dir = crate::dirs::user_scenes()
                     .unwrap_or_else(|| std::path::PathBuf::from("scenes"))
                     .join("user");
                 let _ = std::fs::create_dir_all(&dir);
@@ -1834,7 +1846,7 @@ impl App {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut self.ui.reference_path).desired_width(220.));
                 if ui.button("Browse…").clicked()
-                    && let Some(p) = rfd::FileDialog::new().add_filter("Linear EXR", &["exr"]).set_directory(std::env::current_dir().unwrap_or_default().join("captures")).pick_file()
+                    && let Some(p) = rfd::FileDialog::new().add_filter("Linear EXR", &["exr"]).set_directory(std::path::absolute(crate::dirs::captures()).unwrap_or_default()).pick_file()
                 {
                     self.ui.reference_path = p.to_string_lossy().into();
                     load = true;
@@ -2546,7 +2558,7 @@ impl App {
                         ui.close_menu();
                     }
                     if ui.button("Save settings.json").clicked() {
-                        self.actions.save = Some("settings.json".into());
+                        self.actions.save = Some(crate::dirs::output("settings.json"));
                         ui.close_menu();
                     }
                     if ui.button("Save settings as…").clicked() {
@@ -3144,6 +3156,9 @@ impl App {
             Provider::CodexCli => Some(
                 "Runs `codex exec` with the Codex CLI's login: sign in once with `codex login` (a ChatGPT account works). Install it with: npm install -g @openai/codex",
             ),
+            Provider::OpencodeCli => Some(
+                "Runs `opencode run` with the providers set up in opencode (`opencode auth login`). Fetch under the text box lists `opencode models`; a model is provider/model. Install it with: npm install -g opencode-ai",
+            ),
             _ => None,
         };
         if let Some(note) = note {
@@ -3215,7 +3230,7 @@ impl App {
         ui.horizontal_wrapped(|ui| {
             ui.label("Model");
             let hint = match provider {
-                Provider::ClaudeCli | Provider::CodexCli => "the CLI's default",
+                Provider::ClaudeCli | Provider::CodexCli | Provider::OpencodeCli => "the CLI's default",
                 Provider::ClaudeApi => "claude-opus-5-5",
                 _ => "required",
             };
@@ -4619,7 +4634,7 @@ impl App {
         section(ui, "Scene file");
         ui.horizontal(|ui| {
             if ui.button("Save settings.json").clicked() {
-                self.actions.save = Some("settings.json".into());
+                self.actions.save = Some(crate::dirs::output("settings.json"));
             }
             if ui.button("Save as…").clicked() {
                 self.actions.save = settings_dialog(true);
@@ -4630,12 +4645,12 @@ impl App {
         });
     }
 }
-/// Picks a settings JSON to save (`save`) or load, starting in the working directory where the
-/// quick buttons keep settings.json.
+/// Picks a settings JSON to save (`save`) or load, starting in the output folder where the
+/// quick buttons keep settings.json (`dirs::output_dir`).
 fn settings_dialog(save: bool) -> Option<std::path::PathBuf> {
     let d = rfd::FileDialog::new()
         .add_filter("Settings", &["json"])
-        .set_directory(std::env::current_dir().unwrap_or_default());
+        .set_directory(std::path::absolute(crate::dirs::output_dir()).unwrap_or_default());
     if save {
         d.set_file_name("settings.json").save_file()
     } else {
@@ -4916,9 +4931,10 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                     && let Some(path) = rfd::FileDialog::new()
                         .add_filter("HDRI", &["hdr", "exr"])
                         .set_directory(
-                            crate::scenes::folder()
+                            crate::dirs::scene_roots()
+                                .into_iter()
                                 .map(|f| f.join("hdri"))
-                                .filter(|f| f.is_dir())
+                                .find(|f| f.is_dir())
                                 .or_else(crate::scenes::folder)
                                 .unwrap_or_default(),
                         )

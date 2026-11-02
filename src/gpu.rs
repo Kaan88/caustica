@@ -115,7 +115,8 @@ pub const BATTLE_NAMES: [&str; 4] = ["Path tracing", "Path + ReSTIR DI", "BDPT",
 /// integrators.hlsl: the photon counter and grid heads before the photons.
 const PHOTON_HASH: u64 = 1 << 20;
 const PHOTON_BASE: u64 = 16 + 4 * PHOTON_HASH;
-/// integrators.hlsl traces photons for at most this many bounces (one deposit each at most).
+/// Deposits the photon buffer holds per photon (integrators.hlsl walks up to 32 bounces; Russian
+/// roulette keeps the mean count of deposits far below this, the rest are dropped).
 const PHOTON_BOUNCES: u32 = 10;
 /// Per-quadrant state of battle mode: samples, GPU time spent (ms), measured ms per sample
 /// (0 = not measured yet) and the fractional samples carried to the next frame.
@@ -2437,6 +2438,14 @@ impl Gpu {
             for v in self.static_cache.iter().filter(|v| v.material != 3) {
                 lo = lo.min(Vec3::from(v.position));
                 hi = hi.max(Vec3::from(v.position));
+            }
+            // Fog scatters light toward the camera wherever it is: the sphere covers the fog
+            // box too, or multiple scattering outside the objects' sphere would be missing
+            // (underwater: 42% dark).
+            if s.fog.density > 0. && lo.is_finite() {
+                let f = &s.fog;
+                lo = lo.min(Vec3::new(-f.extent, -1., -f.extent));
+                hi = hi.max(Vec3::new(f.extent, f.height, f.extent));
             }
             self.bounds = if lo.is_finite() {
                 let c = (lo + hi) * 0.5;

@@ -4,6 +4,7 @@ mod anim;
 mod assets;
 mod audio;
 mod browser;
+mod dirs;
 mod display;
 mod editor;
 mod environment;
@@ -60,7 +61,7 @@ use winit::{
 #[derive(Default)]
 struct Actions {
     reset: bool,
-    /// Settings JSON to write or read (the quick buttons use ./settings.json).
+    /// Settings JSON to write or read (the quick buttons use settings.json in `dirs::output_dir`).
     save: Option<PathBuf>,
     load: Option<PathBuf>,
     /// Save the current image (Export tab, F12) in this format.
@@ -178,6 +179,8 @@ struct App {
     timeline: anim::Timeline,
     /// Track 17: the running rigid-body simulation (`Settings::physics`).
     physics: Option<physics::Sim>,
+    /// Self-test frames 211–213: the scene to restore and the simulated time when edited.
+    physics_test: Option<(Box<Settings>, f32)>,
     /// Track 17 laser puzzle state (`Settings::puzzle`).
     laser: laser::Laser,
     /// A running `--script` (track 19).
@@ -694,6 +697,7 @@ impl App {
             gamepad: None,
             timeline: anim::Timeline::default(),
             physics: None,
+            physics_test: None,
             laser: laser::Laser::default(),
             script,
             audio: None,
@@ -1014,14 +1018,14 @@ impl App {
                     self.ui.export_scale = 1;
                     // One pass (4 spp), so the job ends within frame 171; no stale file counts.
                     self.ui.export_samples = 4;
-                    let _ = std::fs::remove_file("caustica-high-res.png");
+                    let _ = std::fs::remove_file(video::ImageFormat::Png.file("caustica-high-res"));
                     self.actions.high_res = true;
                 }
                 // Every upscaler on the native path at half resolution, then back to RR.
                 172..=176 => {
                     anyhow::ensure!(
                         self.export.is_none()
-                            && std::path::Path::new("caustica-high-res.png").is_file(),
+                            && video::ImageFormat::Png.file("caustica-high-res").is_file(),
                         "The high-resolution still did not finish"
                     );
                     self.settings.rr = false;
@@ -1181,6 +1185,102 @@ impl App {
                     let path = std::env::temp_dir().join("caustica-self-test.cube");
                     std::fs::write(&path, text)?;
                     self.settings.lut_path = path.to_string_lossy().into();
+                }
+                // Track 17: a running simulation (a ball falls on a fixed box, a cloth drapes),
+                // then a spawn mid-run joins it without a restart.
+                211 => {
+                    let saved = Box::new(self.settings.clone());
+                    let s = &mut self.settings;
+                    s.objects.clear();
+                    let grey = scene::Material {
+                        color: [0.7; 3],
+                        ..Default::default()
+                    };
+                    s.objects.push(scene::Object {
+                        name: "Table".into(),
+                        shape: scene::Shape::Box,
+                        body: scene::Body::Fixed,
+                        position: [0., 0.],
+                        grounded: false,
+                        elevation: -0.7,
+                        material: grey.clone(),
+                        ..Default::default()
+                    });
+                    s.objects.push(scene::Object {
+                        name: "Ball".into(),
+                        shape: scene::Shape::Sphere,
+                        position: [0.6, 0.],
+                        size: 0.4,
+                        grounded: false,
+                        elevation: 0.5,
+                        material: grey.clone(),
+                        ..Default::default()
+                    });
+                    s.objects.push(scene::Object {
+                        name: "Cloth".into(),
+                        shape: scene::Shape::Box,
+                        position: [0., 0.],
+                        size: 1.6,
+                        grounded: false,
+                        elevation: -0.2,
+                        material: grey,
+                        cloth: Some(scene::Cloth {
+                            resolution: 12,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    });
+                    s.physics.enabled = true;
+                    self.physics_test = Some((saved, 0.));
+                }
+                212 => {
+                    // A fixed 8 steps (headless frames can be shorter than one step).
+                    let sim = self
+                        .physics
+                        .as_mut()
+                        .context("The simulation did not start")?;
+                    sim.advance(&mut self.settings, 0.1);
+                    let ball = &self.settings.objects[1];
+                    anyhow::ensure!(
+                        ball.elevation < 0.5,
+                        "The ball did not fall ({})",
+                        ball.elevation
+                    );
+                    let cloth = &self.settings.objects[2].mesh;
+                    anyhow::ensure!(
+                        cloth.starts_with("cloth:"),
+                        "The cloth has no mesh ({cloth})"
+                    );
+                    let t = sim.elapsed();
+                    if let Some(test) = &mut self.physics_test {
+                        test.1 = t;
+                    }
+                    let mut box_ = self.settings.objects[0].clone();
+                    box_.name = "Spawned".into();
+                    box_.body = scene::Body::Dynamic;
+                    box_.size = 0.3;
+                    box_.position = [-0.6, 0.];
+                    box_.elevation = 0.3;
+                    self.settings.objects.push(box_);
+                }
+                213 => {
+                    // 4 steps: a restarted simulation would be at 0.033 s, short of `before`.
+                    let sim = self.physics.as_mut().context("The simulation stopped")?;
+                    sim.advance(&mut self.settings, 0.034);
+                    let before = self.physics_test.as_ref().map_or(0., |t| t.1);
+                    anyhow::ensure!(
+                        sim.elapsed() > before,
+                        "The spawn restarted the simulation ({} after {before})",
+                        sim.elapsed()
+                    );
+                    anyhow::ensure!(
+                        sim.moving_objects().len() == 3,
+                        "Moving objects after the spawn: {:?}",
+                        sim.moving_objects()
+                    );
+                    let (saved, _) = self.physics_test.take().context("No saved scene")?;
+                    self.settings = *saved;
+                    self.settings.physics.enabled = false;
                 }
                 // Physics on while a gizmo arrow holds an object: it must not fall.
                 237 => {
@@ -3812,6 +3912,8 @@ fn main() {
 }
 fn run() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // An installed copy keeps its files per user; carry over what older builds left beside it.
+    dirs::migrate();
     if let saver::Mode::Preview(parent) = saver::mode(&args) {
         saver::preview(parent);
         return Ok(());

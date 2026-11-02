@@ -1494,6 +1494,63 @@ mod tests {
         assert!(generate("nope", 1).is_err());
     }
     #[test]
+    fn the_jointed_and_cloth_playgrounds_hold_together() {
+        let run = |kind: &str, seconds: f32| {
+            let mut r = Rng::new(3);
+            let mut s0 = build_playground(base(&mut r), &mut r, kind);
+            s0.validate().unwrap_or_else(|e| panic!("{kind}: {e:#}"));
+            let mut s = s0.clone();
+            let mut sim = crate::physics::Sim::new(&s);
+            sim.run(&mut s, seconds);
+            (s0, s)
+        };
+        let centre = |o: &Object| crate::geometry::object_frame(o).0;
+        // The house of cards stands (it settles by millimetres).
+        let (a, b) = run("cards", 4.);
+        let worst = a
+            .objects
+            .iter()
+            .zip(&b.objects)
+            .map(|(x, y)| (centre(x) - centre(y)).length())
+            .fold(0., f32::max);
+        assert!(worst < 0.03, "a card moved {worst}");
+        // The chain swings down but its links stay together.
+        let (_, b) = run("chain", 2.);
+        for w in b.objects[1..].windows(2) {
+            let d = (centre(&w[0]) - centre(&w[1])).length();
+            assert!(d < 0.2, "chain links {} apart", d);
+        }
+        let weight = b.objects.last().unwrap();
+        assert!(
+            centre(weight).y < 0.5,
+            "the chain fell and hangs ({:?})",
+            centre(weight)
+        );
+        // The bridge sags between its posts and carries the ball.
+        let (a, b) = run("bridge", 2.);
+        for (x, y) in a.objects.iter().zip(&b.objects) {
+            if x.name.starts_with("Plank") {
+                let (p, q) = (centre(x), centre(y));
+                assert!((p - q).length() < 0.35, "{} moved from {p} to {q}", x.name);
+            }
+        }
+        let ball = centre(b.objects.last().unwrap());
+        assert!(ball.y > -0.8, "the ball stays on the deck ({ball})");
+        // Both cloths publish a mesh; nothing falls through the floor.
+        let (_, b) = run("cloth", 1.);
+        for o in b.objects.iter().filter(|o| o.cloth.is_some()) {
+            assert!(o.mesh.starts_with("cloth:"), "{} mesh {}", o.name, o.mesh);
+            let m = crate::mesh::of(o).unwrap();
+            let (c, r) = crate::geometry::object_frame(o);
+            let k = crate::geometry::object_scale(o);
+            let low = m
+                .iter()
+                .map(|(p, _)| (c + r * (*p * k)).y)
+                .fold(f32::MAX, f32::min);
+            assert!(low > -1.01, "{} dips to {low}", o.name);
+        }
+    }
+    #[test]
     fn menger_level_two_fits_the_object_budget() {
         let s = generate("menger", 1).unwrap();
         assert!(
@@ -1525,10 +1582,16 @@ fn block(name: String, d: [f32; 3], c: [f32; 3], yaw: f32, m: Material) -> Objec
 /// Track 17: stable structures to knock down, opened with the physics simulation on (the
 /// structures settle in the first second, then sleep). A small gap between blocks keeps the first contacts gentle.
 fn playground(r: &mut Rng) -> Settings {
-    let mut s = base(r);
+    let s = base(r);
+    let kind = r.pick(&PLAYGROUNDS);
+    build_playground(s, r, kind)
+}
+const PLAYGROUNDS: [&str; 9] = [
+    "dominoes", "wall", "pyramid", "jenga", "balls", "cards", "chain", "bridge", "cloth",
+];
+fn build_playground(mut s: Settings, r: &mut Rng, kind: &str) -> Settings {
     s.physics.enabled = true;
     s.floor_extent = s.floor_extent.max(6.);
-    let kind = r.pick(&["dominoes", "wall", "pyramid", "jenga", "balls"]);
     let paint = |r: &mut Rng, h: f32| Material {
         color: hue(
             h + r.range(-0.03, 0.03),
@@ -1540,12 +1603,12 @@ fn playground(r: &mut Rng) -> Settings {
     };
     match kind {
         "dominoes" => {
-            // An Archimedean spiral of dominoes standing on end.
+            // An Archimedean spiral of dominoes standing on end, about three turns.
             let (w, h, t) = (0.1, 0.2, 0.03);
             let h0 = r.next();
-            let mut a: f32 = 3.;
-            for i in 0..140 {
-                let rad = 0.12 * a;
+            let mut a: f32 = 6.;
+            for i in 0..220 {
+                let rad = 0.06 * a;
                 let (x, z) = (rad * a.cos(), rad * a.sin());
                 let yaw = -a.to_degrees();
                 let m = paint(r, h0 + i as f32 * 0.007);
@@ -1557,7 +1620,7 @@ fn playground(r: &mut Rng) -> Settings {
                     m,
                 ));
                 a += 0.12 / rad.max(0.15);
-                if rad > 1.4 {
+                if rad > 1.6 {
                     break;
                 }
             }
@@ -1624,6 +1687,268 @@ fn playground(r: &mut Rng) -> Settings {
                     ));
                 }
             }
+        }
+        "cards" => {
+            // A house of cards: storeys of leaning pairs (A-frames), a flat card on each pair
+            // of neighbouring apexes, one frame fewer per storey.
+            let (h, w, t) = (0.35, 0.25, 0.01);
+            let lean: f32 = 18.;
+            let half = h / 2. * lean.to_radians().sin();
+            let rise = h * lean.to_radians().cos();
+            // A card spans 2·half across, a frame 4·half.
+            let pitch = 4. * half + 0.02;
+            let storeys = (3. + r.next() * 2.) as usize;
+            let face = r.next();
+            // Card on card needs grip: the frames' feet slide apart at the default friction.
+            s.physics.friction = 1.;
+            // Size 0.1 (scale factors ×10): a card's thickness is below validate()'s scale range
+            // at size 1.
+            let fine = |mut o: Object| {
+                o.size = 0.1;
+                o.stretch *= 10.;
+                o.scale_xz = o.scale_xz.map(|v| v * 10.);
+                o
+            };
+            let mut y = -1.;
+            for k in 0..storeys {
+                let n = storeys - k + 1;
+                let x0 = -(n as f32 - 1.) / 2. * pitch;
+                for i in 0..n {
+                    let x = x0 + i as f32 * pitch;
+                    for side in [-1f32, 1.] {
+                        let mut c = block(
+                            format!("Card {}", s.objects.len() + 1),
+                            [t, h, w],
+                            [x + side * half * 0.5, y + rise / 2., 0.],
+                            0.,
+                            paint(r, face + side * 0.02),
+                        );
+                        // Each card's top leans in to the frame's apex.
+                        c.tilt = [0., side * lean];
+                        // The tops touch at the apex.
+                        c.position[0] = x + side * (half + t * 0.5);
+                        s.objects.push(fine(c));
+                    }
+                }
+                // The apex corners stand t/2·sin(lean) above `rise`; 2 mm of clearance.
+                y += rise + t * 0.5 * lean.to_radians().sin() + 0.002;
+                if k + 1 < storeys {
+                    for i in 0..n - 1 {
+                        let x = x0 + (i as f32 + 0.5) * pitch;
+                        let c = block(
+                            format!("Card {}", s.objects.len() + 1),
+                            [pitch * 0.98, t, w],
+                            [x, y + t / 2., 0.],
+                            0.,
+                            paint(r, face + 0.5),
+                        );
+                        s.objects.push(fine(c));
+                    }
+                    y += t + 0.001;
+                }
+            }
+        }
+        "chain" => {
+            // A chain of links from a fixed bar, released sideways so it swings, with a weight
+            // at the end; each link is ball-jointed to the one above at their shared end.
+            let bar = block(
+                "Bar".into(),
+                [1.2, 0.06, 0.06],
+                [0., 0.9, 0.],
+                0.,
+                Material {
+                    color: [0.25; 3],
+                    metallic: 1.,
+                    roughness: 0.3,
+                    ..Material::default()
+                },
+            );
+            s.objects.push(Object {
+                body: crate::scene::Body::Fixed,
+                ..bar
+            });
+            let steel = Material {
+                color: [0.8, 0.78, 0.75],
+                metallic: 1.,
+                roughness: 0.25,
+                ..Material::default()
+            };
+            let (n, len) = (14, 0.12);
+            // Laid out along +x from the bar's end (a horizontal start: the chain falls and swings).
+            let start = [0.6, 0.87];
+            for i in 0..n {
+                let x = start[0] + (i as f32 + 0.5) * len;
+                let mut link = block(
+                    format!("Link {}", i + 1),
+                    [0.025, len * 0.9, 0.025],
+                    [x, start[1], 0.],
+                    0.,
+                    steel.clone(),
+                );
+                link.shape = Shape::Cylinder;
+                link.tilt = [0., 90.];
+                // Dense links: jointed bodies of very different masses make the solver jitter.
+                link.mass = 20.;
+                link.links.push(crate::scene::Link {
+                    object: s.objects.len() as u32 - 1,
+                    at: [start[0] + i as f32 * len, start[1], 0.],
+                });
+                s.objects.push(link);
+            }
+            let end = start[0] + n as f32 * len;
+            s.objects.push(Object {
+                links: vec![crate::scene::Link {
+                    object: s.objects.len() as u32 - 1,
+                    at: [end, start[1], 0.],
+                }],
+                ..at(
+                    Object {
+                        name: "Weight".into(),
+                        shape: Shape::Sphere,
+                        position: [end + 0.08, 0.],
+                        size: 0.08 / 0.35,
+                        stretch: 1.,
+                        material: steel,
+                        mass: 2.,
+                        ..Object::default()
+                    },
+                    start[1],
+                )
+            });
+        }
+        "bridge" => {
+            // A rope bridge: planks between two fixed posts, each plank jointed to its
+            // neighbours at both rope lines; a ball rolls across.
+            let wood = |r: &mut Rng| paint(r, 0.08);
+            let (span, n, z) = (2.4, 16, 0.22);
+            let deck = -0.3;
+            let post = |s: &mut Settings, x: f32, r: &mut Rng| {
+                let p = block(
+                    format!("Post {}", s.objects.len() + 1),
+                    [0.12, 0.7, 0.6],
+                    [x, -0.65, 0.],
+                    0.,
+                    wood(r),
+                );
+                s.objects.push(Object {
+                    body: crate::scene::Body::Fixed,
+                    ..p
+                });
+            };
+            post(&mut s, -span / 2. - 0.06, r);
+            let first = s.objects.len() as u32 - 1;
+            let pitch = span / n as f32;
+            for i in 0..n {
+                let x = -span / 2. + (i as f32 + 0.5) * pitch;
+                let mut plank = block(
+                    format!("Plank {}", i + 1),
+                    [pitch * 0.9, 0.04, 2. * z + 0.04],
+                    [x, deck, 0.],
+                    0.,
+                    wood(r),
+                );
+                let left = -span / 2. + i as f32 * pitch;
+                let to = if i == 0 {
+                    first
+                } else {
+                    s.objects.len() as u32 - 1
+                };
+                for side in [-z, z] {
+                    plank.links.push(crate::scene::Link {
+                        object: to,
+                        at: [left, deck, side],
+                    });
+                }
+                s.objects.push(plank);
+            }
+            post(&mut s, span / 2. + 0.06, r);
+            // The last plank hangs from the far post too.
+            let last = s.objects.len() - 2;
+            let far = s.objects.len() as u32 - 1;
+            for side in [-z, z] {
+                s.objects[last].links.push(crate::scene::Link {
+                    object: far,
+                    at: [span / 2., deck, side],
+                });
+            }
+            let ball = paint(r, 0.6);
+            s.objects.push(at(
+                Object {
+                    name: "Ball".into(),
+                    shape: Shape::Sphere,
+                    position: [-span / 2. + 0.2, 0.],
+                    size: 0.1 / 0.35,
+                    stretch: 1.,
+                    material: ball,
+                    mass: 3.,
+                    ..Object::default()
+                },
+                deck + 0.4,
+            ));
+        }
+        "cloth" => {
+            // A cloth dropped over a fixed table-like box and a ball, beside a curtain pinned
+            // along its top edge.
+            let grey = Material {
+                color: [0.75; 3],
+                roughness: 0.5,
+                ..Material::default()
+            };
+            let table = block(
+                "Table".into(),
+                [0.8, 0.5, 0.8],
+                [-0.5, -0.75, 0.],
+                0.,
+                grey.clone(),
+            );
+            s.objects.push(Object {
+                body: crate::scene::Body::Fixed,
+                ..table
+            });
+            let fabric = |r: &mut Rng, h: f32| Material {
+                roughness: 0.9,
+                sheen: 0.6,
+                ..paint(r, h)
+            };
+            let h0 = r.next();
+            s.objects.push(at(
+                Object {
+                    name: "Tablecloth".into(),
+                    shape: Shape::Box,
+                    position: [-0.5, 0.],
+                    // Half-width 0.7 (the cloth spans the local x-z square at its scale).
+                    size: 2.,
+                    stretch: 1.,
+                    material: fabric(r, h0),
+                    cloth: Some(crate::scene::Cloth {
+                        resolution: 32,
+                        ..Default::default()
+                    }),
+                    ..Object::default()
+                },
+                0.,
+            ));
+            s.objects.push(at(
+                Object {
+                    name: "Curtain".into(),
+                    shape: Shape::Box,
+                    position: [0.9, -0.3],
+                    size: 1.4,
+                    stretch: 1.,
+                    // Upright: the pinned (-z) edge at the top.
+                    tilt: [90., 0.],
+                    material: fabric(r, h0 + 0.5),
+                    cloth: Some(crate::scene::Cloth {
+                        resolution: 24,
+                        pin: crate::scene::ClothPin::Edge,
+                        stiffness: 0.1,
+                    }),
+                    ..Object::default()
+                },
+                -0.25,
+            ));
+            s.physics.wind = [0.6, 0., 0.8];
+            s.physics.gusts = 0.6;
         }
         _ => {
             // A ball pit: a low box of four walls filled with a loose heap that settles.

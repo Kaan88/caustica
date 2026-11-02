@@ -1,13 +1,16 @@
 # Copies the current release build into builds/<date>-<name>/ so it can be run later on its own:
 # the exe, the upscaler DLLs, the scene packs (without the thumbnail cache) and a NOTES.md.
 #   powershell -File tools/snapshot_build.ps1 -Name scene-files -Notes "What changed"
+# -Source takes another build folder, e.g. target\validation\release (checks stay away from the
+# launcher's target\release).
 param(
     [Parameter(Mandatory = $true)][string]$Name,
-    [string]$Notes = ""
+    [string]$Notes = "",
+    [string]$Source = "target\release"
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$release = Join-Path $root "target\release"
+$release = if ([System.IO.Path]::IsPathRooted($Source)) { $Source } else { Join-Path $root $Source }
 if (-not (Test-Path (Join-Path $release "caustica.exe"))) { throw "Build the release exe first (cargo build --release)" }
 $date = Get-Date -Format "yyyy-MM-dd"
 $dest = Join-Path $root "builds\$date-$Name"
@@ -43,4 +46,7 @@ $body = @"
 $Notes
 "@
 Set-Content -Path (Join-Path $dest "NOTES.md") -Value $body -Encoding utf8
+# Portable: a snapshot keeps its data beside itself (src/dirs.rs) instead of migrating the
+# hard-linked downloads into %APPDATA%.
+Set-Content -Path (Join-Path $dest "portable") -Value "" -Encoding ascii
 Write-Output "SNAPSHOT $dest"

@@ -989,8 +989,9 @@ void write_guides(uint2 p,out Hit guide){
                 if(h.front)skip=top>=0 && (e>>13)<(medium_at(media,top)>>13);
                 else skip=medium_find(media,e)>=0 && medium_at(media,top)!=e;
                 if(!skip)break;
-                media=h.front?medium_push(media,e):medium_remove(media,e);{int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;}
+                // The segment up to the false hit lies in the medium before it.
                 throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
+                media=h.front?medium_push(media,e):medium_remove(media,e);{int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;}
                 false_hits++;origin=h.p-h.ng*0.0003;
                 record(8,bounce,h.p,throughput,0,direction);
             }

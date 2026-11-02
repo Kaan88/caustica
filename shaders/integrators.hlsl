@@ -1,7 +1,10 @@
 // Track 15 part 2: bidirectional path tracing (BDPT) and progressive photon mapping beside the
 // path tracer, built from its pieces (intersect, eval_bsdf, the light table). See engine-notes
 // "BDPT and photon mapping". Both use white noise, see glass as solid in shadow rays, ignore
-// volumes, portals, nested media and the light-sampling mode, and use a box pixel filter.
+// portals, nested-dielectric false hits and the light-sampling mode, and use a box pixel filter.
+// Media (track 12's homogeneous media in transmissive objects and the fog box) are walked by
+// free-flight sampling as trace walks them: BDPT gets scatter vertices with HG phase functions,
+// photon mapping volume photons (see engine-notes "Media in BDPT and photon mapping").
 #include "pathtrace.hlsl"
 // BDPT: light-tracing splats (rgb floats per render pixel at integrator.z). Photon mapping: a
 // counter, HASH list heads, then 32-byte photons (position, incoming direction, power, next).
@@ -10,13 +13,71 @@ static const uint HASH=1u<<20,PHOTON_BASE=16+4*HASH;
 // A path vertex. info: material id (bits 0-23) and the flags below. beta: the subpath's
 // throughput arriving there; pdf_fwd / pdf_rev: area densities of reaching it from the
 // subpath's own side / from the other side (PBRT-v3's BDPT notation).
-static const uint V_DELTA=1u<<24,V_TEXTURED=1u<<25,V_NO_BSDF=1u<<26,V_LIGHT=1u<<27,V_CAMERA=1u<<28,V_FRONT=1u<<29;
-struct BVertex{float3 p;uint info;float3 n;float pdf_fwd;float3 beta;float pdf_rev;float3 albedo;uint emitter;float3 tangent;float2 rough_metal;};
+// V_MEDIUM: a scatter point in a medium (no surface: n = 0, g in rough_metal.x). medium: the
+// stack's top entry (medium_entry, 0 = none, so the fog box applies) on the side the walk
+// arrived from; connections leave on that side (glass blocks them), so it is the connection's.
+static const uint V_DELTA=1u<<24,V_TEXTURED=1u<<25,V_NO_BSDF=1u<<26,V_LIGHT=1u<<27,V_CAMERA=1u<<28,V_FRONT=1u<<29,V_MEDIUM=1u<<30;
+struct BVertex{float3 p;uint info;float3 n;float pdf_fwd;float3 beta;float pdf_rev;float3 albedo;uint emitter;float3 tangent;float2 rough_metal;uint medium;};
 BVertex make_vertex(Hit h,float3 beta,float pdf_fwd){
     BVertex x;x.p=h.p;x.n=h.n;x.beta=beta;x.pdf_fwd=pdf_fwd;x.pdf_rev=0;
     x.info=h.material|(h.textured?V_TEXTURED:0)|(h.front?V_FRONT:0)|(((uint)materials[h.material].lobes.w&1u)!=0?V_NO_BSDF:0)|(((uint)materials[h.material].lobes.w&4096u)!=0?V_DELTA:0);
-    x.albedo=h.albedo;x.rough_metal=h.rough_metal;x.tangent=h.tangent;x.emitter=h.emitter;return x;
+    x.albedo=h.albedo;x.rough_metal=h.rough_metal;x.tangent=h.tangent;x.emitter=h.emitter;x.medium=0;return x;
 }
+BVertex medium_vertex(float3 p,float3 beta,float pdf_fwd,uint medium,float g){
+    BVertex x=(BVertex)0;x.p=p;x.beta=beta;x.pdf_fwd=pdf_fwd;x.info=V_MEDIUM;x.medium=medium;x.rough_metal.x=g;return x;
+}
+uint top_entry(uint64_t media){int t=medium_top(media);return t>=0?medium_at(media,t):0;}
+// The cosine a density or a geometry term takes at x (1 at a scatter point).
+float vcos(BVertex x,float3 w){return (x.info&V_MEDIUM)!=0?1:abs(dot(x.n,w));}
+// Transmittance along len of w from a in a vertex's medium: an object's extinction plus its
+// Beer colour, else the fog box's part of the segment.
+float3 segment_tr(uint medium,float3 a,float3 w,float len){
+    if(medium!=0){Material m=materials[(medium&0x1fffu)-1];return exp(-(m.medium.w-log(max(m.color_rough.rgb,0.001)))*len);}
+    float t0,t1;return fog_interval(a,w,len,t0,t1)?exp(-fog.x*(t1-t0)).xxx:float3(1,1,1);
+}
+// A walk's medium state. After a vertex whose sampled direction crosses a dielectric (n faces
+// the arriving walk), enter or leave its medium as trace does (no false-hit test).
+struct Walk{uint64_t media;float3 absorption;float density;};
+Walk new_walk(){Walk k;k.media=0;k.absorption=0;k.density=0;return k;}
+void cross_surface(BVertex x,float3 next,inout Walk k){
+    uint id=x.info&0xffffffu;if((x.info&V_MEDIUM)!=0 || materials[id].lobes.z<=0 || dot(next,x.n)>=0)return;
+    uint e=medium_entry(id,materials[id].lobes.w);k.media=(x.info&V_FRONT)!=0?medium_push(k.media,e):medium_remove(k.media,e);
+    int top=medium_top(k.media);k.absorption=medium_absorption(k.media,top);k.density=top>=0?medium_material(k.media,top).medium.w:0;
+}
+// Free-flight sampling on the grey extinction up to tmax (the next surface), as trace samples
+// it: a scatter at ts (the pdf cancels the transmittance, so the caller multiplies by albedo).
+bool free_flight(Walk k,float3 o,float3 d,float tmax,out float ts,out float3 albedo,out float g,out float sigma){
+    ts=tmax;albedo=1;g=0;sigma=0;if(!(k.density>0 || (fog.x>0 && k.media==0)))return false;
+    float t0,t1;if(!medium_params(k.media,o,d,tmax,sigma,albedo,g,t0,t1))return false;
+    ts=t0-log(1-random())/sigma;return ts<t1;
+}
+// A nested-dielectric false hit (see trace's medium_top): entering a dielectric ranked below the
+// current medium, or leaving one that is not the current medium. Updates the stack.
+bool false_hit(Hit h,inout Walk k){
+    if(materials[h.material].lobes.z<=0)return false;
+    int top=medium_top(k.media);uint e=medium_entry(h.material,materials[h.material].lobes.w);bool skip;
+    if(h.front)skip=top>=0 && (e>>13)<(medium_at(k.media,top)>>13);
+    else skip=medium_find(k.media,e)>=0 && medium_at(k.media,top)!=e;
+    if(!skip)return false;
+    k.media=h.front?medium_push(k.media,e):medium_remove(k.media,e);
+    top=medium_top(k.media);k.absorption=medium_absorption(k.media,top);k.density=top>=0?medium_material(k.media,top).medium.w:0;
+    return true;
+}
+// A walk's next segment from o along d: free flight in each medium crossed, false hits passed
+// straight through (at most 32), absorption applied to beta. 0: escaped; 1: surface hit h;
+// 2: a scatter at xs (the caller multiplies by alb). o ends at the last segment's start.
+uint walk_step(inout float3 o,float3 d,bool camera,inout Walk k,inout float3 beta,out Hit h,out float3 xs,out float3 alb,out float g,out float sigma){
+    xs=o;
+    for(uint f=0;;f++){
+        bool found=intersect(o,d,1e4,h,false,camera);float ts;
+        if(free_flight(k,o,d,found?h.t:1e4,ts,alb,g,sigma)){beta*=exp(-k.absorption*ts);xs=o+d*ts;return 2;}
+        if(!found)return 0;
+        beta*=exp(-k.absorption*h.t);
+        if(f>=32 || !false_hit(h,k))return 1;
+        o=h.p-h.ng*0.0003;
+    }
+}
+float area_pdf(float pdf_w,float3 from,float3 at,float3 n,bool medium){float3 w=at-from;float d2=max(dot(w,w),1e-12);return pdf_w*(medium?1:abs(dot(n,w))*rsqrt(d2))/d2;}
 // The vertex's material as trace builds it: pattern, texture maps, thin film at the cosine of v,
 // and a grating wavelength fixed per vertex (so connections and samples agree).
 Material vertex_material(BVertex x,float3 v){
@@ -35,25 +96,33 @@ float3 vertex_emission(BVertex x,float3 w){
 // f(v, l) with v toward the camera side and l toward the light side, and the density of sampling
 // l given v; 0 below the surface (n faces the ray that found the vertex).
 float3 vertex_f(BVertex x,float3 v,float3 l,out float pdf){
+    if((x.info&V_MEDIUM)!=0){pdf=hg_pdf(dot(-v,l),x.rough_metal.x);return pdf;}
     pdf=0;if((x.info&(V_NO_BSDF|V_CAMERA|V_LIGHT))!=0 || dot(x.n,v)<=0 || dot(x.n,l)<=0)return 0;
     Material m=vertex_material(x,v);return eval_bsdf(m,x.n,x.tangent,v,l,pdf);
 }
 // The solid-angle density of sampling wout at x given win.
 float vertex_pdf(BVertex x,float3 win,float3 wout){float pdf;vertex_f(x,win,wout,pdf);return pdf;}
-float to_area(float pdf,float3 from,BVertex to){float3 w=to.p-from;float d2=max(dot(w,w),1e-12);return pdf*abs(dot(to.n,w))*rsqrt(d2)/d2;}
+float to_area(float pdf,float3 from,BVertex to){float3 w=to.p-from;float d2=max(dot(w,w),1e-12);return pdf*((to.info&V_MEDIUM)!=0?1:abs(dot(to.n,w))*rsqrt(d2))/d2;}
 // Samples the next direction of a walk arriving along d, the way trace samples it. Camera
 // subpaths (radiance) carry the eta² of refraction, light subpaths do not. mode 0: the whole
 // material; 1: its dielectric lobe only; 2: everything but the dielectric (pdfs divided by
 // 1 - transmission). pf: density of next given -d; pr: of -d given next (both 0 when delta).
+// The medium stack of the walk calling sample_vertex (set before each call).
+static uint64_t sv_media;
 bool sample_vertex(inout BVertex x,float3 d,bool radiance,uint mode,out float3 next,out float pf,out float pr,inout float3 beta,inout float3 absorption){
     pf=0;pr=0;next=d;
+    // A scatter point: the HG phase function, sampled exactly (f / pdf = 1, symmetric pdfs).
+    if((x.info&V_MEDIUM)!=0){next=hg_sample(d,x.rough_metal.x,pf);pr=pf;return pf>0;}
     if((x.info&V_NO_BSDF)!=0)return false;
     Material m=vertex_material(x,-d);bool front=(x.info&V_FRONT)!=0;float z=m.lobes.z;
     // Beam splitter (track 17): reflect with probability `reflectivity`, else pass straight on.
     if(((uint)m.lobes.w&4096u)!=0){if(front){beta*=m.color_rough.rgb;if(random()<m.lobes.y)next=reflect(d,x.n);}return true;}
     if(mode==1 || (mode==0 && random()<z)){
         if(z<=0)return false;
-        float n1=front?1:m.optical.x,n2=front?m.optical.x:1,eta=n1/n2,fr=fresnel_dielectric(saturate(dot(-d,x.n)),eta);
+        // Both sides' indices from the walk's medium stack (sv_media), as trace takes them.
+        uint e=medium_entry(x.info&0xffffffu,m.lobes.w);uint64_t after=front?medium_push(sv_media,e):medium_remove(sv_media,e);
+        float n1=front?medium_ior(sv_media,medium_top(sv_media)):m.optical.x,n2=front?m.optical.x:medium_ior(after,medium_top(after));
+        float eta=n1/n2,fr=fresnel_dielectric(saturate(dot(-d,x.n)),eta);
         float3 frc=fr.xxx;
         if(m.surface_scale.z>0 && fr<1){frc=lerp(frc,m.base_scale.rgb,m.surface_scale.z);fr=clamp((frc.r+frc.g+frc.b)/3,1e-4,1-1e-4);}
         bool reflected=random()<fr;
@@ -139,12 +208,18 @@ bool connected(float3 a,float3 na,float3 b,float3 nb){
 }
 // --- BDPT -------------------------------------------------------------------------------
 // Veach's bidirectional estimator in PBRT-v3's form, with the balance heuristic over every
-// strategy (s light vertices, t camera vertices). Up to 10 bounces. Light tracing (t = 1)
+// strategy (s light vertices, t camera vertices). Up to BDPT_BOUNCES bounces. Light tracing (t = 1)
 // splats into other pixels and needs a pinhole perspective camera without RR's jitter
 // (integrator.w bit 0); without it the camera counts as a delta vertex. The sky, the HDRI and
 // the suns start no light subpath: they keep trace's two strategies (hits and NEE).
-#define CAMERA_VERTICES 12
-#define LIGHT_VERTICES 11
+// Up to BDPT_BOUNCES bounces (mirror rooms and the Ganzfeld set 16-24; at 10 they were 15-26%
+// dark). The arrays live in local memory; only the vertices a sample reaches are touched.
+#define BDPT_BOUNCES 24
+#define CAMERA_VERTICES (BDPT_BOUNCES+2)
+#define LIGHT_VERTICES (BDPT_BOUNCES+1)
+// Photon walks and gathers: deposits beyond the buffer's photons × 10 are dropped, which Russian
+// roulette keeps rare.
+#define PHOTON_WALK 32u
 static BVertex cam[CAMERA_VERTICES],lig[LIGHT_VERTICES];
 float remap0(float x){return x!=0?x:1;}
 // One strategy's weighted contribution. A non-finite term (a half vector of opposite directions,
@@ -186,21 +261,29 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
     float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)return 0;
     // Camera subpath.
     BVertex x0=(BVertex)0;x0.p=o;x0.beta=camera_weight;x0.info=V_CAMERA|(lt?0:V_DELTA);cam[0]=x0;
-    uint T=1;float3 beta=camera_weight,absorption=0;float pdf_w=camera_pdf_w(d),prev_pdf=0;bool prev_delta=true;
+    uint T=1;float3 beta=camera_weight,absorption=0;float pdf_w=camera_pdf_w(d),prev_pdf=0;bool prev_delta=true;Walk k=new_walk();
     cone_width=pixel_width;cone_spread=pixel_angle;
     for(;;){
-        Hit h;
-        if(!intersect(o,d,1e4,h,false,T==1)){add_term(L,beta*escape(d,T==1,prev_delta,prev_pdf,p_env));break;}
-        beta*=exp(-absorption*h.t);
-        BVertex x=make_vertex(h,beta,pdf_w*abs(dot(h.n,d))/max(h.t*h.t,1e-12));
+        Hit h;float3 xs,alb;float g,sigma;uint step=walk_step(o,d,T==1,k,beta,h,xs,alb,g,sigma);
+        if(step==2){
+            beta*=alb;
+            BVertex x=medium_vertex(xs,beta,area_pdf(pdf_w,cam[T-1].p,xs,0,true),top_entry(k.media),g);cam[T]=x;T++;
+            if(T>D+1)break;
+            float3 next;float pf,pr;if(!sample_vertex(x,d,true,0,next,pf,pr,beta,absorption))break;
+            if(T-2>0)cam[T-2].pdf_rev=to_area(pr,x.p,cam[T-2]);
+            pdf_w=pf;prev_delta=false;prev_pdf=pf;o=x.p;d=next;continue;
+        }
+        if(step==0){add_term(L,beta*escape(d,T==1,prev_delta,prev_pdf,p_env));break;}
+        BVertex x=make_vertex(h,beta,area_pdf(pdf_w,cam[T-1].p,h.p,h.n,false));x.medium=top_entry(k.media);
         // Emission outside the light table (procedural emitters) is found by hits alone.
         if(h.emitter==0)add_term(L,beta*vertex_emission(x,-d));
         cam[T]=x;T++;
         if(T>D+1 || (x.info&V_NO_BSDF)!=0)break;
         float3 next;float pf,pr;
         // A local copy: inout on an element of a static array did not reliably write back.
-        bool sampled=sample_vertex(x,d,true,0,next,pf,pr,beta,absorption);cam[T-1]=x;
+        sv_media=k.media;bool sampled=sample_vertex(x,d,true,0,next,pf,pr,beta,absorption);cam[T-1]=x;
         if(!sampled)break;
+        cross_surface(x,next,k);
         bool delta=(x.info&V_DELTA)!=0;
         if(T-2>0)cam[T-2].pdf_rev=to_area(pr,cam[T-1].p,cam[T-2]);
         pdf_w=delta?0:pf;prev_delta=delta;prev_pdf=pf;
@@ -216,16 +299,25 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
             float pd;float3 w=emit_dir(i,l,n,two,pd);float c=dot(n,w);float3 le=emission_toward(i,l,w);
             if(po>0 && pd>0 && any(le>0)){
                 BVertex y=(BVertex)0;y.p=l.p;y.n=n;y.beta=1/po;y.pdf_fwd=po;y.info=V_LIGHT;y.emitter=i+1;lig[0]=y;S=1;
-                float3 b=le*c/(po*pd),ab=0,lo=l.p+n*0.0003;float pw=pd;
+                float3 b=le*c/(po*pd),ab=0,lo=l.p+n*0.0003;float pw=pd;Walk lk=new_walk();
                 cone_width=0;cone_spread=0;
                 for(;;){
-                    Hit h;if(!intersect(lo,w,1e4,h,false,false))break;
-                    b*=exp(-ab*h.t);
-                    BVertex x=make_vertex(h,b,pw*abs(dot(h.n,w))/max(h.t*h.t,1e-12));lig[S]=x;S++;
+                    Hit h;float3 xs,alb;float g,sigma;uint step=walk_step(lo,w,false,lk,b,h,xs,alb,g,sigma);
+                    if(step==2){
+                        b*=alb;
+                        BVertex x=medium_vertex(xs,b,area_pdf(pw,lig[S-1].p,xs,0,true),top_entry(lk.media),g);lig[S]=x;S++;
+                        if(S>D)break;
+                        float3 next;float pf,pr;if(!sample_vertex(x,w,false,0,next,pf,pr,b,ab))break;
+                        lig[S-2].pdf_rev=to_area(pr,x.p,lig[S-2]);
+                        pw=pf;lo=x.p;w=next;continue;
+                    }
+                    if(step==0)break;
+                    BVertex x=make_vertex(h,b,area_pdf(pw,lig[S-1].p,h.p,h.n,false));x.medium=top_entry(lk.media);lig[S]=x;S++;
                     if(S>D || (x.info&V_NO_BSDF)!=0)break;
                     float3 next;float pf,pr;
-                    bool sampled=sample_vertex(x,w,false,0,next,pf,pr,b,ab);lig[S-1]=x;
+                    sv_media=lk.media;bool sampled=sample_vertex(x,w,false,0,next,pf,pr,b,ab);lig[S-1]=x;
                     if(!sampled)break;
+                    cross_surface(x,next,lk);
                     lig[S-2].pdf_rev=to_area(pr,x.p,lig[S-2]);
                     pw=(x.info&V_DELTA)!=0?0:pf;
                     lo=h.p+h.ng*(dot(next,h.ng)>0?0.0003:-0.0003);w=next;
@@ -251,11 +343,11 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 BVertex qs=lig[s-1];if((qs.info&(V_DELTA|V_NO_BSDF))!=0)continue;
                 uint2 pix;if(!project(qs.p,pix))continue;
                 float3 w=eye.xyz-qs.p;float d2=dot(w,w),dist=sqrt(d2);w/=dist;
-                float c=abs(dot(qs.n,w)),ct=dot(-w,camera_forward());if(ct<=0)continue;
+                float c=vcos(qs,w),ct=dot(-w,camera_forward());if(ct<=0)continue;
                 float3 f;float qsm_rev=0;
                 if(s==1)f=emission_toward(qs.emitter-1,hit_light(qs.emitter-1,qs.p),w);
                 else{float3 wq=normalize(lig[s-2].p-qs.p);float pq;f=vertex_f(qs,w,wq,pq);qsm_rev=to_area(vertex_pdf(qs,w,wq),qs.p,lig[s-2]);}
-                float3 C=qs.beta*f*c/(d2*photon.y*ct*ct*ct)/max(sampling.y,1u);
+                float3 C=qs.beta*f*c*segment_tr(qs.medium,qs.p,w,dist)/(d2*photon.y*ct*ct*ct)/max(sampling.y,1u);
                 if(!any(C>0))continue;
                 float3 q=qs.p+qs.n*(dot(qs.n,w)>0?0.0003:-0.0003)-eye.xyz;float lq=length(q);
                 Hit hb;if(intersect(eye.xyz,q/lq,lq,hb,false,true))continue;
@@ -266,23 +358,23 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 float3 wm=normalize(cam[t-2].p-pt.p);
                 if(random()<p_env){
                     float pe;float3 ld=sample_env(pe);if(pe<=0)continue;float pdf;float3 f=vertex_f(pt,wm,ld,pdf);
-                    if(any(f>0) && !occluded(pt.p+pt.n*0.0003,ld,1e4))add_term(L,pt.beta*f*dot(pt.n,ld)*environment_radiance(ld)/(p_env*pe+pdf));
+                    if(any(f>0) && !occluded(pt.p+pt.n*0.0003,ld,1e4))add_term(L,pt.beta*f*vcos(pt,ld)*segment_tr(pt.medium,pt.p,ld,1e4)*environment_radiance(ld)/(p_env*pe+pdf));
                     continue;
                 }
                 if(!tri)continue;
                 uint i=select_index(random());Emitter e=emitters[i];
                 if(e.position_area.w<0 && e.position_area.w!=-1){
                     float pc;float3 ld=cone_sample(e.position_area.xyz,e.edge1_cdf.x,pc);float pdf;float3 f=vertex_f(pt,wm,ld,pdf);
-                    if(any(f>0) && !occluded(pt.p+pt.n*0.0003,ld,1e4))add_term(L,pt.beta*f*dot(pt.n,ld)*e.emission_material.rgb/((1-p_env)*e.edge2_probability.w*pc+pdf));
+                    if(any(f>0) && !occluded(pt.p+pt.n*0.0003,ld,1e4))add_term(L,pt.beta*f*vcos(pt,ld)*segment_tr(pt.medium,pt.p,ld,1e4)*e.emission_material.rgb/((1-p_env)*e.edge2_probability.w*pc+pdf));
                     continue;
                 }
                 LightPoint l=light_point(i,pack_uv(float2(random(),random())));float po=(1-p_env)*l.source;
                 float3 ld;float g,limit;float3 le=light_toward(i,l,pt.p,ld,g,limit);
                 float pdf;float3 f=vertex_f(pt,wm,ld,pdf);
-                float3 C=pt.beta*f*dot(pt.n,ld)*g*le/max(po,1e-30);
-                if(!any(C>0) || (l.kind==0?!connected(pt.p,pt.n,l.p,l.n):occluded(pt.p+pt.n*0.0003,ld,limit)))continue;
                 float3 dl=l.p-pt.p;float d2=max(dot(dl,dl),1e-12);
-                float pt_rev=light_dir_pdf(i,l,-ld)*abs(dot(pt.n,ld))/d2;
+                float3 C=pt.beta*f*vcos(pt,ld)*g*le*segment_tr(pt.medium,pt.p,ld,sqrt(d2))/max(po,1e-30);
+                if(!any(C>0) || (l.kind==0?!connected(pt.p,pt.n,l.p,l.n):occluded(pt.p+pt.n*0.0003,ld,limit)))continue;
+                float pt_rev=light_dir_pdf(i,l,-ld)*vcos(pt,ld)/d2;
                 float ptm_rev=t>2?to_area(vertex_pdf(pt,ld,wm),pt.p,cam[t-2]):0;
                 float qs_rev=pdf*abs(dot(l.n,ld))/d2;
                 add_term(L,C*mis_weight(1,t,pt_rev,ptm_rev,qs_rev,0,po));
@@ -292,11 +384,11 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 float3 w=qs.p-pt.p;float d2=max(dot(w,w),1e-12),dist=sqrt(d2);w/=dist;
                 float3 wm=normalize(cam[t-2].p-pt.p),wq=normalize(lig[s-2].p-qs.p);
                 float pa,pb;float3 fa=vertex_f(pt,wm,w,pa),fb=vertex_f(qs,-w,wq,pb);
-                float3 C=pt.beta*fa*qs.beta*fb*dot(pt.n,w)*dot(qs.n,-w)/d2;
+                float3 C=pt.beta*fa*qs.beta*fb*vcos(pt,w)*vcos(qs,w)*segment_tr(pt.medium,pt.p,w,dist)/d2;
                 if(!any(C>0) || !connected(pt.p,pt.n,qs.p,qs.n))continue;
-                float pt_rev=vertex_pdf(qs,wq,-w)*abs(dot(pt.n,w))/d2;
+                float pt_rev=vertex_pdf(qs,wq,-w)*vcos(pt,w)/d2;
                 float ptm_rev=t>2?to_area(vertex_pdf(pt,w,wm),pt.p,cam[t-2]):0;
-                float qs_rev=pa*abs(dot(qs.n,w))/d2;
+                float qs_rev=pa*vcos(qs,w)/d2;
                 float qsm_rev=to_area(vertex_pdf(qs,-w,wq),qs.p,lig[s-2]);
                 add_term(L,C*mis_weight(s,t,pt_rev,ptm_rev,qs_rev,qsm_rev,0));
             }
@@ -322,7 +414,7 @@ float env_share(){return hdri_on()?(scene_info.x>0?0.5:1):0;}
     cone_width=pixel_width_now();cone_spread=pixel_angle_now();
     Hit guide;write_guides(p,guide);
     float3 sum=0;
-    for(uint k=0;k<sampling.y;k++)sum+=bdpt_sample(p,min(sampling.z,10u),(integrator.w&1)!=0,env_share(),pixel_angle_now(),pixel_width_now());
+    for(uint k=0;k<sampling.y;k++)sum+=bdpt_sample(p,min(sampling.z,(uint)BDPT_BOUNCES),(integrator.w&1)!=0,env_share(),pixel_angle_now(),pixel_width_now());
     noisy[p]=float4(sum/max(sampling.y,1u),1);
 }
 // After bdpt: this frame's camera strategies plus the light-tracing splats, which are cleared.
@@ -342,14 +434,20 @@ float env_share(){return hdri_on()?(scene_info.x>0?0.5:1):0;}
 uint cell_hash(int3 c){return hash((uint)c.x*73856093u^(uint)c.y*19349663u^(uint)c.z*83492791u)&(HASH-1);}
 // Beam splitters (bit 4096) are delta: no photons, no gather; the walk passes them on.
 bool gather_surface(Material m){return m.lobes.z<1 && ((uint)m.lobes.w&4096u)==0 && !(m.color_rough.a<0.2 && m.lobes.x>0.5);}
+// Emitters keep no photons: a small bright emitter lit by its neighbours (birthday-cake's flames)
+// holds a dense cluster that surfaces within the radius gathered as their own, 87% too red.
+// Their reflected light is lost, negligible beside their emission.
+bool keeps_photons(Material m){return gather_surface(m) && m.optical.y<=0;}
 [numthreads(64,1,1)]void photon_clear(uint3 tid:SV_DispatchThreadID){
     if(tid.x<HASH)aux.Store(16+4*tid.x,0xffffffffu);
     if(tid.x==0)aux.Store(0,0);
 }
-void deposit(float3 p,float3 wi,float3 b){
+// A volume photon (deposited at a scatter in a medium) carries its power's red with the sign
+// bit set; surface gathers skip those and volume gathers take only those.
+void deposit(float3 p,float3 wi,float3 b,bool volume){
     uint idx;aux.InterlockedAdd(0,1,idx);if(idx>=integrator.y)return;
     uint prev;aux.InterlockedExchange(16+4*cell_hash((int3)floor(p/photon.x)),idx,prev);
-    uint a=PHOTON_BASE+idx*32;aux.Store4(a,uint4(asuint(p),pack_normal(wi)));aux.Store4(a+16,uint4(asuint(b),prev));
+    uint a=PHOTON_BASE+idx*32;aux.Store4(a,uint4(asuint(p),pack_normal(wi)));aux.Store4(a+16,uint4(asuint(b.r)|(volume?0x80000000u:0),asuint(b.g),asuint(b.b),prev));
 }
 // A point on the disk of the bounding sphere facing direction ld (toward the sun or sky).
 float3 disk_origin(float3 ld){float r=bounds.w*sqrt(random()),a=2*PI*random();return bounds.xyz+basis(ld,float3(r*cos(a),r*sin(a),bounds.w*1.01));}
@@ -376,14 +474,23 @@ float3 disk_origin(float3 ld){float r=bounds.w*sqrt(random()),a=2*PI*random();re
             b=emission_toward(k,l,w)*c/(po*pd);o=l.p+n*0.0003;
         }
     }
-    float3 ab=0;
-    for(uint k=0;k<min(sampling.z,10u);k++){
-        Hit h;if(!intersect(o,w,1e4,h,false,false))return;
-        b*=exp(-ab*h.t);
-        BVertex x=make_vertex(h,b,0);if((x.info&V_NO_BSDF)!=0)return;
-        if(k>0 && gather_surface(vertex_material(x,-w)))deposit(h.p,-w,b);
+    float3 ab=0;Walk wk=new_walk();
+    for(uint k=0;k<min(sampling.z,PHOTON_WALK);k++){
+        Hit h;float3 x,alb;float g,sigma;uint step=walk_step(o,w,false,wk,b,h,x,alb,g,sigma);
+        if(step==2){
+            // A scatter in a medium: a volume photon from the second interaction on (the first
+            // is direct light, which the gather takes by next-event estimation).
+            if(k>0)deposit(x,-w,b,true);
+            float before=max3(b),pf;b*=alb;float3 next=hg_sample(w,g,pf);
+            if(k>=2){float survival=clamp(max3(b)/max(before,1e-30),0.05,0.95);if(random()>survival)return;b/=survival;}
+            o=x;w=next;continue;
+        }
+        if(step==0)return;
+        BVertex y=make_vertex(h,b,0);if((y.info&V_NO_BSDF)!=0)return;
+        if(k>0 && keeps_photons(vertex_material(y,-w)))deposit(h.p,-w,b,false);
         float before=max3(b);float3 next;float pf,pr;
-        if(!sample_vertex(x,w,false,0,next,pf,pr,b,ab))return;
+        sv_media=wk.media;if(!sample_vertex(y,w,false,0,next,pf,pr,b,ab))return;
+        cross_surface(y,next,wk);
         if(k>=2){float survival=clamp(max3(b)/max(before,1e-30),0.05,0.95);if(random()>survival)return;b/=survival;}
         o=h.p+h.ng*(dot(next,h.ng)>0?0.0003:-0.0003);w=next;
     }
@@ -395,7 +502,7 @@ float3 gather(BVertex x,Material m,float3 v){
         int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
         for(;j!=0xffffffffu && guard<4096;guard++){
             uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x.p;
-            if(all((int3)floor(q/r)==c) && dot(dq,dq)<r*r){float3 wi=unpack_normal(A.w);float pdf;
+            if((B.x>>31)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r){float3 wi=unpack_normal(A.w);float pdf;
                 if(dot(x.n,wi)>0)cell+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*asfloat(B.xyz);}
             j=B.w;
         }
@@ -406,20 +513,52 @@ float3 gather(BVertex x,Material m,float3 v){
     }
     return sum/(max(integrator.x,1u)*PI*r*r);
 }
+// In-scattered radiance toward -d at a scatter point x from the volume photons within the
+// radius: the phase function times their power over the sphere's volume and the extinction
+// (photons were deposited at sigma_t's rate along their flights).
+float3 gather_volume(float3 x,float3 d,float g,float sigma){
+    float r=photon.x;float3 sum=0;int3 c0=(int3)floor(x/r);
+    for(int k=0;k<27;k++){
+        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
+        for(;j!=0xffffffffu && guard<4096;guard++){
+            uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x;
+            if((B.x>>31)!=0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r)
+                cell+=hg_pdf(dot(unpack_normal(A.w),d),g)*float3(asfloat(B.x&0x7fffffffu),asfloat(B.y),asfloat(B.z));
+            j=B.w;
+        }
+        uint total=guard;for(;j!=0xffffffffu && total<(1u<<20);total++)j=aux.Load(PHOTON_BASE+j*32+28);
+        sum+=cell*(float(total)/max(guard,1u));
+    }
+    return sum/(max(integrator.x,1u)*(4.0/3.0)*PI*r*r*r*max(sigma,1e-8));
+}
+// Direct light at a scatter point: NEE weighted by the phase pdf and one phase-sampled ray
+// (balance heuristic), both through the medium's transmittance.
+float3 volume_direct(float3 x,float3 d,float g,uint medium,float p_env){
+    float3 L=0,ld,le;float pl,limit;
+    if(sample_light(x,hdri_on(),scene_info.x>0,p_env,ld,le,pl,limit)){
+        float pp=hg_pdf(dot(d,ld),g);
+        if(!occluded(x,ld,limit))L+=pp*le*segment_tr(medium,x,ld,limit)/max(pl+pp,1e-8);
+    }
+    float pf;float3 next=hg_sample(d,g,pf);Hit h;
+    if(!intersect(x,next,1e4,h,false,false))L+=escape(next,false,false,pf,p_env)*segment_tr(medium,x,next,1e4);
+    else{float3 e=vertex_emission(make_vertex(h,1,0),-next);
+        if(any(e>0)){float w=h.emitter!=0?pf/(pf+(1-p_env)*emitter_pdf(x,h.p,emitters[h.emitter-1])):1;L+=e*w*segment_tr(medium,x,next,h.t);}}
+    return L;
+}
 // Direct light at a gather point: NEE and one BSDF sample (no transmission), balance-weighted.
 float3 direct_light_at(BVertex x,Material m,float3 v,float p_env){
     float3 L=0;float z=m.lobes.z;
     float3 ld,le;float pl,limit;
     if(sample_light(x.p,hdri_on(),scene_info.x>0,p_env,ld,le,pl,limit) && dot(x.n,ld)>0){
         float pdf;float3 f=eval_bsdf(m,x.n,x.tangent,v,ld,pdf);pdf/=1-z;
-        if(any(f>0) && !occluded(x.p+x.n*0.0003,ld,limit))L+=f*dot(x.n,ld)*le/max(pl+pdf,1e-8);
+        if(any(f>0) && !occluded(x.p+x.n*0.0003,ld,limit))L+=f*dot(x.n,ld)*le*segment_tr(x.medium,x.p,ld,limit)/max(pl+pdf,1e-8);
     }
     BVertex y=x;float3 b=1,ab=0,next;float pf,pr;
     if(sample_vertex(y,-v,true,2,next,pf,pr,b,ab)){
         Hit h;
-        if(!intersect(x.p+x.n*0.0003,next,1e4,h,false,false))L+=b*escape(next,false,false,pf,p_env);
+        if(!intersect(x.p+x.n*0.0003,next,1e4,h,false,false))L+=b*escape(next,false,false,pf,p_env)*segment_tr(x.medium,x.p,next,1e4);
         else{float3 e=vertex_emission(make_vertex(h,1,0),-next);
-            if(any(e>0)){float w=h.emitter!=0?pf/(pf+(1-p_env)*emitter_pdf(x.p,h.p,emitters[h.emitter-1])):1;L+=b*e*w;}}
+            if(any(e>0)){float w=h.emitter!=0?pf/(pf+(1-p_env)*emitter_pdf(x.p,h.p,emitters[h.emitter-1])):1;L+=b*e*w*segment_tr(x.medium,x.p,next,h.t);}}
     }
     return L;
 }
@@ -433,20 +572,26 @@ float3 direct_light_at(BVertex x,Material m,float3 v,float p_env){
         float2 sub=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
         float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)continue;
         cone_width=pixel_width_now();cone_spread=pixel_angle_now();
-        float3 beta=camera_weight,ab=0,L=0;
-        for(uint bounce=0;bounce<min(sampling.z,10u);bounce++){
-            Hit h;if(!intersect(o,d,1e4,h,false,bounce==0)){L+=beta*escape(d,bounce==0,true,0,p_env);break;}
-            beta*=exp(-ab*h.t);
-            BVertex x=make_vertex(h,beta,0);
+        float3 beta=camera_weight,ab=0,L=0;Walk wk=new_walk();
+        for(uint bounce=0;bounce<min(sampling.z,PHOTON_WALK);bounce++){
+            Hit h;float3 xs,alb;float g,sigma;uint step=walk_step(o,d,bounce==0,wk,beta,h,xs,alb,g,sigma);
+            if(step==2){
+                // A scatter: direct light plus the volume photons, and the path ends there.
+                beta*=alb;
+                L+=beta*(volume_direct(xs,d,g,top_entry(wk.media),p_env)+gather_volume(xs,d,g,sigma));break;
+            }
+            if(step==0){L+=beta*escape(d,bounce==0,true,0,p_env);break;}
+            BVertex x=make_vertex(h,beta,0);x.medium=top_entry(wk.media);
             // Reached through the camera, delta surfaces or near mirrors: no other strategy finds it.
             L+=beta*vertex_emission(x,-d);
             if((x.info&V_NO_BSDF)!=0)break;
             Material m=vertex_material(x,-d);float3 next;float pf,pr;
             if(gather_surface(m)){
-                L+=beta*(direct_light_at(x,m,-d,p_env)+gather(x,m,-d));
+                L+=beta*(direct_light_at(x,m,-d,p_env)+(keeps_photons(m)?gather(x,m,-d):0));
                 // The dielectric part of a partly transmissive surface goes on.
-                if(m.lobes.z<=0 || random()>=m.lobes.z || !sample_vertex(x,d,true,1,next,pf,pr,beta,ab))break;
-            }else if(!sample_vertex(x,d,true,0,next,pf,pr,beta,ab))break;
+                sv_media=wk.media;if(m.lobes.z<=0 || random()>=m.lobes.z || !sample_vertex(x,d,true,1,next,pf,pr,beta,ab))break;
+            }else{sv_media=wk.media;if(!sample_vertex(x,d,true,0,next,pf,pr,beta,ab))break;}
+            cross_surface(x,next,wk);
             o=h.p+h.ng*(dot(next,h.ng)>0?0.0003:-0.0003);d=next;
         }
         if(all(isfinite(L)))sum+=max(L,0);
