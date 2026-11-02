@@ -19,6 +19,8 @@ pub struct Prefs {
     pub advanced: bool,
     /// The first-run hint was dismissed.
     pub hint_seen: bool,
+    /// Text-to-scene backend (no keys: those stay in memory).
+    pub ai: crate::textscene::AiConfig,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -28,6 +30,7 @@ impl Default for Prefs {
             zoom: 1.,
             advanced: false,
             hint_seen: false,
+            ai: Default::default(),
         }
     }
 }

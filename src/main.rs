@@ -422,14 +422,13 @@ impl App {
                         .context("--scene needs a path or a scene name")?;
                     s = scenes::read(&scenes::find(&name)?)?;
                 }
-                // Track 19: a scene from a description, made by Claude (needs ANTHROPIC_API_KEY).
+                // Track 19: a scene from a description, made by the model chosen in Menu →
+                // Text-to-scene model (prefs.json, only read here); keys from the environment.
                 "--describe" => {
                     let prompt = args.next().context("--describe needs a description")?;
-                    let key = std::env::var("ANTHROPIC_API_KEY")
-                        .ok()
-                        .filter(|k| !k.is_empty())
-                        .context("--describe needs ANTHROPIC_API_KEY")?;
-                    let mut made = textscene::generate(&prompt, &mut textscene::http(key))?;
+                    let ai = prefs::Prefs::load().ai;
+                    let mut send = textscene::transport(&ai, "")?;
+                    let mut made = textscene::generate(&prompt, &mut *send)?;
                     made.keep_output(&s);
                     s = made;
                 }

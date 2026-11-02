@@ -214,6 +214,8 @@ pub struct UiState {
     redo: Vec<Settings>,
     /// Track 19 text-to-scene: the description, and the request running in the background.
     pub describe: String,
+    /// A key typed in Menu → Text-to-scene model, for this session only.
+    pub ai_key: String,
     pub describe_job: Option<std::sync::mpsc::Receiver<anyhow::Result<Settings>>>,
 }
 impl Default for UiState {
@@ -289,6 +291,7 @@ impl Default for UiState {
             undo: Vec::new(),
             redo: Vec::new(),
             describe: String::new(),
+            ai_key: String::new(),
             describe_job: None,
         }
     }
@@ -2204,6 +2207,7 @@ impl App {
                         self.ui.show_stats = true;
                         ui.close_menu();
                     }
+                    ui.menu_button("Text-to-scene model", |ui| self.ai_menu(ui));
                     ui.separator();
                     if ui
                         .add_enabled(!self.ui.undo.is_empty(), egui::Button::new("Undo (Ctrl+Z)"))
@@ -2652,46 +2656,115 @@ impl App {
                 let title = loaded.scene_name.clone();
                 self.settings = loaded;
                 self.reset_baseline = self.settings.clone();
-                self.ui.toast(format!("Claude made {title}"));
+                self.ui
+                    .toast(format!("{} made {title}", self.ui.prefs.ai.who()));
             }
             Err(e) => self.ui.error(format!("{e:#}")),
         }
     }
+    /// Menu → Text-to-scene model: the backend, its model, endpoint and key.
+    fn ai_menu(&mut self, ui: &mut egui::Ui) {
+        use crate::textscene::{Protocol, Provider};
+        let before = self.ui.prefs.ai.clone();
+        let ai = &mut self.ui.prefs.ai;
+        for p in Provider::ALL {
+            ui.radio_value(&mut ai.provider, p, p.label());
+        }
+        ui.separator();
+        egui::Grid::new("ai grid").num_columns(2).show(ui, |ui| {
+            ui.label("Model");
+            let hint = match ai.provider {
+                Provider::ClaudeCli => "the CLI's default",
+                Provider::ClaudeApi => "claude-opus-5-5",
+                Provider::OpenAi => "a model of your OpenAI account",
+                Provider::Custom => "e.g. llama3.3, qwen3",
+            };
+            ui.add(egui::TextEdit::singleline(&mut ai.model).hint_text(hint).desired_width(220.));
+            ui.end_row();
+            if ai.provider == Provider::Custom {
+                ui.label("Endpoint");
+                ui.add(
+                    egui::TextEdit::singleline(&mut ai.base_url)
+                        .hint_text("http://localhost:11434/v1")
+                        .desired_width(220.),
+                )
+                .on_hover_text("Ollama: http://localhost:11434/v1 · LM Studio: http://localhost:1234/v1 · llama.cpp: http://localhost:8080/v1");
+                ui.end_row();
+                ui.label("Protocol");
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut ai.protocol, Protocol::OpenAi, "OpenAI-compatible");
+                    ui.radio_value(&mut ai.protocol, Protocol::Anthropic, "Anthropic-compatible");
+                });
+                ui.end_row();
+            }
+            if ai.provider != Provider::ClaudeCli {
+                ui.label("API key");
+                let hint = ai
+                    .provider
+                    .key_env()
+                    .map_or("optional".to_string(), |e| format!("or set {e}"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.ui.ai_key)
+                        .password(true)
+                        .hint_text(hint)
+                        .desired_width(220.),
+                )
+                .on_hover_text("Kept for this session only, never saved");
+                ui.end_row();
+            }
+        });
+        if ai.provider == Provider::ClaudeCli {
+            ui.label(
+                egui::RichText::new("Runs `claude -p` with the CLI's login: a Claude subscription works, no key needed.")
+                    .small(),
+            );
+        }
+        if self.ui.prefs.ai != before {
+            self.ui.save_prefs();
+        }
+    }
     fn describe_ui(&mut self, ui: &mut egui::Ui) {
-        egui::CollapsingHeader::new("Describe a scene (Claude)")
+        egui::CollapsingHeader::new("Describe a scene (AI)")
             .id_salt("describe")
             .show(ui, |ui| {
-                let key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+                let ai = self.ui.prefs.ai.clone();
+                let missing = ai.missing(&self.ui.ai_key);
                 ui.add(
                     egui::TextEdit::multiline(&mut self.ui.describe)
                         .hint_text("A lighthouse on a rock at dusk, a warm lamp in its top…")
                         .desired_rows(3)
                         .desired_width(f32::INFINITY),
                 );
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let busy = self.ui.describe_job.is_some();
-                    let ready = key.is_some() && !busy && !self.ui.describe.trim().is_empty();
+                    let ready = missing.is_none() && !busy && !self.ui.describe.trim().is_empty();
                     if ui
                         .add_enabled(ready, egui::Button::new("Generate"))
-                        .on_hover_text("Sends the text to Claude (claude-opus-5-5); the scene it returns replaces this one (Ctrl+Z undoes it)")
+                        .on_hover_text(format!(
+                            "Sends the text to {}; the scene it returns replaces this one (Ctrl+Z undoes it). Change the model in Menu > Text-to-scene model",
+                            ai.provider.label()
+                        ))
                         .clicked()
-                        && let Some(key) = key.clone()
                     {
                         let (tx, rx) = std::sync::mpsc::channel();
                         let prompt = self.ui.describe.clone();
+                        let key = self.ui.ai_key.clone();
                         let ctx = ui.ctx().clone();
                         std::thread::spawn(move || {
-                            let mut send = crate::textscene::http(key);
-                            let _ = tx.send(crate::textscene::generate(&prompt, &mut send));
+                            let result = crate::textscene::transport(&ai, &key)
+                                .and_then(|mut send| crate::textscene::generate(&prompt, &mut *send));
+                            let _ = tx.send(result);
                             ctx.request_repaint();
                         });
                         self.ui.describe_job = Some(rx);
                     }
                     if busy {
                         ui.spinner();
-                        ui.label("Claude is building the scene…");
-                    } else if key.is_none() {
-                        ui.label(egui::RichText::new("Set ANTHROPIC_API_KEY to use this").small());
+                        ui.label("Building the scene…");
+                    } else if let Some(why) = &missing {
+                        ui.label(egui::RichText::new(why).small());
+                    } else {
+                        ui.label(egui::RichText::new(self.ui.prefs.ai.provider.label()).small().weak());
                     }
                 });
             });
