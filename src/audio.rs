@@ -57,8 +57,12 @@ pub struct Audio {
     /// Each band's slowly decaying peak (automatic gain).
     peaks: [f32; 3],
     planner: rustfft::FftPlanner<f32>,
-    /// The stream reported an error (device unplugged or switched).
+    /// The stream reported an error. cpal also reports a change of the default output
+    /// device this way (the stream keeps capturing the old one), and some drivers and audio
+    /// tools send that notification as soon as a capture opens, so it is not fatal: `recover`
+    /// reopens the capture on the current default device.
     error: Arc<std::sync::atomic::AtomicBool>,
+    started: std::time::Instant,
 }
 
 impl Audio {
@@ -111,10 +115,24 @@ impl Audio {
             peaks: [1e-4; 3],
             planner: rustfft::FftPlanner::new(),
             error,
+            started: std::time::Instant::now(),
         })
     }
-    pub fn failed(&self) -> bool {
-        self.error.load(std::sync::atomic::Ordering::Relaxed)
+    /// After a stream error, reopens the capture on the current default output device (at
+    /// most once a second, so a device that keeps signalling costs one reopen a second), and
+    /// keeps the levels and gains. An error only when the device cannot be opened.
+    pub fn recover(&mut self) -> anyhow::Result<()> {
+        if !self.error.load(std::sync::atomic::Ordering::Relaxed)
+            || self.started.elapsed() < std::time::Duration::from_secs(1)
+        {
+            return Ok(());
+        }
+        let mut next = Self::start()?;
+        next.levels = self.levels;
+        next.peaks = self.peaks;
+        next.planner = std::mem::replace(&mut self.planner, rustfft::FftPlanner::new());
+        *self = next;
+        Ok(())
     }
     /// Analyses the latest window: call once per frame with the frame time.
     pub fn update(&mut self, a: &AudioReact, dt: f32) {

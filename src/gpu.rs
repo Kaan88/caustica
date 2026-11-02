@@ -413,6 +413,9 @@ pub struct Gpu {
     pub samples: u32,
     pub frame: u32,
     pub gpu_ms: f64,
+    /// Total time the CPU has spent waiting on the fence in `submit` (ms): the frame time
+    /// minus this is the CPU's own share of each frame.
+    pub fence_wait_ms: f64,
     /// GPU time of each pass this frame (ms): trace, reconstruction (native denoiser, RR or
     /// upscaler), display, UI.
     pub pass_ms: [f64; 4],
@@ -1004,6 +1007,7 @@ impl Gpu {
             samples: 0,
             frame: 0,
             gpu_ms: 0.,
+            fence_wait_ms: 0.,
             pass_ms: [0.; 4],
             adapter_name,
             previous_vp: Mat4::IDENTITY,
@@ -1032,6 +1036,7 @@ impl Gpu {
         self.fence_value += 1;
         self.queue.Signal(&self.fence, self.fence_value)?;
         if self.fence.GetCompletedValue() < self.fence_value {
+            let start = std::time::Instant::now();
             self.fence
                 .SetEventOnCompletion(self.fence_value, self.event)?;
             ensure!(
@@ -1040,6 +1045,7 @@ impl Gpu {
                 "GPU fence timeout; device removed: {:?}",
                 self.device.GetDeviceRemovedReason()
             );
+            self.fence_wait_ms += start.elapsed().as_secs_f64() * 1000.;
         }
         Ok(())
     }
