@@ -90,7 +90,13 @@ pub fn trace(s: &Settings) -> (Vec<Segment>, bool) {
     let p = &s.puzzle;
     let tris = triangles(s);
     let mut segments = vec![];
-    let mut solved = false;
+    // Every target (the main one and `targets`) the beam must reach.
+    let required: Vec<usize> = std::iter::once(p.target)
+        .chain(p.targets.iter().copied())
+        .filter_map(|t| usize::try_from(t).ok())
+        .filter(|&t| t < s.objects.len())
+        .collect();
+    let mut reached = vec![false; required.len()];
     // (origin, direction, power, inside glass of this ior or 0)
     let mut stack = vec![(
         Vec3::from(p.origin),
@@ -115,8 +121,8 @@ pub fn trace(s: &Settings) -> (Vec<Segment>, bool) {
         };
         let x = o + d * t;
         segments.push(Segment { a: o, b: x, power });
-        if p.target == i as i32 {
-            solved = true;
+        if let Some(k) = required.iter().position(|&t| t == i) {
+            reached[k] = true;
             continue;
         }
         let m = &s.objects[i].material;
@@ -146,7 +152,48 @@ pub fn trace(s: &Settings) -> (Vec<Segment>, bool) {
             stack.push((ahead(next), next, power));
         }
     }
+    let solved = !required.is_empty() && reached.iter().all(|&r| r);
     (segments, solved)
+}
+
+/// Track 17: the beam as thin unlit emissive cylinders (one per segment, at most 20 units
+/// long), appended to a frame's copy of the settings so the image shows it.
+pub fn beam_objects(s: &Settings, segments: &[Segment]) -> Vec<Object> {
+    let mut out = vec![];
+    for seg in segments {
+        let mut d = seg.b - seg.a;
+        let length = d.length().min(20.);
+        if length < 1e-3 || out.len() + s.objects.len() >= crate::scene::MAX_OBJECTS {
+            continue;
+        }
+        d /= d.length();
+        let (yaw, x, z) = glam::Quat::from_rotation_arc(Vec3::Y, d).to_euler(glam::EulerRot::YXZ);
+        let centre = seg.a + d * length * 0.5;
+        // Half height 0.35 · size · stretch, radius 0.35 · size · scale (validate's ranges).
+        let size = (length * 0.5 / 0.35 / 10.).max(1.);
+        let radius = 0.015;
+        out.push(Object {
+            name: "Laser beam".into(),
+            shape: crate::scene::Shape::Cylinder,
+            size,
+            stretch: (length * 0.5 / (0.35 * size)).clamp(0.05, 10.),
+            scale_xz: [(radius / (0.35 * size)).max(0.01); 2],
+            position: [centre.x, centre.z],
+            elevation: centre.y,
+            grounded: false,
+            rotation: yaw.to_degrees(),
+            tilt: [x.to_degrees(), z.to_degrees()],
+            body: crate::scene::Body::None,
+            material: crate::scene::Material {
+                color: s.puzzle.color,
+                emission: 30. * seg.power,
+                unlit: true,
+                ..Default::default()
+            },
+            ..Object::default()
+        });
+    }
+    out
 }
 
 /// Runtime state of the puzzle (not in `Settings`).

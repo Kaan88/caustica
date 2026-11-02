@@ -240,6 +240,11 @@ pub struct UiState {
     pub show_shortcuts: bool,
     /// The timeline strip (track 8); it also shows whenever the scene has keys.
     pub show_timeline: bool,
+    /// Track 17: physics poses are being keyed into the timeline, and the simulated time so far.
+    pub physics_record: bool,
+    /// A scene file to open after this frame's UI (the puzzle level menu).
+    pub open_pending: Option<std::path::PathBuf>,
+    pub physics_record_time: f32,
     /// A command chosen in an outliner menu, run once the panel is drawn.
     pub pending: Option<Command>,
     pub transform: Option<gizmo::Transform>,
@@ -345,6 +350,9 @@ impl Default for UiState {
             context_menu: None,
             show_shortcuts: false,
             show_timeline: false,
+            physics_record: false,
+            open_pending: None,
+            physics_record_time: 0.,
             pending: None,
             transform: None,
             header: String::new(),
@@ -599,6 +607,13 @@ impl UiState {
             *t = -1;
         } else if *t > i as i32 {
             *t -= 1;
+        }
+        let i32_i = i as i32;
+        s.puzzle.targets.retain(|&t| t != i32_i);
+        for t in &mut s.puzzle.targets {
+            if *t > i32_i {
+                *t -= 1;
+            }
         }
         for o in &mut s.objects {
             if let Some(t) = &mut o.tether {
@@ -2340,6 +2355,12 @@ impl App {
     /// Starts a transform of the selection: from the handle under the pointer, or modal.
     pub fn start_transform(&mut self, mode: gizmo::Mode, handle: Option<gizmo::Handle>) -> bool {
         let targets = self.ui.targets();
+        if targets.iter().any(|t| {
+            matches!(t, Selection::Object(i) if self.settings.objects.get(*i).is_some_and(|o| o.locked))
+        }) {
+            self.ui.toast("Locked: this object can't be moved");
+            return false;
+        }
         if targets.is_empty()
             || !gizmo::allows(&targets, mode)
             || gizmo::frame(&self.settings, targets[0]).is_none()
@@ -2377,8 +2398,11 @@ impl App {
         if let Some(t) = self.ui.transform.take() {
             if self.settings != t.original {
                 self.ui.checkpoint(&t.original);
-                // Laser puzzle (track 17): each finished transform is one move.
-                if self.settings.puzzle.enabled {
+                // Laser puzzle (track 17): each finished transform of puzzle pieces (objects,
+                // not lights or the camera) is one move.
+                if self.settings.puzzle.enabled
+                    && t.targets.iter().all(|s| matches!(s, Selection::Object(_)))
+                {
                     self.laser.moves += 1;
                 }
             }
@@ -3140,6 +3164,50 @@ impl App {
         }
     }
     /// The model and reasoning pickers under the text box.
+    /// The saved backends (track 19): pick one in a click, save the current one, forget one.
+    fn ai_backend_row(&mut self, ui: &mut egui::Ui) {
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Backend");
+            let prefs = &mut self.ui.prefs;
+            egui::ComboBox::from_id_salt("ai backend")
+                .selected_text(prefs.ai.short_label())
+                .show_ui(ui, |ui| {
+                    for p in prefs.ai_profiles.clone() {
+                        if ui.selectable_label(p == prefs.ai, p.short_label()).clicked() {
+                            prefs.ai = p;
+                            changed = true;
+                        }
+                    }
+                    if prefs.ai_profiles.is_empty() {
+                        ui.label("No saved backends: set one up in Menu > Text-to-scene model, then Save");
+                    }
+                });
+            let saved = prefs.ai_profiles.contains(&prefs.ai);
+            if !saved
+                && ui
+                    .small_button("Save")
+                    .on_hover_text("Adds this backend to the list (keys are never saved)")
+                    .clicked()
+            {
+                prefs.ai_profiles.push(prefs.ai.clone());
+                changed = true;
+            }
+            if saved
+                && ui
+                    .small_button("Forget")
+                    .on_hover_text("Removes this backend from the list")
+                    .clicked()
+            {
+                let current = prefs.ai.clone();
+                prefs.ai_profiles.retain(|p| *p != current);
+                changed = true;
+            }
+        });
+        if changed {
+            self.ui.save_prefs();
+        }
+    }
     fn ai_model_row(&mut self, ui: &mut egui::Ui) {
         use crate::textscene::Provider;
         let before = self.ui.prefs.ai.clone();
@@ -3256,6 +3324,7 @@ impl App {
                         .desired_rows(3)
                         .desired_width(f32::INFINITY),
                 );
+                self.ai_backend_row(ui);
                 self.ai_model_row(ui);
                 let missing = self.ui.prefs.ai.missing(&self.ui.ai_key);
                 ui.horizontal_wrapped(|ui| {
@@ -3521,7 +3590,38 @@ impl App {
                 row(ui, "Friction", "Friction of every body", |ui| {
                     ui.add(egui::Slider::new(&mut p.friction, 0. ..=2.));
                 });
+                row(
+                    ui,
+                    "Gravity direction",
+                    "The way gravity pulls (x, y, z); straight down is 0, −1, 0",
+                    |ui| {
+                        for c in &mut p.down {
+                            ui.add(egui::DragValue::new(c).range(-1. ..=1.).speed(0.01));
+                        }
+                    },
+                );
+                row(
+                    ui,
+                    "Wind",
+                    "A steady push on every body (x, y, z), scene units/s²",
+                    |ui| {
+                        for c in &mut p.wind {
+                            ui.add(egui::DragValue::new(c).range(-50. ..=50.).speed(0.05));
+                        }
+                    },
+                );
+                row(
+                    ui,
+                    "Gusts",
+                    "0 steady, 1 the wind drops away and doubles",
+                    |ui| {
+                        ui.add(egui::Slider::new(&mut p.gusts, 0. ..=1.));
+                    },
+                );
             });
+            if p.down.iter().all(|v| v.abs() <= 0.01) {
+                p.down = [0., -1., 0.];
+            }
             ui.horizontal(|ui| {
                 if ui.button("Wake all").clicked() {
                     self.actions.physics_wake = true;
@@ -3535,6 +3635,47 @@ impl App {
                 }
                 ui.label(egui::RichText::new(format!("{awake} awake")).small());
             });
+            ui.horizontal_wrapped(|ui| {
+                if let Selection::Object(i) = state.selection
+                    && i < s.objects.len()
+                {
+                    let frozen = s.objects[i].body == scene::Body::Fixed;
+                    if ui
+                        .button(if frozen { "Unfreeze" } else { "Freeze" })
+                        .on_hover_text("Pins the selected object in place (a fixed body), or lets it fall again")
+                        .clicked()
+                    {
+                        state.checkpoint(s);
+                        s.objects[i].body = if frozen {
+                            scene::Body::Dynamic
+                        } else {
+                            scene::Body::Fixed
+                        };
+                    }
+                }
+                let recording = state.physics_record;
+                if ui
+                    .selectable_label(recording, if recording { "⏺ Stop recording" } else { "⏺ Record" })
+                    .on_hover_text("Keys every moving body's pose into the timeline at its fps (simulated time), so a timeline video export renders the simulation")
+                    .clicked()
+                {
+                    state.physics_record = !recording;
+                    state.physics_record_time = 0.;
+                    if recording {
+                        state.show_timeline = true;
+                    }
+                }
+                if recording {
+                    ui.label(
+                        egui::RichText::new(format!("{:.1} s", state.physics_record_time)).small(),
+                    );
+                }
+            });
+            ui.label(
+                egui::RichText::new("N drops a ball under the pointer, Shift+N a box; the wheel moves a held body nearer or farther.")
+                    .small()
+                    .weak(),
+            );
         }
         // Track 19 audio-reactive lights (see audio.rs).
         section(ui, "Audio");
@@ -3593,9 +3734,57 @@ impl App {
                             }
                         });
                 });
+                row(
+                    ui,
+                    "More targets",
+                    "Objects the beam must also reach (every one, to solve)",
+                    |ui| {
+                        let name = |i: i32| {
+                            usize::try_from(i)
+                                .ok()
+                                .and_then(|i| s.objects.get(i))
+                                .map_or("None".to_string(), |o| o.name.clone())
+                        };
+                        ui.vertical(|ui| {
+                            let mut remove = None;
+                            for (k, t) in p.targets.iter().enumerate() {
+                                ui.horizontal(|ui| {
+                                    ui.label(name(*t));
+                                    if ui.small_button("×").clicked() {
+                                        remove = Some(k);
+                                    }
+                                });
+                            }
+                            if let Some(k) = remove {
+                                p.targets.remove(k);
+                            }
+                            if p.targets.len() < 16 {
+                                ui.menu_button("+ Target", |ui| {
+                                    for i in 0..s.objects.len() as i32 {
+                                        if i != p.target
+                                            && !p.targets.contains(&i)
+                                            && ui.button(name(i)).clicked()
+                                        {
+                                            p.targets.push(i);
+                                            ui.close_menu();
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    },
+                );
                 row(ui, "Par", "Moves a good solution needs", |ui| {
                     ui.add(egui::DragValue::new(&mut p.par).range(0..=99));
                 });
+                row(
+                    ui,
+                    "Beam in image",
+                    "Also renders the beam as thin glowing rods, so it lights what it passes and shows in captures and videos",
+                    |ui| {
+                        ui.checkbox(&mut p.beam, "");
+                    },
+                );
                 row(ui, "Colour", "Beam colour in the viewport", |ui| {
                     ui.color_edit_button_rgb(&mut p.color);
                 });
@@ -3607,9 +3796,38 @@ impl App {
             } else {
                 "Not solved"
             };
+            let best = state
+                .prefs
+                .puzzle_best
+                .get(&s.scene_name)
+                .map_or(String::new(), |b| format!(" · best {b}"));
             ui.label(
-                egui::RichText::new(format!("{status} · {moves} moves · par {}", p.par)).small(),
+                egui::RichText::new(format!("{status} · {moves} moves · par {}{best}", p.par))
+                    .small(),
             );
+            // Level select: the puzzle pack's scenes with their best scores.
+            let levels: Vec<(std::path::PathBuf, String)> = state
+                .scenes
+                .iter()
+                .filter(|e| e.path.components().any(|c| c.as_os_str() == "puzzles"))
+                .map(|e| (e.path.clone(), e.title.clone()))
+                .collect();
+            if !levels.is_empty() {
+                ui.menu_button("Levels", |ui| {
+                    for (path, title) in levels {
+                        let best = state
+                            .prefs
+                            .puzzle_best
+                            .iter()
+                            .find(|(k, _)| **k == title)
+                            .map_or("not solved".to_string(), |(_, b)| format!("best {b}"));
+                        if ui.button(format!("{title} · {best}")).clicked() {
+                            state.open_pending = Some(path);
+                            ui.close_menu();
+                        }
+                    }
+                });
+            }
         }
         let advanced = state.advanced;
         match state.selection {
@@ -4500,6 +4718,27 @@ fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
     );
     row(
         ui,
+        "Clock time",
+        "On: the time above is the clock at a longitude and time zone (with the equation of time), not solar time.",
+        |ui| {
+            ui.checkbox(&mut p.clock, "");
+        },
+    );
+    if p.clock {
+        row(ui, "Longitude", "Degrees east (negative: west).", |ui| {
+            ui.add(crate::slider(&mut p.longitude, -180. ..=180.).suffix("°"));
+        });
+        row(
+            ui,
+            "Time zone",
+            "Hours from UTC (daylight saving included).",
+            |ui| {
+                ui.add(crate::slider(&mut p.utc_offset, -14. ..=14.).suffix(" h"));
+            },
+        );
+    }
+    row(
+        ui,
         "Date",
         "Day of the year: the sun is highest at the June solstice in the north.",
         |ui| {
@@ -4557,6 +4796,29 @@ fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Albedo of the ground below the horizon.",
         |ui| {
             ui.add(crate::slider(&mut p.ground, 0. ..=1.));
+        },
+    );
+    row(
+        ui,
+        "Altitude",
+        "The observer's height above the ground: higher up the sky darkens and the horizon drops.",
+        |ui| {
+            ui.add(
+                crate::slider(&mut p.altitude, 0. ..=20.)
+                    .logarithmic(true)
+                    .suffix(" km"),
+            );
+        },
+    );
+    row(ui, "Stars", "Star brightness at night (0: none).", |ui| {
+        ui.add(crate::slider(&mut p.stars, 0. ..=1000.).logarithmic(true));
+    });
+    row(
+        ui,
+        "Moon",
+        "The moon, its phase from the date; after twilight it lights the sky.",
+        |ui| {
+            ui.checkbox(&mut p.moon, "");
         },
     );
     row(

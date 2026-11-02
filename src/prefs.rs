@@ -21,6 +21,10 @@ pub struct Prefs {
     pub hint_seen: bool,
     /// Text-to-scene backend (no keys: those stay in memory).
     pub ai: crate::textscene::AiConfig,
+    /// Saved text-to-scene backends, picked in the Describe a scene section (no keys).
+    pub ai_profiles: Vec<crate::textscene::AiConfig>,
+    /// Laser puzzle (track 17): fewest moves per solved level, by scene name.
+    pub puzzle_best: std::collections::BTreeMap<String, u32>,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -31,6 +35,8 @@ impl Default for Prefs {
             advanced: false,
             hint_seen: false,
             ai: Default::default(),
+            ai_profiles: Vec::new(),
+            puzzle_best: Default::default(),
         }
     }
 }

@@ -103,6 +103,7 @@
    },
    {
     "name": "Target",
+    "locked": true,
     "shape": "box",
     "position": [
      2.4,

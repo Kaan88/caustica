@@ -686,3 +686,29 @@ The gains come from:
   - Cancel stops before the next request, and the CLI prompt carries the whole exchange.
   - Missing settings and effort levels are checked per provider; base64 is checked against the standard.
   - Ignored live tests: `live_critique_through_the_claude_cli` (`CRITIQUE_PNG`) and `live_fetch_models` (`FETCH_BASE`; checked against a mock serving both formats).
+
+## Metaballs and track 18–19 leftovers (2026-11-02)
+
+- *Metaballs* (`Sdf::Metaballs`, shader kind 5): a bottom pool, a top cap and four blobs on Lissajous paths joined by a polynomial smooth minimum. The field is built for an object 3× taller than wide (it works in q = (x, 3y, z) and returns d/3, a valid bound), so the `lava-lamp` wax object is a box of that aspect. The blob positions follow `Object::phase` (keyable like any float; validate keeps 0..10000). The phase travels in the high 24 bits of the procedural instance's `vertex_base` (thousandths), the kind in the low 8; `sdf`, `sdf_normal` and `sdf_hit` take that raw word. A phase change is a geometry-key change, so playback rebuilds the instance table (the BLASes stay cached).
+- Scenes: `lava-lamp`, `nighthawks`, `audio-equalizer` (Scene → Audio on; object i and area light i follow band i mod 3, so the bars are ordered bass, mid, treble).
+- Scripting: `get(key)` (the setting's JSON text). Text-to-scene: `Prefs::ai_profiles` and the *Backend* row in Describe a scene.
+
+## Physical sky: night, clock time, altitude (track 9, 2026-11-02)
+
+- `PhysicalSky` gains `clock` / `longitude` / `utc_offset` (`solar_time()`: clock + longitude/15 − zone + the equation of time), `altitude` (km; `Atmosphere::observer`), `stars` and `moon`. `map_key` uses the solar time, so the cache sees equal skies as equal.
+- Night: after astronomical twilight (sun below −18°, `sun.y < −0.31`) the single- and multiple-scattering pass runs with the moon as its light at 2.5e-6 × the lit fraction of the sun (a hard switch; twilight is still much brighter than moonlight there). The moon trails the sun by its age (synodic month from the day of the year) on the sun's declination; its disc is at least a texel. Stars: a hash per texel (1 in 150 above the horizon), energy per star `7.5e-8 · u⁴ · stars · intensity`, tinted blue-white to orange, times the transmittance along the view. The constant night floor went from 2e-5 to 2e-7 × intensity (the old floor was brighter than a moonlit sky).
+- Baking: `sky::bake_cached` keeps the last 12 maps by key. Windowed runs bake uncached skies on a worker thread (one at a time; a result for an outdated key is cached and dropped) and keep the previous map until it lands, then restart accumulation. Headless runs, the self-test and video exports bake in place, so their output stays deterministic.
+
+## Physics and puzzle additions (track 17, 2026-11-02)
+
+- Wind: a force `wind · gust · mass` set each step (`reset_forces` first), gust = 1 + gusts · (0.6 sin 1.3t + 0.4 sin(3.7t + 1)) on simulated time. Gravity is `down · gravity`.
+- `same_bodies` replaces object equality in `Sim::matches`: material and name edits keep the simulation.
+- Concave shapes: `decomposed()` runs V-HACD (resolution 48, at most 24 hulls) on the local, scaled mesh soup; cached by kind, mesh path and scale bits.
+- Record: `record_physics` keys `position/0`, `position/1`, `elevation`, `rotation`, `tilt/0`, `tilt/1` of every dynamic body on each frame boundary of simulated time and stretches the animation's length.
+- Sleep: activation thresholds 0.01 (normalized linear) and 0.08 rad/s, 1.5 s before sleeping.
+- Laser: `beam_objects` turns the traced segments into unlit emissive cylinders (radius 0.015, emission 30 × power, at most 20 units each) in the frame's copy only, so picking, physics and the trace never see them.
+- Scenes: `wrecking-ball` (one ball joint from the beam, mass 40×), `castle` (154 bodies; walls stop short of the corner towers so nothing starts interpenetrating).
+
+## Grazing shadow rays (2026-11-02)
+
+`nee_limit(len, cos)` ends NEE shadow rays 0.6 mm off the emitter's surface along its normal (`len − min(len/2, 0.0006 / max(|cos|, 0.02))`) instead of 0.6 mm along the ray. The fixed margin let grazing samples hit the emitter's own face: light sampling lost 0.57% on night-skyline and MIS 1.6% on the tea set (both now within noise).

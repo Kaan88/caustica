@@ -36,6 +36,19 @@ pub struct PhysicalSky {
     pub ground: f32,
     /// Camera rays see the sky and the sun (off: the background colour).
     pub visible: bool,
+    /// `time` is the clock time at `longitude` in `utc_offset` (with the equation of time),
+    /// not solar time.
+    pub clock: bool,
+    /// Degrees, positive east (clock time only).
+    pub longitude: f32,
+    /// The time zone, hours from UTC (clock time only).
+    pub utc_offset: f32,
+    /// Observer altitude above the ground, km (the sky darkens and the horizon drops).
+    pub altitude: f32,
+    /// Star brightness (0: none).
+    pub stars: f32,
+    /// The moon: its phase follows the date, and at night it lights the sky.
+    pub moon: bool,
 }
 impl Default for PhysicalSky {
     fn default() -> Self {
@@ -50,6 +63,12 @@ impl Default for PhysicalSky {
             sun_size: 0.53,
             ground: 0.3,
             visible: true,
+            clock: false,
+            longitude: 0.,
+            utc_offset: 0.,
+            altitude: 0.05,
+            stars: 1.,
+            moon: true,
         }
     }
 }
@@ -66,16 +85,42 @@ impl PhysicalSky {
                 && (1. ..=10.).contains(&self.turbidity)
                 && (0. ..=1000.).contains(&self.intensity)
                 && (0.05..=20.).contains(&self.sun_size)
-                && (0. ..=1.).contains(&self.ground),
+                && (0. ..=1.).contains(&self.ground)
+                && (-180. ..=180.).contains(&self.longitude)
+                && (-14. ..=14.).contains(&self.utc_offset)
+                && (0. ..=20.).contains(&self.altitude)
+                && (0. ..=1000.).contains(&self.stars),
             "Invalid physical sky"
         );
         Ok(())
     }
+    /// Solar time in hours: `time`, or with `clock` the clock time corrected by longitude,
+    /// time zone and the equation of time.
+    pub fn solar_time(&self) -> f32 {
+        if !self.clock {
+            return self.time;
+        }
+        let b = 2. * PI * (self.day - 81.) / 364.;
+        let equation = 9.87 * (2. * b).sin() - 7.53 * b.cos() - 1.5 * b.sin();
+        (self.time + self.longitude / 15. - self.utc_offset + equation / 60.).rem_euclid(24.)
+    }
+    /// The moon's age as a fraction of the synodic month (0 new, 0.5 full), from the date.
+    pub fn moon_age(&self) -> f32 {
+        ((self.day + 9.) / 29.53).fract()
+    }
     /// Unit direction towards the sun in the sky's own frame (north −z, east +x, up +y).
     fn sun_local(&self) -> Vec3 {
+        self.body_local(self.solar_time())
+    }
+    /// The moon: it trails the sun by its age (in hours of the hour angle); the sun's
+    /// declination stands in for the moon's (it stays within about 5° of the ecliptic).
+    fn moon_local(&self) -> Vec3 {
+        self.body_local(self.solar_time() - 24. * self.moon_age())
+    }
+    fn body_local(&self, solar: f32) -> Vec3 {
         // Declination (Cooper) and hour angle.
         let decl = (23.44f32).to_radians() * (2. * PI * (284. + self.day) / 365.).sin();
-        let hour = (15. * (self.time - 12.)).to_radians();
+        let hour = (15. * (solar - 12.)).to_radians();
         let lat = self.latitude.to_radians();
         let east = -decl.cos() * hour.sin();
         let north = lat.cos() * decl.sin() - lat.sin() * decl.cos() * hour.cos();
@@ -96,7 +141,7 @@ impl PhysicalSky {
     /// transmittance; `None` while it is below the horizon.
     pub fn sun(&self) -> Option<(Vec3, Vec3)> {
         let d = self.sun_direction();
-        let t = Atmosphere::bare(self.turbidity).march_transmittance(OBSERVER, d.y)?;
+        let t = Atmosphere::bare(self.turbidity).march_transmittance(self.observer(), d.y)?;
         let s = (self.sun_size * 0.5).to_radians().sin();
         Some((d, t * self.intensity / (s * s)))
     }
@@ -108,17 +153,26 @@ impl PhysicalSky {
     /// which the GPU applies).
     pub fn map_key(&self) -> String {
         format!(
-            "sky:{}:{}:{}:{}:{}:{}",
-            self.time, self.day, self.latitude, self.turbidity, self.intensity, self.ground
+            "sky:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            self.solar_time(),
+            self.day,
+            self.latitude,
+            self.turbidity,
+            self.intensity,
+            self.ground,
+            self.altitude,
+            self.stars,
+            self.moon
         )
+    }
+    fn observer(&self) -> f32 {
+        GROUND + self.altitude.max(0.001)
     }
 }
 
 // Atmosphere, in km (Hillaire 2020's Earth).
 const GROUND: f32 = 6360.;
 const TOP: f32 = 6460.;
-/// The observer stands 50 m up.
-const OBSERVER: f32 = GROUND + 0.05;
 const RAYLEIGH: Vec3 = Vec3::new(5.802e-3, 13.558e-3, 33.1e-3);
 const MIE_SCATTER: f32 = 3.996e-3;
 const MIE_EXTINCT: f32 = 4.44e-3;
@@ -136,6 +190,8 @@ struct Atmosphere {
     transmittance: Vec<Vec3>,
     /// Hillaire's Ψ_ms by altitude and sun cosine.
     multiple: Vec<Vec3>,
+    /// The observer's distance from the earth's centre, km.
+    observer: f32,
 }
 
 /// Distance along a ray from radius `r` with cosine `mu` to the sphere of radius `big`
@@ -207,6 +263,7 @@ impl Atmosphere {
             mie: (turbidity - 1.).max(0.),
             transmittance: vec![],
             multiple: vec![],
+            observer: GROUND + 0.05,
         }
     }
     fn new(turbidity: f32) -> Self {
@@ -299,7 +356,7 @@ impl Atmosphere {
     /// along `d`, with the sun direction `sun`; `ground` is the light leaving the ground per
     /// unit albedo-weighted irradiance, added where the ray hits it.
     fn radiance(&self, d: Vec3, sun: Vec3, ground: Vec3) -> Vec3 {
-        let r = OBSERVER;
+        let r = self.observer;
         let hit = to_ground(r, d.y);
         let length = hit.unwrap_or_else(|| to_sphere(r, d.y, TOP));
         let nu = d.dot(sun);
@@ -358,9 +415,15 @@ pub fn bake(sky: &PhysicalSky) -> anyhow::Result<crate::environment::EnvMap> {
     } else {
         (1024, 512)
     };
-    let atmosphere = Atmosphere::new(sky.turbidity);
-    let sun = sky.sun_local();
-    let scale = PI * sky.intensity;
+    let mut atmosphere = Atmosphere::new(sky.turbidity);
+    atmosphere.observer = sky.observer();
+    // After astronomical twilight (sun 18° down) the moon takes the sun's place: its light is
+    // sunlight 2.5e-6 times as strong at full moon, times the lit fraction.
+    let moon = sky.moon_local();
+    let lit = (1. - (2. * PI * sky.moon_age()).cos()) * 0.5;
+    let moonlit = sky.moon && sky.sun_local().y < -0.31;
+    let sun = if moonlit { moon } else { sky.sun_local() };
+    let scale = PI * sky.intensity * if moonlit { 2.5e-6 * lit.max(0.02) } else { 1. };
     let direction = |x: usize, y: usize| {
         let theta = PI * (y as f32 + 0.5) / h as f32;
         let phi = 2. * PI * ((x as f32 + 0.5) / w as f32 - 0.5);
@@ -390,7 +453,59 @@ pub fn bake(sky: &PhysicalSky) -> anyhow::Result<crate::environment::EnvMap> {
     let ground = (sun_irradiance + sky_irradiance) * sky.ground / PI / scale.max(1e-12);
     texels.extend(rows(h / 2..h, ground));
     // A faint night floor keeps the map from being black (the sampling tables need light).
-    let night = Vec3::new(2e-5, 3e-5, 6e-5) * sky.intensity.max(1e-3);
+    let night = Vec3::new(2e-7, 3e-7, 6e-7) * sky.intensity.max(1e-3);
+    let solid = |y: usize| {
+        (PI / h as f32) * (2. * PI / w as f32) * (PI * (y as f32 + 0.5) / h as f32).sin().max(1e-4)
+    };
+    // Stars: about one texel in 150 above the horizon, a steep brightness distribution, a
+    // colour from blue-white to orange, dimmed by the air along the view (a day sky drowns
+    // them on its own). Energy per star, so the map size changes only their count.
+    if sky.stars > 0. {
+        for y in 0..h / 2 {
+            for x in 0..w {
+                let hash = |k: u32| {
+                    let mut v = (x as u32).wrapping_mul(0x9e37_79b9)
+                        ^ (y as u32).wrapping_mul(0x85eb_ca6b)
+                        ^ k.wrapping_mul(0xc2b2_ae35);
+                    v ^= v >> 16;
+                    v = v.wrapping_mul(0x7feb_352d);
+                    v ^= v >> 15;
+                    v = v.wrapping_mul(0x846c_a68b);
+                    (v ^ (v >> 16)) as f32 / u32::MAX as f32
+                };
+                if hash(1) > 1. / 150. {
+                    continue;
+                }
+                let d = direction(x, y);
+                let Some(t) = atmosphere.march_transmittance(atmosphere.observer, d.y) else {
+                    continue;
+                };
+                let tint = Vec3::new(0.75, 0.85, 1.).lerp(Vec3::new(1., 0.8, 0.55), hash(2));
+                let e = 7.5e-8 * hash(3).powi(4).max(0.002) * sky.stars * sky.intensity;
+                texels[y * w + x] += tint * t * e / solid(y);
+            }
+        }
+    }
+    // The moon's disc (at least a texel across): sunlight 2.5e-6 times as strong at full moon.
+    if sky.moon && moon.y > 0. {
+        let t = atmosphere
+            .march_transmittance(atmosphere.observer, moon.y)
+            .unwrap_or(Vec3::ZERO);
+        let radius = (0.26f32).to_radians().max(PI / h as f32);
+        let mut inside = vec![];
+        for y in 0..h / 2 {
+            for x in 0..w {
+                if direction(x, y).dot(moon) > radius.cos() {
+                    inside.push(y * w + x);
+                }
+            }
+        }
+        let area: f32 = inside.iter().map(|k| solid(k / w)).sum();
+        let e = PI * sky.intensity * 2.5e-6 * lit.max(0.02);
+        for k in inside {
+            texels[k] += Vec3::new(1., 0.97, 0.92) * t * e / area.max(1e-9);
+        }
+    }
     crate::environment::build(
         w,
         h,
@@ -398,6 +513,33 @@ pub fn bake(sky: &PhysicalSky) -> anyhow::Result<crate::environment::EnvMap> {
     )
 }
 
+/// Recent bakes by `map_key`, newest last: scrubbing the time back and forth (or replaying
+/// a keyed day) reuses them instead of baking again.
+static CACHE: std::sync::Mutex<Vec<(String, std::sync::Arc<crate::environment::EnvMap>)>> =
+    std::sync::Mutex::new(Vec::new());
+const CACHED: usize = 12;
+/// A cached bake of `key`, if there is one.
+pub fn cached(key: &str) -> Option<std::sync::Arc<crate::environment::EnvMap>> {
+    let cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    cache.iter().find(|(k, _)| k == key).map(|(_, m)| m.clone())
+}
+/// `bake` through the cache (safe to call from a worker thread).
+pub fn bake_cached(
+    sky: &PhysicalSky,
+) -> anyhow::Result<std::sync::Arc<crate::environment::EnvMap>> {
+    let key = sky.map_key();
+    if let Some(m) = cached(&key) {
+        return Ok(m);
+    }
+    let map = std::sync::Arc::new(bake(sky)?);
+    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    cache.retain(|(k, _)| *k != key);
+    cache.push((key, map.clone()));
+    if cache.len() > CACHED {
+        cache.remove(0);
+    }
+    Ok(map)
+}
 /// What the GPU's environment slot should hold: the sky's map, an HDRI path, or nothing.
 pub fn environment_key(s: &crate::scene::Settings) -> String {
     if s.physical_sky.on {
@@ -416,7 +558,7 @@ pub unsafe fn upload_environment(
 ) -> anyhow::Result<()> {
     unsafe {
         if s.physical_sky.on {
-            g.set_environment(Some(&bake(&s.physical_sky)?))
+            g.set_environment(Some(&*bake_cached(&s.physical_sky)?))
         } else if s.hdri.is_empty() {
             g.set_environment(None)
         } else {

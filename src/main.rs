@@ -107,6 +107,10 @@ struct App {
     require_rr: bool,
     capture_ui: bool,
     self_test: bool,
+    /// Self-test frames spent waiting for an export its next check needs finished (the
+    /// encoder thread can lag a frame or two); `held` this frame.
+    hold_frames: u32,
+    held: bool,
     debug: bool,
     hidden: bool,
     size: [u32; 2],
@@ -139,6 +143,12 @@ struct App {
     /// The environment now on the GPU (`sky::environment_key`: an HDRI path or the physical
     /// sky's map key), compared each frame.
     hdri_loaded: String,
+    /// A sky bake running on a worker thread (windowed runs): its key and result. The
+    /// previous map stays on screen until it lands, so dragging the time doesn't stall.
+    sky_bake: Option<(
+        String,
+        std::sync::mpsc::Receiver<anyhow::Result<std::sync::Arc<environment::EnvMap>>>,
+    )>,
     /// Ctrl+click focus: waiting for the depth under the click, then easing toward it.
     focus_pending: bool,
     focus_target: Option<f32>,
@@ -233,6 +243,25 @@ fn transport_key(s: &Settings) -> String {
     }
     j.to_string()
 }
+/// Squared error of l/(1+l) against the reference and the pixel count, per screen quadrant
+/// (battle mode's layout: left/right, then top/bottom); the convergence graph sums them.
+fn error_sums(image: &[f32], reference: &[f32], w: usize, h: usize) -> [(f64, usize); 4] {
+    let compress = |p: &[f32]| {
+        let l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+        (l / (1. + l.max(0.))) as f64
+    };
+    let mut sums = [(0f64, 0usize); 4];
+    for y in 0..h {
+        for x in 0..w {
+            let q = (x >= w / 2) as usize + 2 * (y >= h / 2) as usize;
+            let i = (y * w + x) * 4;
+            let d = compress(&image[i..i + 4]) - compress(&reference[i..i + 4]);
+            sums[q].0 += d * d;
+            sums[q].1 += 1;
+        }
+    }
+    sums
+}
 fn geometry_key(s: &Settings) -> String {
     serde_json::json!([
         s.objects
@@ -240,6 +269,7 @@ fn geometry_key(s: &Settings) -> String {
             .map(|o| (
                 o.kind(),
                 o.sdf,
+                o.phase,
                 &o.mesh,
                 // Glass goes to the non-opaque BLAS range (shadow rays may pass it).
                 o.material.transmission > 0.,
@@ -629,6 +659,8 @@ impl App {
             require_rr,
             capture_ui,
             self_test,
+            hold_frames: 0,
+            held: false,
             debug,
             hidden,
             size,
@@ -645,6 +677,7 @@ impl App {
             last_samples: 0,
             lut_loaded: String::new(),
             hdri_loaded: String::new(),
+            sky_bake: None,
             focus_pending: false,
             focus_target: None,
             pick_point: None,
@@ -754,6 +787,10 @@ impl App {
                 Request::Samples => {
                     Reply::Number(self.gpu.as_ref().map_or(0, |g| g.samples as i64))
                 }
+                Request::Get(key) => match script::get(&self.settings, &key) {
+                    Ok(t) => Reply::Text(t),
+                    Err(e) => done(Err(e)),
+                },
                 Request::Scenes => {
                     Reply::List(scenes::list().into_iter().map(|e| e.title).collect())
                 }
@@ -793,7 +830,13 @@ impl App {
             let x = &mut self.settings.objects[0].position[0];
             *x = (*x + if self.rendered % 40 < 20 { 0.01 } else { -0.01 }).clamp(-40., 40.);
         }
-        if self.self_test {
+        // An export check waits (up to 600 frames) instead of failing on timing.
+        self.held = self.self_test
+            && matches!(self.rendered, 145 | 149 | 276)
+            && self.export.is_some()
+            && self.hold_frames < 600;
+        self.hold_frames += self.held as u32;
+        if self.self_test && !self.held {
             match self.rendered {
                 1 => self.actions.reference = true,
                 2 => {
@@ -1764,6 +1807,16 @@ impl App {
                 .update(&self.settings, self.ui.transform.is_some())
             {
                 let (n, par) = (self.laser.moves, self.settings.puzzle.par);
+                let best = self
+                    .ui
+                    .prefs
+                    .puzzle_best
+                    .entry(self.settings.scene_name.clone())
+                    .or_insert(n);
+                if n <= *best {
+                    *best = n;
+                    self.ui.save_prefs();
+                }
                 let moves = if n == 1 {
                     "1 move".into()
                 } else {
@@ -1865,8 +1918,16 @@ impl App {
         if self.export.is_none() {
             self.remote_and_gamepad(dt);
         }
+        if let Some(path) = self.ui.open_pending.take() {
+            self.open_scene(&path);
+        }
         // Audio-reactive lights scale this frame's copy only (track 19).
         let mut frame = self.settings.clone();
+        // Laser puzzle (track 17): the beam as glowing rods in this frame's copy.
+        if frame.puzzle.enabled && frame.puzzle.beam {
+            let rods = laser::beam_objects(&frame, &self.laser.segments);
+            frame.objects.extend(rods);
+        }
         if frame.audio.enabled && !self.hidden && self.export.is_none() {
             if self.audio.is_none() {
                 match audio::Audio::start() {
@@ -2056,7 +2117,49 @@ impl App {
             }
         }
         let environment = sky::environment_key(s);
-        if environment != self.hdri_loaded && self.export.is_none() {
+        // Windowed: an uncached sky bakes on a worker thread (one at a time; the newest key
+        // wins when it ends) and lands with an accumulation restart.
+        // A bake for an older key still lands while the newest is uncached (live preview
+        // while dragging); a panicked worker frees the slot.
+        let landed = match &self.sky_bake {
+            Some((key, rx)) => match rx.try_recv() {
+                Ok(result) => Some((key.clone(), result)),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    Some((key.clone(), Err(anyhow::anyhow!("the sky bake stopped"))))
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            },
+            None => None,
+        };
+        if let Some((key, result)) = landed {
+            self.sky_bake = None;
+            if s.physical_sky.on
+                && self.export.is_none()
+                && (key == environment || sky::cached(&environment).is_none())
+            {
+                self.hdri_loaded = key;
+                self.actions.reset = true;
+                if let Err(e) = result.and_then(|m| unsafe { g.set_environment(Some(&m)) }) {
+                    self.ui.error(format!("Sky: {e:#}"));
+                }
+            }
+        }
+        if environment != self.hdri_loaded
+            && self.export.is_none()
+            && s.physical_sky.on
+            && !self.hidden
+            && !self.self_test
+            && sky::cached(&environment).is_none()
+        {
+            if self.sky_bake.is_none() {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let sky = s.physical_sky.clone();
+                std::thread::spawn(move || {
+                    let _ = tx.send(sky::bake_cached(&sky));
+                });
+                self.sky_bake = Some((environment, rx));
+            }
+        } else if environment != self.hdri_loaded && self.export.is_none() {
             self.hdri_loaded = environment;
             if let Err(e) = unsafe { sky::upload_environment(g, s) } {
                 unsafe { g.set_environment(None)? };
@@ -2159,7 +2262,16 @@ impl App {
         if let (Some(point), Some(p)) = (point, g.probe_result) {
             let pixel = [point[0] as f32, point[1] as f32];
             let menu = self.ui.context_menu.is_some();
-            match gizmo::pick_from_probe(&self.settings, pixel, [g.width, g.height], p.id, p.depth)
+            // The puzzle's beam rods follow the objects in the GPU's ids: pick against the
+            // same list, and a rod picks nothing.
+            let mut picked = self.settings.clone();
+            if picked.puzzle.enabled && picked.puzzle.beam {
+                let rods = laser::beam_objects(&picked, &self.laser.segments);
+                picked.objects.extend(rods);
+            }
+            let real = self.settings.objects.len();
+            match gizmo::pick_from_probe(&picked, pixel, [g.width, g.height], p.id, p.depth)
+                .filter(|sel| !matches!(sel, ui::Selection::Object(i) if *i >= real))
             {
                 Some(sel) => {
                     if self.pick_toggle {
@@ -2246,21 +2358,7 @@ impl App {
             }
             if s.battle && spent > 0. && (battle_last == 0. || spent >= battle_last * 1.25) {
                 let image = unsafe { g.read_floats(18)? };
-                let (w, h) = (g.width as usize, g.height as usize);
-                let compress = |p: &[f32]| {
-                    let l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
-                    (l / (1. + l.max(0.))) as f64
-                };
-                let mut sums = [(0f64, 0usize); 4];
-                for y in 0..h {
-                    for x in 0..w {
-                        let q = (x >= w / 2) as usize + 2 * (y >= h / 2) as usize;
-                        let i = (y * w + x) * 4;
-                        let d = compress(&image[i..i + 4]) - compress(&reference[i..i + 4]);
-                        sums[q].0 += d * d;
-                        sums[q].1 += 1;
-                    }
-                }
+                let sums = error_sums(&image, reference, g.width as usize, g.height as usize);
                 for (q, (sum, n)) in sums.iter().enumerate() {
                     if g.battle[q].ms > 0. {
                         let e = (sum / (*n).max(1) as f64).sqrt() * 1000.;
@@ -2271,19 +2369,11 @@ impl App {
             let last = self.ui.graph.last().map_or(0, |p| p.0);
             if !s.battle && g.samples > 0 && (last == 0 || g.samples as f64 >= last as f64 * 1.25) {
                 let image = unsafe { g.read_floats(18)? };
-                let compress = |p: &[f32]| {
-                    let l = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
-                    (l / (1. + l.max(0.))) as f64
-                };
-                let (a, b) = (image.as_chunks::<4>().0, reference.as_chunks::<4>().0);
-                let sum: f64 = a
-                    .iter()
-                    .zip(b)
-                    .map(|(x, y)| (compress(x) - compress(y)).powi(2))
-                    .sum();
+                let sums = error_sums(&image, reference, g.width as usize, g.height as usize);
+                let (sum, n) = sums.iter().fold((0., 0), |a, q| (a.0 + q.0, a.1 + q.1));
                 self.ui
                     .graph
-                    .push((g.samples, (sum / a.len().max(1) as f64).sqrt() * 1000.));
+                    .push((g.samples, (sum / n.max(1) as f64).sqrt() * 1000.));
             }
         }
         // Lifetime statistics and achievements.
@@ -2734,7 +2824,9 @@ impl App {
                 messages.len()
             );
         }
-        self.rendered += 1;
+        if !self.held {
+            self.rendered += 1;
+        }
         if let Some(dir) = &self.capture_sequence
             && self
                 .frames
@@ -3347,6 +3439,8 @@ impl ApplicationHandler for App {
                     if let Some(w) = &mut self.walking {
                         // Walking, the wheel sizes the body instead of zooming.
                         w.zoom(d);
+                    } else if self.physics_wheel(d) {
+                        // Holding a body: the wheel sets its distance.
                     } else {
                         self.settings.distance =
                             (self.settings.distance * (-d * 0.1).exp()).clamp(0.5, 200.);
@@ -3508,6 +3602,12 @@ impl ApplicationHandler for App {
                             if self.settings.physics.enabled && self.walking.is_none() =>
                         {
                             self.physics_explode()
+                        }
+                        KeyCode::KeyN
+                            if self.settings.physics.enabled && self.walking.is_none() =>
+                        {
+                            self.ui.checkpoint(&self.settings);
+                            self.physics_spawn(self.shift)
                         }
                         KeyCode::KeyP => {
                             self.ui.paths.open = !self.ui.paths.open;

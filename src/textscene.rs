@@ -141,6 +141,19 @@ impl Default for AiConfig {
     }
 }
 impl AiConfig {
+    /// A short name for the backend picker: the provider, plus the model or endpoint.
+    pub fn short_label(&self) -> String {
+        let provider = self.provider.label().split(" (").next().unwrap_or_default();
+        let detail = if self.provider == Provider::Custom {
+            format!("{} {}", self.base_url, self.model)
+        } else {
+            self.model.clone()
+        };
+        match detail.trim() {
+            "" => provider.to_string(),
+            d => format!("{provider} · {d}"),
+        }
+    }
     /// Why a request cannot be sent yet (shown under the Generate button), given the key
     /// typed in the menu.
     pub fn missing(&self, key: &str) -> Option<String> {

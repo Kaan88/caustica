@@ -2,10 +2,10 @@
 use crate::scene::{LightKind, Object, Settings, Shape, Vertex};
 use glam::{EulerRot, Mat4, Vec3};
 use std::sync::LazyLock;
-type Mesh = Vec<(Vec3, Vec3)>;
+pub type Mesh = Vec<(Vec3, Vec3)>;
 static MESHES: LazyLock<Vec<Mesh>> =
     LazyLock::new(|| Shape::ALL.iter().map(|s| make_mesh(*s)).collect());
-fn mesh(shape: Shape) -> &'static Mesh {
+pub fn mesh(shape: Shape) -> &'static Mesh {
     &MESHES[shape as usize]
 }
 /// An object's local triangles (−1..1): a built-in shape or an imported / procedural mesh.

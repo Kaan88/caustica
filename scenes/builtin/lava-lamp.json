@@ -1,0 +1,342 @@
+{
+ "format": 1,
+ "title": "Lava lamp",
+ "description": "Glowing wax metaballs (a procedural surface) rising and sinking in a liquid-filled bottle; K plays the 20 s timeline, which keys the blobs' phase.",
+ "tags": [
+  "procedural",
+  "sdf",
+  "animation",
+  "emitters",
+  "miniature"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.03,
+   0.03,
+   0.04
+  ],
+  "floor": {
+   "color": [
+    0.25,
+    0.2,
+    0.18
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Room fill",
+    "position": [
+     -2.5,
+     2.5,
+     2.0
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     1.5,
+     1.5
+    ],
+    "color": [
+     1.0,
+     0.657,
+     0.4369
+    ],
+    "intensity": 4.0,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 12,
+  "yaw": 10,
+  "pitch": 8,
+  "distance": 2.6,
+  "target": [
+   0,
+   -0.35,
+   0
+  ],
+  "fov": 38,
+  "objects": [
+   {
+    "name": "Base",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.5429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5714,
+     0.5714
+    ],
+    "elevation": -0.81,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.035,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   },
+   {
+    "name": "Bottle",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 1.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4571,
+     0.4571
+    ],
+    "elevation": -0.2,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.93,
+      0.82
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   },
+   {
+    "name": "Wax",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 1.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3714,
+     0.3714
+    ],
+    "elevation": -0.2,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.32,
+      0.06
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.2,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "sdf": "metaballs",
+    "phase": 3.0,
+    "body": "fixed"
+   },
+   {
+    "name": "Cap",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     0.2857
+    ],
+    "elevation": 0.32,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.035,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   },
+   {
+    "name": "Side table",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.0,
+     2.5
+    ],
+    "elevation": -0.99,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.08,
+      0.04
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   }
+  ],
+  "animation": {
+   "length": 20.0,
+   "fps": 24,
+   "shutter": 0.5,
+   "tracks": [
+    {
+     "path": "objects/2/phase",
+     "keys": [
+      {
+       "time": 0,
+       "value": 3.0,
+       "interp": "linear"
+      },
+      {
+       "time": 20,
+       "value": 13.0,
+       "interp": "linear"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

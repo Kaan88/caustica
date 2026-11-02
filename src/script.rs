@@ -5,7 +5,7 @@
 //! Functions: `load(scene)` (a scene file path, stem or title), `set(key, json)` (a top-level
 //! setting, or a `/` path such as `objects/0/rotation`), `frames(n)` (render n frames),
 //! `reset()` (restart accumulation), `capture(path)` (PNG or EXR of the current image),
-//! `samples()` (samples accumulated so far), `scenes()` (every scene title). `print` writes to
+//! `samples()` (samples accumulated so far), `get(key)` (a setting or `/` path as JSON text), `scenes()` (every scene title). `print` writes to
 //! stdout. When the script ends, a headless run exits with `SCRIPT_OK` (or `SCRIPT_ERROR`).
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -19,12 +19,14 @@ pub enum Request {
     Capture(String),
     Samples,
     Scenes,
+    Get(String),
 }
 
 pub enum Reply {
     Done(Result<(), String>),
     Number(i64),
     List(Vec<String>),
+    Text(String),
 }
 
 pub struct Script {
@@ -76,6 +78,14 @@ impl Script {
                     Reply::Number(n) => Ok(n),
                     Reply::Done(Err(e)) => Err(e.into()),
                     _ => Ok(0),
+                }
+            });
+            let c = call.clone();
+            engine.register_fn("get", move |k: &str| -> Res<String> {
+                match c(Request::Get(k.into()))? {
+                    Reply::Text(t) => Ok(t),
+                    Reply::Done(Err(e)) => Err(e.into()),
+                    _ => Ok(String::new()),
                 }
             });
             let c = call;
@@ -151,6 +161,15 @@ pub fn set(s: &mut crate::scene::Settings, key: &str, value: &str) -> anyhow::Re
     Ok(())
 }
 
+/// A top-level setting or a `/` path inside the settings, as JSON text.
+pub fn get(s: &crate::scene::Settings, key: &str) -> anyhow::Result<String> {
+    let j = serde_json::to_value(s)?;
+    let pointer = format!("/{}", key.trim_start_matches('/'));
+    j.pointer(&pointer)
+        .map(|v| v.to_string())
+        .ok_or_else(|| anyhow::anyhow!("unknown setting {key}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,5 +187,7 @@ mod tests {
         );
         assert_eq!(s.spp, 8, "a rejected value leaves the settings alone");
         assert!(set(&mut s, "no_such_key", "1").is_err());
+        assert_eq!(get(&s, "objects/0/rotation").unwrap(), "33.0");
+        assert!(get(&s, "no_such_key").is_err());
     }
 }

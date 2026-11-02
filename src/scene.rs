@@ -117,6 +117,12 @@ fn is_false(v: &bool) -> bool {
 fn is_zero(v: &u32) -> bool {
     *v == 0
 }
+fn one() -> f32 {
+    1.
+}
+fn is_one(v: &f32) -> bool {
+    *v == 1.
+}
 fn is_zero_f32(v: &f32) -> bool {
     *v == 0.
 }
@@ -426,9 +432,19 @@ pub struct Object {
     /// ignored; `kind()` gives the proxy mesh used for picking, framing and grounding).
     #[serde(skip_serializing_if = "Sdf::is_none")]
     pub sdf: Sdf,
+    /// Animation phase of a procedural surface (metaballs: blob positions); keyframe it.
+    /// Always serialized: keyframes and the I key find fields in the scene's JSON.
+    #[serde(default)]
+    pub phase: f32,
     /// Track 17 physics: how the sandbox simulates this object.
     #[serde(skip_serializing_if = "Body::is_dynamic")]
     pub body: Body,
+    /// Track 17: density multiplier of the body (1: water-like default).
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub mass: f32,
+    /// Track 17 laser puzzle: the gizmo can't move it (walls, the target, fixed parts).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
     /// Track 17 physics: this object is a string (a cylinder) from the fixed point `from` to
     /// the centre of object `object`. The simulation redraws it every step, and the strings
     /// pointing at a body become its joint (one: a ball joint, two or more: a hinge through
@@ -470,6 +486,12 @@ pub struct Physics {
     /// Restitution of every body.
     pub bounce: f32,
     pub friction: f32,
+    /// The direction gravity pulls (normalized when used; default straight down).
+    pub down: [f32; 3],
+    /// Wind as an acceleration, scene units/s² (every dynamic body, by its mass).
+    pub wind: [f32; 3],
+    /// Gust strength, 0 (steady) to 1 (the wind drops to nothing and doubles).
+    pub gusts: f32,
 }
 impl Default for Physics {
     fn default() -> Self {
@@ -479,6 +501,9 @@ impl Default for Physics {
             speed: 1.,
             bounce: 0.15,
             friction: 0.7,
+            down: [0., -1., 0.],
+            wind: [0.; 3],
+            gusts: 0.,
         }
     }
 }
@@ -527,6 +552,11 @@ pub struct Puzzle {
     pub target: i32,
     pub par: u32,
     pub color: [f32; 3],
+    /// More objects the beam must reach as well (all of them, and `target`, to solve).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub targets: Vec<i32>,
+    /// The beam also renders as thin glowing rods in the image (not only the overlay).
+    pub beam: bool,
 }
 impl Default for Puzzle {
     fn default() -> Self {
@@ -537,6 +567,8 @@ impl Default for Puzzle {
             target: -1,
             par: 3,
             color: [1., 0.1, 0.1],
+            targets: vec![],
+            beam: false,
         }
     }
 }
@@ -559,14 +591,17 @@ pub enum Sdf {
     Mandelbulb,
     /// A Menger sponge, five levels, filling the unit cube.
     Menger,
+    /// Six blobs blended with a smooth minimum, moving with `Object::phase` (a lava lamp).
+    Metaballs,
 }
 impl Sdf {
-    pub const ALL: [Sdf; 5] = [
+    pub const ALL: [Sdf; 6] = [
         Sdf::None,
         Sdf::Sphere,
         Sdf::Torus,
         Sdf::Mandelbulb,
         Sdf::Menger,
+        Sdf::Metaballs,
     ];
     pub fn is_none(&self) -> bool {
         *self == Sdf::None
@@ -578,11 +613,13 @@ impl Sdf {
             Sdf::Torus => "Exact torus",
             Sdf::Mandelbulb => "Mandelbulb",
             Sdf::Menger => "Menger sponge",
+            Sdf::Metaballs => "Metaballs",
         }
     }
-    /// The shader's kind id (`Instance.vertex_base` of a procedural instance).
-    pub fn id(self) -> u32 {
-        self as u32
+    /// The shader's kind id (low 8 bits of `Instance.vertex_base` of a procedural instance);
+    /// the high 24 bits carry the phase in thousandths (metaballs).
+    pub fn id(self, phase: f32) -> u32 {
+        self as u32 | ((((phase.rem_euclid(10000.) * 1000.) as u32) & 0xff_ffff) << 8)
     }
 }
 impl Default for Object {
@@ -604,7 +641,10 @@ impl Default for Object {
             portal: -1,
             mesh: String::new(),
             sdf: Sdf::None,
+            phase: 0.,
             body: Body::Dynamic,
+            mass: 1.,
+            locked: false,
             tether: None,
         }
     }
@@ -614,7 +654,7 @@ impl Object {
         match self.sdf {
             Sdf::Sphere | Sdf::Mandelbulb => return Shape::Sphere,
             Sdf::Torus => return Shape::Torus,
-            Sdf::Menger => return Shape::Box,
+            Sdf::Menger | Sdf::Metaballs => return Shape::Box,
             Sdf::None => {}
         }
         if self.sphere {
@@ -1272,7 +1312,11 @@ impl Settings {
             (-30. ..=30.).contains(&self.physics.gravity)
                 && (0. ..=4.).contains(&self.physics.speed)
                 && (0. ..=1.).contains(&self.physics.bounce)
-                && (0. ..=2.).contains(&self.physics.friction),
+                && (0. ..=2.).contains(&self.physics.friction)
+                && self.physics.down.iter().all(|v| v.abs() <= 1.)
+                && self.physics.down.iter().any(|v| v.abs() > 0.01)
+                && self.physics.wind.iter().all(|v| v.abs() <= 50.)
+                && (0. ..=1.).contains(&self.physics.gusts),
             "Invalid physics"
         );
         anyhow::ensure!(
@@ -1287,6 +1331,10 @@ impl Settings {
                 && p.direction.iter().all(|v| v.is_finite() && v.abs() <= 1e3)
                 && (-1..self.objects.len() as i32).contains(&p.target)
                 && p.par <= 99
+                && p.targets.len() <= 16
+                && p.targets
+                    .iter()
+                    .all(|t| (0..self.objects.len() as i32).contains(t))
                 && p.color.iter().all(|v| (0. ..=1.).contains(v)),
             "Invalid laser puzzle"
         );
@@ -1367,6 +1415,8 @@ impl Settings {
                     && o.rotation.abs() <= 360.
                     && o.position.iter().all(|v| v.abs() <= 40.)
                     && o.elevation.abs() <= 40.
+                    && (0. ..=10000.).contains(&o.phase)
+                    && (0.01..=100.).contains(&o.mass)
                     && o.tilt.iter().all(|v| v.abs() <= 360.)
                     && o.scale_xz.iter().all(|v| (0.01..=20.).contains(v))
                     && o.name.len() <= 128

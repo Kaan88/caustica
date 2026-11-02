@@ -2129,7 +2129,7 @@ impl Gpu {
                     &blas,
                 );
                 table.push(InstanceRecord {
-                    vertex_base: o.sdf.id(),
+                    vertex_base: o.sdf.id(o.phase),
                     material,
                     emitter_base: u32::MAX,
                     object: i as u32,

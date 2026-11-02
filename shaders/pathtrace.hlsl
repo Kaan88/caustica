@@ -139,30 +139,46 @@ float sdf_menger(float3 p){
         d=max(d,(min(max(r.x,r.y),min(max(r.y,r.z),max(r.z,r.x)))-1)/s);}
     return d;
 }
-float sdf(uint kind,float3 p){
+// Lava-lamp metaballs, made for an object 3× taller than wide (round blobs): in q = (x, 3y, z)
+// a pool at the bottom, a cap at the top and four blobs on slow Lissajous paths, joined by a
+// polynomial smooth minimum (k 0.5). ph: the object's phase. q stretches y by 3, so d/3 bounds.
+float sdf_metaballs(float3 p,float ph){
+    float3 q=float3(p.x,3*p.y,p.z);
+    float d=min(length(q-float3(0,-3.3,0))-0.95,length(q-float3(0,3.4,0))-0.7);
+    [unroll]for(int i=0;i<4;i++){
+        float a=ph*(0.5+0.17*i)+i*1.7,r=0.42+0.1*(i&1);
+        float3 c=float3(0.4*sin(a*1.3+i),2.3*sin(a),0.4*cos(a*0.9+2*i));
+        float e=length(q-c)-r,h=saturate(0.5+0.5*(e-d)/0.5);d=lerp(e,d,h)-0.5*h*(1-h);
+    }
+    return d/3;
+}
+float sdf(uint raw,float3 p){
+    uint kind=raw&255;
+    if(kind==5)return sdf_metaballs(p,(raw>>8)*0.001);
     if(kind==2)return length(float2(length(p.xz)-0.72,p.y))-0.28;
     if(kind==3)return sdf_mandelbulb(p);
     if(kind==4)return sdf_menger(p);
     return length(p)-1;
 }
-float3 sdf_normal(uint kind,float3 p){
+float3 sdf_normal(uint raw,float3 p){
+    uint kind=raw&255;
     if(kind==1)return p;
     const float e=1e-4;const float2 k=float2(1,-1);
-    return k.xyy*sdf(kind,p+k.xyy*e)+k.yyx*sdf(kind,p+k.yyx*e)+k.yxy*sdf(kind,p+k.yxy*e)+k.xxx*sdf(kind,p+k.xxx*e);
+    return k.xyy*sdf(raw,p+k.xyy*e)+k.yyx*sdf(raw,p+k.yyx*e)+k.yxy*sdf(raw,p+k.yxy*e)+k.xxx*sdf(raw,p+k.xxx*e);
 }
 // The nearest surface crossing in (tmin, tmax); from inside (refraction) it marches to the exit.
-bool sdf_hit(uint kind,float3 o,float3 d,float tmin,float tmax,out float t){
-    t=0;
+bool sdf_hit(uint raw,float3 o,float3 d,float tmin,float tmax,out float t){
+    t=0;uint kind=raw&255;
     float3 inv=1/select(abs(d)>1e-12,d,1e-12),a=(-1-o)*inv,b=(1-o)*inv,lo=min(a,b),hi=max(a,b);
     float t0=max(tmin,max(lo.x,max(lo.y,lo.z))),t1=min(tmax,min(hi.x,min(hi.y,hi.z)));
     if(t0>t1)return false;
     if(kind==1){float A=dot(d,d),B=dot(o,d),D=B*B-A*(dot(o,o)-1);if(D<0)return false;float r=sqrt(D);t=(-B-r)/A;if(t<=tmin)t=(-B+r)/A;return t>tmin && t<tmax;}
     float L=length(d),s=t0*L,e=t1*L;float3 u=d/L;
     // Round shapes start at their bounding sphere (radius 1) instead of the cube's corners.
-    if(kind!=4){float b=dot(o,u),D=b*b-dot(o,o)+1;if(D<0)return false;float r=sqrt(D);s=max(s,-b-r);e=min(e,-b+r);}
-    float side=sdf(kind,o+u*s)<0?-1:1;
+    if(kind!=4 && kind!=5){float b=dot(o,u),D=b*b-dot(o,o)+1;if(D<0)return false;float r=sqrt(D);s=max(s,-b-r);e=min(e,-b+r);}
+    float side=sdf(raw,o+u*s)<0?-1:1;
     for(int i=0;i<128 && s<e;i++){
-        float h=side*sdf(kind,o+u*s);
+        float h=side*sdf(raw,o+u*s);
         // 1e-4 world units (L = object units per world unit along a normalized world ray).
         if(h<1e-4*L){t=s/L;return t>tmin;}
         s+=kind==3?0.9*h:h;
@@ -655,6 +671,10 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
 // Light sampling from x: each strategy picks a direction ld with its radiance le, its pdf pl
 // (solid angle, selection included) and a shadow-ray limit. Shared by surface vertices and
 // volume scattering (track 12); false when nothing was picked.
+// Shadow-ray length to a point on an emitter len away, seen at cosine c to its normal: stop
+// 0.6 mm off its surface (along the normal, not the ray), so a grazing sample does not hit the
+// emitter's own face (that lost ~0.5% of night-skyline's light-sampled light).
+float nee_limit(float len,float c){return max(0.0002,len-min(0.5*len,0.0006/max(abs(c),0.02)));}
 bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,out float3 le,out float pl,out float limit){
     bool nee=false;ld=float3(0,1,0);le=0;pl=0;limit=1e4;if(lpe_on)lpe_env_sample=false;
     if(env_nee && random()<p_env){
@@ -674,7 +694,7 @@ bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,o
     }else{
     float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);ld=lp-x;float len=length(ld);ld/=max(len,1e-8);
     Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
-    if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(x,lp,light);limit=max(0.0002,len-0.0006);nee=true;}
+    if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(x,lp,light);limit=nee_limit(len,dot(ln,ld));nee=true;}
     }}
     return nee;
 }
@@ -727,7 +747,7 @@ LightPoint light_point(uint i,uint q){
 // sample_light computes them; ld and limit for the shadow ray.
 float3 light_toward(uint i,LightPoint l,float3 x,out float3 ld,out float g,out float limit){
     if(l.kind==2){ld=l.p;g=1;limit=1e4;return l.le;}
-    ld=l.p-x;float d2=dot(ld,ld),len=sqrt(d2);ld/=max(len,1e-8);limit=max(0.0002,len-0.0006);float c=dot(l.n,-ld);
+    ld=l.p-x;float d2=dot(ld,ld),len=sqrt(d2);ld/=max(len,1e-8);float c=dot(l.n,-ld);limit=nee_limit(len,c);
     if(l.kind==1){g=max(c,0)/max(d2,1e-8);return c>0?l.le:0;}
     Material lm=material_at((uint)emitters[i].emission_material.w,l.p);g=abs(c)/max(d2,1e-8);
     return lm.optical.w>=0.5 && c<=0?0:lm.color_rough.rgb*lm.optical.y*spot(lm,c);

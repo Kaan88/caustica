@@ -347,6 +347,17 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                     });
                 },
             );
+            row(ui, "Mass", "Density multiplier of its physics body (1 = default)", |ui| {
+                ui.add(crate::slider(&mut o.mass, 0.01..=100.).logarithmic(true).suffix("×"));
+            });
+            row(ui, "Locked", "The gizmo can't move it (laser puzzle walls and targets)", |ui| {
+                ui.checkbox(&mut o.locked, "");
+            });
+            if o.sdf == crate::scene::Sdf::Metaballs {
+                row(ui, "Phase", "Where the blobs are; key it (I) and play the timeline to animate them.", |ui| {
+                    ui.add(crate::slider(&mut o.phase, 0. ..=100.));
+                });
+            }
             row(
                 ui,
                 "Physics",
