@@ -1,0 +1,33 @@
+# Roadmap 17b: build and check every push on a Windows runner.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # Vendor SDKs (DLSS, FSR, XeSS) and ffmpeg, pinned by commit / hash in the script.
+      - uses: actions/cache@v4
+        with:
+          path: vendor
+          key: vendor-${{ hashFiles('tools/setup.ps1') }}
+      - name: Fetch SDKs
+        shell: pwsh
+        run: ./tools/setup.ps1 -SkipBuild
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --locked -- -D warnings
+      # The runner has no GPU: unit tests only (the self-test needs D3D12 with DXR).
+      - name: Test
+        run: cargo test --locked
+      - name: Release build
+        run: cargo build --release --locked

@@ -446,7 +446,9 @@ Laser puzzle done 2026-11-02 (part 3): a CPU-traced laser beam (mirrors, splitte
   - Win detection: a **sensor material** that adds the radiance hitting it into a counter buffer, read back once per frame.
   - Levels are scene files.
 
-#### 17b. GitHub builds and releases (owner request, 2026-11-02)
+#### 17b. GitHub builds and releases (owner request, 2026-11-02) — workflows added 2026-11-02
+
+Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.ps1 -SkipBuild` for the SDKs with `vendor/` cached, then fmt, clippy, unit tests and a release build; no GPU on the runner, so no self-test) and `release.yml` (a `v*` tag, or a manual run: release build, a zip of the exe, its DLLs, ffmpeg, `scenes/` and the README, uploaded as an artifact and, for tags, attached to a GitHub release with generated notes). No tag has been pushed yet. Not done: the self-test in CI (needs a GPU runner); DXC is the runner's Windows SDK copy, not pinned; downloaded assets are not in the zip.
 
 - GitHub Actions on a Windows runner: `cargo fmt --check`, clippy, tests and a release build on every push (DXC from the Windows SDK or a pinned download; the vendor SDKs that cannot be fetched in CI need a stub or a cache, see docs/claude/setup.md).
 - Releases: a tag builds the exe with its DLLs, shaders and `scenes/` into a zip and attaches it to a GitHub release with notes from the roadmap entry.

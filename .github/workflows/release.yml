@@ -1,0 +1,48 @@
+# Roadmap 17b: a tag v* builds the app and attaches a zip to a GitHub release.
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: vendor
+          key: vendor-${{ hashFiles('tools/setup.ps1') }}
+      - name: Fetch SDKs
+        shell: pwsh
+        run: ./tools/setup.ps1 -SkipBuild
+      - name: Build
+        run: cargo build --release --locked
+      # The exe with the DLLs and ffmpeg build.rs copied next to it, the scene packs and the
+      # README. Downloaded assets (scenes/models, hdri, textures) are not in the repo.
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = if ($env:GITHUB_REF_TYPE -eq 'tag') { "cornell-rtx-$env:GITHUB_REF_NAME" } else { "cornell-rtx-$($env:GITHUB_SHA.Substring(0, 7))" }
+          $dist = "dist/$name"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item target/release/cornell-rtx.exe, target/release/*.dll $dist
+          if (Test-Path target/release/ffmpeg.exe) { Copy-Item target/release/ffmpeg.exe $dist }
+          Copy-Item -Recurse scenes $dist/scenes
+          Copy-Item README.md $dist
+          Compress-Archive -Path $dist -DestinationPath "dist/$name.zip"
+          "ZIP=dist/$name.zip" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cornell-rtx
+          path: ${{ env.ZIP }}
+      - name: GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          generate_release_notes: true
