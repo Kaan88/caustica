@@ -489,9 +489,7 @@ Added `.github/workflows/ci.yml` (every push to main and every PR: `tools/setup.
   - Done 2026-11-02: `--script file.rhai` (headless or windowed) with `load`, `set` (nested `/` paths, validated), `frames`, `reset`, `capture`, `samples`, `scenes`; `examples/scripts/batch.rhai`. See engine-notes "Scripting". Not done: an in-app console (a text box running lines against the live scene), access to generators and keyframes from scripts, reading settings back (`get`), a script that runs per frame (procedural animation).
 - **Audio-reactive lights:** WASAPI loopback capture (`cpal`) and an FFT drive emitter intensities per frequency band. Runs in per-frame RR mode, since every frame changes the lights.
   - Done 2026-11-02: Scene → Audio (`Settings::audio`): WASAPI loopback through cpal (an input stream on the default output device), a 2048-sample FFT (rustfft) into bass/mid/treble with automatic gain and smoothing, scaling the main light (bass), area light i and emitter i (band i mod 3) in the frame's copy of the settings. See engine-notes "Audio-reactive lights". Not done: a demo scene, per-light band choice, a beat detector (strobe on kicks), colour shifts per band, non-f32 output formats (24-bit integer shared mode), video export synced to an audio file.
-- **Live wallpaper:** render behind the desktop icons with the WorkerW trick, at low spp. Pause when a fullscreen app runs or on battery.
-- **Blender live link:** a Blender add-on streams objects, transforms, materials and the camera over a socket. Needs mesh import and instancing.
-- **Web viewer parity:** the WebGL app loads native scene files (only the features it supports), so scenes can be shared with anyone who has a browser.
+- Removed 2026-11-02 (owner decision, not planned): the live wallpaper (rendering behind the desktop icons with the WorkerW trick), the Blender live link (an add-on streaming objects, materials and the camera over a socket) and web viewer parity (the WebGL app loading native scene files).
 
 #### 20. Shader Execution Reordering (DXR 1.2)
 
