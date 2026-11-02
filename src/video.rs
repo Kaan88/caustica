@@ -610,6 +610,7 @@ impl Job {
         v.vsync = false;
         v.rotate = false;
         v.compare = false;
+        v.battle = false;
         v.max_samples = options.spp.max(1);
         if !options.timeline {
             v.pitch = options.pitch.clamp(-89., 89.);

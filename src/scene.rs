@@ -1009,7 +1009,7 @@ impl Settings {
             (self.dlss_preset, self.native_aa),
             (self.hdr_mode, self.hdr_peak, self.hdr_white),
             (self.pixel_filter, self.filter_width, self.anisotropy),
-            (std::mem::take(&mut self.lpe), self.lpe_slot),
+            (std::mem::take(&mut self.lpe), self.lpe_slot, self.battle),
         );
         *self = Self::default();
         match id {
@@ -1116,7 +1116,7 @@ impl Settings {
             (self.dlss_preset, self.native_aa),
             (self.hdr_mode, self.hdr_peak, self.hdr_white),
             (self.pixel_filter, self.filter_width, self.anisotropy),
-            (self.lpe, self.lpe_slot),
+            (self.lpe, self.lpe_slot, self.battle),
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {

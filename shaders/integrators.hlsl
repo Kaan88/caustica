@@ -174,7 +174,7 @@ float mis_weight(uint s,uint t,float pt_rev,float ptm_rev,float qs_rev,float qsm
 }
 void atomic_add_float(uint a,float v){
     if(v==0)return;uint old=aux.Load(a);
-    for(uint n=0;n<64;n++){uint prev;aux.InterlockedCompareExchange(a,old,asuint(asfloat(old)+v),prev);if(prev==old)break;old=prev;}
+    for(uint n=0;n<1024;n++){uint prev;aux.InterlockedCompareExchange(a,old,asuint(asfloat(old)+v),prev);if(prev==old)break;old=prev;}
 }
 void splat(uint2 q,float3 c){
     if(!all(isfinite(c)) || !any(c>0))return;uint a=integrator.z+(q.y*dimensions.x+q.x)*12;
@@ -392,13 +392,17 @@ float3 disk_origin(float3 ld){float r=bounds.w*sqrt(random()),a=2*PI*random();re
 float3 gather(BVertex x,Material m,float3 v){
     float r=photon.x;float3 sum=0;int3 c0=(int3)floor(x.p/r);
     for(int k=0;k<27;k++){
-        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));
-        for(uint guard=0;j!=0xffffffffu && guard<4096;guard++){
+        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
+        for(;j!=0xffffffffu && guard<4096;guard++){
             uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x.p;
             if(all((int3)floor(q/r)==c) && dot(dq,dq)<r*r){float3 wi=unpack_normal(A.w);float pdf;
-                if(dot(x.n,wi)>0)sum+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*asfloat(B.xyz);}
+                if(dot(x.n,wi)>0)cell+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*asfloat(B.xyz);}
             j=B.w;
         }
+        // A chain longer than the walk: count the rest and scale up the walked part (the chain's
+        // order is random, so the first 4096 stand for the whole cell) instead of going dark.
+        uint total=guard;for(;j!=0xffffffffu && total<(1u<<20);total++)j=aux.Load(PHOTON_BASE+j*32+28);
+        sum+=cell*(float(total)/max(guard,1u));
     }
     return sum/(max(integrator.x,1u)*PI*r*r);
 }

@@ -2469,7 +2469,8 @@ impl Gpu {
     /// passes run this frame.
     unsafe fn prepare_restir(&mut self, s: &Settings) -> Result<bool> {
         // Battle mode's second quadrant is path tracing with ReSTIR.
-        let on = (s.restir || s.battle) && self.emitter_count > 0;
+        let wanted = (s.restir && s.integrator == 0) || s.battle;
+        let on = wanted && self.emitter_count > 0;
         // At most 1 GiB of reservoirs (4K: two layers).
         let pixels = (self.rw as u64 * self.rh as u64).max(1);
         self.restir_layers = s
@@ -2477,7 +2478,7 @@ impl Gpu {
             .clamp(1, 4)
             .min(((1 << 30) / (pixels * 64)).max(1) as u32);
         // Plus the light tiles (pathtrace.hlsl RESTIR_TILES × RESTIR_TILE, 32 B each).
-        let len = if s.restir || s.battle {
+        let len = if wanted {
             self.rw as u64 * self.rh as u64 * self.restir_layers as u64 * 64 + RESTIR_TILES * 32
         } else {
             0
@@ -3385,7 +3386,6 @@ impl Gpu {
         // Without the UI, as before: trace to the end of display.
         self.gpu_ms = span(0, 3);
         self.pass_ms = [span(0, 1), span(1, 2), span(2, 3), span(3, 4)];
-        self.timing.Unmap(0, None);
         if s.battle {
             for (i, q) in self.battle.iter_mut().enumerate() {
                 if q.last == 0 {
@@ -3409,6 +3409,7 @@ impl Gpu {
         } else {
             self.samples += n;
         }
+        self.timing.Unmap(0, None);
         if n > 0 {
             self.frame = self.frame.wrapping_add(1);
         }
