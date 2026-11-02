@@ -1,0 +1,6205 @@
+{
+ "format": 1,
+ "title": "Snow globe",
+ "description": "A glass snow globe on a wooden base: nested dielectrics (glass around water), a lit cottage, trees and 160 snowflakes, refracted into a fisheye view.",
+ "tags": [
+  "glass",
+  "nested",
+  "miniature"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.05,
+  "base": [
+   0.03,
+   0.035,
+   0.06
+  ],
+  "floor": {
+   "color": [
+    0.35,
+    0.3,
+    0.26
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0
+  },
+  "light_on": true,
+  "light_position": [
+   -2.0,
+   3.5,
+   2.0
+  ],
+  "light_size": 1.5,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 6500.0,
+  "bounces": 16,
+  "yaw": 15,
+  "pitch": 8,
+  "distance": 3.6,
+  "target": [
+   0,
+   0.0,
+   0
+  ],
+  "fov": 38,
+  "objects": [
+   {
+    "name": "Base",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.1,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.17,
+      0.08
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glass",
+    "shape": "sphere",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     10.0
+    ],
+    "elevation": 0.12,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.97,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "priority": 2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Water",
+    "shape": "sphere",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.2214,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     10.0
+    ],
+    "elevation": 0.12,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.94,
+      0.97,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.33,
+     "emission": 0.0,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snow ground",
+    "shape": "sphere",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.0857,
+    "stretch": 3.6667,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.54,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.96,
+      1.0
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -0.12,
+     0.05
+    ],
+    "size": 0.05,
+    "stretch": 9.1429,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     9.1429
+    ],
+    "elevation": -0.36,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.2,
+      0.15
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof",
+    "shape": "tetrahedron",
+    "position": [
+     -0.12,
+     0.05
+    ],
+    "size": 0.05,
+    "stretch": 5.7143,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.2857,
+     10.2857
+    ],
+    "elevation": -0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.22,
+      0.2
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Window",
+    "shape": "box",
+    "position": [
+     -0.08,
+     0.205
+    ],
+    "size": 0.05,
+    "stretch": 2.8571,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.8571,
+     0.5714
+    ],
+    "elevation": -0.33,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.75,
+      0.35
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 1",
+    "shape": "cone",
+    "position": [
+     0.3,
+     -0.1
+    ],
+    "size": 0.06,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     6.1905,
+     6.1905
+    ],
+    "elevation": -0.31,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.32,
+      0.15
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 2",
+    "shape": "cone",
+    "position": [
+     0.18,
+     0.28
+    ],
+    "size": 0.05,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.4286,
+     7.4286
+    ],
+    "elevation": -0.37,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.32,
+      0.15
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tree 3",
+    "shape": "cone",
+    "position": [
+     -0.38,
+     -0.2
+    ],
+    "size": 0.05,
+    "stretch": 9.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     7.4286,
+     7.4286
+    ],
+    "elevation": -0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.32,
+      0.15
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 1",
+    "shape": "sphere",
+    "position": [
+     -0.5986,
+     -0.188
+    ],
+    "size": 0.05,
+    "stretch": 0.4837,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4837,
+     0.4837
+    ],
+    "elevation": 0.1702,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 2",
+    "shape": "sphere",
+    "position": [
+     0.1784,
+     0.1079
+    ],
+    "size": 0.05,
+    "stretch": 0.6385,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6385,
+     0.6385
+    ],
+    "elevation": 0.7468,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 3",
+    "shape": "sphere",
+    "position": [
+     0.1142,
+     -0.1786
+    ],
+    "size": 0.05,
+    "stretch": 0.7075,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7075,
+     0.7075
+    ],
+    "elevation": 0.3145,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 4",
+    "shape": "sphere",
+    "position": [
+     0.2526,
+     -0.2602
+    ],
+    "size": 0.05,
+    "stretch": 0.7248,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7248,
+     0.7248
+    ],
+    "elevation": 0.0186,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 5",
+    "shape": "sphere",
+    "position": [
+     -0.0655,
+     0.4121
+    ],
+    "size": 0.05,
+    "stretch": 0.7767,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7767,
+     0.7767
+    ],
+    "elevation": -0.1603,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 6",
+    "shape": "sphere",
+    "position": [
+     -0.3583,
+     0.0353
+    ],
+    "size": 0.05,
+    "stretch": 0.8572,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8572,
+     0.8572
+    ],
+    "elevation": 0.2242,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 7",
+    "shape": "sphere",
+    "position": [
+     -0.5347,
+     0.36
+    ],
+    "size": 0.05,
+    "stretch": 0.5266,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5266,
+     0.5266
+    ],
+    "elevation": 0.0054,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 8",
+    "shape": "sphere",
+    "position": [
+     0.3704,
+     0.5257
+    ],
+    "size": 0.05,
+    "stretch": 0.6006,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6006,
+     0.6006
+    ],
+    "elevation": 0.2222,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 9",
+    "shape": "sphere",
+    "position": [
+     0.2734,
+     0.1119
+    ],
+    "size": 0.05,
+    "stretch": 0.6657,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6657,
+     0.6657
+    ],
+    "elevation": 0.2521,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 10",
+    "shape": "sphere",
+    "position": [
+     -0.3016,
+     0.2361
+    ],
+    "size": 0.05,
+    "stretch": 0.4675,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4675,
+     0.4675
+    ],
+    "elevation": -0.0399,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 11",
+    "shape": "sphere",
+    "position": [
+     -0.3533,
+     0.52
+    ],
+    "size": 0.05,
+    "stretch": 0.494,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.494,
+     0.494
+    ],
+    "elevation": -0.0327,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 12",
+    "shape": "sphere",
+    "position": [
+     -0.0711,
+     0.5367
+    ],
+    "size": 0.05,
+    "stretch": 0.8317,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8317,
+     0.8317
+    ],
+    "elevation": 0.1892,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 13",
+    "shape": "sphere",
+    "position": [
+     0.5096,
+     -0.1186
+    ],
+    "size": 0.05,
+    "stretch": 0.6212,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6212,
+     0.6212
+    ],
+    "elevation": -0.1902,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 14",
+    "shape": "sphere",
+    "position": [
+     -0.0211,
+     -0.3322
+    ],
+    "size": 0.05,
+    "stretch": 0.459,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.459,
+     0.459
+    ],
+    "elevation": 0.2448,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 15",
+    "shape": "sphere",
+    "position": [
+     -0.1135,
+     0.0929
+    ],
+    "size": 0.05,
+    "stretch": 0.8928,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8928,
+     0.8928
+    ],
+    "elevation": -0.063,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 16",
+    "shape": "sphere",
+    "position": [
+     0.2667,
+     0.1646
+    ],
+    "size": 0.05,
+    "stretch": 0.7663,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7663,
+     0.7663
+    ],
+    "elevation": 0.1417,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 17",
+    "shape": "sphere",
+    "position": [
+     -0.2137,
+     -0.528
+    ],
+    "size": 0.05,
+    "stretch": 0.8452,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8452,
+     0.8452
+    ],
+    "elevation": -0.0702,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 18",
+    "shape": "sphere",
+    "position": [
+     0.2747,
+     -0.1866
+    ],
+    "size": 0.05,
+    "stretch": 0.5335,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5335,
+     0.5335
+    ],
+    "elevation": -0.2144,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 19",
+    "shape": "sphere",
+    "position": [
+     0.3807,
+     0.3907
+    ],
+    "size": 0.05,
+    "stretch": 0.6078,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6078,
+     0.6078
+    ],
+    "elevation": 0.1656,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 20",
+    "shape": "sphere",
+    "position": [
+     -0.3088,
+     0.2695
+    ],
+    "size": 0.05,
+    "stretch": 0.8944,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8944,
+     0.8944
+    ],
+    "elevation": -0.2172,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 21",
+    "shape": "sphere",
+    "position": [
+     -0.0287,
+     0.4195
+    ],
+    "size": 0.05,
+    "stretch": 0.4959,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4959,
+     0.4959
+    ],
+    "elevation": 0.3342,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 22",
+    "shape": "sphere",
+    "position": [
+     0.3502,
+     -0.4501
+    ],
+    "size": 0.05,
+    "stretch": 0.8179,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8179,
+     0.8179
+    ],
+    "elevation": 0.0892,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 23",
+    "shape": "sphere",
+    "position": [
+     -0.1458,
+     0.6255
+    ],
+    "size": 0.05,
+    "stretch": 0.7885,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7885,
+     0.7885
+    ],
+    "elevation": -0.0181,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 24",
+    "shape": "sphere",
+    "position": [
+     -0.2094,
+     -0.5166
+    ],
+    "size": 0.05,
+    "stretch": 0.4637,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4637,
+     0.4637
+    ],
+    "elevation": 0.1881,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 25",
+    "shape": "sphere",
+    "position": [
+     -0.3369,
+     -0.5165
+    ],
+    "size": 0.05,
+    "stretch": 0.8732,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8732,
+     0.8732
+    ],
+    "elevation": 0.0066,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 26",
+    "shape": "sphere",
+    "position": [
+     -0.2047,
+     0.1167
+    ],
+    "size": 0.05,
+    "stretch": 0.8705,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8705,
+     0.8705
+    ],
+    "elevation": 0.0614,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 27",
+    "shape": "sphere",
+    "position": [
+     -0.1111,
+     0.0023
+    ],
+    "size": 0.05,
+    "stretch": 0.7003,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7003,
+     0.7003
+    ],
+    "elevation": 0.7048,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 28",
+    "shape": "sphere",
+    "position": [
+     -0.4587,
+     0.3153
+    ],
+    "size": 0.05,
+    "stretch": 0.7115,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7115,
+     0.7115
+    ],
+    "elevation": 0.0829,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 29",
+    "shape": "sphere",
+    "position": [
+     -0.2436,
+     0.0776
+    ],
+    "size": 0.05,
+    "stretch": 0.8157,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8157,
+     0.8157
+    ],
+    "elevation": 0.1457,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 30",
+    "shape": "sphere",
+    "position": [
+     -0.5514,
+     -0.3521
+    ],
+    "size": 0.05,
+    "stretch": 0.5837,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5837,
+     0.5837
+    ],
+    "elevation": 0.2044,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 31",
+    "shape": "sphere",
+    "position": [
+     0.3812,
+     0.0864
+    ],
+    "size": 0.05,
+    "stretch": 0.8046,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8046,
+     0.8046
+    ],
+    "elevation": 0.1308,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 32",
+    "shape": "sphere",
+    "position": [
+     0.5775,
+     0.1575
+    ],
+    "size": 0.05,
+    "stretch": 0.6883,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6883,
+     0.6883
+    ],
+    "elevation": 0.0405,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 33",
+    "shape": "sphere",
+    "position": [
+     0.017,
+     -0.0667
+    ],
+    "size": 0.05,
+    "stretch": 0.7009,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7009,
+     0.7009
+    ],
+    "elevation": 0.3898,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 34",
+    "shape": "sphere",
+    "position": [
+     -0.0307,
+     0.2789
+    ],
+    "size": 0.05,
+    "stretch": 0.8578,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8578,
+     0.8578
+    ],
+    "elevation": 0.7381,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 35",
+    "shape": "sphere",
+    "position": [
+     0.3026,
+     -0.4998
+    ],
+    "size": 0.05,
+    "stretch": 0.8607,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8607,
+     0.8607
+    ],
+    "elevation": 0.3444,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 36",
+    "shape": "sphere",
+    "position": [
+     0.0218,
+     -0.426
+    ],
+    "size": 0.05,
+    "stretch": 0.6028,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6028,
+     0.6028
+    ],
+    "elevation": -0.1052,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 37",
+    "shape": "sphere",
+    "position": [
+     0.1735,
+     -0.61
+    ],
+    "size": 0.05,
+    "stretch": 0.9075,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9075,
+     0.9075
+    ],
+    "elevation": 0.1372,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 38",
+    "shape": "sphere",
+    "position": [
+     0.2635,
+     -0.5986
+    ],
+    "size": 0.05,
+    "stretch": 0.8861,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8861,
+     0.8861
+    ],
+    "elevation": 0.0154,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 39",
+    "shape": "sphere",
+    "position": [
+     -0.0647,
+     0.0743
+    ],
+    "size": 0.05,
+    "stretch": 0.8808,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8808,
+     0.8808
+    ],
+    "elevation": -0.1052,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 40",
+    "shape": "sphere",
+    "position": [
+     -0.273,
+     -0.2941
+    ],
+    "size": 0.05,
+    "stretch": 0.6858,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6858,
+     0.6858
+    ],
+    "elevation": 0.4833,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 41",
+    "shape": "sphere",
+    "position": [
+     -0.095,
+     0.4685
+    ],
+    "size": 0.05,
+    "stretch": 0.6368,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6368,
+     0.6368
+    ],
+    "elevation": 0.113,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 42",
+    "shape": "sphere",
+    "position": [
+     -0.2202,
+     0.2894
+    ],
+    "size": 0.05,
+    "stretch": 0.7479,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7479,
+     0.7479
+    ],
+    "elevation": 0.5852,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 43",
+    "shape": "sphere",
+    "position": [
+     -0.1334,
+     -0.6239
+    ],
+    "size": 0.05,
+    "stretch": 0.5165,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5165,
+     0.5165
+    ],
+    "elevation": -0.0934,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 44",
+    "shape": "sphere",
+    "position": [
+     0.5188,
+     -0.3053
+    ],
+    "size": 0.05,
+    "stretch": 0.5679,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5679,
+     0.5679
+    ],
+    "elevation": 0.3588,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 45",
+    "shape": "sphere",
+    "position": [
+     -0.2897,
+     -0.4795
+    ],
+    "size": 0.05,
+    "stretch": 0.6609,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6609,
+     0.6609
+    ],
+    "elevation": 0.0632,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 46",
+    "shape": "sphere",
+    "position": [
+     -0.1657,
+     0.0039
+    ],
+    "size": 0.05,
+    "stretch": 0.549,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.549,
+     0.549
+    ],
+    "elevation": 0.0845,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 47",
+    "shape": "sphere",
+    "position": [
+     0.1198,
+     0.3508
+    ],
+    "size": 0.05,
+    "stretch": 0.7577,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7577,
+     0.7577
+    ],
+    "elevation": 0.1609,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 48",
+    "shape": "sphere",
+    "position": [
+     0.3024,
+     -0.1547
+    ],
+    "size": 0.05,
+    "stretch": 0.6062,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6062,
+     0.6062
+    ],
+    "elevation": 0.6507,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 49",
+    "shape": "sphere",
+    "position": [
+     0.5487,
+     0.3274
+    ],
+    "size": 0.05,
+    "stretch": 0.8284,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8284,
+     0.8284
+    ],
+    "elevation": 0.2983,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 50",
+    "shape": "sphere",
+    "position": [
+     -0.505,
+     0.0061
+    ],
+    "size": 0.05,
+    "stretch": 0.8388,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8388,
+     0.8388
+    ],
+    "elevation": 0.1533,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 51",
+    "shape": "sphere",
+    "position": [
+     0.4265,
+     0.1177
+    ],
+    "size": 0.05,
+    "stretch": 0.8653,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8653,
+     0.8653
+    ],
+    "elevation": 0.577,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 52",
+    "shape": "sphere",
+    "position": [
+     0.2561,
+     -0.3781
+    ],
+    "size": 0.05,
+    "stretch": 0.4714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4714,
+     0.4714
+    ],
+    "elevation": 0.3907,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 53",
+    "shape": "sphere",
+    "position": [
+     0.4701,
+     0.1789
+    ],
+    "size": 0.05,
+    "stretch": 0.7434,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7434,
+     0.7434
+    ],
+    "elevation": 0.2019,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 54",
+    "shape": "sphere",
+    "position": [
+     0.4168,
+     0.0042
+    ],
+    "size": 0.05,
+    "stretch": 0.7018,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7018,
+     0.7018
+    ],
+    "elevation": 0.4676,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 55",
+    "shape": "sphere",
+    "position": [
+     -0.0294,
+     0.3738
+    ],
+    "size": 0.05,
+    "stretch": 0.7392,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7392,
+     0.7392
+    ],
+    "elevation": 0.3772,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 56",
+    "shape": "sphere",
+    "position": [
+     -0.3445,
+     -0.2738
+    ],
+    "size": 0.05,
+    "stretch": 0.7167,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7167,
+     0.7167
+    ],
+    "elevation": 0.4605,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 57",
+    "shape": "sphere",
+    "position": [
+     0.2408,
+     0.246
+    ],
+    "size": 0.05,
+    "stretch": 0.5901,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5901,
+     0.5901
+    ],
+    "elevation": 0.3891,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 58",
+    "shape": "sphere",
+    "position": [
+     0.0231,
+     -0.0471
+    ],
+    "size": 0.05,
+    "stretch": 0.5113,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5113,
+     0.5113
+    ],
+    "elevation": 0.0705,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 59",
+    "shape": "sphere",
+    "position": [
+     -0.405,
+     -0.5016
+    ],
+    "size": 0.05,
+    "stretch": 0.6967,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6967,
+     0.6967
+    ],
+    "elevation": 0.2341,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 60",
+    "shape": "sphere",
+    "position": [
+     0.0122,
+     0.2847
+    ],
+    "size": 0.05,
+    "stretch": 0.5629,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5629,
+     0.5629
+    ],
+    "elevation": 0.6616,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 61",
+    "shape": "sphere",
+    "position": [
+     -0.2942,
+     -0.1499
+    ],
+    "size": 0.05,
+    "stretch": 0.9137,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9137,
+     0.9137
+    ],
+    "elevation": -0.0589,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 62",
+    "shape": "sphere",
+    "position": [
+     0.1248,
+     -0.1007
+    ],
+    "size": 0.05,
+    "stretch": 0.5829,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5829,
+     0.5829
+    ],
+    "elevation": -0.075,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 63",
+    "shape": "sphere",
+    "position": [
+     -0.328,
+     -0.4342
+    ],
+    "size": 0.05,
+    "stretch": 0.6278,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6278,
+     0.6278
+    ],
+    "elevation": 0.1353,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 64",
+    "shape": "sphere",
+    "position": [
+     0.3253,
+     0.3537
+    ],
+    "size": 0.05,
+    "stretch": 0.7518,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7518,
+     0.7518
+    ],
+    "elevation": 0.0512,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 65",
+    "shape": "sphere",
+    "position": [
+     -0.5218,
+     -0.2189
+    ],
+    "size": 0.05,
+    "stretch": 0.5933,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5933,
+     0.5933
+    ],
+    "elevation": 0.0811,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 66",
+    "shape": "sphere",
+    "position": [
+     0.2184,
+     0.0803
+    ],
+    "size": 0.05,
+    "stretch": 0.6374,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6374,
+     0.6374
+    ],
+    "elevation": -0.1588,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 67",
+    "shape": "sphere",
+    "position": [
+     -0.3383,
+     0.5422
+    ],
+    "size": 0.05,
+    "stretch": 0.7998,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7998,
+     0.7998
+    ],
+    "elevation": 0.2175,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 68",
+    "shape": "sphere",
+    "position": [
+     -0.1221,
+     0.0338
+    ],
+    "size": 0.05,
+    "stretch": 0.6294,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6294,
+     0.6294
+    ],
+    "elevation": -0.0006,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 69",
+    "shape": "sphere",
+    "position": [
+     0.1815,
+     -0.3977
+    ],
+    "size": 0.05,
+    "stretch": 0.581,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.581,
+     0.581
+    ],
+    "elevation": 0.628,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 70",
+    "shape": "sphere",
+    "position": [
+     -0.3522,
+     -0.0758
+    ],
+    "size": 0.05,
+    "stretch": 0.8932,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8932,
+     0.8932
+    ],
+    "elevation": -0.0203,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 71",
+    "shape": "sphere",
+    "position": [
+     0.2063,
+     -0.0597
+    ],
+    "size": 0.05,
+    "stretch": 0.7093,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7093,
+     0.7093
+    ],
+    "elevation": 0.4907,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 72",
+    "shape": "sphere",
+    "position": [
+     -0.5208,
+     0.1908
+    ],
+    "size": 0.05,
+    "stretch": 0.7765,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7765,
+     0.7765
+    ],
+    "elevation": -0.2275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 73",
+    "shape": "sphere",
+    "position": [
+     0.116,
+     -0.387
+    ],
+    "size": 0.05,
+    "stretch": 0.7319,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7319,
+     0.7319
+    ],
+    "elevation": -0.0367,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 74",
+    "shape": "sphere",
+    "position": [
+     -0.112,
+     0.2343
+    ],
+    "size": 0.05,
+    "stretch": 0.8801,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8801,
+     0.8801
+    ],
+    "elevation": -0.2198,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 75",
+    "shape": "sphere",
+    "position": [
+     -0.1112,
+     -0.4227
+    ],
+    "size": 0.05,
+    "stretch": 0.8215,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8215,
+     0.8215
+    ],
+    "elevation": 0.3756,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 76",
+    "shape": "sphere",
+    "position": [
+     0.3348,
+     -0.4127
+    ],
+    "size": 0.05,
+    "stretch": 0.9005,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9005,
+     0.9005
+    ],
+    "elevation": 0.1268,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 77",
+    "shape": "sphere",
+    "position": [
+     -0.2636,
+     -0.3769
+    ],
+    "size": 0.05,
+    "stretch": 0.5584,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5584,
+     0.5584
+    ],
+    "elevation": 0.568,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 78",
+    "shape": "sphere",
+    "position": [
+     -0.1162,
+     0.6283
+    ],
+    "size": 0.05,
+    "stretch": 0.5241,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5241,
+     0.5241
+    ],
+    "elevation": 0.3514,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 79",
+    "shape": "sphere",
+    "position": [
+     -0.1699,
+     -0.2356
+    ],
+    "size": 0.05,
+    "stretch": 0.5345,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5345,
+     0.5345
+    ],
+    "elevation": -0.0566,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 80",
+    "shape": "sphere",
+    "position": [
+     -0.4096,
+     0.4502
+    ],
+    "size": 0.05,
+    "stretch": 0.8329,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8329,
+     0.8329
+    ],
+    "elevation": -0.0807,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 81",
+    "shape": "sphere",
+    "position": [
+     -0.1249,
+     0.3733
+    ],
+    "size": 0.05,
+    "stretch": 0.4757,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4757,
+     0.4757
+    ],
+    "elevation": 0.5566,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 82",
+    "shape": "sphere",
+    "position": [
+     0.1638,
+     0.3033
+    ],
+    "size": 0.05,
+    "stretch": 0.6018,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6018,
+     0.6018
+    ],
+    "elevation": -0.213,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 83",
+    "shape": "sphere",
+    "position": [
+     -0.3485,
+     -0.0091
+    ],
+    "size": 0.05,
+    "stretch": 0.8814,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8814,
+     0.8814
+    ],
+    "elevation": 0.0219,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 84",
+    "shape": "sphere",
+    "position": [
+     0.4519,
+     0.1502
+    ],
+    "size": 0.05,
+    "stretch": 0.607,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.607,
+     0.607
+    ],
+    "elevation": 0.5019,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 85",
+    "shape": "sphere",
+    "position": [
+     -0.2526,
+     0.3951
+    ],
+    "size": 0.05,
+    "stretch": 0.4933,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4933,
+     0.4933
+    ],
+    "elevation": -0.0734,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 86",
+    "shape": "sphere",
+    "position": [
+     -0.4238,
+     -0.3538
+    ],
+    "size": 0.05,
+    "stretch": 0.4867,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4867,
+     0.4867
+    ],
+    "elevation": 0.474,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 87",
+    "shape": "sphere",
+    "position": [
+     -0.0021,
+     -0.0743
+    ],
+    "size": 0.05,
+    "stretch": 0.5642,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5642,
+     0.5642
+    ],
+    "elevation": 0.4137,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 88",
+    "shape": "sphere",
+    "position": [
+     -0.1164,
+     0.2438
+    ],
+    "size": 0.05,
+    "stretch": 0.7991,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7991,
+     0.7991
+    ],
+    "elevation": 0.2884,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 89",
+    "shape": "sphere",
+    "position": [
+     0.4772,
+     0.0936
+    ],
+    "size": 0.05,
+    "stretch": 0.6276,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6276,
+     0.6276
+    ],
+    "elevation": -0.1687,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 90",
+    "shape": "sphere",
+    "position": [
+     0.1096,
+     -0.1455
+    ],
+    "size": 0.05,
+    "stretch": 0.9108,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9108,
+     0.9108
+    ],
+    "elevation": -0.1231,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 91",
+    "shape": "sphere",
+    "position": [
+     -0.0353,
+     0.4768
+    ],
+    "size": 0.05,
+    "stretch": 0.8751,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8751,
+     0.8751
+    ],
+    "elevation": 0.5667,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 92",
+    "shape": "sphere",
+    "position": [
+     -0.0712,
+     0.3889
+    ],
+    "size": 0.05,
+    "stretch": 0.8895,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8895,
+     0.8895
+    ],
+    "elevation": -0.2161,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 93",
+    "shape": "sphere",
+    "position": [
+     -0.5519,
+     0.1679
+    ],
+    "size": 0.05,
+    "stretch": 0.5566,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5566,
+     0.5566
+    ],
+    "elevation": 0.2546,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 94",
+    "shape": "sphere",
+    "position": [
+     -0.3431,
+     0.2123
+    ],
+    "size": 0.05,
+    "stretch": 0.5501,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5501,
+     0.5501
+    ],
+    "elevation": 0.2592,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 95",
+    "shape": "sphere",
+    "position": [
+     -0.4408,
+     -0.4152
+    ],
+    "size": 0.05,
+    "stretch": 0.8207,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8207,
+     0.8207
+    ],
+    "elevation": -0.1429,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 96",
+    "shape": "sphere",
+    "position": [
+     -0.1466,
+     0.1949
+    ],
+    "size": 0.05,
+    "stretch": 0.4988,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4988,
+     0.4988
+    ],
+    "elevation": 0.1902,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 97",
+    "shape": "sphere",
+    "position": [
+     -0.4708,
+     -0.1263
+    ],
+    "size": 0.05,
+    "stretch": 0.5867,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5867,
+     0.5867
+    ],
+    "elevation": 0.3936,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 98",
+    "shape": "sphere",
+    "position": [
+     0.0931,
+     -0.117
+    ],
+    "size": 0.05,
+    "stretch": 0.8522,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8522,
+     0.8522
+    ],
+    "elevation": -0.0799,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 99",
+    "shape": "sphere",
+    "position": [
+     -0.1313,
+     -0.0547
+    ],
+    "size": 0.05,
+    "stretch": 0.5314,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5314,
+     0.5314
+    ],
+    "elevation": 0.656,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 100",
+    "shape": "sphere",
+    "position": [
+     -0.1808,
+     -0.4958
+    ],
+    "size": 0.05,
+    "stretch": 0.5866,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5866,
+     0.5866
+    ],
+    "elevation": 0.1262,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 101",
+    "shape": "sphere",
+    "position": [
+     0.1685,
+     -0.4756
+    ],
+    "size": 0.05,
+    "stretch": 0.8164,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8164,
+     0.8164
+    ],
+    "elevation": 0.5744,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 102",
+    "shape": "sphere",
+    "position": [
+     -0.3891,
+     0.4849
+    ],
+    "size": 0.05,
+    "stretch": 0.8362,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8362,
+     0.8362
+    ],
+    "elevation": -0.0137,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 103",
+    "shape": "sphere",
+    "position": [
+     0.025,
+     -0.5277
+    ],
+    "size": 0.05,
+    "stretch": 0.5701,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5701,
+     0.5701
+    ],
+    "elevation": -0.043,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 104",
+    "shape": "sphere",
+    "position": [
+     0.0701,
+     -0.2713
+    ],
+    "size": 0.05,
+    "stretch": 0.6492,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6492,
+     0.6492
+    ],
+    "elevation": 0.2979,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 105",
+    "shape": "sphere",
+    "position": [
+     0.1157,
+     0.2224
+    ],
+    "size": 0.05,
+    "stretch": 0.6614,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6614,
+     0.6614
+    ],
+    "elevation": 0.016,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 106",
+    "shape": "sphere",
+    "position": [
+     0.392,
+     -0.4486
+    ],
+    "size": 0.05,
+    "stretch": 0.6735,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6735,
+     0.6735
+    ],
+    "elevation": 0.0616,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 107",
+    "shape": "sphere",
+    "position": [
+     -0.5716,
+     0.0142
+    ],
+    "size": 0.05,
+    "stretch": 0.4758,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4758,
+     0.4758
+    ],
+    "elevation": 0.0388,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 108",
+    "shape": "sphere",
+    "position": [
+     0.0055,
+     0.6312
+    ],
+    "size": 0.05,
+    "stretch": 0.5194,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5194,
+     0.5194
+    ],
+    "elevation": -0.051,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 109",
+    "shape": "sphere",
+    "position": [
+     0.1908,
+     0.5221
+    ],
+    "size": 0.05,
+    "stretch": 0.7109,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7109,
+     0.7109
+    ],
+    "elevation": -0.0763,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 110",
+    "shape": "sphere",
+    "position": [
+     0.1083,
+     0.3705
+    ],
+    "size": 0.05,
+    "stretch": 0.6593,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6593,
+     0.6593
+    ],
+    "elevation": -0.0756,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 111",
+    "shape": "sphere",
+    "position": [
+     0.4478,
+     0.1949
+    ],
+    "size": 0.05,
+    "stretch": 0.907,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.907,
+     0.907
+    ],
+    "elevation": -0.2249,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 112",
+    "shape": "sphere",
+    "position": [
+     0.1202,
+     -0.2623
+    ],
+    "size": 0.05,
+    "stretch": 0.458,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.458,
+     0.458
+    ],
+    "elevation": 0.3492,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 113",
+    "shape": "sphere",
+    "position": [
+     -0.0949,
+     0.5538
+    ],
+    "size": 0.05,
+    "stretch": 0.5175,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5175,
+     0.5175
+    ],
+    "elevation": 0.1377,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 114",
+    "shape": "sphere",
+    "position": [
+     0.2029,
+     -0.2095
+    ],
+    "size": 0.05,
+    "stretch": 0.7523,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7523,
+     0.7523
+    ],
+    "elevation": 0.2073,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 115",
+    "shape": "sphere",
+    "position": [
+     0.0441,
+     -0.3673
+    ],
+    "size": 0.05,
+    "stretch": 0.4838,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4838,
+     0.4838
+    ],
+    "elevation": -0.0116,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 116",
+    "shape": "sphere",
+    "position": [
+     0.1513,
+     0.1982
+    ],
+    "size": 0.05,
+    "stretch": 0.829,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.829,
+     0.829
+    ],
+    "elevation": 0.1297,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 117",
+    "shape": "sphere",
+    "position": [
+     -0.4555,
+     -0.2796
+    ],
+    "size": 0.05,
+    "stretch": 0.4793,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4793,
+     0.4793
+    ],
+    "elevation": -0.1469,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 118",
+    "shape": "sphere",
+    "position": [
+     -0.0486,
+     -0.0665
+    ],
+    "size": 0.05,
+    "stretch": 0.5604,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5604,
+     0.5604
+    ],
+    "elevation": 0.4585,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 119",
+    "shape": "sphere",
+    "position": [
+     -0.2303,
+     0.2732
+    ],
+    "size": 0.05,
+    "stretch": 0.8436,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8436,
+     0.8436
+    ],
+    "elevation": 0.4695,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 120",
+    "shape": "sphere",
+    "position": [
+     0.2964,
+     0.0753
+    ],
+    "size": 0.05,
+    "stretch": 0.6565,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6565,
+     0.6565
+    ],
+    "elevation": -0.2076,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 121",
+    "shape": "sphere",
+    "position": [
+     0.4038,
+     -0.3286
+    ],
+    "size": 0.05,
+    "stretch": 0.7506,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7506,
+     0.7506
+    ],
+    "elevation": 0.1525,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 122",
+    "shape": "sphere",
+    "position": [
+     -0.2424,
+     -0.24
+    ],
+    "size": 0.05,
+    "stretch": 0.5665,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5665,
+     0.5665
+    ],
+    "elevation": 0.6522,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 123",
+    "shape": "sphere",
+    "position": [
+     0.5706,
+     0.27
+    ],
+    "size": 0.05,
+    "stretch": 0.7613,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7613,
+     0.7613
+    ],
+    "elevation": 0.303,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 124",
+    "shape": "sphere",
+    "position": [
+     0.2767,
+     -0.0879
+    ],
+    "size": 0.05,
+    "stretch": 0.7884,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7884,
+     0.7884
+    ],
+    "elevation": 0.6205,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 125",
+    "shape": "sphere",
+    "position": [
+     0.0985,
+     -0.4032
+    ],
+    "size": 0.05,
+    "stretch": 0.7418,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7418,
+     0.7418
+    ],
+    "elevation": -0.1491,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 126",
+    "shape": "sphere",
+    "position": [
+     0.1267,
+     0.4446
+    ],
+    "size": 0.05,
+    "stretch": 0.8318,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8318,
+     0.8318
+    ],
+    "elevation": -0.0712,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 127",
+    "shape": "sphere",
+    "position": [
+     0.4551,
+     -0.2977
+    ],
+    "size": 0.05,
+    "stretch": 0.5028,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5028,
+     0.5028
+    ],
+    "elevation": 0.3042,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 128",
+    "shape": "sphere",
+    "position": [
+     -0.3406,
+     0.3021
+    ],
+    "size": 0.05,
+    "stretch": 0.6254,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6254,
+     0.6254
+    ],
+    "elevation": -0.1844,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 129",
+    "shape": "sphere",
+    "position": [
+     -0.1219,
+     0.3822
+    ],
+    "size": 0.05,
+    "stretch": 0.6157,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6157,
+     0.6157
+    ],
+    "elevation": 0.031,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 130",
+    "shape": "sphere",
+    "position": [
+     0.2865,
+     -0.3968
+    ],
+    "size": 0.05,
+    "stretch": 0.8513,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8513,
+     0.8513
+    ],
+    "elevation": 0.173,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 131",
+    "shape": "sphere",
+    "position": [
+     -0.0119,
+     -0.4417
+    ],
+    "size": 0.05,
+    "stretch": 0.6832,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6832,
+     0.6832
+    ],
+    "elevation": 0.5355,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 132",
+    "shape": "sphere",
+    "position": [
+     -0.2139,
+     -0.3352
+    ],
+    "size": 0.05,
+    "stretch": 0.8886,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8886,
+     0.8886
+    ],
+    "elevation": 0.5846,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 133",
+    "shape": "sphere",
+    "position": [
+     0.4017,
+     -0.2021
+    ],
+    "size": 0.05,
+    "stretch": 0.6406,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6406,
+     0.6406
+    ],
+    "elevation": 0.2991,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 134",
+    "shape": "sphere",
+    "position": [
+     -0.3315,
+     0.0017
+    ],
+    "size": 0.05,
+    "stretch": 0.6305,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6305,
+     0.6305
+    ],
+    "elevation": 0.6817,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 135",
+    "shape": "sphere",
+    "position": [
+     0.0442,
+     0.3542
+    ],
+    "size": 0.05,
+    "stretch": 0.7526,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7526,
+     0.7526
+    ],
+    "elevation": 0.4763,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 136",
+    "shape": "sphere",
+    "position": [
+     -0.2121,
+     -0.4825
+    ],
+    "size": 0.05,
+    "stretch": 0.8426,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8426,
+     0.8426
+    ],
+    "elevation": -0.1227,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 137",
+    "shape": "sphere",
+    "position": [
+     0.2269,
+     -0.4626
+    ],
+    "size": 0.05,
+    "stretch": 0.6577,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6577,
+     0.6577
+    ],
+    "elevation": 0.4588,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 138",
+    "shape": "sphere",
+    "position": [
+     0.3828,
+     -0.5235
+    ],
+    "size": 0.05,
+    "stretch": 0.6684,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6684,
+     0.6684
+    ],
+    "elevation": 0.2308,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 139",
+    "shape": "sphere",
+    "position": [
+     -0.2779,
+     0.4811
+    ],
+    "size": 0.05,
+    "stretch": 0.5278,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5278,
+     0.5278
+    ],
+    "elevation": 0.4044,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 140",
+    "shape": "sphere",
+    "position": [
+     0.3266,
+     -0.4253
+    ],
+    "size": 0.05,
+    "stretch": 0.7488,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7488,
+     0.7488
+    ],
+    "elevation": 0.0289,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 141",
+    "shape": "sphere",
+    "position": [
+     0.2708,
+     0.1853
+    ],
+    "size": 0.05,
+    "stretch": 0.6689,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6689,
+     0.6689
+    ],
+    "elevation": 0.1207,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 142",
+    "shape": "sphere",
+    "position": [
+     -0.5015,
+     -0.1334
+    ],
+    "size": 0.05,
+    "stretch": 0.7959,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7959,
+     0.7959
+    ],
+    "elevation": 0.2652,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 143",
+    "shape": "sphere",
+    "position": [
+     0.5712,
+     0.1036
+    ],
+    "size": 0.05,
+    "stretch": 0.7996,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7996,
+     0.7996
+    ],
+    "elevation": 0.022,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 144",
+    "shape": "sphere",
+    "position": [
+     0.4934,
+     0.1982
+    ],
+    "size": 0.05,
+    "stretch": 0.6646,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6646,
+     0.6646
+    ],
+    "elevation": 0.3714,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 145",
+    "shape": "sphere",
+    "position": [
+     -0.2618,
+     -0.563
+    ],
+    "size": 0.05,
+    "stretch": 0.649,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.649,
+     0.649
+    ],
+    "elevation": 0.2996,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 146",
+    "shape": "sphere",
+    "position": [
+     0.3953,
+     0.1815
+    ],
+    "size": 0.05,
+    "stretch": 0.5715,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5715,
+     0.5715
+    ],
+    "elevation": 0.4184,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 147",
+    "shape": "sphere",
+    "position": [
+     -0.107,
+     0.1702
+    ],
+    "size": 0.05,
+    "stretch": 0.6443,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6443,
+     0.6443
+    ],
+    "elevation": 0.0573,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 148",
+    "shape": "sphere",
+    "position": [
+     0.2163,
+     -0.1558
+    ],
+    "size": 0.05,
+    "stretch": 0.6811,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6811,
+     0.6811
+    ],
+    "elevation": 0.5095,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 149",
+    "shape": "sphere",
+    "position": [
+     0.0574,
+     0.0171
+    ],
+    "size": 0.05,
+    "stretch": 0.7494,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7494,
+     0.7494
+    ],
+    "elevation": 0.4242,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 150",
+    "shape": "sphere",
+    "position": [
+     0.4606,
+     -0.1255
+    ],
+    "size": 0.05,
+    "stretch": 0.8905,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8905,
+     0.8905
+    ],
+    "elevation": 0.1504,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 151",
+    "shape": "sphere",
+    "position": [
+     -0.4059,
+     -0.1505
+    ],
+    "size": 0.05,
+    "stretch": 0.8058,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8058,
+     0.8058
+    ],
+    "elevation": 0.3781,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 152",
+    "shape": "sphere",
+    "position": [
+     0.2776,
+     -0.3288
+    ],
+    "size": 0.05,
+    "stretch": 0.5597,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5597,
+     0.5597
+    ],
+    "elevation": -0.087,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 153",
+    "shape": "sphere",
+    "position": [
+     -0.3935,
+     -0.1513
+    ],
+    "size": 0.05,
+    "stretch": 0.5541,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5541,
+     0.5541
+    ],
+    "elevation": 0.5421,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 154",
+    "shape": "sphere",
+    "position": [
+     0.188,
+     0.0869
+    ],
+    "size": 0.05,
+    "stretch": 0.5605,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5605,
+     0.5605
+    ],
+    "elevation": 0.0768,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 155",
+    "shape": "sphere",
+    "position": [
+     0.4462,
+     -0.0447
+    ],
+    "size": 0.05,
+    "stretch": 0.5917,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5917,
+     0.5917
+    ],
+    "elevation": 0.5627,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 156",
+    "shape": "sphere",
+    "position": [
+     -0.2034,
+     -0.3256
+    ],
+    "size": 0.05,
+    "stretch": 0.6291,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6291,
+     0.6291
+    ],
+    "elevation": 0.6109,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 157",
+    "shape": "sphere",
+    "position": [
+     -0.345,
+     -0.4398
+    ],
+    "size": 0.05,
+    "stretch": 0.4584,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4584,
+     0.4584
+    ],
+    "elevation": 0.0165,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 158",
+    "shape": "sphere",
+    "position": [
+     0.3105,
+     -0.357
+    ],
+    "size": 0.05,
+    "stretch": 0.5951,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5951,
+     0.5951
+    ],
+    "elevation": -0.1863,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 159",
+    "shape": "sphere",
+    "position": [
+     -0.0286,
+     0.1922
+    ],
+    "size": 0.05,
+    "stretch": 0.7585,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7585,
+     0.7585
+    ],
+    "elevation": 0.0199,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snowflake 160",
+    "shape": "sphere",
+    "position": [
+     0.3868,
+     -0.4863
+    ],
+    "size": 0.05,
+    "stretch": 0.8704,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8704,
+     0.8704
+    ],
+    "elevation": -0.095,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   }
+  ],
+  "lights": [
+   {
+    "name": "Warm rim",
+    "position": [
+     1.8,
+     1.2,
+     -1.6
+    ],
+    "rotation": [
+     -60.0,
+     135.0,
+     0.0
+    ],
+    "size": [
+     0.8,
+     0.8
+    ],
+    "color": [
+     1.0,
+     0.6,
+     0.3
+    ],
+    "intensity": 20.0,
+    "enabled": true,
+    "visible": false
+   }
+  ]
+ }
+}

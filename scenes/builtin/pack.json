@@ -78,6 +78,9 @@
   "brushed-metal.json",
   "thin-film.json",
   "optical-discs.json",
-  "optics-bench.json"
+  "optics-bench.json",
+  "snow-globe.json",
+  "hourglass.json",
+  "birthday-cake.json"
  ]
 }

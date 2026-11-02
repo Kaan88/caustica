@@ -1,0 +1,1304 @@
+{
+ "format": 1,
+ "title": "Birthday cake",
+ "description": "A two-tier cake lit only by seven candles whose flames flicker (keyframed emission: K plays the timeline). Many small emitters for light sampling.",
+ "tags": [
+  "emitters",
+  "animation",
+  "miniature"
+ ],
+ "credits": "Cornell RTX built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.05,
+  "base": [
+   0.02,
+   0.02,
+   0.03
+  ],
+  "floor": {
+   "color": [
+    0.35,
+    0.3,
+    0.26
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0
+  },
+  "light_on": true,
+  "light_position": [
+   -2.0,
+   3.5,
+   2.0
+  ],
+  "light_size": 1.5,
+  "light_intensity": 1.5,
+  "light_visible": false,
+  "light_temperature": 3000.0,
+  "bounces": 10,
+  "yaw": 15,
+  "pitch": 18,
+  "distance": 3.0,
+  "target": [
+   0,
+   -0.55,
+   0
+  ],
+  "fov": 38,
+  "objects": [
+   {
+    "name": "Plate",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.1286,
+    "stretch": 0.2222,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.99,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.92,
+      0.95
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.3,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lower tier",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.1,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.72,
+      0.78
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Icing 1",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.1029,
+    "stretch": 0.5556,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.95,
+      0.9
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Upper tier",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.0686,
+    "stretch": 6.25,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.43,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.72,
+      0.78
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Icing 2",
+    "shape": "cylinder",
+    "position": [
+     0,
+     0
+    ],
+    "size": 0.0714,
+    "stretch": 0.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     20.0,
+     20.0
+    ],
+    "elevation": -0.26,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.95,
+      0.9
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 1",
+    "shape": "cylinder",
+    "position": [
+     0.3,
+     0.0
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.2,
+      0.25
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 1",
+    "shape": "sphere",
+    "position": [
+     0.3,
+     0.0
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 2",
+    "shape": "cylinder",
+    "position": [
+     0.187,
+     0.2345
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.5,
+      0.9
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 2",
+    "shape": "sphere",
+    "position": [
+     0.187,
+     0.2345
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 3",
+    "shape": "cylinder",
+    "position": [
+     -0.0668,
+     0.2925
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.2
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 3",
+    "shape": "sphere",
+    "position": [
+     -0.0668,
+     0.2925
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 4",
+    "shape": "cylinder",
+    "position": [
+     -0.2703,
+     0.1302
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.75,
+      0.35
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 4",
+    "shape": "sphere",
+    "position": [
+     -0.2703,
+     0.1302
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 5",
+    "shape": "cylinder",
+    "position": [
+     -0.2703,
+     -0.1302
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.3,
+      0.85
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 5",
+    "shape": "sphere",
+    "position": [
+     -0.2703,
+     -0.1302
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 6",
+    "shape": "cylinder",
+    "position": [
+     -0.0668,
+     -0.2925
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.2,
+      0.25
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 6",
+    "shape": "sphere",
+    "position": [
+     -0.0668,
+     -0.2925
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Candle 7",
+    "shape": "cylinder",
+    "position": [
+     0.187,
+     -0.2345
+    ],
+    "size": 0.05,
+    "stretch": 6.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2571,
+     1.2571
+    ],
+    "elevation": -0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.5,
+      0.9
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Flame 7",
+    "shape": "sphere",
+    "position": [
+     0.187,
+     -0.2345
+    ],
+    "size": 0.05,
+    "stretch": 2.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0286,
+     1.0286
+    ],
+    "elevation": 0.015,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.62,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 16.0
+    },
+    "portal": -1
+   }
+  ],
+  "animation": {
+   "length": 2.0,
+   "fps": 24,
+   "shutter": 0.5,
+   "tracks": [
+    {
+     "path": "objects/6/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 14.52,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.147,
+       "value": 19.24,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.283,
+       "value": 15.08,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.434,
+       "value": 11.85,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.575,
+       "value": 16.3,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.75,
+       "value": 10.94,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.867,
+       "value": 10.91,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.044,
+       "value": 16.93,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.129,
+       "value": 19.82,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.324,
+       "value": 16.54,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.478,
+       "value": 11.57,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.56,
+       "value": 15.28,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.647,
+       "value": 11.9,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.756,
+       "value": 10.3,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.892,
+       "value": 14.41,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 14.52,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "objects/8/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 15.19,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.157,
+       "value": 15.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.316,
+       "value": 14.57,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.43,
+       "value": 19.98,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.629,
+       "value": 18.4,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.794,
+       "value": 13.15,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.902,
+       "value": 12.89,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.99,
+       "value": 17.66,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.118,
+       "value": 18.47,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.245,
+       "value": 19.58,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.426,
+       "value": 10.01,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.531,
+       "value": 19.1,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.668,
+       "value": 19.8,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.795,
+       "value": 10.73,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 15.19,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "objects/10/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 17.79,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.112,
+       "value": 10.87,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.232,
+       "value": 19.64,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.403,
+       "value": 11.18,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.513,
+       "value": 11.01,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.6,
+       "value": 17.97,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.701,
+       "value": 15.59,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.835,
+       "value": 11.91,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.003,
+       "value": 11.31,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.16,
+       "value": 11.17,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.291,
+       "value": 12.13,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.403,
+       "value": 19.71,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.579,
+       "value": 13.04,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.766,
+       "value": 12.11,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.893,
+       "value": 18.54,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 17.79,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "objects/12/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 11.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.199,
+       "value": 12.13,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.31,
+       "value": 17.73,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.429,
+       "value": 12.96,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.518,
+       "value": 10.9,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.668,
+       "value": 12.43,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.82,
+       "value": 13.72,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.954,
+       "value": 19.59,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.093,
+       "value": 15.75,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.276,
+       "value": 11.83,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.375,
+       "value": 19.08,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.553,
+       "value": 12.49,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.656,
+       "value": 17.39,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.849,
+       "value": 11.97,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 11.0,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "objects/14/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 18.82,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.152,
+       "value": 14.21,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.245,
+       "value": 10.39,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.44,
+       "value": 12.38,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.605,
+       "value": 12.57,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.784,
+       "value": 15.96,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.899,
+       "value": 11.75,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.065,
+       "value": 10.69,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.173,
+       "value": 15.59,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.355,
+       "value": 16.14,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.469,
+       "value": 19.17,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.573,
+       "value": 10.17,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.686,
+       "value": 14.46,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.773,
+       "value": 11.76,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.897,
+       "value": 15.72,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 18.82,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "objects/16/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 13.62,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.187,
+       "value": 19.8,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.346,
+       "value": 16.91,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.496,
+       "value": 11.4,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.58,
+       "value": 10.18,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.769,
+       "value": 17.01,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.965,
+       "value": 10.21,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.121,
+       "value": 14.82,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.289,
+       "value": 13.19,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.489,
+       "value": 10.75,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.634,
+       "value": 17.37,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.822,
+       "value": 17.37,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 13.62,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "objects/18/material/emission",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 17.93,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.19,
+       "value": 13.52,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.352,
+       "value": 19.01,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.537,
+       "value": 14.17,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.711,
+       "value": 18.63,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.86,
+       "value": 16.25,
+       "interp": "smooth"
+      },
+      {
+       "time": 0.986,
+       "value": 15.83,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.139,
+       "value": 10.8,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.296,
+       "value": 19.93,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.481,
+       "value": 17.28,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.608,
+       "value": 17.35,
+       "interp": "smooth"
+      },
+      {
+       "time": 1.758,
+       "value": 14.41,
+       "interp": "smooth"
+      },
+      {
+       "time": 2.0,
+       "value": 17.93,
+       "interp": "smooth"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
