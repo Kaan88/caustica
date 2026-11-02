@@ -70,7 +70,7 @@ Footprint footprint(float3 d,float3 n,float w,float3 T,float3 B,float uv_scale){
     return f;
 }
 // Material flag bits (lobes.w): 1 unlit, 2 hidden from the camera, 4 portal, 8 masked texture
-// maps, 16 any texture maps. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
+// maps, 16 any texture maps, 4096 beam splitter. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
 // no maps) the map code folds away: it cost untextured scenes about 7% even when never run.
 // Diffraction gratings ride in the same variant (Gpu picks it when any material has one): their
 // code cost scenes without one 2–15% in registers even when never run.
@@ -1029,6 +1029,17 @@ void write_guides(uint2 p,out Hit guide){
                 origin=float3(dot(pm.color_rough,P),dot(pm.lobes,P),dot(pm.optical,P))+direction*0.001;
                 record(7,bounce,origin,throughput,0,direction);
                 previous_delta=true;bounce--;continue;
+            }
+            // Beam splitter (track 17): a thin partial mirror, a delta event either way.
+            if(((uint)m.lobes.w&4096u)!=0 && portal_crossings<64){
+                // One choice per sheet: a back face (leaving a closed splitter) passes untinted,
+                // or a thin box would split twice and reflect ~67% instead of 50%.
+                portal_crossings++;previous_delta=true;
+                if(!h.front){origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;continue;}
+                throughput*=m.color_rough.rgb;
+                if(random()<m.lobes.y){direction=reflect(direction,h.n);origin=h.p+direction*0.0005;record(3,bounce,h.p,throughput,0,direction);lpe_advance(2);}
+                else{origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;}
+                continue;
             }
             float3 emitted=m.color_rough.rgb*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;

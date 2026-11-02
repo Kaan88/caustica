@@ -21,7 +21,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | Field | Contents |
 |---|---|
 | `color_rough` | RGB + roughness |
-| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7); **bit11** = spun anisotropy. Bits 3 and 4 are set in `Gpu::attach_maps`. |
+| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7); **bit11** = spun anisotropy; **bit12** = beam splitter (track 17). Bits 3 and 4 are set in `Gpu::attach_maps`. |
 | `optical` | IOR, emission, pattern id, w: one-sided emitter (1 for lights); negative = a diffraction grating, −(strength ‰ × 16384 + spacing nm) (track 11) |
 | `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
 | `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |

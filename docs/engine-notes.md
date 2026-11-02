@@ -574,3 +574,17 @@ The gains come from:
 - Generator family `physics` (Physics playground): dominoes, brick wall, block pyramid, Jenga tower, ball pit, all with the simulation on; `scenes/generated/physics-{1,2,4,7,13}.json`. Bodies start awake and settle in the first second (bodies spawned asleep never fall, so a ball pit would hang in the air).
 - Not done: see roadmap track 17.
 
+## Optics bench (track 17 part 2, 2026-11-02)
+
+- Shapes `convex_lens`, `concave_lens` (spherical faces of radius R = (1 + 0.25²)/(2·0.25) on a unit disc, axis local z, half thickness 0.3 / 0.05 at centre / rim, reversed for concave; standing on the rim) and `prism` (equilateral triangle in xy, apex up, extruded along z). Shading normals are outward, which is what `h.front` uses.
+- Material `splitter` (flag bit 12, 4096): a thin partial mirror. A ray reflects with probability `reflectivity`, else passes straight on, both tinted by `color`; a delta event (no light sampling, no BSDF). Path tracing: before the emission step (pass-through doesn't count as a bounce; LPE sees the reflection as a specular reflection event). BDPT / photon mapping: `make_vertex` marks splitter vertices `V_DELTA` (never connected) and `sample_vertex` does the same choice.
+- Spot lights in light subpaths (BDPT, photon mapping) now sample their cone uniformly in solid angle (`emit_dir`, `light_dir_pdf` agrees for MIS) instead of the cosine hemisphere: a 4° spot got about 0.1% of the photons before.
+- Scene `optics-bench`: a 3° spot grazing the floor through a convex lens, a 50/50 splitter, a concave lens on the reflected arm and a prism on the transmitted one, with two white screens; photon mapping, since the light on the floor and screens after glass is a caustic that path tracing cannot find from a small light. Haze was tried first: a beam in fog seen through glass is S·D·S and stays black in every integrator (none of the bidirectional ones supports media).
+
+## Laser puzzle (track 17 part 3, 2026-11-02)
+
+- `src/laser.rs`, `Settings::puzzle` (`enabled`, `origin`, `direction`, `target` object index or −1, `par`, `color`; out of `transport_key`, omitted at defaults). Scene → *Laser puzzle* edits it and shows "Solved / Not solved · N moves · par P".
+- The beam is traced on the CPU, not rendered: geometric optics on every visible object's world triangles (Möller–Trumbore, interpolated vertex normals). Mirrors (metallic > 0.5, roughness < 0.2) reflect; beam splitters fork it (front faces, power × reflectivity and × 1 − reflectivity; back faces pass); materials with transmission > 0.5 refract by Snell with total internal reflection (no Fresnel split); anything else stops it. At most 64 segments; branches below 1% power end. Retraced only when the objects or the puzzle change (a JSON key).
+- Drawn as viewport lines over the image (with the gizmo layer, perspective cameras only); width and opacity follow √power. The roadmap's GPU "sensor material" was not needed: the CPU trace makes win detection exact, free of readback and independent of the integrator and sample count.
+- Moves: each finished transform that changed the settings counts one (`finish_transform`); the count resets when `scene_name` changes. Solving toasts "Solved in N moves (par P)".
+- Levels: `scenes/puzzles` pack, `laser-1..3` (one mirror turn; a periscope; a return past a beam splitter with a mirror to move). `laser::tests` checks each starts unsolved and that its intended solution solves it within par.

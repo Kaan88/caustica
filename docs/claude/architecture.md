@@ -22,6 +22,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | ReSTIR DI | Track 15: `restir_presample` / `restir_initial` / `restir_spatial` in pathtrace.hlsl (before `trace`), `lighting::alias_records`, `Gpu::prepare_restir`, `Settings::restir*`. See engine-notes "ReSTIR DI". |
 | `src/lens.rs` | Track 16 real lenses: `LENSES` (prescriptions), `INFO` (focal length, wide-open f-number), `pack` (focus, film size, exit-pupil bands for the shader). Glare is in post.hlsl `glare_pass` + `Gpu::run_glare`. See engine-notes "Real lenses and glare". |
 | `src/physics.rs` | Track 17 physics sandbox: `Sim` (rapier3d bodies from `Settings::objects`, written back each step), grab / explode tools and `App::step_physics`. See engine-notes "Physics sandbox". |
+| `src/laser.rs` | Track 17 laser puzzle: CPU beam trace (`trace`), `Laser` state (segments, solved, moves) and its overlay. See engine-notes "Laser puzzle". |
 | `src/look.rs` | Roadmap 5c: `read_cube` (.cube 3D LUT) and `color_wheel` (lift/gamma/gain widget: chroma from a dragged dot in an orthonormal RGB chroma plane, level from a slider, double-click resets). |
 | `src/walk.rs`, `video.rs`, `saver.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), screensaver mode, phone remote (see "Toys"). |
 | `src/sky.rs` | Track 9 physical sky: `PhysicalSky` (`Settings::physical_sky`), solar position, atmosphere bake, the sun light, `environment_key` / `upload_environment`. See "Physical sky". |

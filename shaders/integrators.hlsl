@@ -14,7 +14,7 @@ static const uint V_DELTA=1u<<24,V_TEXTURED=1u<<25,V_NO_BSDF=1u<<26,V_LIGHT=1u<<
 struct BVertex{float3 p;uint info;float3 n;float pdf_fwd;float3 beta;float pdf_rev;float3 albedo;uint emitter;float3 tangent;float2 rough_metal;};
 BVertex make_vertex(Hit h,float3 beta,float pdf_fwd){
     BVertex x;x.p=h.p;x.n=h.n;x.beta=beta;x.pdf_fwd=pdf_fwd;x.pdf_rev=0;
-    x.info=h.material|(h.textured?V_TEXTURED:0)|(h.front?V_FRONT:0)|(((uint)materials[h.material].lobes.w&1u)!=0?V_NO_BSDF:0);
+    x.info=h.material|(h.textured?V_TEXTURED:0)|(h.front?V_FRONT:0)|(((uint)materials[h.material].lobes.w&1u)!=0?V_NO_BSDF:0)|(((uint)materials[h.material].lobes.w&4096u)!=0?V_DELTA:0);
     x.albedo=h.albedo;x.rough_metal=h.rough_metal;x.tangent=h.tangent;x.emitter=h.emitter;return x;
 }
 // The vertex's material as trace builds it: pattern, texture maps, thin film at the cosine of v,
@@ -49,6 +49,8 @@ bool sample_vertex(inout BVertex x,float3 d,bool radiance,uint mode,out float3 n
     pf=0;pr=0;next=d;
     if((x.info&V_NO_BSDF)!=0)return false;
     Material m=vertex_material(x,-d);bool front=(x.info&V_FRONT)!=0;float z=m.lobes.z;
+    // Beam splitter (track 17): reflect with probability `reflectivity`, else pass straight on.
+    if(((uint)m.lobes.w&4096u)!=0){if(front){beta*=m.color_rough.rgb;if(random()<m.lobes.y)next=reflect(d,x.n);}return true;}
     if(mode==1 || (mode==0 && random()<z)){
         if(z<=0)return false;
         float n1=front?1:m.optical.x,n2=front?m.optical.x:1,eta=n1/n2,fr=fresnel_dielectric(saturate(dot(-d,x.n)),eta);
@@ -90,7 +92,16 @@ LightPoint hit_light(uint i,float3 p){
 }
 float origin_pdf(uint i,float p_env){Emitter e=emitters[i];float area=e.position_area.w==-1?4*PI*e.edge1_cdf.x*e.edge1_cdf.x:e.position_area.w;return (1-p_env)*e.edge2_probability.w/max(area,1e-12);}
 bool two_sided(uint i,LightPoint l){return l.kind==0 && material_at((uint)emitters[i].emission_material.w,l.p).optical.w<0.5;}
-float light_dir_pdf(uint i,LightPoint l,float3 w){float c=dot(l.n,w);if(two_sided(i,l))return abs(c)/(2*PI);return c>0?c/PI:0;}
+// A spot light's cone: emission is 0 below cos = secondary.x, so light subpaths sample the cone
+// uniformly instead of the hemisphere (track 17: a 4° beam got 0.1% of the photons). 0 = no spot.
+float spot_cone(uint i,LightPoint l){if(l.kind!=0)return 0;Material lm=material_at((uint)emitters[i].emission_material.w,l.p);return ((uint)lm.lobes.w&32u)!=0 && lm.optical.w>=0.5?clamp(lm.secondary.x,-1,0.9999):0;}
+float light_dir_pdf(uint i,LightPoint l,float3 w){float c=dot(l.n,w);float k=spot_cone(i,l);if(k!=0)return c>=k?1/(2*PI*(1-k)):0;if(two_sided(i,l))return abs(c)/(2*PI);return c>0?c/PI:0;}
+// The first direction of a light subpath from l (n: the side chosen) and its density.
+float3 emit_dir(uint i,LightPoint l,float3 n,bool two,out float pd){
+    float k=spot_cone(i,l);
+    if(k!=0){float c=lerp(1,k,random()),r=sqrt(max(0,1-c*c)),a=2*PI*random();pd=1/(2*PI*(1-k));return basis(n,float3(r*cos(a),r*sin(a),c));}
+    float3 w=cosine_sample(n);pd=dot(n,w)/PI*(two?0.5:1);return w;
+}
 float3 emission_toward(uint i,LightPoint l,float3 w){
     float c=dot(l.n,w);if(l.kind==1)return c>0?l.le:0;
     Material lm=material_at((uint)emitters[i].emission_material.w,l.p);
@@ -202,7 +213,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
         if(e.position_area.w>=0 || e.position_area.w==-1){
             LightPoint l=light_point(i,pack_uv(float2(random(),random())));
             float po=(1-p_env)*l.source;bool two=two_sided(i,l);float3 n=l.n;if(two && random()<0.5)n=-n;
-            float3 w=cosine_sample(n);float c=dot(n,w),pd=c/PI*(two?0.5:1);float3 le=emission_toward(i,l,w);
+            float pd;float3 w=emit_dir(i,l,n,two,pd);float c=dot(n,w);float3 le=emission_toward(i,l,w);
             if(po>0 && pd>0 && any(le>0)){
                 BVertex y=(BVertex)0;y.p=l.p;y.n=n;y.beta=1/po;y.pdf_fwd=po;y.info=V_LIGHT;y.emitter=i+1;lig[0]=y;S=1;
                 float3 b=le*c/(po*pd),ab=0,lo=l.p+n*0.0003;float pw=pd;
@@ -329,7 +340,8 @@ float env_share(){return hdri_on()?(scene_info.x>0?0.5:1):0;}
 // near-mirror metals (gather_surface), then take direct light by NEE plus one BSDF ray (MIS)
 // and indirect light from the photons, deposited from their second hit on.
 uint cell_hash(int3 c){return hash((uint)c.x*73856093u^(uint)c.y*19349663u^(uint)c.z*83492791u)&(HASH-1);}
-bool gather_surface(Material m){return m.lobes.z<1 && !(m.color_rough.a<0.2 && m.lobes.x>0.5);}
+// Beam splitters (bit 4096) are delta: no photons, no gather; the walk passes them on.
+bool gather_surface(Material m){return m.lobes.z<1 && ((uint)m.lobes.w&4096u)==0 && !(m.color_rough.a<0.2 && m.lobes.x>0.5);}
 [numthreads(64,1,1)]void photon_clear(uint3 tid:SV_DispatchThreadID){
     if(tid.x<HASH)aux.Store(16+4*tid.x,0xffffffffu);
     if(tid.x==0)aux.Store(0,0);
@@ -360,7 +372,7 @@ float3 disk_origin(float3 ld){float r=bounds.w*sqrt(random()),a=2*PI*random();re
         }else{
             LightPoint l=light_point(k,pack_uv(float2(random(),random())));float po=(1-p_env)*l.source;
             bool two=two_sided(k,l);float3 n=l.n;if(two && random()<0.5)n=-n;
-            w=cosine_sample(n);float c=dot(n,w),pd=c/PI*(two?0.5:1);if(po<=0 || pd<=0)return;
+            float pd;w=emit_dir(k,l,n,two,pd);float c=dot(n,w);if(po<=0 || pd<=0)return;
             b=emission_toward(k,l,w)*c/(po*pd);o=l.p+n*0.0003;
         }
     }

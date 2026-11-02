@@ -60,7 +60,10 @@ fn pack(m: &Material) -> PackedMaterial {
             m.reflectivity,
             m.transmission,
             // Flag bits 8–10: the nested-dielectric priority; bit 11: spun anisotropy.
-            (m.unlit as u32 | m.priority.min(7) << 8 | (m.anisotropy_spun as u32) << 11) as f32,
+            (m.unlit as u32
+                | m.priority.min(7) << 8
+                | (m.anisotropy_spun as u32) << 11
+                | (m.splitter as u32) << 12) as f32,
         ],
         optical: [m.ior, m.emission, m.pattern as u32 as f32, grating_code(m)],
         secondary: [

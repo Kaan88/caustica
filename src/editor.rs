@@ -125,6 +125,14 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             .show(ui, |ui| {
                 row(
                     ui,
+                    "Beam splitter",
+                    "A thin partial mirror (optics bench): Reflection sets the share reflected, the rest passes straight through (front faces only: a thin box splits once).",
+                    |ui| {
+                        ui.checkbox(&mut m.splitter, "");
+                    },
+                );
+                row(
+                    ui,
                     "Reflection",
                     "Strength of the clear specular reflection on non-metals.",
                     |ui| {

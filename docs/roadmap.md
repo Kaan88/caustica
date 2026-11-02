@@ -260,6 +260,13 @@ Order is from scene-research.md section 5, unchanged:
 
 ### Known issues (not scheduled)
 
+- **Owner notes 2026-11-02 (to review after track 17):**
+  - The stained-glass / transparency scene: BDPT with the physical sky may not work. The glass shadow also changes the colour of plain path tracing in this scene.
+  - Stained glass shows little colour with path tracing (maybe a limitation: coloured caustics through glass are hard for a path tracer). It works well with photon mapping, and better with BDPT, but BDPT fails with the physical sky.
+  - The Newton's cradle scene: give it real physics (track 17 sandbox), by changing the same scene.
+  - The GPU shows full load but low power draw. Find out whether that is normal (latency or occupancy bound, the CPU waiting on the fence with one frame in flight, small dispatches) or a performance problem.
+  - Volumes are broken in BDPT and photon mapping (known gap: neither supports media), and both integrators are also broken with certain materials. Check which ones.
+
 - `--self-test` failed once with "The timeline export did not finish" (src/main.rs, the export assertion) and passed on an immediate rerun (2026-11-02, track 17 checkpoint); intermittent, not investigated.
 
 - **Native denoiser:** faint low-frequency blotches on flat walls at very low spp, typical of SVGF (found in the 2026-10-29 review, not started).
@@ -411,6 +418,14 @@ Done: four lens prescriptions (Double Gauss 50 mm f/2, Nakamura wide angle 22 mm
 #### 17. Physics sandbox, optics bench and laser puzzle
 
 Physics sandbox core done 2026-11-02 (part 1): rapier3d rigid bodies for the objects (box, ball and convex-hull colliders, the floor and Cornell walls), Scene → *Physics* (gravity, speed / slow motion, bounce, friction), grab-and-throw with the mouse, E for an explosion, and the `physics` generator family (dominoes, brick wall, pyramid, Jenga, ball pit) with five curated scenes. See engine-notes "Physics sandbox".
+
+Optics bench done 2026-11-02 (part 2): convex lens, concave lens and prism shapes, a beam-splitter material (all three integrators), spot lights cone-sampled in light subpaths, and the `optics-bench` scene. See engine-notes "Optics bench".
+
+Laser puzzle done 2026-11-02 (part 3): a CPU-traced laser beam (mirrors, splitters, glass) drawn over the viewport, a target object, a move counter with par, Scene → *Laser puzzle*, and three levels in a `scenes/puzzles` pack. See engine-notes "Laser puzzle".
+
+- Not done (laser puzzle): pieces locked in place (any object can be moved, the target and walls included); several targets, coloured filters and colour-matched targets; a rendered beam (it is an overlay, not light: a thin emissive cylinder or the spot of the optics bench would show it in the image); counting only puzzle pieces' moves; a level select with best scores; prisms that split colours (needs spectral rendering). Moves count any finished gizmo transform (lights and the camera's too; inspector edits and undo don't change the count). The beam is retraced from uncached triangles of every object on any change, which with the physics sandbox running costs a retrace per frame (several ms on big meshes).
+
+- Not done (optics bench): dispersion in the prism (needs spectral rendering: the prism only bends white light); beams visible in haze through glass (needs volumes in BDPT / photon mapping); lens shapes with set focal lengths (only size and stretch); cylindrical lenses, mirrors with curvature, gratings as objects.
 
 - Not done (physics): wind, spawn at the cursor, freeze / unfreeze, a gravity direction (only strength), the scroll wheel to change the grab distance; card houses, domino spirals with more turns, castles; cloth, ropes, chains and the wrecking ball (joints); baking a simulation into keyframes for video export; convex decomposition for concave meshes (tori and imported meshes are filled hulls); bodies keep running while an animation drives the same objects; per-object mass or material; the simulation does not run during a video export; no self-test frames drive the simulation (the scene files are rendered once each); any outside edit of an object, a colour included, rebuilds the simulation and drops velocities (compare pose and shape fields only); `hull_points` subsamples big meshes with a stride, which can drop extreme vertices.
 

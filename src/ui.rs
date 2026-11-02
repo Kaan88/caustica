@@ -425,6 +425,13 @@ impl UiState {
             Selection::Object(i) if i < s.objects.len() => {
                 let name = s.objects.remove(i).name;
                 s.animation.removed("objects", i);
+                // The laser puzzle's target is an object index (track 17).
+                let t = &mut s.puzzle.target;
+                if *t == i as i32 {
+                    *t = -1;
+                } else if *t > i as i32 {
+                    *t -= 1;
+                }
                 self.selection = if s.objects.is_empty() {
                     Selection::Stage
                 } else {
@@ -840,6 +847,7 @@ impl App {
             Some(i) => self.load_scene_file(i),
             None => {
                 self.ui.checkpoint(&self.settings);
+                self.laser = crate::laser::Laser::default();
                 match crate::scenes::load_into(&mut self.settings, path) {
                     Ok(()) => {
                         self.ui.selection = Selection::Stage;
@@ -1106,6 +1114,7 @@ impl App {
             return;
         };
         self.ui.checkpoint(&self.settings);
+        self.laser = crate::laser::Laser::default();
         match crate::scenes::load_into(&mut self.settings, &e.path) {
             Ok(()) => {
                 self.ui.selection = Selection::Stage;
@@ -1878,6 +1887,10 @@ impl App {
             egui::Id::new("gizmo"),
         ));
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, self.ui.selection);
+        if self.settings.puzzle.enabled && self.settings.perspective() {
+            self.laser
+                .draw(&painter, ppp, &view, self.settings.puzzle.color);
+        }
         if self.ui.paths.open && self.settings.perspective() {
             crate::paths::draw(
                 &painter,
@@ -2076,6 +2089,8 @@ impl App {
         if let Some(t) = self.ui.transform.take() {
             if self.settings != t.original {
                 self.ui.checkpoint(&t.original);
+                // Laser puzzle (track 17): each finished transform is one move.
+                self.laser.moves += 1;
             }
             self.ui.header.clear();
         }
@@ -2600,6 +2615,7 @@ impl App {
         let g = self.gpu.as_ref().unwrap();
         let aspect = g.width as f32 / g.height as f32;
         let awake = self.physics.as_ref().map_or(0, |p| p.awake());
+        let (moves, solved) = (self.laser.moves, self.laser.solved);
         let s = &mut self.settings;
         let state = &mut self.ui;
         note(ui, &description);
@@ -2782,6 +2798,62 @@ impl App {
                 }
                 ui.label(egui::RichText::new(format!("{awake} awake")).small());
             });
+        }
+        // Track 17 laser puzzle (see laser.rs).
+        section(ui, "Laser puzzle");
+        let p = &mut s.puzzle;
+        ui.checkbox(&mut p.enabled, "Laser").on_hover_text(
+            "A laser beam traced through the objects: mirrors (metallic, smooth) reflect it, beam splitters fork it, glass bends it. Route it to the target; each finished move counts.",
+        );
+        if p.enabled {
+            egui::Grid::new("puzzle").num_columns(2).show(ui, |ui| {
+                row(ui, "Origin", "Where the beam starts (x, y, z)", |ui| {
+                    for v in &mut p.origin {
+                        ui.add(egui::DragValue::new(v).speed(0.01).range(-40. ..=40.));
+                    }
+                });
+                row(
+                    ui,
+                    "Direction",
+                    "The beam's direction (x, y, z), any length",
+                    |ui| {
+                        for v in &mut p.direction {
+                            ui.add(egui::DragValue::new(v).speed(0.01).range(-1. ..=1.));
+                        }
+                    },
+                );
+                row(ui, "Target", "The object the beam must reach", |ui| {
+                    let name = |i: i32| {
+                        usize::try_from(i)
+                            .ok()
+                            .and_then(|i| s.objects.get(i))
+                            .map_or("None".to_string(), |o| o.name.clone())
+                    };
+                    egui::ComboBox::from_id_salt("puzzle target")
+                        .selected_text(name(p.target))
+                        .show_ui(ui, |ui| {
+                            for i in -1..s.objects.len() as i32 {
+                                ui.selectable_value(&mut p.target, i, name(i));
+                            }
+                        });
+                });
+                row(ui, "Par", "Moves a good solution needs", |ui| {
+                    ui.add(egui::DragValue::new(&mut p.par).range(0..=99));
+                });
+                row(ui, "Colour", "Beam colour in the viewport", |ui| {
+                    ui.color_edit_button_rgb(&mut p.color);
+                });
+            });
+            let status = if solved {
+                "Solved"
+            } else if p.target < 0 {
+                "No target"
+            } else {
+                "Not solved"
+            };
+            ui.label(
+                egui::RichText::new(format!("{status} · {moves} moves · par {}", p.par)).small(),
+            );
         }
         let advanced = state.advanced;
         match state.selection {
@@ -3026,7 +3098,7 @@ impl App {
                 "Samples per frame",
                 "More is smoother per frame but slower to respond.",
                 |ui| {
-                    ui.add(crate::slider(&mut s.spp, 1..=16).suffix(" spp"));
+                    ui.add(crate::slider(&mut s.spp, 1..=64).logarithmic(true).suffix(" spp"));
                 },
             );
             row(

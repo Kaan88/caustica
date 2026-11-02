@@ -264,6 +264,59 @@ fn make_mesh(shape: Shape) -> Mesh {
                 triangle(&mut out, f, [n; 3]);
             }
         }
+        Shape::ConvexLens | Shape::ConcaveLens => {
+            // Spherical faces of radius R on a unit disc in xy, axis z. Convex: half thickness
+            // 0.3 at the centre, 0.05 at the rim; concave: the reverse.
+            let convex = shape == Shape::ConvexLens;
+            let sag = 0.25;
+            let r = (1. + sag * sag) / (2. * sag);
+            let (centre, rim) = if convex { (0.3, 0.05) } else { (0.05, 0.3) };
+            for side in [1f32, -1.] {
+                // Sphere centre on the axis; the face is z = side·(centre ∓ (R − √(R² − ρ²))).
+                let c = Vec3::Z * side * if convex { centre - r } else { centre + r };
+                parametric(&mut out, 64, 24, |u, v| {
+                    let a = u * tau * side;
+                    let rho = v;
+                    let dz = r - (r * r - rho * rho).sqrt();
+                    let z = side * if convex { centre - dz } else { centre + dz };
+                    let p = Vec3::new(rho * a.cos(), rho * a.sin(), z);
+                    let n = if convex {
+                        (p - c).normalize()
+                    } else {
+                        (c - p).normalize()
+                    };
+                    (p, n)
+                });
+            }
+            parametric(&mut out, 64, 1, |u, v| {
+                let a = u * tau;
+                let n = Vec3::new(a.cos(), a.sin(), 0.);
+                (n + Vec3::Z * rim * (1. - 2. * v), n)
+            });
+        }
+        Shape::Prism => {
+            let h = 3f32.sqrt();
+            let t = [
+                Vec3::new(-1., -1., 0.),
+                Vec3::new(1., -1., 0.),
+                Vec3::new(0., h - 1., 0.),
+            ];
+            let (f, b) = (Vec3::Z, -Vec3::Z);
+            let mut face = |p: [Vec3; 3]| {
+                let mut n = (p[1] - p[0]).cross(p[2] - p[0]).normalize();
+                if n.dot(p[0] + p[1] + p[2] - Vec3::new(0., h / 3. - 1., 0.) * 3.) < 0. {
+                    n = -n;
+                }
+                triangle(&mut out, p, [n; 3]);
+            };
+            face([t[0] + f, t[1] + f, t[2] + f]);
+            face([t[0] + b, t[2] + b, t[1] + b]);
+            for i in 0..3 {
+                let (p, q) = (t[i], t[(i + 1) % 3]);
+                face([p + b, q + b, q + f]);
+                face([p + b, q + f, p + f]);
+            }
+        }
         Shape::Octahedron => {
             for y in [-1., 1.] {
                 for i in 0..4 {

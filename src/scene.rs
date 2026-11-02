@@ -54,6 +54,10 @@ pub struct Material {
     /// Brushed in circles around the object's y axis (a pan, a watch dial, a record) instead.
     #[serde(skip_serializing_if = "is_false")]
     pub anisotropy_spun: bool,
+    /// Beam splitter (track 17): a thin partial mirror. A ray reflects with probability
+    /// `reflectivity` and otherwise passes straight through; both are tinted by `color`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub splitter: bool,
     /// Thin-film interference (track 11, glTF's KHR_materials_iridescence): a film 0–1 strong
     /// on the surface (soap, oil, anodized titanium) whose reflections take colours from its
     /// thickness (nanometres, 0–2000) and index of refraction (1–2.5).
@@ -160,6 +164,7 @@ impl Default for Material {
             anisotropy: 0.,
             anisotropy_rotation: 0.,
             anisotropy_spun: false,
+            splitter: false,
             iridescence: 0.,
             iridescence_thickness: 400.,
             iridescence_ior: 1.3,
@@ -202,9 +207,15 @@ pub enum Shape {
     Pawn,
     Ring,
     Tetrahedron,
+    /// Optics bench (track 17): a biconvex lens, its axis along local z, standing on its rim.
+    ConvexLens,
+    /// A biconcave lens, axis along local z.
+    ConcaveLens,
+    /// An equilateral triangular prism, extruded along local z, apex up.
+    Prism,
 }
 impl Shape {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 15] = [
         Self::Box,
         Self::Sphere,
         Self::Cylinder,
@@ -217,6 +228,9 @@ impl Shape {
         Self::Pawn,
         Self::Ring,
         Self::Tetrahedron,
+        Self::ConvexLens,
+        Self::ConcaveLens,
+        Self::Prism,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -232,6 +246,9 @@ impl Shape {
             Self::Pawn => "Chess pawn",
             Self::Ring => "Thin ring",
             Self::Tetrahedron => "Tetrahedron",
+            Self::ConvexLens => "Convex lens",
+            Self::ConcaveLens => "Concave lens",
+            Self::Prism => "Prism",
         }
     }
 }
@@ -436,6 +453,36 @@ impl Default for Physics {
     }
 }
 impl Physics {
+    pub fn is_off(&self) -> bool {
+        *self == Self::default()
+    }
+}
+/// Track 17 laser puzzle: a laser from `origin` along `direction`, routed by mirrors, splitters
+/// and glass to the object `target` (−1 = none) in at most `par` moves. A zero direction is
+/// treated as +x.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Puzzle {
+    pub enabled: bool,
+    pub origin: [f32; 3],
+    pub direction: [f32; 3],
+    pub target: i32,
+    pub par: u32,
+    pub color: [f32; 3],
+}
+impl Default for Puzzle {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            origin: [-2., -0.6, 0.],
+            direction: [1., 0., 0.],
+            target: -1,
+            par: 3,
+            color: [1., 0.1, 0.1],
+        }
+    }
+}
+impl Puzzle {
     pub fn is_off(&self) -> bool {
         *self == Self::default()
     }
@@ -647,6 +694,9 @@ pub struct Settings {
     /// Track 17 physics sandbox: rigid-body simulation of the objects (see physics.rs).
     #[serde(skip_serializing_if = "Physics::is_off")]
     pub physics: Physics,
+    /// Track 17 laser puzzle (see laser.rs).
+    #[serde(skip_serializing_if = "Puzzle::is_off")]
+    pub puzzle: Puzzle,
     /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
     /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
     pub lpe: Vec<String>,
@@ -786,6 +836,7 @@ impl Default for Settings {
             photon_radius: 0.01,
             battle: false,
             physics: Physics::default(),
+            puzzle: Puzzle::default(),
             lpe: vec![],
             lpe_slot: 0,
             hdri: String::new(),
@@ -1062,7 +1113,7 @@ impl Settings {
         );
         anyhow::ensure!(
             (1..=32).contains(&self.bounces)
-                && (1..=16).contains(&self.spp)
+                && (1..=64).contains(&self.spp)
                 && (1..=1_000_000).contains(&self.max_samples),
             "Invalid sample/bounce limits"
         );
@@ -1155,6 +1206,15 @@ impl Settings {
                 && (0. ..=1.).contains(&self.physics.bounce)
                 && (0. ..=2.).contains(&self.physics.friction),
             "Invalid physics"
+        );
+        let p = &self.puzzle;
+        anyhow::ensure!(
+            p.origin.iter().all(|v| v.abs() <= 40.)
+                && p.direction.iter().all(|v| v.is_finite() && v.abs() <= 1e3)
+                && (-1..self.objects.len() as i32).contains(&p.target)
+                && p.par <= 99
+                && p.color.iter().all(|v| (0. ..=1.).contains(v)),
+            "Invalid laser puzzle"
         );
         for c in [
             &self.left,

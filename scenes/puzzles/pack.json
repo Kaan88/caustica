@@ -1,0 +1,13 @@
+{
+ "name": "Laser puzzles",
+ "version": 1,
+ "license": "Own work",
+ "commercial_use": true,
+ "attribution": "Cornell RTX",
+ "description": "Track 17 laser puzzle levels: route the beam to the green target in few moves.",
+ "scenes": [
+  "laser-1.json",
+  "laser-2.json",
+  "laser-3.json"
+ ]
+}

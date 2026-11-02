@@ -11,6 +11,7 @@ mod geometry;
 mod gizmo;
 mod gpu;
 mod hotreload;
+mod laser;
 mod lens;
 mod lighting;
 mod look;
@@ -157,6 +158,8 @@ struct App {
     timeline: anim::Timeline,
     /// Track 17: the running rigid-body simulation (`Settings::physics`).
     physics: Option<physics::Sim>,
+    /// Track 17 laser puzzle state (`Settings::puzzle`).
+    laser: laser::Laser,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 292;
@@ -164,6 +167,7 @@ fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
         "physics",
+        "puzzle",
         "exposure",
         "gamma",
         "tonemap",
@@ -593,6 +597,7 @@ impl App {
             gamepad: None,
             timeline: anim::Timeline::default(),
             physics: None,
+            laser: laser::Laser::default(),
         })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -1480,6 +1485,22 @@ impl App {
             self.timeline.advance(&self.settings.animation, dt);
             self.timeline.update(&mut self.settings);
             self.step_physics(dt);
+            if self
+                .laser
+                .update(&self.settings, self.ui.transform.is_some())
+            {
+                let (n, par) = (self.laser.moves, self.settings.puzzle.par);
+                let moves = if n == 1 {
+                    "1 move".into()
+                } else {
+                    format!("{n} moves")
+                };
+                self.ui.toast(if n <= par {
+                    format!("Solved in {moves} (par {par})")
+                } else {
+                    format!("Solved in {moves}; par is {par}")
+                });
+            }
         }
         let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
         if self.actions.save {
