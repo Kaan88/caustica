@@ -79,6 +79,23 @@ static const bool texture_maps=true;
 #else
 static const bool texture_maps=false;
 #endif
+// LEAN (track 20a (b)): variants for scenes without ReSTIR, fog or volume media, SDF
+// procedurals, or the layered-BSDF extras (coat, sheen, anisotropy, thin film). The stripped
+// material fields and the constant flags fold those branches away, which frees registers in
+// the whole kernel (Sponza's trace pass −35%, Classic's −26%). Gpu::integrate picks a LEAN
+// variant only when the scene and settings use none of them (Gpu::lean_scene).
+#ifdef LEAN
+static const bool lean=true;
+#define RQ_BASE RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES
+#else
+static const bool lean=false;
+#define RQ_BASE RAY_FLAG_NONE
+#endif
+bool fog_on(){return !lean && fog.x>0;}
+bool restir_on(){return !lean && (restir.x&1)!=0;}
+// The gates only (coat, anisotropy, sheen, film strength, extinction): every use of the other
+// layer fields sits behind one of them, and sheen.w also turns gratings (kept).
+void lean_strip(inout Material m){if(lean){m.layers.x=0;m.layers.w=0;m.sheen.rgb=0;m.surface_scale.z=0;m.medium.w=0;}}
 bool has_grating(Material m){return texture_maps && m.optical.w<0;}
 bool flagged(uint m,uint bit){return texture_maps && ((uint)materials[m].lobes.w&bit)!=0;}
 // Masked texture maps: a candidate whose base-colour alpha is below the cutoff is a hole.
@@ -188,9 +205,9 @@ bool sdf_hit(uint raw,float3 o,float3 d,float tmin,float tmax,out float t){
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
-    RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    RayQuery<RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
-        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+        if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];uint pm=pi.material;float t;
             if(camera_ray && (((uint)materials[pm].lobes.w&2u)!=0))continue;
             if(shadow && jitter.w<=0.5 && materials[pm].lobes.z>=0.5)continue;
@@ -260,9 +277,9 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH|RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
-        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+        if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;
             if((glass_blocks || jitter.w>0.5 || materials[pi.material].lobes.z<0.5) && sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
             continue;
@@ -278,7 +295,7 @@ Material material_at(uint id,float3 p){
     if(pattern==2)t=step(0,sin((p.x+p.z)*m.secondary.w*PI));
     // Marble: soft veins where a turbulent sine crosses zero, at most 75% secondary color.
     if(pattern==3){float s=m.secondary.w;float vein=sin((p.x+p.z)*s*0.6+3*sin(p.y*3+p.z*2)+1.5*sin(p.x*5-p.z*2)+0.6*sin(p.x*13+p.y*11)+0.3*sin(p.z*27-p.y*21));t=0.75*pow(1-abs(vein),6);}
-    m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);return m;
+    m.color_rough.rgb=lerp(m.color_rough.rgb,m.secondary.rgb,t);lean_strip(m);return m;
 }
 // The textured surface values intersect sampled (sample_maps).
 void apply_maps(Hit h,inout Material m){if(h.textured){m.color_rough.rgb=h.albedo;m.color_rough.a=h.rough_metal.x;m.lobes.x=h.rough_metal.y;}}
@@ -353,7 +370,7 @@ int medium_find(uint64_t s,uint e){int j=-1;[unroll]for(uint i=0;i<4;i++)if(medi
 // A full stack drops the push; leaving that material later then counts as leaving into the rest.
 uint64_t medium_push(uint64_t s,uint e){[unroll]for(uint i=0;i<4;i++)if(medium_at(s,i)==0)return s|((uint64_t)e<<(16*i));return s;}
 uint64_t medium_remove(uint64_t s,uint e){int j=medium_find(s,e);if(j<0)return s;uint64_t low=j>0?s&((1ull<<(16*j))-1):0;return low|((s>>(16*(j+1)))<<(16*j));}
-Material medium_material(uint64_t s,int top){return materials[(medium_at(s,top)&0x1fffu)-1];}
+Material medium_material(uint64_t s,int top){Material m=materials[(medium_at(s,top)&0x1fffu)-1];lean_strip(m);return m;}
 float medium_ior(uint64_t s,int top){return top>=0?medium_material(s,top).optical.x:1;}
 float3 medium_absorption(uint64_t s,int top){return top>=0?-log(max(medium_material(s,top).color_rough.rgb,0.001)):float3(0,0,0);}
 // Thin-film interference (track 11, glTF's KHR_materials_iridescence): Belcour and Barla
@@ -599,10 +616,12 @@ uint emitter_word(uint w){
     return asuint(r[w&3]);
 }
 // The emitter CDF's binary search, bracketed by its cutpoints (lighting::guide_records, after
-// the alias records): the same index as the full search, in one or two loads plus a few steps.
+// the alias records) once the table is big: the same index as the full search, in one or two
+// loads plus a few steps. Small tables search in full: with Classic's two emitters the two
+// guide loads cost 4% of the trace pass.
 uint select_index(float u){
-    uint n=scene_info.x,K=1u<<firstbithigh(n),k=(uint)(u*K),base=(n+(n+7)/8)*16;
-    uint lo=emitter_word(base+k),hi=k+1<K?emitter_word(base+k+1):n-1;
+    uint n=scene_info.x,lo=0,hi=n-1;
+    if(n>=64){uint K=1u<<firstbithigh(n),k=(uint)(u*K),base=(n+(n+7)/8)*16;lo=emitter_word(base+k);hi=k+1<K?emitter_word(base+k+1):n-1;}
     while(lo<hi){uint mid=(lo+hi)/2;if(u<emitters[mid].edge1_cdf.w)hi=mid;else lo=mid+1;}return lo;}
 float3 camera_direction(float2 pixel){float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float4 p=mul(inverse_vp,float4(ndc,1,1));return normalize(p.xyz/p.w-eye.xyz);}
 // A point in the unit aperture: a disk, or an n-gon (one triangle of the fan, then uniform in it).
@@ -840,7 +859,7 @@ float3 hg_sample(float3 d,float g,out float pdf){
 bool fog_interval(float3 o,float3 d,float tmax,out float t0,out float t1){
     float3 inv=1/select(abs(d)>1e-9,d,1e-9),a=(float3(-fog.w,-1,-fog.w)-o)*inv,b=(float3(fog.w,fog.z,fog.w)-o)*inv;
     float3 lo=min(a,b),hi=max(a,b);t0=max(0,max(lo.x,max(lo.y,lo.z)));t1=min(tmax,min(hi.x,min(hi.y,hi.z)));
-    return fog.x>0 && t1>t0;
+    return fog_on() && t1>t0;
 }
 // The scattering medium the path is in: the top of the dielectric stack, else the fog (only
 // outside every object). [t0, t1] is where it fills the ray up to tmax.
@@ -852,9 +871,9 @@ bool medium_params(uint64_t media,float3 o,float3 d,float tmax,out float sigma,o
 // The distance to the nearest surface (alpha-tested holes skipped), or limit: a medium's exit.
 float surface_distance(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
-    RayQuery<RAY_FLAG_NONE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    RayQuery<RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
-        if(q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
+        if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;
             if(sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
             continue;
@@ -1012,7 +1031,7 @@ void write_guides(uint2 p,out Hit guide){
                 record(8,bounce,h.p,throughput,0,direction);
             }
             {float sigma,g,t0,t1;float3 albedo;
-            if((density>0 || (fog.x>0 && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
+            if((density>0 || (fog_on() && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
                 float ts=t0-log(1-random())/sigma;
                 if(ts<t1){
                     // A scatter before the surface: NEE by the phase function, then a new direction.
@@ -1102,7 +1121,7 @@ void write_guides(uint2 p,out Hit guide){
             // ReSTIR DI (track 15): at the first hit the emitter table is sampled through the
             // pixel's reservoir of this sample's layer with weight 1, so BSDF hits on emitters from this vertex count 0;
             // the HDRI keeps its own strategy, chosen with the same probability, and its MIS.
-            bool restir_vertex=bounce==0 && (restir.x&1)!=0 && sample_id<restir_layers() && tri_nee,reused=false;
+            bool restir_vertex=bounce==0 && restir_on() && sample_id<restir_layers() && tri_nee,reused=false;
             float3 ld,le;float pl,limit;bool nee;
             if(restir_vertex && !(env_nee && random()<p_env)){reused=true;nee=restir_nee(p,sample_id,h,-direction,ld,le,limit);le/=1-p_env;pl=1;if(lpe_on)lpe_env_sample=false;}
             else if(restir_vertex){nee=sample_light(h.p,true,false,1,ld,le,pl,limit);pl*=p_env;}
@@ -1111,7 +1130,7 @@ void write_guides(uint2 p,out Hit guide){
             if(nee && nl>0){
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
                 if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(reused?1:mis==1?pl:pl+pdf,1e-8);
-                    if(fog.x>0 || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
+                    if(fog_on() || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
                     radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);
                     if(lpe_on){float3 ed=e*lpe_diffuse/max(f,1e-30);uint light=lpe_env_sample?6:5;lpe_add(0,light,ed);lpe_add(lpe_glossy(m),light,e-ed);}}
                 else record(12,bounce,h.p,0,limit,ld);
@@ -1198,7 +1217,7 @@ void write_guides(uint2 p,out Hit guide){
         Domain a=make_domain(h.p,h.n,-d,h.material);
         uint tile=hash((p.x>>3)|(p.y>>3)<<16^hash(sampling.w*0x9e3779b9u+layer))%RESTIR_TILES;
         uint light,q;float W,M=1;restir_candidates(a,restir.y,tile,light,q,W);
-        if((restir.x&2)!=0 && restir.w>0){
+        if(!lean && (restir.x&2)!=0 && restir.w>0){
             float4 prev=mul(previous_vp,float4(h.p,1));float2 uv=prev.xy/prev.w*float2(0.5,-0.5)+0.5;int2 hp=int2(floor(uv*dimensions.xy));
             if(prev.w>0 && all(hp>=int2(region.xy)) && all(hp<int2(min(dimensions.xy,region.zw)))){
                 Reservoir hr=reservoirs[restir_slot(0,layer)+hp.y*dimensions.x+hp.x];

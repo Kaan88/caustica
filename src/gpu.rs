@@ -290,6 +290,11 @@ pub struct Gpu {
     /// The path tracer with texture-map code (core track 5) and diffraction gratings (track 11),
     /// used while any material has maps or a grating.
     trace_maps: ID3D12PipelineState,
+    /// `trace` and `trace_maps` compiled with LEAN (track 20a (b)): no ReSTIR, fog or volume
+    /// media, SDF procedurals or layered-BSDF extras, which frees registers; used while
+    /// `lean_scene` holds and the frame has neither fog nor ReSTIR.
+    trace_lean: ID3D12PipelineState,
+    trace_maps_lean: ID3D12PipelineState,
     /// Path visualizer (track 14): the trace variant that re-traces one pixel into
     /// `path_buffer` (bound at u0 space 2 for every dispatch), read back through `path_readback`.
     trace_paths: ID3D12PipelineState,
@@ -349,6 +354,10 @@ pub struct Gpu {
     /// Battle mode (track 15), reset with the accumulation.
     pub battle: [BattleQuadrant; 4],
     textured: bool,
+    /// No material with a coat, anisotropy, sheen, thin film or extinction, and no visible SDF
+    /// object: the LEAN trace variants render this scene unchanged (`integrate` adds the
+    /// frame's fog and ReSTIR).
+    lean_scene: bool,
     filter: ID3D12PipelineState,
     display: ID3D12PipelineState,
     gui: ID3D12PipelineState,
@@ -784,6 +793,11 @@ impl Gpu {
         let compute = |code: &[u8]| create_compute_pipeline(&device, &root, code);
         let trace = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace.dxil")))?;
         let trace_maps = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps.dxil")))?;
+        let trace_lean = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_lean.dxil")))?;
+        let trace_maps_lean = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/trace_maps_lean.dxil"
+        )))?;
         let trace_paths = compute(include_bytes!(concat!(
             env!("OUT_DIR"),
             "/trace_paths.dxil"
@@ -978,6 +992,8 @@ impl Gpu {
             root,
             trace,
             trace_maps,
+            trace_lean,
+            trace_maps_lean,
             trace_paths,
             path_buffer,
             path_readback,
@@ -1017,6 +1033,7 @@ impl Gpu {
             bounds_valid: false,
             battle: [BattleQuadrant::default(); 4],
             textured: false,
+            lean_scene: false,
             filter,
             display,
             gui,
@@ -1697,6 +1714,9 @@ impl Gpu {
     pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
         let trace = create_compute_pipeline(&self.device, &self.root, &sh.trace)?;
         let trace_maps = create_compute_pipeline(&self.device, &self.root, &sh.trace_maps)?;
+        let trace_lean = create_compute_pipeline(&self.device, &self.root, &sh.trace_lean)?;
+        let trace_maps_lean =
+            create_compute_pipeline(&self.device, &self.root, &sh.trace_maps_lean)?;
         let trace_paths = create_compute_pipeline(&self.device, &self.root, &sh.trace_paths)?;
         let trace_lpe = create_compute_pipeline(&self.device, &self.root, &sh.trace_lpe)?;
         let restir_presample =
@@ -1733,6 +1753,7 @@ impl Gpu {
             &sh.ps,
         )?;
         self.wait_idle()?;
+        (self.trace_lean, self.trace_maps_lean) = (trace_lean, trace_maps_lean);
         (
             self.trace,
             self.trace_maps,
@@ -2292,6 +2313,16 @@ impl Gpu {
             .iter()
             .take(5 + s.objects.len() + s.lights.len())
             .any(|m| m.lobes[3] as u32 & 16 != 0 || m.optical[3] < 0.);
+        // The LEAN variants' material gates (pathtrace.hlsl lean_strip), over every record: a
+        // portal matrix can only turn them off.
+        self.lean_scene = !s.objects.iter().any(|o| o.visible && !o.sdf.is_none())
+            && materials.iter().all(|m| {
+                m.layers[0] <= 0.
+                    && m.layers[3] <= 0.
+                    && m.sheen[..3].iter().all(|v| *v <= 0.)
+                    && m.surface_scale[2] <= 0.
+                    && m.medium[3] <= 0.
+            });
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
         // The alias table for ReSTIR follows the emitters (`emitter_count` stays the table),
@@ -2521,13 +2552,16 @@ impl Gpu {
                         uav(&self.list, None);
                     }
                 }
-                self.list.SetPipelineState(if self.lpe_slots > 0 {
-                    &self.trace_lpe
-                } else if self.textured {
-                    &self.trace_maps
-                } else {
-                    &self.trace
-                });
+                // LEAN exactly when the shader's fog and ReSTIR flags are off for this frame.
+                let lean = self.lean_scene && c.fog[0] <= 0. && c.restir[0] & 1 == 0;
+                self.list
+                    .SetPipelineState(match (self.lpe_slots > 0, self.textured, lean) {
+                        (true, _, _) => &self.trace_lpe,
+                        (_, true, true) => &self.trace_maps_lean,
+                        (_, true, false) => &self.trace_maps,
+                        (_, false, true) => &self.trace_lean,
+                        (_, false, false) => &self.trace,
+                    });
                 self.list.Dispatch(gx, gy, 1);
                 uav(&self.list, None);
             }

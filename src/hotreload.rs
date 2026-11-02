@@ -23,9 +23,11 @@ pub struct Shaders {
     pub glare: Vec<u8>,
     pub vs: Vec<u8>,
     pub ps: Vec<u8>,
+    pub trace_lean: Vec<u8>,
+    pub trace_maps_lean: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 17] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 19] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -110,6 +112,20 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 17] = [
     ("post.hlsl", "glare_pass", "cs_6_5", "glare", &[]),
     ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
     ("gui.hlsl", "ps_main", "ps_6_0", "ps_main", &[]),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_lean",
+        &["-D", "LEAN"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_maps_lean",
+        &["-D", "TEXTURE_MAPS", "-D", "LEAN"],
+    ),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -194,6 +210,8 @@ impl HotReload {
             glare: b.next().unwrap(),
             vs: b.next().unwrap(),
             ps: b.next().unwrap(),
+            trace_lean: b.next().unwrap(),
+            trace_maps_lean: b.next().unwrap(),
         })
     }
 }

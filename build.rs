@@ -146,6 +146,22 @@ fn main() {
         ("post.hlsl", "glare_pass", "cs_6_5", "glare", &[]),
         ("gui.hlsl", "vs_main", "vs_6_0", "vs_main", &[]),
         ("gui.hlsl", "ps_main", "ps_6_0", "ps_main", &[]),
+        // Track 20a (b): the tracer without ReSTIR, fog and volumes, SDFs or layered-BSDF
+        // extras, for scenes that use none (Gpu::lean_scene); about a third faster.
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_lean",
+            &["-D", "LEAN"],
+        ),
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_maps_lean",
+            &["-D", "TEXTURE_MAPS", "-D", "LEAN"],
+        ),
     ] {
         let status = Command::new(&dxc)
             .args([
