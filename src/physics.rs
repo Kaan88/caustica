@@ -417,6 +417,11 @@ impl crate::App {
             self.physics = None;
             return;
         }
+        // A gizmo transform owns the poses until it ends. Stepping meanwhile would drop the
+        // object between pointer moves; afterwards the simulation restarts from the new poses.
+        if self.ui.transform.is_some() {
+            return;
+        }
         let rebuild = match &self.physics {
             None => {
                 // Undo goes back to the poses from before the simulation started.
@@ -577,6 +582,37 @@ mod tests {
         assert!(sim.awake() > 0);
     }
 
+    #[test]
+    fn a_held_box_stays_up_when_the_pointer_stops() {
+        let mut s = Settings {
+            objects: vec![Object {
+                shape: Shape::Box,
+                size: 0.5,
+                stretch: 1.,
+                rotation: 0.,
+                position: [0., 0.],
+                grounded: false,
+                elevation: -0.75,
+                ..Object::default()
+            }],
+            cornell_room: false,
+            ..Settings::default()
+        };
+        s.physics.enabled = true;
+        let mut sim = Sim::new(&s);
+        let start = Vec3::new(0., -0.75, 0.);
+        assert!(sim.grab(0, start, 3.));
+        // Lift it half a unit over a second, then hold the pointer still for five seconds.
+        for k in 0..60 {
+            sim.grab.as_mut().unwrap().target = start + Vec3::Y * (0.5 * k as f32 / 59.);
+            sim.advance(&mut s, 1. / 60.);
+        }
+        for k in 0..300 {
+            sim.advance(&mut s, 1. / 60.);
+            let y = s.objects[0].elevation;
+            assert!(y > -0.4, "dropped after {k} still frames: elevation {y}");
+        }
+    }
     #[test]
     fn a_grabbed_box_shoves_another_out_of_the_way() {
         let mut s = Settings {

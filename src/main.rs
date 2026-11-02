@@ -1139,6 +1139,31 @@ impl App {
                     std::fs::write(&path, text)?;
                     self.settings.lut_path = path.to_string_lossy().into();
                 }
+                // Physics on while a gizmo arrow holds an object: it must not fall.
+                237 => {
+                    self.settings.physics.enabled = true;
+                    self.ui.select(ui::Selection::Object(0));
+                    self.settings.objects[0].elevation += 0.3;
+                    anyhow::ensure!(
+                        self.start_transform(gizmo::Mode::Move, None),
+                        "The move did not start"
+                    );
+                }
+                238 => {
+                    let held = self
+                        .ui
+                        .transform
+                        .as_ref()
+                        .map(|t| t.original.objects[0].elevation);
+                    let now = self.settings.objects[0].elevation;
+                    anyhow::ensure!(
+                        held.is_some_and(|h| (h - now).abs() < 1e-4),
+                        "The held object fell from {held:?} to {now}"
+                    );
+                    self.cancel_transform();
+                    self.settings.objects[0].elevation -= 0.3;
+                    self.settings.physics.enabled = false;
+                }
                 // Multi-select (3b): a typed group move, duplicate, select all, delete, undo.
                 233 => {
                     if self.settings.objects.len() < 2 {

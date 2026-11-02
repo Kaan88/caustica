@@ -2267,9 +2267,14 @@ impl App {
             }
         }
         // Box select in progress: the rectangle from where the drag started to the pointer.
-        if let (Some(a), Some(b)) = (self.ui.box_start, ctx.pointer_latest_pos()) {
+        if let Some(a) = self.ui.box_start {
+            let b = egui::pos2(self.cursor[0] as f32 / ppp, self.cursor[1] as f32 / ppp);
             let r = egui::Rect::from_two_pos(a, b);
-            painter.rect_filled(r, 0., egui::Color32::from_white_alpha(12));
+            painter.rect_filled(
+                r,
+                0.,
+                egui::Color32::from_rgba_unmultiplied(160, 200, 255, 22),
+            );
             painter.rect_stroke(
                 r,
                 0.,

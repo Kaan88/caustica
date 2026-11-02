@@ -158,6 +158,7 @@ The old `WORK_IN_PROGRESS.md` checkpoint was removed once this was done; this se
 
 ## Native HDR (roadmap item 2, 2026-10-30)
 
+- **GUI colours with rgb above alpha** (fixed 2026-11-02): `Color32::from_white_alpha` and similar give premultiplied colours whose sRGB channels exceed alpha. gui.hlsl un-premultiplies (`c.rgb / c.a`) before linearising for HDR; that ratio (about 5 for white at alpha 12) linearised to about 50× white, so the box-select fill drew solid white. It now saturates the ratio first (scRGB and HDR10). SDR was unaffected.
 - **Settings** (display-only, not in `transport_key`, kept across `preset()`): `hdr_mode` 0 Auto (follow Windows), 1 SDR, 2 forced scRGB; `hdr_peak` and `hdr_white` in nits, 0 = from Windows.
 - **Detection:** `App` holds a `display::Monitor`, re-queried on `Moved`/`ScaleFactorChanged` and when `current()` turns false (polled every 30 frames). This covers HDR toggles, calibration reruns and the SDR brightness slider. A change prints `DISPLAY DisplayInfo {…}`.
 - **This machine:** Dell S3422DWG, Windows HDR on, 530 nits peak and full frame, SDR white 480 nits (slider at max). With white that close to the peak, the roll-off starts around 110 nits.
@@ -591,6 +592,7 @@ The gains come from:
 
 ## Physics sandbox (track 17 part 1, 2026-11-02)
 
+- **Gizmo transforms pause the simulation** (fixed 2026-11-02): `step_physics` returns while `ui.transform` runs. Before, the transform re-applied the pose only on pointer moves and gravity dropped the object in between (holding an arrow still let it fall); a direct grab was fine because its spring acts every step. When the transform ends the poses no longer match `written`, so the simulation restarts from them. Tests: `a_held_box_stays_up_when_the_pointer_stops` (the grab spring) and self-test 237–238 (an arrow move with physics on keeps the elevation).
 - `src/physics.rs`, rapier3d 0.36 (glam-based; its glam is a different version, so poses cross as plain floats). `Settings::physics` (`enabled`, `gravity`, `speed`, `bounce`, `friction`) is omitted from scene files while it is at its defaults and is out of `transport_key`.
 - One dynamic body per visible, non-portal object; the body origin is `object_frame`'s centre, so writing back is `grounded = false`, `position`/`elevation` = translation, `rotation`/`tilt` = the quaternion as YXZ Euler (the same order `scale_rotation` builds). Colliders: cuboid for built-in boxes, a ball for uniform spheres (and SDF spheres), else a convex hull of up to 4000 points of the grounding mesh (`geometry::hull_points`); tori, rings and knots are therefore filled in. Static: a floor slab (`floor_extent`, 1 unit thick) and, with `cornell_room`, the ceiling and three walls (the front is open).
 - Fixed 1/120 s steps, at most 8 per frame (slower frames become slow motion), times `speed`. Only awake bodies that moved more than 0.5 mm or 0.05° are written, so a settling scene stops changing the geometry key and accumulates (without the threshold, rapier's sub-millimetre jitter restarted accumulation every frame and the image stayed at 4 spp). Bodies past ±39 or below −30 turn fixed.
