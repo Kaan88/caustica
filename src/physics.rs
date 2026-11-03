@@ -127,9 +127,8 @@ fn animated(s: &Settings, recording: bool) -> Vec<bool> {
 /// imported meshes) as a compound of convex parts (V-HACD), so a ring can hang on a peg and
 /// a bowl holds a ball. Meshes over 20k triangles keep the hull (the decomposition would
 /// stall the frame). Cached by shape and scale: a restart (any outside edit) reuses them.
-fn decomposed(o: &Object, scale: Vec3) -> Option<SharedShape> {
-    static CACHE: Mutex<Option<HashMap<String, SharedShape>>> = Mutex::new(None);
-    let concave = match o.sdf {
+fn concave(o: &Object) -> bool {
+    match o.sdf {
         crate::scene::Sdf::Torus => true,
         crate::scene::Sdf::None => {
             !o.mesh.is_empty()
@@ -144,8 +143,52 @@ fn decomposed(o: &Object, scale: Vec3) -> Option<SharedShape> {
                 )
         }
         _ => false,
-    };
-    if !concave {
+    }
+}
+/// Triangles scaled into an object's local frame, as rapier points and indices.
+fn local_triangles(source: &crate::geometry::Mesh, scale: Vec3) -> (Vec<Vector>, Vec<[u32; 3]>) {
+    let points: Vec<Vector> = source.iter().map(|(p, _)| v(*p * scale)).collect();
+    let indices: Vec<[u32; 3]> = (0..points.len() as u32 / 3)
+        .map(|t| [3 * t, 3 * t + 1, 3 * t + 2])
+        .collect();
+    (points, indices)
+}
+/// A fixed concave mesh collides as its exact triangles: a fixed body never needs a volume
+/// (rapier handles dynamic bodies and cloth against a triangle mesh), and a convex hull or
+/// decomposition fills the openings. Sponza's arcades must keep their arches open for the
+/// cloth curtains (scene sponza-cloth).
+fn fixed_trimesh(o: &Object, scale: Vec3) -> Option<SharedShape> {
+    static CACHE: Mutex<Option<HashMap<String, SharedShape>>> = Mutex::new(None);
+    if o.body != Body::Fixed || !concave(o) {
+        return None;
+    }
+    let key = format!(
+        "{:?}|{}|{:?}",
+        o.kind(),
+        o.mesh,
+        scale.to_array().map(f32::to_bits)
+    );
+    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let cache = cache.get_or_insert_with(HashMap::new);
+    if let Some(s) = cache.get(&key) {
+        return Some(s.clone());
+    }
+    // The object's own triangles, as drawn (a part of a file, not the whole file).
+    let part = crate::mesh::of(o);
+    let source = part
+        .as_deref()
+        .unwrap_or_else(|| crate::geometry::mesh(o.kind()));
+    let (points, indices) = local_triangles(source, scale);
+    if indices.is_empty() {
+        return None;
+    }
+    let shape = SharedShape::trimesh(points, indices).ok()?;
+    cache.insert(key, shape.clone());
+    Some(shape)
+}
+fn decomposed(o: &Object, scale: Vec3) -> Option<SharedShape> {
+    static CACHE: Mutex<Option<HashMap<String, SharedShape>>> = Mutex::new(None);
+    if !concave(o) {
         return None;
     }
     let key = format!(
@@ -160,16 +203,13 @@ fn decomposed(o: &Object, scale: Vec3) -> Option<SharedShape> {
         return Some(s.clone());
     }
     let ground = crate::mesh::ground(o);
-    let source: &crate::geometry::Mesh = ground
+    let source = ground
         .as_deref()
         .unwrap_or_else(|| crate::geometry::mesh(o.kind()));
-    if source.len() / 3 > 20_000 || source.len() < 12 {
+    let (points, indices) = local_triangles(source, scale);
+    if indices.len() > 20_000 || indices.len() < 4 {
         return None;
     }
-    let points: Vec<Vector> = source.iter().map(|(p, _)| v(*p * scale)).collect();
-    let indices: Vec<[u32; 3]> = (0..points.len() as u32 / 3)
-        .map(|t| [3 * t, 3 * t + 1, 3 * t + 2])
-        .collect();
     let params = rapier3d::parry::transformation::vhacd::VHACDParameters {
         resolution: 48,
         max_convex_hulls: 24,
@@ -191,6 +231,9 @@ fn collider(o: &Object) -> ColliderBuilder {
     }
     if o.sdf.is_none() && o.mesh.is_empty() && o.shape == Shape::Box {
         return ColliderBuilder::cuboid(s.x, s.y, s.z);
+    }
+    if let Some(shape) = fixed_trimesh(o, s) {
+        return ColliderBuilder::new(shape);
     }
     if let Some(shape) = decomposed(o, s) {
         return ColliderBuilder::new(shape);
@@ -230,6 +273,30 @@ pub fn cloth_mesh(key: &str, c: &crate::scene::Cloth) -> Arc<crate::geometry::Me
         })
         .collect();
     Arc::new(grid_mesh(&rest, n))
+}
+/// A cloth's texture coordinates, parallel to its mesh (`grid_mesh`'s triangle order): the
+/// particle grid spread over the `Cloth::uv` rectangle.
+pub fn cloth_uvs(c: &crate::scene::Cloth) -> crate::mesh::Uvs {
+    let n = c.resolution.clamp(4, 48) as usize;
+    let [u0, v0, u1, v1] = c.uv;
+    let at = |k: usize| {
+        let (i, j) = ((k % n) as f32, (k / n) as f32);
+        let s = (n - 1) as f32;
+        [u0 + (u1 - u0) * i / s, v0 + (v1 - v0) * j / s]
+    };
+    let mut out = Vec::with_capacity((n - 1) * (n - 1) * 6);
+    for j in 0..n - 1 {
+        for i in 0..n - 1 {
+            let (a, b, cc, d) = (
+                j * n + i,
+                j * n + i + 1,
+                (j + 1) * n + i,
+                (j + 1) * n + i + 1,
+            );
+            out.extend([a, cc, b, b, cc, d].map(at));
+        }
+    }
+    out
 }
 /// Triangles of an n × n particle grid with smooth normals (one side; the renderer shades
 /// back faces too).
@@ -372,7 +439,14 @@ impl ClothSim {
     fn asleep(&self) -> bool {
         self.still > 120
     }
-    fn step(&mut self, gravity: Vec3, wind: Vec3, query: &QueryPipeline) {
+    /// `meshes`: the triangle-mesh colliders (fixed concave meshes), left out of `query`.
+    fn step(
+        &mut self,
+        gravity: Vec3,
+        wind: Vec3,
+        query: &QueryPipeline,
+        meshes: &[(Pose, SharedShape)],
+    ) {
         let dt2 = STEP * STEP;
         let mut motion = 0f32;
         for k in 0..self.p.len() {
@@ -417,7 +491,21 @@ impl ClothSim {
                 p.y = -1. + THICKNESS;
                 touched = true;
             }
-            if let Some((_, proj)) = query.project_point(v(p), THICKNESS * 2., false) {
+            // rapier's `project_point` culls colliders by box only, then searches a triangle mesh
+            // for its nearest triangle with no distance bound: with Sponza's parts (whole-building
+            // boxes) that was most of the frame. The mesh's own bounded query prunes its BVH.
+            let mut nearest = query
+                .project_point(v(p), THICKNESS * 2., false)
+                .map(|(_, proj)| proj);
+            for (pose, shape) in meshes {
+                if let Some(proj) =
+                    shape.project_point_with_max_dist(pose, v(p), false, THICKNESS * 2.)
+                    && nearest.is_none_or(|n| g(n.point).distance(p) > g(proj.point).distance(p))
+                {
+                    nearest = Some(proj);
+                }
+            }
+            if let Some(proj) = nearest {
                 let s = g(proj.point);
                 let d = p - s;
                 let len = d.length();
@@ -902,19 +990,49 @@ impl Sim {
                             .get(*h)
                             .is_some_and(|b| !b.is_fixed() && !b.is_sleeping())
                     });
-                let query = self.broad.as_query_pipeline(
-                    self.narrow.query_dispatcher(),
-                    &self.bodies,
-                    &self.colliders,
-                    QueryFilter::default(),
-                );
+                let meshes: Vec<(Pose, SharedShape)> = self
+                    .colliders
+                    .iter()
+                    .filter(|(_, c)| c.shape().as_trimesh().is_some())
+                    .map(|(_, c)| (*c.position(), c.shared_shape().clone()))
+                    .collect();
                 for c in &mut self.cloths {
                     if bodies_awake {
                         c.still = c.still.min(60);
                     }
-                    if !c.asleep() {
-                        c.step(gravity, wind * gust, &query);
+                }
+                // The cloths are independent (one-way collisions against the same bodies), so
+                // they step in parallel with the same result. Each thread builds its own query
+                // view: the filter's predicate isn't Sync.
+                let (broad, narrow, bodies, colliders) =
+                    (&self.broad, &self.narrow, &self.bodies, &self.colliders);
+                let meshes = &meshes;
+                let wind = wind * gust;
+                let step = move |part: &mut [ClothSim]| {
+                    let not_mesh = |_, c: &Collider| c.shape().as_trimesh().is_none();
+                    let query = broad.as_query_pipeline(
+                        narrow.query_dispatcher(),
+                        bodies,
+                        colliders,
+                        QueryFilter::default().predicate(&not_mesh),
+                    );
+                    for c in part.iter_mut().filter(|c| !c.asleep()) {
+                        c.step(gravity, wind, &query, meshes);
                     }
+                };
+                let awake = self.cloths.iter().filter(|c| !c.asleep()).count();
+                let threads = std::thread::available_parallelism()
+                    .map_or(4, |n| n.get())
+                    .min(awake);
+                if threads <= 1 {
+                    step(&mut self.cloths);
+                } else {
+                    let chunk = self.cloths.len().div_ceil(threads);
+                    std::thread::scope(|scope| {
+                        for part in self.cloths.chunks_mut(chunk) {
+                            scope.spawn(move || step(part));
+                        }
+                    });
                 }
             }
         }
@@ -1459,6 +1577,75 @@ fn pose_track(path: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Timing probe for sponza-cloth (needs the Sponza assets): `cargo test --release
+    /// sponza_cloth_cost -- --ignored --nocapture`, optionally with CAUSTICA_CLOTH_SCENE.
+    #[test]
+    #[ignore]
+    fn sponza_cloth_cost() {
+        let path = std::env::var("CAUSTICA_CLOTH_SCENE")
+            .unwrap_or_else(|_| "scenes/meshes/sponza-cloth.json".into());
+        let mut s = crate::scenes::read(std::path::Path::new(&path)).expect("scene");
+        let t = std::time::Instant::now();
+        let mut sim = Sim::new(&s);
+        println!("setup {:.1} ms", t.elapsed().as_secs_f64() * 1e3);
+        for second in 0..4 {
+            let t = std::time::Instant::now();
+            let mut synced = 0;
+            for _ in 0..60 {
+                synced += usize::from(!same_bodies(&sim.written, &s.objects));
+                assert!(sim.sync(&s, false));
+                sim.advance(&mut s, 1. / 60.);
+            }
+            println!("  frames whose objects differ from the written ones: {synced}");
+            let awake = sim.cloths.iter().filter(|c| !c.asleep()).count();
+            println!(
+                "second {second}: {:.2} ms per frame, {awake} of {} cloths awake",
+                t.elapsed().as_secs_f64() * 1e3 / 60.,
+                sim.cloths.len()
+            );
+        }
+    }
+
+    #[test]
+    fn cloth_uvs_follow_the_mesh() {
+        let c = crate::scene::Cloth {
+            resolution: 6,
+            uv: [0.5, 0.25, 2.5, 1.25],
+            ..Default::default()
+        };
+        let mesh = cloth_mesh("", &c);
+        let uvs = cloth_uvs(&c);
+        assert_eq!(mesh.len(), uvs.len());
+        // The rest grid spans local x-z [-1, 1]: u follows x, v follows z (from the -z edge).
+        for ((p, _), uv) in mesh.iter().zip(&uvs) {
+            assert!(
+                (uv[0] - (0.5 + (p.x + 1.) / 2. * 2.)).abs() < 1e-4,
+                "{p} {uv:?}"
+            );
+            assert!(
+                (uv[1] - (0.25 + (p.z + 1.) / 2.)).abs() < 1e-4,
+                "{p} {uv:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn fixed_concave_meshes_collide_as_triangles() {
+        let torus = |body| Object {
+            shape: Shape::Torus,
+            body,
+            ..Object::default()
+        };
+        let s = crate::geometry::object_scale(&torus(Body::Fixed));
+        let shape = fixed_trimesh(&torus(Body::Fixed), s).expect("a triangle mesh");
+        assert!(shape.as_trimesh().is_some());
+        // The hole stays open: its centre is well away from the surface (a convex hull or a
+        // coarse decomposition would cover it).
+        let centre = shape.project_local_point(v(Vec3::ZERO), false);
+        assert!(g(centre.point).length() > 0.2 * s.x, "{:?}", centre.point);
+        assert!(fixed_trimesh(&torus(Body::Dynamic), s).is_none());
+    }
+
     fn ball(elevation: f32) -> Object {
         Object {
             shape: Shape::Sphere,
@@ -1898,6 +2085,7 @@ mod tests {
             resolution: 8,
             pin: crate::scene::ClothPin::Edge,
             stiffness: 0.2,
+            ..Default::default()
         });
         cloth.tilt = [90., 0.];
         cloth.elevation = 0.5;

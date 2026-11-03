@@ -400,6 +400,15 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                                 .on_hover_text("Particles per side.");
                             ui.add(crate::slider(&mut c.stiffness, 0. ..=1.))
                                 .on_hover_text("Bending stiffness: 0 silk, 1 canvas.");
+                            if !o.maps_from.is_empty() {
+                                ui.label("UV").on_hover_text(format!(
+                                    "Texture coordinates of the grid's corners (u0, v0 at the pinned edge, u1, v1 opposite) for the maps of {}.",
+                                    o.maps_from
+                                ));
+                                for u in &mut c.uv {
+                                    ui.add(egui::DragValue::new(u).speed(0.01).range(-64. ..=64.));
+                                }
+                            }
                         }
                     },
                 );

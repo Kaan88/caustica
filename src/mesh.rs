@@ -206,6 +206,9 @@ pub fn of(o: &Object) -> Option<Arc<Mesh>> {
 }
 /// Texture coordinates of an object's mesh, parallel to `of`.
 pub fn uvs(o: &Object) -> Option<Arc<Uvs>> {
+    if let Some(c) = &o.cloth {
+        return Some(Arc::new(crate::physics::cloth_uvs(c)));
+    }
     match part_of(o)? {
         (imported, Some(n)) => imported.parts.get(n).map(|p| p.uv.clone()),
         (imported, None) => Some(imported.whole_parts().1.clone()),
@@ -221,7 +224,11 @@ pub fn has_maps(o: &Object) -> bool {
     file_maps(o).is_some()
 }
 fn file_maps(o: &Object) -> Option<Maps> {
-    let (imported, n) = part_of(o)?;
+    let (imported, n) = if o.maps_from.is_empty() {
+        part_of(o)?
+    } else {
+        (load(&o.maps_from).ok()?, split(&o.maps_from).1)
+    };
     let part = match n {
         Some(n) => imported.parts.get(n)?,
         None if imported.parts.len() == 1 => &imported.parts[0],

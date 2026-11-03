@@ -19,6 +19,7 @@ mod lighting;
 mod look;
 mod lpe;
 mod mesh;
+mod omm;
 mod paths;
 mod physics;
 mod prefs;

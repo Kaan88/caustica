@@ -26,9 +26,15 @@ impl std::ops::Deref for Source {
 /// triangles, which names its BLAS, and the triangles.
 pub fn object_source(o: &Object) -> (String, Source) {
     match crate::mesh::of(o).filter(|_| o.sdf.is_none()) {
-        // A cloth not yet simulated shows its rest grid, one per resolution.
+        // A cloth not yet simulated shows its rest grid, one per resolution and UV rectangle
+        // (the vertex block carries the UVs).
         Some(m) if o.cloth.is_some() => (
-            format!("cloth|{}|{}", o.mesh, o.cloth.map_or(0, |c| c.resolution)),
+            format!(
+                "cloth|{}|{}|{:?}",
+                o.mesh,
+                o.cloth.map_or(0, |c| c.resolution),
+                o.cloth.map_or([0; 4], |c| c.uv.map(f32::to_bits))
+            ),
             Source::File(m),
         ),
         Some(m) => (o.mesh.clone(), Source::File(m)),

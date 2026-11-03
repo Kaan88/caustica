@@ -297,7 +297,8 @@ pub struct Gpu {
     trace_maps_lean: ID3D12PipelineState,
     /// Track 20: the four tracers above as SER ray generation pipelines, in the order trace,
     /// trace_maps, trace_lean, trace_maps_lean; None without SER (or CAUSTICA_NO_SER=1).
-    ser: Option<[SerPipeline; 4]>,
+    /// The SER tracers: the four `trace` variants (index textured + 2 × LEAN), then LPE.
+    ser: Option<[SerPipeline; 5]>,
     /// Path visualizer (track 14): the trace variant that re-traces one pixel into
     /// `path_buffer` (bound at u0 space 2 for every dispatch), read back through `path_readback`.
     trace_paths: ID3D12PipelineState,
@@ -374,8 +375,6 @@ pub struct Gpu {
     pub hdr10_refused: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
-    /// Triangles in the non-opaque BLAS range; the opaque range's primitive indices start here.
-    pub opaque_offset: u32,
     /// Light painting (roadmap 5d): progressive path only, and scene edits keep the accumulation.
     pub painting: bool,
     /// Film-look LUT (u29, a 3D texture kept across resizes) and its edge length, 0 = none.
@@ -411,7 +410,10 @@ pub struct Gpu {
     mesh_vertices: ID3D12Resource,
     static_vertices: ID3D12Resource,
     static_cache: Vec<Vertex>,
-    static_blas: Option<ID3D12Resource>,
+    /// Emissive procedural objects' photon records: count and first record (`photon.zw`).
+    sdf_emitters: [u32; 2],
+    /// The static triangles' opacity groups, in `static_cache` order (rebuild_scene).
+    static_groups: Vec<StaticGroup>,
     /// Track 13: one AABB, the unit cube, shared by every procedural (`Sdf`) object.
     sdf_blas: Option<ID3D12Resource>,
     meshes: std::collections::HashMap<String, MeshBlas>,
@@ -628,6 +630,10 @@ impl Gpu {
         }
         let (device,adapter_name)=selected.context("No D3D12 adapter with DXR tier 1.1. Update the GPU driver and use a ray-tracing-capable GPU.")?;
         let ser = ser_support(&device);
+        OMM.store(
+            ser.tier >= 12 && std::env::var_os("CAUSTICA_NO_OMM").is_none_or(|v| v != "1"),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         eprintln!(
             "D3D12: shader model {}.{}, raytracing tier {}.{}; SER {}",
             ser.shader_model >> 4,
@@ -892,6 +898,7 @@ impl Gpu {
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps_ser.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_lean_ser.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps_lean_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_lpe_ser.dxil")),
             ],
         );
         let trace_paths = compute(include_bytes!(concat!(
@@ -1140,7 +1147,6 @@ impl Gpu {
             hdr10: false,
             hdr10_refused: false,
             hdr_levels: [200., 1000.],
-            opaque_offset: 0,
             painting: false,
             lut,
             lut_size: 0,
@@ -1170,7 +1176,8 @@ impl Gpu {
             static_vertices: geometry.clone(),
             instance_table: geometry,
             static_cache: vec![],
-            static_blas: None,
+            static_groups: vec![],
+            sdf_emitters: [0; 2],
             sdf_blas: None,
             meshes: Default::default(),
             instances: vec![],
@@ -1861,6 +1868,7 @@ impl Gpu {
                     &sh.trace_maps_ser,
                     &sh.trace_lean_ser,
                     &sh.trace_maps_lean_ser,
+                    &sh.trace_lpe_ser,
                 ],
             );
         }
@@ -2076,60 +2084,119 @@ impl Gpu {
         };
         self.begin()?;
         let mut keep: Vec<ID3D12Resource> = vec![];
-        // Static BLAS (floor, room, lights) in world space, rebuilt only when it changes. Two
-        // ranges: triangles that need the any-hit loop first (lights hidden from the camera),
-        // then the rest as opaque geometry, which the hardware commits without Proceed().
+        // Static geometry (floor, room, lights) in world space, rebuilt only when it changes.
+        // Its triangles are grouped by `instance_mask` like objects (track 20a (a)): lights
+        // hidden from the camera and clear glass become opaque instances with their mask bit,
+        // so only triangles under both rules still run the shader per candidate. Each group is
+        // its own BLAS and instance; the instance record's vertex_base is the group's first
+        // triangle in `static_vertices`.
         let soup = crate::geometry::static_geometry(s);
         // Measured by photon mapping when it next runs: it walks every object's vertices, which
         // made each frame of a timeline export (a rebuild per frame) 10 ms slower.
         self.bounds_valid = false;
-        let (special, opaque): (Vec<&[Vertex; 3]>, Vec<&[Vertex; 3]>) = soup
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .partition(|t| needs_any_hit(t[0].material));
-        let opaque_offset = special.len() as u32;
-        let statics: Vec<Vertex> = special
+        type Group<'a> = ((u32, bool), Vec<&'a [Vertex; 3]>);
+        let mut groups: Vec<Group> = vec![];
+        for t in soup.as_chunks::<3>().0 {
+            let key = instance_mask(&packed[t[0].material as usize]);
+            match groups.iter_mut().find(|g| g.0 == key) {
+                Some(g) => g.1.push(t),
+                None => groups.push((key, vec![t])),
+            }
+        }
+        // Opaque 0xff first, so plain scenes keep one static instance at InstanceID 0.
+        groups.sort_by_key(|g| g.0 != (0xff, false));
+        let layout: Vec<StaticGroup> = {
+            let mut first = 0;
+            groups
+                .iter()
+                .map(|g| {
+                    let group = StaticGroup {
+                        mask: g.0.0,
+                        any_hit: g.0.1,
+                        first,
+                        count: g.1.len() as u32,
+                        blas: None,
+                    };
+                    first += group.count;
+                    group
+                })
+                .collect()
+        };
+        let statics: Vec<Vertex> = groups
             .into_iter()
-            .chain(opaque)
+            .flat_map(|g| g.1)
             .flatten()
             .copied()
             .collect();
-        if self.static_blas.is_none()
+        let same_layout = layout.len() == self.static_groups.len()
+            && layout.iter().zip(&self.static_groups).all(|(a, b)| {
+                (a.mask, a.any_hit, a.first, a.count) == (b.mask, b.any_hit, b.first, b.count)
+            });
+        if self.static_groups.is_empty()
+            || !same_layout
             || bytemuck::cast_slice::<Vertex, u8>(&statics)
                 != bytemuck::cast_slice::<Vertex, u8>(&self.static_cache)
         {
-            self.static_vertices = self.gpu_buffer(bytemuck::cast_slice(&statics), &mut keep)?;
+            // An empty room still needs a vertex buffer to bind.
+            let bytes: &[u8] = if statics.is_empty() {
+                &[0; size_of::<Vertex>()]
+            } else {
+                bytemuck::cast_slice(&statics)
+            };
+            self.static_vertices = self.gpu_buffer(bytes, &mut keep)?;
             let base = self.static_vertices.GetGPUVirtualAddress();
-            let (n0, total) = (opaque_offset as usize, statics.len() / 3);
-            let mut descs = vec![];
-            if n0 > 0 {
-                descs.push(triangles(base, n0, D3D12_RAYTRACING_GEOMETRY_FLAG_NONE));
+            let mut layout = layout;
+            for g in &mut layout {
+                let flags = if g.any_hit {
+                    D3D12_RAYTRACING_GEOMETRY_FLAG_NONE
+                } else {
+                    D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE
+                };
+                let address = base + (g.first as usize * 3 * size_of::<Vertex>()) as u64;
+                g.blas = Some(
+                    self.build_blas(&[triangles(address, g.count as usize, flags)], &mut keep)?,
+                );
             }
-            if total > n0 {
-                descs.push(triangles(
-                    base + (n0 * 3 * size_of::<Vertex>()) as u64,
-                    total - n0,
-                    D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE,
-                ));
-            }
-            self.static_blas = Some(self.build_blas(&descs, &mut keep)?);
+            self.static_groups = layout;
             self.static_cache = statics;
-            self.opaque_offset = opaque_offset;
         }
         // One BLAS per distinct mesh in object space (core track 4). They are rebuilt only when
         // the set of meshes changes; the shared vertex buffer then holds every mesh in use.
-        let visible: Vec<(usize, String, crate::geometry::Source)> = s
+        // Track 20a (a): an alpha-tested object whose material needs no other per-candidate
+        // test gets a BLAS with opacity micromaps, keyed by mesh, base map and cutoff.
+        let omm_of = |i: usize, o: &crate::scene::Object, key: &str| {
+            if !omm_on() || !o.material.texture.is_empty() {
+                return None;
+            }
+            let maps = crate::mesh::maps(o)?;
+            let base = maps.base.filter(|_| maps.cutoff > 0.)?;
+            (instance_mask(&packed[5 + i]) == (0xff, false)).then(|| {
+                let omm_key = format!(
+                    "{key}#omm{:x}/{}",
+                    std::sync::Arc::as_ptr(&base) as usize,
+                    maps.cutoff.to_bits()
+                );
+                (omm_key, base, maps.cutoff)
+            })
+        };
+        let visible: Vec<VisibleMesh> = s
             .objects
             .iter()
             .enumerate()
             .filter(|(_, o)| o.visible && o.sdf.is_none())
             .map(|(i, o)| {
                 let (key, source) = crate::geometry::object_source(o);
-                (i, key, source)
+                let omm = omm_of(i, o, &key);
+                VisibleMesh {
+                    index: i,
+                    blas_key: omm.as_ref().map_or_else(|| key.clone(), |m| m.0.clone()),
+                    key,
+                    source,
+                    omm: omm.map(|m| (m.1, m.2)),
+                }
             })
             .collect();
-        let mut wanted: Vec<&str> = visible.iter().map(|v| v.1.as_str()).collect();
+        let mut wanted: Vec<&str> = visible.iter().map(|v| v.blas_key.as_str()).collect();
         wanted.sort_unstable();
         wanted.dedup();
         let mut have: Vec<&str> = self.meshes.keys().map(String::as_str).collect();
@@ -2137,7 +2204,13 @@ impl Gpu {
         if wanted != have {
             let mut local: Vec<Vertex> = vec![];
             let mut bases = std::collections::HashMap::new();
-            for (i, key, source) in &visible {
+            for VisibleMesh {
+                index: i,
+                key,
+                source,
+                ..
+            } in &visible
+            {
                 if bases.contains_key(key) {
                     continue;
                 }
@@ -2157,20 +2230,47 @@ impl Gpu {
             self.mesh_vertices = self.gpu_buffer(bytemuck::cast_slice(&local), &mut keep)?;
             let base = self.mesh_vertices.GetGPUVirtualAddress();
             let mut meshes = std::collections::HashMap::new();
-            for (key, (first, count)) in bases {
+            for v in &visible {
+                if meshes.contains_key(&v.blas_key) {
+                    continue;
+                }
+                let (first, count) = bases[&v.key];
+                let address = base + first as u64 * size_of::<Vertex>() as u64;
                 // A BLAS holds its own copy of the triangles, so ones already built are reused.
-                let blas = match self.meshes.remove(&key) {
-                    Some(old) => old.blas,
-                    None => self.build_blas(
-                        &[triangles(
-                            base + first as u64 * size_of::<Vertex>() as u64,
-                            count,
-                            D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
-                        )],
-                        &mut keep,
-                    )?,
+                let (blas, omm) = match self.meshes.remove(&v.blas_key) {
+                    Some(old) => (old.blas, old._omm),
+                    None => match &v.omm {
+                        Some((map, cutoff)) => {
+                            let uvs: Vec<[f32; 2]> = local
+                                [first as usize..first as usize + count * 3]
+                                .iter()
+                                .map(|v| v.uv)
+                                .collect();
+                            self.omm_blas(address, count, &uvs, map, *cutoff, &mut keep)?
+                        }
+                        None => (
+                            self.build_blas(
+                                &[triangles(
+                                    address,
+                                    count,
+                                    D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+                                )],
+                                &mut keep,
+                            )?,
+                            None,
+                        ),
+                    },
                 };
-                meshes.insert(key, MeshBlas { blas, first, count });
+                meshes.insert(
+                    v.blas_key.clone(),
+                    MeshBlas {
+                        blas,
+                        first,
+                        count,
+                        _omm: omm,
+                        _map: v.omm.as_ref().map(|(m, _)| m.clone()),
+                    },
+                );
             }
             self.meshes = meshes;
         }
@@ -2178,12 +2278,7 @@ impl Gpu {
         // opacity per object: glass runs the any-hit loop so shadow rays may pass it.
         let cull = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32;
         let mut descs: Vec<u8> = vec![];
-        let mut table = vec![InstanceRecord {
-            vertex_base: 0,
-            material: u32::MAX,
-            emitter_base: 0,
-            object: u32::MAX,
-        }];
+        let mut table: Vec<InstanceRecord> = vec![];
         let identity = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
         let mut push =
             |transform: &[f32; 12], id: u32, flags: u32, blas: &ID3D12Resource, mask: u32| {
@@ -2192,10 +2287,37 @@ impl Gpu {
                 descs.extend_from_slice(&(flags << 24).to_le_bytes());
                 descs.extend_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
             };
-        push(&identity, 0, cull, self.static_blas.as_ref().unwrap(), 0xff);
+        // Static instances first: emitter_base 0, so emitter_lookup takes the static triangle
+        // index (vertex_base + primitive) directly.
+        for g in &self.static_groups {
+            let opacity = if g.any_hit {
+                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
+            } else {
+                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
+            } as u32;
+            push(
+                &identity,
+                table.len() as u32,
+                cull | opacity,
+                g.blas.as_ref().unwrap(),
+                g.mask,
+            );
+            table.push(InstanceRecord {
+                vertex_base: g.first,
+                material: u32::MAX,
+                emitter_base: 0,
+                object: u32::MAX,
+            });
+        }
         let mut triangle_count = self.static_cache.len() / 3;
-        for (i, key, _) in &visible {
-            let mesh = &self.meshes[key];
+        for VisibleMesh {
+            index: i,
+            blas_key,
+            omm,
+            ..
+        } in &visible
+        {
+            let mesh = &self.meshes[blas_key];
             let material = 5 + *i as u32;
             // Masked maps (alpha cutoff) are tested in the any-hit loop as well.
             let o = &s.objects[*i];
@@ -2206,7 +2328,11 @@ impl Gpu {
             // MASK_*), so the RT cores commit its hits without running the shader per candidate.
             // Only alpha-tested objects, and ones under both rules, stay non-opaque.
             let (mask, any_hit) = instance_mask(&packed[material as usize]);
-            let opacity = if any_hit || masked {
+            // With micromaps the geometry's own non-opaque flag stands, so the RT cores read
+            // them (a FORCE flag would override them).
+            let opacity = if omm.is_some() {
+                0
+            } else if any_hit || masked {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
             } else {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
@@ -2353,6 +2479,141 @@ impl Gpu {
         keep.push(staging);
         Ok(b)
     }
+    /// Track 20a (a): a BLAS whose triangles link to opacity micromaps built from the base
+    /// map's alpha (`omm::build`), with the micromap array it needs kept alive beside it.
+    /// Falls back to a plain BLAS when there is nothing to build.
+    unsafe fn omm_blas(
+        &mut self,
+        address: u64,
+        count: usize,
+        uvs: &[[f32; 2]],
+        map: &crate::mesh::Map,
+        cutoff: f32,
+        keep: &mut Vec<ID3D12Resource>,
+    ) -> Result<(ID3D12Resource, Option<ID3D12Resource>)> {
+        let plain = triangles(address, count, D3D12_RAYTRACING_GEOMETRY_FLAG_NONE);
+        let Some(mut maps) = crate::omm::build(uvs, map.width, map.height, &map.rgba, cutoff)
+            .filter(|m| m.index.len() == count)
+        else {
+            return Ok((self.build_blas(&[plain], keep)?, None));
+        };
+        // Every triangle settled by a special index still needs an array to link: one unused
+        // level-1 micromap.
+        if maps.is_trivial() {
+            maps.data.extend([0; 4]);
+            maps.descs.push((0, 1));
+        }
+        let data = self.gpu_buffer(&maps.data, keep)?;
+        let descs: Vec<u32> = maps
+            .descs
+            .iter()
+            .flat_map(|&(offset, level)| [offset, level | OMM_FORMAT_4_STATE << 16])
+            .collect();
+        let descs = self.gpu_buffer(bytemuck::cast_slice(&descs), keep)?;
+        let index = self.gpu_buffer(bytemuck::cast_slice(&maps.index), keep)?;
+        let histogram: Vec<OmmHistogramEntry> = maps
+            .histogram()
+            .into_iter()
+            .map(|(level, count)| OmmHistogramEntry {
+                count,
+                level,
+                format: OMM_FORMAT_4_STATE,
+            })
+            .collect();
+        let array_desc = OmmArrayDesc {
+            histogram_entries: histogram.len() as u32,
+            histogram: histogram.as_ptr(),
+            input: data.GetGPUVirtualAddress(),
+            descs: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                StartAddress: descs.GetGPUVirtualAddress(),
+                StrideInBytes: 8,
+            },
+        };
+        let inputs = D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS {
+            Type: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE(OMM_ARRAY_TYPE),
+            Flags: D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
+            NumDescs: 1,
+            DescsLayout: D3D12_ELEMENTS_LAYOUT_ARRAY,
+            Anonymous: D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_0 {
+                pGeometryDescs: &array_desc as *const OmmArrayDesc as *const _,
+            },
+        };
+        let mut info = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO::default();
+        self.device
+            .GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &mut info);
+        ensure!(
+            info.ResultDataMaxSizeInBytes > 0,
+            "the driver reports no size for an opacity micromap array"
+        );
+        let array = buffer(
+            &self.device,
+            info.ResultDataMaxSizeInBytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        )?;
+        let scratch = buffer(
+            &self.device,
+            info.ScratchDataSizeInBytes.max(256),
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON,
+        )?;
+        self.list.BuildRaytracingAccelerationStructure(
+            &D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC {
+                DestAccelerationStructureData: array.GetGPUVirtualAddress(),
+                Inputs: inputs,
+                ScratchAccelerationStructureData: scratch.GetGPUVirtualAddress(),
+                ..Default::default()
+            },
+            None,
+        );
+        uav(&self.list, Some(&array));
+        keep.extend([data, descs, scratch]);
+        // The triangles, linked to the array: per triangle a micromap or a special index.
+        let tri = plain.Anonymous.Triangles;
+        let linkage = OmmLinkage {
+            index: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                StartAddress: index.GetGPUVirtualAddress(),
+                StrideInBytes: 4,
+            },
+            index_format: DXGI_FORMAT_R32_UINT,
+            base_location: 0,
+            array: array.GetGPUVirtualAddress(),
+        };
+        let mut desc = D3D12_RAYTRACING_GEOMETRY_DESC {
+            Type: D3D12_RAYTRACING_GEOMETRY_TYPE(OMM_GEOMETRY_TYPE),
+            Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+            Anonymous: std::mem::zeroed(),
+        };
+        std::ptr::write(
+            &mut desc.Anonymous as *mut _ as *mut OmmTriangles,
+            OmmTriangles {
+                triangles: &tri,
+                linkage: &linkage,
+            },
+        );
+        let blas = self.build_blas(&[desc], keep)?;
+        keep.push(index);
+        Ok((blas, Some(array)))
+    }
+    /// Frame timestamp k (0 start, 1 after the trace, 2 after reconstruction, 3 after display,
+    /// 4 after the UI) and named events between them, so Nsight and PIX split their metrics per
+    /// pass (track 20a step 1).
+    unsafe fn stamp(&self, k: u32) {
+        const PASSES: [&str; 4] = ["trace", "reconstruction", "display", "ui"];
+        if k > 0 {
+            self.list.EndEvent();
+        }
+        self.list
+            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, k);
+        if let Some(name) = PASSES.get(k as usize) {
+            // Metadata 0: a UTF-16 string (WINPIX_EVENT_UNICODE_VERSION; 1 would be ANSI).
+            let wide: Vec<u16> = name.encode_utf16().chain([0]).collect();
+            self.list
+                .BeginEvent(0, Some(wide.as_ptr().cast()), (wide.len() * 2) as u32);
+        }
+    }
     /// Records a BLAS build on the open command list (scratch goes into `keep`).
     unsafe fn build_blas(
         &mut self,
@@ -2404,7 +2665,7 @@ impl Gpu {
     pub unsafe fn update_materials(&mut self, s: &Settings) -> Result<()> {
         let materials = crate::lighting::materials(s);
         let mut world = self.static_cache.clone();
-        for record in self.instances.iter_mut().skip(1) {
+        for record in self.instances.iter_mut().filter(|r| r.material != u32::MAX) {
             let m = &materials[record.material as usize];
             let emission =
                 m.color_rough[0].max(m.color_rough[1]).max(m.color_rough[2]) * m.optical[1];
@@ -2448,6 +2709,10 @@ impl Gpu {
         let mut table = emitters.clone();
         table.extend(crate::lighting::alias_records(&emitters));
         table.extend(crate::lighting::guide_records(&emitters));
+        // Emissive procedural objects for photon mapping (`sdf_emitter_records`), last.
+        let sdf = sdf_emitter_records(s, &self.instances, &materials);
+        self.sdf_emitters = [(sdf.len() / 2) as u32, table.len() as u32];
+        table.extend(sdf);
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&table))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
         self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;
@@ -2628,8 +2893,8 @@ impl Gpu {
         c.photon = [
             s.photon_radius * self.bounds[3] * self.photon_scale.sqrt(),
             4. * c.environment[1] * c.environment[2] * share,
-            0.,
-            0.,
+            self.sdf_emitters[0] as f32,
+            self.sdf_emitters[1] as f32,
         ];
         write_buffer(&self.constants, offset, bytemuck::bytes_of(&c))?;
         self.bind(offset);
@@ -2673,10 +2938,10 @@ impl Gpu {
                 // LEAN exactly when the shader's fog and ReSTIR flags are off for this frame.
                 let lean = self.lean_scene && c.fog[0] <= 0. && c.restir[0] & 1 == 0;
                 let variant = self.textured as usize + 2 * lean as usize;
-                if let Some(ser) = self.ser.as_ref().filter(|_| self.lpe_slots == 0) {
+                if let Some(ser) = self.ser.as_ref() {
                     // Track 20: the same threads as the compute dispatch, through
                     // DispatchRays so the shader may reorder them (MaybeReorderThread).
-                    let p = &ser[variant];
+                    let p = &ser[if self.lpe_slots > 0 { 4 } else { variant }];
                     self.list.SetPipelineState1(&p.state);
                     self.list.DispatchRays(&D3D12_DISPATCH_RAYS_DESC {
                         RayGenerationShaderRecord: D3D12_GPU_VIRTUAL_ADDRESS_RANGE {
@@ -2954,7 +3219,7 @@ impl Gpu {
                 .flatten()
         };
         let mut wanted: Vec<(usize, crate::mesh::Maps)> = vec![];
-        for record in self.instances.iter().skip(1) {
+        for record in self.instances.iter().filter(|r| r.material != u32::MAX) {
             let o = &s.objects[record.object as usize];
             let maps = if o.material.texture.is_empty() {
                 crate::mesh::maps(o)
@@ -3290,12 +3555,7 @@ impl Gpu {
                 flags,
             ],
             // View-space ray scale (tan of the half field of view) for the denoiser.
-            environment: [
-                s.sky,
-                1. / proj.x_axis.x,
-                1. / proj.y_axis.y,
-                self.opaque_offset as f32,
-            ],
+            environment: [s.sky, 1. / proj.x_axis.x, 1. / proj.y_axis.y, 0.],
             hdr: [
                 self.hdr_active as u32 as f32,
                 self.hdr_levels[0],
@@ -3389,11 +3649,9 @@ impl Gpu {
             c.eye[3] = self.hdr_levels[0] / 80. * if self.hdr10 { -1. } else { 1. };
         }
         write_buffer(&self.constants, 0, bytemuck::bytes_of(&c))?;
-        self.list
-            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+        self.stamp(0);
         if n == 0 {
-            self.list
-                .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+            self.stamp(1);
         }
         if path_request.is_some() {
             // Writes only the path records, so it may run before this frame's trace.
@@ -3437,8 +3695,7 @@ impl Gpu {
                     self.restir_history = true;
                 }
             }
-            self.list
-                .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+            self.stamp(1);
             if self.rr_active {
                 let inputs = [0, 2, 3, 4, 5, 6, 7];
                 for i in inputs {
@@ -3537,8 +3794,7 @@ impl Gpu {
             let jitter = if accumulating { [0., 0.] } else { jitter };
             self.run_upscaler(kind, s, &mut c, jitter, (self.sr_reset || reset) as i32, dt);
         }
-        self.list
-            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 2);
+        self.stamp(2);
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
         if s.glare > 0. {
@@ -3559,8 +3815,7 @@ impl Gpu {
         if self.scopes_on || probe.is_some() {
             self.queue_readbacks(probe)?;
         }
-        self.list
-            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 3);
+        self.stamp(3);
         let index = self.swap.GetCurrentBackBufferIndex() as usize;
         let back = &self.buffers[index];
         let shown = if self.hdr_active { 26 } else { 10 };
@@ -3613,8 +3868,7 @@ impl Gpu {
         }
         self.list.OMSetRenderTargets(1, Some(&handle), false, None);
         self.draw_gui(primitives, pixels_per_point, &mut keep)?;
-        self.list
-            .EndQuery(&self.query, D3D12_QUERY_TYPE_TIMESTAMP, 4);
+        self.stamp(4);
         if !(s.battle && n > 0) {
             // Every query the resolve reads must have been ended this frame.
             for i in BATTLE_QUERY..TIMESTAMPS {
@@ -4401,9 +4655,136 @@ struct MeshBlas {
     blas: ID3D12Resource,
     first: u32,
     count: usize,
+    /// The opacity micromap array the BLAS links to (alpha-tested meshes, `omm_blas`).
+    _omm: Option<ID3D12Resource>,
+    /// The alpha map the micromap was made from: the BLAS key holds its address, so the map
+    /// is kept alive while the key is in use (a freed map's address could come back).
+    _map: Option<std::sync::Arc<crate::mesh::Map>>,
 }
-/// Mirrors `Instance` in common.hlsli. `material` u32::MAX marks the static instance, whose
-/// vertices carry their own material ids.
+/// Opacity micromaps in use (track 20a (a)): set at device creation when the device has
+/// raytracing tier 1.2, unless `CAUSTICA_NO_OMM=1` (A/B checks: the image must not change).
+static OMM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+fn omm_on() -> bool {
+    OMM.load(std::sync::atomic::Ordering::Relaxed)
+}
+// D3D12 opacity micromap structs (Agility SDK 1.620 d3d12.h), not bound by the windows crate.
+const OMM_GEOMETRY_TYPE: i32 = 2; // D3D12_RAYTRACING_GEOMETRY_TYPE_OMM_TRIANGLES
+const OMM_ARRAY_TYPE: i32 = 2; // D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_ARRAY
+const OMM_FORMAT_4_STATE: u32 = 2; // D3D12_RAYTRACING_OPACITY_MICROMAP_FORMAT_OC1_4_STATE
+#[repr(C)]
+struct OmmHistogramEntry {
+    count: u32,
+    level: u32,
+    format: u32,
+}
+#[repr(C)]
+struct OmmArrayDesc {
+    histogram_entries: u32,
+    histogram: *const OmmHistogramEntry,
+    input: u64,
+    descs: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE,
+}
+#[repr(C)]
+struct OmmLinkage {
+    index: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE,
+    index_format: DXGI_FORMAT,
+    base_location: u32,
+    array: u64,
+}
+#[repr(C)]
+struct OmmTriangles {
+    triangles: *const D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC,
+    linkage: *const OmmLinkage,
+}
+/// Track 15: photon records for emissive procedural (SDF) objects, which the emitter table
+/// leaves out (light sampling can't pick points on them). Two records each: the world bounding
+/// sphere of the object's unit cube (centre, radius), then its instance's index and the running
+/// sum of the selection probabilities (by emission times sphere area), then the world-to-object
+/// matrix's three rows. integrators.hlsl `sdf_photon` emits from them by random lines.
+fn sdf_emitter_records(
+    s: &Settings,
+    instances: &[InstanceRecord],
+    materials: &[crate::lighting::PackedMaterial],
+) -> Vec<crate::lighting::Emitter> {
+    let mut found = vec![];
+    for (index, record) in instances.iter().enumerate() {
+        if record.material == u32::MAX {
+            continue;
+        }
+        let o = &s.objects[record.object as usize];
+        let m = &materials[record.material as usize];
+        let emission = m.color_rough[0].max(m.color_rough[1]).max(m.color_rough[2]) * m.optical[1];
+        if o.sdf.is_none() || emission <= 0. {
+            continue;
+        }
+        let t = crate::geometry::object_transform(o);
+        let o2w = Mat4::from_cols_array(&[
+            t[0], t[4], t[8], 0., t[1], t[5], t[9], 0., t[2], t[6], t[10], 0., t[3], t[7], t[11],
+            1.,
+        ]);
+        let centre = o2w.transform_point3(Vec3::ZERO);
+        let radius = (0..8)
+            .map(|k| {
+                let corner = Vec3::new(
+                    if k & 1 == 0 { -1. } else { 1. },
+                    if k & 2 == 0 { -1. } else { 1. },
+                    if k & 4 == 0 { -1. } else { 1. },
+                );
+                (o2w.transform_point3(corner) - centre).length()
+            })
+            .fold(0f32, f32::max);
+        if radius <= 0. || !radius.is_finite() {
+            continue;
+        }
+        found.push((
+            index as u32,
+            centre,
+            radius,
+            emission * radius * radius,
+            o2w.inverse(),
+        ));
+    }
+    let total: f32 = found.iter().map(|f| f.3).sum();
+    let mut sum = 0.;
+    let mut out = vec![];
+    for (i, (index, centre, radius, power, w2o)) in found.iter().enumerate() {
+        sum += power / total;
+        let cdf = if i + 1 == found.len() { 1. } else { sum };
+        let row = |r: usize| w2o.row(r).to_array();
+        out.push(crate::lighting::Emitter {
+            position_area: [centre.x, centre.y, centre.z, *radius],
+            edge1_cdf: [f32::from_bits(*index), cdf, 0., 0.],
+            edge2_probability: row(0),
+            emission_material: row(1),
+        });
+        out.push(crate::lighting::Emitter {
+            position_area: row(2),
+            edge1_cdf: [0.; 4],
+            edge2_probability: [0.; 4],
+            emission_material: [0.; 4],
+        });
+    }
+    out
+}
+/// A visible mesh object in `rebuild_scene`: its mesh key (vertex data), the key of the BLAS it
+/// uses (the mesh key, or a micromap variant), and for that variant the base map and cutoff.
+struct VisibleMesh {
+    index: usize,
+    key: String,
+    blas_key: String,
+    source: crate::geometry::Source,
+    omm: Option<(std::sync::Arc<crate::mesh::Map>, f32)>,
+}
+/// A run of static triangles that share an instance mask and opacity (`instance_mask`).
+struct StaticGroup {
+    mask: u32,
+    any_hit: bool,
+    first: u32,
+    count: u32,
+    blas: Option<ID3D12Resource>,
+}
+/// Mirrors `Instance` in common.hlsli. `material` u32::MAX marks a static instance, whose
+/// vertices carry their own material ids; its `vertex_base` is its first static triangle.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct InstanceRecord {
@@ -4490,6 +4871,13 @@ unsafe fn create_compute_pipeline(
     let mut d = D3D12_COMPUTE_PIPELINE_STATE_DESC {
         pRootSignature: ManuallyDrop::new(Some(root.clone())),
         CS: bytecode(code),
+        // Opacity micromaps for the cs_6_5 tracers' RayQuery too (track 20a (a)):
+        // D3D12_PIPELINE_STATE_FLAG_RAYQUERY_ALLOW_OPACITY_MICROMAPS_ON_PRE_SM69_SHADERS.
+        Flags: if omm_on() {
+            D3D12_PIPELINE_STATE_FLAGS(0x80)
+        } else {
+            D3D12_PIPELINE_STATE_FLAG_NONE
+        },
         ..Default::default()
     };
     let p = device.CreateComputePipelineState(&d);
@@ -4571,8 +4959,8 @@ unsafe fn make_ser(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
     support: SerSupport,
-    code: [&[u8]; 4],
-) -> Option<[SerPipeline; 4]> {
+    code: [&[u8]; 5],
+) -> Option<[SerPipeline; 5]> {
     if !support.available() || std::env::var_os("CAUSTICA_NO_SER").is_some() {
         return None;
     }

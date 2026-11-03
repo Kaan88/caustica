@@ -29,9 +29,10 @@ pub struct Shaders {
     pub trace_maps_ser: Vec<u8>,
     pub trace_lean_ser: Vec<u8>,
     pub trace_maps_lean_ser: Vec<u8>,
+    pub trace_lpe_ser: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 23] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 24] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -158,6 +159,13 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 23] = [
         "trace_maps_lean_ser",
         &["-D", "TEXTURE_MAPS", "-D", "LEAN", "-D", "SER"],
     ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_lpe_ser",
+        &["-D", "TEXTURE_MAPS", "-D", "LPE", "-D", "SER"],
+    ),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -252,6 +260,7 @@ impl HotReload {
             trace_maps_ser: b.next().unwrap(),
             trace_lean_ser: b.next().unwrap(),
             trace_maps_lean_ser: b.next().unwrap(),
+            trace_lpe_ser: b.next().unwrap(),
         })
     }
 }

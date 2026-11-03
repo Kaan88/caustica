@@ -1942,6 +1942,7 @@ fn build_playground(mut s: Settings, r: &mut Rng, kind: &str) -> Settings {
                         resolution: 24,
                         pin: crate::scene::ClothPin::Edge,
                         stiffness: 0.1,
+                        ..Default::default()
                     }),
                     ..Object::default()
                 },

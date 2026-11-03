@@ -2,7 +2,9 @@
 (docs/scene-research.md section 2). Each file is a scene wrapper around a sparse Settings
 object: fields left out take Settings::default(), so only what a scene changes is written.
 
-Run from native/:  python tools/build_scenes.py
+Run:  python tools/build_scenes.py [--overwrite]
+It writes only missing scene files (--overwrite also rewrites ones that differ), never
+deletes, and merges its entries into each pack.json, so hand-written scenes are safe.
 Units: the floor is at y = -1; a shape of size s spans about 0.7*s (unit meshes are -1..1,
 scaled by 0.35*size). Tori and rings lie flat; cylinders and cones stand up.
 """
@@ -12,6 +14,42 @@ import random
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / "scenes" / "builtin"
+
+# The scene folders also hold scenes written by hand, or edited by hand after this script
+# wrote them, so the writers never delete anything. A scene file is written only when it is
+# missing, or when it differs and --overwrite is given (files this script doesn't define are
+# never touched), and the builder's entries are merged into an existing pack.json.
+OVERWRITE = False
+
+
+def write_pack(out, entries, meta, ensure_ascii=False):
+    """Writes `entries` ([(file name, data)]) into `out` and merges them into its pack.json."""
+    out.mkdir(parents=True, exist_ok=True)
+    written = kept = same = 0
+    for name, data in entries:
+        text = json.dumps(data, indent=1, ensure_ascii=ensure_ascii) + "\n"
+        path = out / name
+        if path.exists():
+            if path.read_text(encoding="utf-8") == text:
+                same += 1
+                continue
+            if not OVERWRITE:
+                kept += 1
+                continue
+        path.write_text(text, encoding="utf-8")
+        written += 1
+    pack_path = out / "pack.json"
+    if pack_path.exists():
+        pack = json.loads(pack_path.read_text(encoding="utf-8"))
+        listed = pack.get("scenes", [])
+        pack["scenes"] = listed + [name for name, _ in entries if name not in listed]
+    else:
+        pack = dict(meta, scenes=[name for name, _ in entries])
+    pack_text = json.dumps(pack, indent=1) + "\n"
+    if not pack_path.exists() or pack_path.read_text(encoding="utf-8") != pack_text:
+        pack_path.write_text(pack_text, encoding="utf-8")
+    note = f", {kept} differ on disk and were kept (--overwrite rewrites them)" if kept else ""
+    print(f"{out.name}: {written} written, {same} unchanged{note}")
 
 
 # ---------------------------------------------------------------- materials
@@ -1942,22 +1980,16 @@ GENERATED = {
 
 
 def write_generated():
-    out = OUT.parent / "generated"
-    out.mkdir(parents=True, exist_ok=True)
-    for old in out.glob("*.json"):
-        old.unlink()
     files = []
     for family, (label, seeds) in GENERATED.items():
         for seed in seeds:
             name = f"{family}-{seed}.json"
             data = {"format": 1, "title": f"{label} {seed}", "description": f"Generated scene: {label.lower()}, seed {seed}. Regenerated from the seed on every load.",
                     "tags": ["generated", family], "credits": "Caustica generators", "generator": {"family": family, "seed": seed}}
-            (out / name).write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
-            files.append(name)
-    pack = {"name": "Generated scenes", "version": 1, "license": "Own work", "commercial_use": True, "attribution": "Caustica",
-            "description": "Curated seeds of the procedural generators.", "scenes": files}
-    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
-    print(f"wrote {len(files)} generated scenes to {out}")
+            files.append((name, data))
+    write_pack(OUT.parent / "generated", files,
+               {"name": "Generated scenes", "version": 1, "license": "Own work", "commercial_use": True, "attribution": "Caustica",
+                "description": "Curated seeds of the procedural generators."}, ensure_ascii=True)
 
 
 # ---------------------------------------------------------------- mesh pack
@@ -2175,54 +2207,30 @@ def write_materials():
     problems = [p for slug, data in MATERIAL_SCENES for p in check(slug, data["settings"])]
     if problems:
         raise SystemExit("; ".join(problems))
-    out = OUT.parent / "materials"
-    out.mkdir(parents=True, exist_ok=True)
-    for old in out.glob("*.json"):
-        old.unlink()
-    for slug, data in MATERIAL_SCENES:
-        (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    pack = {"name": "Textured materials", "version": 1, "license": "CC0 textures (ambientCG, Poly Haven)", "commercial_use": False,
-            "attribution": "See credits", "source": "tools/fetch_assets.ps1",
-            "description": "Texture sets on shapes, floors and walls. Run tools/fetch_assets.ps1 first; without the maps the surfaces show their average colours.",
-            "scenes": [f"{slug}.json" for slug, _ in MATERIAL_SCENES]}
-    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
-    print(f"wrote {len(MATERIAL_SCENES)} material scenes to {out}")
+    write_pack(OUT.parent / "materials", [(f"{slug}.json", data) for slug, data in MATERIAL_SCENES],
+               {"name": "Textured materials", "version": 1, "license": "CC0 textures (ambientCG, Poly Haven)", "commercial_use": False,
+                "attribution": "See credits", "source": "tools/fetch_assets.ps1",
+                "description": "Texture sets on shapes, floors and walls. Run tools/fetch_assets.ps1 first; without the maps the surfaces show their average colours."})
 
 
 def write_environments():
     problems = [p for slug, data in ENV_SCENES for p in check(slug, data["settings"])]
     if problems:
         raise SystemExit("; ".join(problems))
-    out = OUT.parent / "environments"
-    out.mkdir(parents=True, exist_ok=True)
-    for old in out.glob("*.json"):
-        old.unlink()
-    for slug, data in ENV_SCENES:
-        (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    pack = {"name": "HDRI environments", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
-            "attribution": "See credits", "source": "tools/fetch_assets.ps1",
-            "description": "Scenes lit by Poly Haven HDRIs. Run tools/fetch_assets.ps1 first; without the HDRIs they fall back to the sky light.",
-            "scenes": [f"{slug}.json" for slug, _ in ENV_SCENES]}
-    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
-    print(f"wrote {len(ENV_SCENES)} environment scenes to {out}")
+    write_pack(OUT.parent / "environments", [(f"{slug}.json", data) for slug, data in ENV_SCENES],
+               {"name": "HDRI environments", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
+                "attribution": "See credits", "source": "tools/fetch_assets.ps1",
+                "description": "Scenes lit by Poly Haven HDRIs. Run tools/fetch_assets.ps1 first; without the HDRIs they fall back to the sky light."})
 
 
 def write_meshes():
     problems = [p for slug, data in MESH_SCENES for p in check(slug, data["settings"])]
     if problems:
         raise SystemExit("; ".join(problems))
-    out = OUT.parent / "meshes"
-    out.mkdir(parents=True, exist_ok=True)
-    for old in out.glob("*.json"):
-        old.unlink()
-    for slug, data in MESH_SCENES:
-        (out / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    pack = {"name": "Mesh scenes", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
-            "attribution": "See credits", "source": "tools/fetch_models.ps1",
-            "description": "Scanned and glTF models. Run tools/fetch_assets.ps1 first; without the models each object falls back to a box.",
-            "scenes": [f"{slug}.json" for slug, _ in MESH_SCENES]}
-    (out / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
-    print(f"wrote {len(MESH_SCENES)} mesh scenes to {out}")
+    write_pack(OUT.parent / "meshes", [(f"{slug}.json", data) for slug, data in MESH_SCENES],
+               {"name": "Mesh scenes", "version": 1, "license": "Mixed: see each scene's credits", "commercial_use": False,
+                "attribution": "See credits", "source": "tools/fetch_models.ps1",
+                "description": "Scanned and glTF models. Run tools/fetch_assets.ps1 first; without the models each object falls back to a box."})
 
 
 # ---------------------------------------------------------------- write
@@ -2230,17 +2238,10 @@ def main():
     problems = [p for slug, data in SCENES for p in check(slug, data["settings"])]
     if problems:
         raise SystemExit("; ".join(problems))
-    OUT.mkdir(parents=True, exist_ok=True)
-    for old in OUT.glob("*.json"):
-        old.unlink()
-    for slug, data in SCENES:
-        (OUT / f"{slug}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    pack = {"name": "Built-in scenes", "version": 1, "license": "Own work", "commercial_use": True,
-            "attribution": "Caustica", "source": "",
-            "description": "The 42 scenes of docs/scene-research.md section 2, generated by tools/build_scenes.py.",
-            "scenes": [f"{slug}.json" for slug, _ in SCENES]}
-    (OUT / "pack.json").write_text(json.dumps(pack, indent=1) + "\n", encoding="utf-8")
-    print(f"wrote {len(SCENES)} scenes to {OUT}")
+    write_pack(OUT, [(f"{slug}.json", data) for slug, data in SCENES],
+               {"name": "Built-in scenes", "version": 1, "license": "Own work", "commercial_use": True,
+                "attribution": "Caustica", "source": "",
+                "description": "Built-in scenes, written by tools/build_scenes.py and by hand."})
     write_generated()
     write_meshes()
     write_environments()
@@ -2249,4 +2250,6 @@ def main():
 
 
 if __name__ == "__main__":
+    import sys
+    OVERWRITE = "--overwrite" in sys.argv[1:]
     main()

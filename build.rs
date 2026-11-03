@@ -205,6 +205,14 @@ fn main() {
             "trace_maps_lean_ser",
             &["-D", "TEXTURE_MAPS", "-D", "LEAN", "-D", "SER"],
         ),
+        // The light-path-expression tracer too (Gpu::ser index 4).
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_lpe_ser",
+            &["-D", "TEXTURE_MAPS", "-D", "LPE", "-D", "SER"],
+        ),
     ] {
         // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
         let entry_args = if profile.starts_with("lib_") {

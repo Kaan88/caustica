@@ -38,9 +38,12 @@ float3 cosine_sample(float3 n){float r=sqrt(random()),a=2*PI*random();return bas
 // orthogonalised: the object's x axis, or with flag 2048 (spun) circles around its y axis.
 struct Hit{float t;float3 p;float3 n;float3 ng;float3 tangent;float3 albedo;float2 rough_metal;uint material;uint emitter;bool front;bool textured;};
 // Candidates only come from non-opaque geometry: static range 0 (no offset) or a glass object.
-uint candidate_material(uint instance,uint prim){Instance inst=instances[instance];return inst.material!=0xffffffffu?inst.material:static_vertices[prim*3].material;}
+uint candidate_material(uint instance,uint prim){Instance inst=instances[instance];return inst.material!=0xffffffffu?inst.material:static_vertices[(inst.vertex_base+prim)*3].material;}
 float4 sample_map(uint slot,float2 uv){return maps[NonUniformResourceIndex(slot-1)].SampleLevel(map_sampler,uv,0);}
 // Ray cones pick the mip level (core track 5): the width of the cone at the current ray's origin
+// Camera cones are one *output* pixel wide (dimensions.w), not one render pixel: with an upscaler
+// (DLSS, XeSS, FSR) at a lower render scale that is the vendors' texture LOD bias log2(render/output),
+// so the upscaler gets the output's texture detail instead of mips one level blurrier per halving.
 // and its spread per unit length. Camera rays start at one pixel's angle; each rough bounce
 // widens the cone (a crude stand-in for the lobe's width), so indirect hits read small mips.
 static float cone_width,cone_spread;
@@ -90,6 +93,15 @@ static const bool lean=true;
 #else
 static const bool lean=false;
 #define RQ_BASE RAY_FLAG_NONE
+#endif
+// Opacity micromaps (track 20a (a)): alpha-tested meshes carry 4-state OMMs (Gpu omm_blas), so
+// the RT cores settle known-opaque and known-transparent texels and only unknown ones come back
+// to the alpha test. Shader Model 6.9 asks for them per RayQuery; the older compute tracers get
+// them through the pipeline flag (Gpu::compute_pipeline).
+#ifdef SER
+#define RQ_OMM ,RAYQUERY_FLAG_ALLOW_OPACITY_MICROMAPS
+#else
+#define RQ_OMM
 #endif
 bool fog_on(){return !lean && fog.x>0;}
 bool restir_on(){return !lean && (restir.x&1)!=0;}
@@ -212,7 +224,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
     uint mask=0xffu&~(camera_ray?MASK_HIDDEN:0u)&~(shadow && jitter.w<=0.5?MASK_CLEAR_GLASS:0u);
-    RayQuery<RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
+    RayQuery<RQ_BASE RQ_OMM> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];uint pm=pi.material;float t;
@@ -242,8 +254,9 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     // the footprint; T zero when only uv_scale is known).
     h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;float3 T=0,B=0;
     if(inst.material==0xffffffffu){
-        // Static geometry: geometry 1 is the opaque range; its primitive indices restart at 0.
-        prim+=q.CommittedGeometryIndex()!=0?(uint)environment.w:0;uint idx=prim*3;
+        // Static geometry: one instance per opacity group (Gpu::rebuild_scene), each starting at
+        // triangle vertex_base of static_vertices.
+        prim+=inst.vertex_base;uint idx=prim*3;
         Vertex a=static_vertices[idx],v=static_vertices[idx+1],c=static_vertices[idx+2];
         h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.material=a.material;
         mapped=flagged(h.material,16u);
@@ -285,7 +298,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     uint mask=glass_blocks || jitter.w>0.5?0xffu:0xffu&~MASK_CLEAR_GLASS;
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH|RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH|RQ_BASE RQ_OMM> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;
@@ -879,7 +892,7 @@ bool medium_params(uint64_t media,float3 o,float3 d,float tmax,out float sigma,o
 // The distance to the nearest surface (alpha-tested holes skipped), or limit: a medium's exit.
 float surface_distance(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
-    RayQuery<RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    RayQuery<RQ_BASE RQ_OMM> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;
@@ -1000,7 +1013,7 @@ void trace_main(uint3 tid){
     float4 damean=sample_albedo && sampling.x>0?diffuse_albedo[p]:0;float3 samean=sample_albedo && sampling.x>0?specular_albedo[p].rgb:0;
     // Guides come from the pinhole ray through the lens center (RR and the denoiser).
     // Ray cones: one pixel's angle (orthographic: one pixel's width, no spread).
-    float pixel_angle=camera_model.x==1?0:2*environment.z/dimensions.y,pixel_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;
+    float pixel_angle=camera_model.x==1?0:2*environment.z/dimensions.w,pixel_width=camera_model.x==1?2*camera_model.w/dimensions.w:0;
     cone_width=pixel_width;cone_spread=pixel_angle;
     Hit guide;
     if(recording){float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);if(!intersect(go,gd,1e4,guide,false,true))guide.material=0xffffffffu;}
@@ -1242,7 +1255,7 @@ void trace_main(uint3 tid){
 [numthreads(8,8,1)]void restir_initial(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy+region.xy;uint layer=tid.z;if(any(p>=min(dimensions.xy,region.zw)))return;
     white_noise=true;pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed^hash(sampling.w*747796405+layer*0x9e3779b9u+0x2545f491u));
-    cone_width=camera_model.x==1?2*camera_model.w/dimensions.y:0;cone_spread=camera_model.x==1?0:2*environment.z/dimensions.y;
+    cone_width=camera_model.x==1?2*camera_model.w/dimensions.w:0;cone_spread=camera_model.x==1?0:2*environment.z/dimensions.w;
     Reservoir r;r.light=0;r.uv=0;r.W=0;r.m_material=0xffffffu;r.position=0;r.normal=0;
     float3 o,d;bool valid;camera_ray(float2(p)+0.5+jitter.xy,false,o,d,valid);Hit h;
     if(scene_info.x>0 && intersect(o,d,1e4,h,false,true) && ((uint)materials[h.material].lobes.w&1u)==0){

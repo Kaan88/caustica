@@ -460,6 +460,11 @@ pub struct Object {
     /// square, simulated by `physics::Cloth`, drawn as its mesh). Never a rigid body.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cloth: Option<Cloth>,
+    /// The texture maps of another mesh part (`file.gltf#part`) for an object without its own
+    /// UV-mapped file: a cloth showing a model's fabric (sponza-cloth's curtains). Used with
+    /// `material.textures`, like a mesh's own maps. Empty = none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub maps_from: String,
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Link {
@@ -485,6 +490,9 @@ pub struct Cloth {
     pub pin: ClothPin,
     /// Bending stiffness 0–1 (0 silk, 1 stiff canvas).
     pub stiffness: f32,
+    /// Texture coordinates of the grid: u0, v0 at the first corner of the pinned (−z) edge,
+    /// u1, v1 at the opposite corner (u along the edge, v away from it), for `maps_from`.
+    pub uv: [f32; 4],
 }
 impl Default for Cloth {
     fn default() -> Self {
@@ -492,6 +500,7 @@ impl Default for Cloth {
             resolution: 24,
             pin: ClothPin::None,
             stiffness: 0.2,
+            uv: [0., 0., 1., 1.],
         }
     }
 }
@@ -691,6 +700,7 @@ impl Default for Object {
             tether: None,
             links: vec![],
             cloth: None,
+            maps_from: String::new(),
         }
     }
 }
@@ -1464,9 +1474,9 @@ impl Settings {
                 "Invalid joint (links)"
             );
             anyhow::ensure!(
-                o.cloth.is_none_or(
-                    |c| (4..=48).contains(&c.resolution) && (0. ..=1.).contains(&c.stiffness)
-                ),
+                o.cloth.is_none_or(|c| (4..=48).contains(&c.resolution)
+                    && (0. ..=1.).contains(&c.stiffness)
+                    && c.uv.iter().all(|u| u.is_finite() && u.abs() <= 64.)),
                 "Invalid cloth"
             );
             anyhow::ensure!(

@@ -20,7 +20,7 @@ cbuffer Frame:register(b0) {
     float4 jitter; // x,y,sobol,glass shadows
     uint4 filter_settings; // pass (0 reproject, 1 integrate, 2–6 à-trous),temporal,no history,reference valid
     uint4 scene_info; // emissive triangle count, object count, Sobol sequence base, flags (bit 0 jittered primaries, bit 1 show upscaled texture 14, bits 2-3 spatial upscale: 1 bilinear, 2 bicubic; bits 4-5 light sampling: 0 MIS, 1 NEE only, 2 BSDF only)
-    float4 environment; // sky intensity, view-space ray scale x, y (tan of half field of view), first triangle of the opaque BLAS range
+    float4 environment; // sky intensity, view-space ray scale x, y (tan of half field of view), unused (static instances carry their first triangle in vertex_base)
     float4 hdr; // HDR output on (1/0), paper white nits, peak nits, HDR10 PQ encoding (1/0)
     float4 tools; // zebras on, scopes on, heat-map scale for bounces, for BVH steps per pixel
     float4 lens; // aperture radius, focus distance, blades (0 round), blade rotation (radians)
@@ -37,7 +37,7 @@ cbuffer Frame:register(b0) {
     uint4 restir; // track 15 ReSTIR DI: flags (bit 0 on, bit 1 history valid), candidates, spatial neighbours, history cap
     uint4 region; // track 15: the render pixels this dispatch covers, x0, y0, x1, y1 (battle mode quadrants; else the whole image)
     uint4 integrator; // track 15 (integrators.hlsl): photons emitted this frame, photon capacity, splat offset in aux (bytes), flags (bit 0 light tracing)
-    float4 photon; // track 15: gather radius, image-plane area at distance 1 times the region's share of the image, -, -
+    float4 photon; // track 15: gather radius, image-plane area at distance 1 times the region's share of the image, SDF photon records (count, first emitter record; gpu.rs sdf_emitter_records)
     float4 bounds; // track 15: the scene's bounding sphere (centre, radius) for sun and sky photons
     float4 real_lens; // track 16: lens system surfaces (0 = off), dispersion, scene units per mm, -
     uint4 glare; // track 16 glare pass: mode (0 highlights, 1 aperture, 2 rows FFT, 3 columns FFT, 4 PSF), region, flags (bit 0 inverse, bit 1 convolve), image size in the grid (w | h << 16)

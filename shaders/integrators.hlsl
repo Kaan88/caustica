@@ -405,8 +405,8 @@ void finish_frame(uint2 p,float3 b){
     float dl=luminance(b)-luminance(mean);mean+=(b-mean)*n/count;m2+=n*dl*(luminance(b)-luminance(mean));
     accumulation[p]=float4(mean,max(0,m2));noisy[p]=float4(b,1);direct_light[p]=float4(mean,1);specular_light[p]=0;trace_stats[p]=0;
 }
-float pixel_angle_now(){return camera_model.x==1?0:2*environment.z/dimensions.y;}
-float pixel_width_now(){return camera_model.x==1?2*camera_model.w/dimensions.y:0;}
+float pixel_angle_now(){return camera_model.x==1?0:2*environment.z/dimensions.w;}
+float pixel_width_now(){return camera_model.x==1?2*camera_model.w/dimensions.w:0;}
 float env_share(){return hdri_on()?(scene_info.x>0?0.5:1):0;}
 [numthreads(8,8,1)]void bdpt(uint3 tid:SV_DispatchThreadID){
     uint2 p=tid.xy+region.xy;if(any(p>=min(dimensions.xy,region.zw)))return;
@@ -434,10 +434,16 @@ float env_share(){return hdri_on()?(scene_info.x>0?0.5:1):0;}
 uint cell_hash(int3 c){return hash((uint)c.x*73856093u^(uint)c.y*19349663u^(uint)c.z*83492791u)&(HASH-1);}
 // Beam splitters (bit 4096) are delta: no photons, no gather; the walk passes them on.
 bool gather_surface(Material m){return m.lobes.z<1 && ((uint)m.lobes.w&4096u)==0 && !(m.color_rough.a<0.2 && m.lobes.x>0.5);}
-// Emitters keep no photons: a small bright emitter lit by its neighbours (birthday-cake's flames)
-// holds a dense cluster that surfaces within the radius gathered as their own, 87% too red.
-// Their reflected light is lost, negligible beside their emission.
-bool keeps_photons(Material m){return gather_surface(m) && m.optical.y<=0;}
+// Emitters keep photons too (an emitter's reflected light: lava-lamp's wax blobs light each
+// other). They used to keep none, because the gather sphere took a bright neighbour's photons
+// as their own (birthday-cake's flames, 87% too red); the gather's slab (below) ends that.
+bool keeps_photons(Material m){return gather_surface(m);}
+// The gather takes photons within the radius and within a slab of a quarter radius around the
+// tangent plane: a sphere alone also counts photons on nearby surfaces that face elsewhere
+// (corners, close neighbours: kusama's spheres, birthday-cake's flames), which the disk's area
+// πr² doesn't cover. A flat surface inside the slab still has area πr², and the slab shrinks
+// with the radius, so the estimate converges to the same answer.
+#define GATHER_SLAB 0.25
 [numthreads(64,1,1)]void photon_clear(uint3 tid:SV_DispatchThreadID){
     if(tid.x<HASH)aux.Store(16+4*tid.x,0xffffffffu);
     if(tid.x==0)aux.Store(0,0);
@@ -451,24 +457,60 @@ void deposit(float3 p,float3 wi,float3 b,bool volume){
 }
 // A point on the disk of the bounding sphere facing direction ld (toward the sun or sky).
 float3 disk_origin(float3 ld){float r=bounds.w*sqrt(random()),a=2*PI*random();return bounds.xyz+basis(ld,float3(r*cos(a),r*sin(a),bounds.w*1.01));}
+// A photon from an emissive procedural object (Gpu sdf_emitter_records), which has no points
+// to sample: an isotropic random line through its bounding sphere (a uniform point on the
+// sphere, cosine-weighted inward) crosses the surface with density |cos|·dA·dω/(π·A_sphere) per
+// orientation (Cauchy-Crofton), which is a Lambertian emitter's distribution. So each crossing
+// stands for π·L·A_sphere/2 of power, whatever the surface's area; one crossing of the k on the
+// line is kept and carries k times that. p: the probability of choosing these emitters.
+bool sdf_photon(float p,out float3 o,out float3 w,out float3 b){
+    o=0;w=0;b=0;
+    uint base=(uint)photon.w,n=(uint)photon.z,j=0;float u=random(),below=0;
+    for(;j+1<n && u>=emitters[base+2*j].edge1_cdf.y;j++)below=emitters[base+2*j].edge1_cdf.y;
+    Emitter A=emitters[base+2*j],B=emitters[base+2*j+1];float q=A.edge1_cdf.y-below;
+    Instance inst=instances[asuint(A.edge1_cdf.x)];float3x4 w2o=float3x4(A.edge2_probability,A.emission_material,B.position_area);
+    float3 c=A.position_area.xyz;float R=A.position_area.w;
+    float z=1-2*random(),s=sqrt(max(0,1-z*z)),a=2*PI*random();float3 out_n=float3(s*cos(a),z,s*sin(a));
+    float r1=random(),r2=2*PI*random(),sr=sqrt(r1);float3 d=basis(-out_n,float3(sr*cos(r2),sr*sin(r2),sqrt(max(0,1-r1))));
+    float3 x0=c+R*out_n;float chord=2*R*dot(d,-out_n);
+    float3 oo=mul(w2o,float4(x0,1)),dd=mul(w2o,float4(d,0));float L=length(dd);
+    float hits[16];uint k=0;float t=0;
+    for(uint guard=0;guard<16 && k<16;guard++){
+        float th;if(!sdf_hit(inst.vertex_base,oo,dd,t,chord,th))break;hits[k++]=th;
+        // Step out of the hit's tolerance band, so the same crossing isn't found twice.
+        t=th+1e-4;for(uint e=0;e<32 && t<chord && abs(sdf(inst.vertex_base,oo+dd*t))<2e-4*L;e++)t+=2e-4;
+    }
+    if(k==0 || q<=0 || p<=0)return false;
+    float th=hits[min((uint)(random()*k),k-1)];
+    float3 nn=normalize(mul(sdf_normal(inst.vertex_base,oo+dd*th),(float3x3)w2o));
+    w=dot(d,nn)>0?d:-d;o=x0+d*th+nn*0.0003;
+    Material m=material_at(inst.material,x0+d*th);
+    b=m.color_rough.rgb*m.optical.y*(PI*2*PI*R*R)*k/(p*q);
+    return all(isfinite(b));
+}
 [numthreads(64,1,1)]void photon_trace(uint3 tid:SV_DispatchThreadID){
     uint i=tid.x;if(i>=integrator.x)return;
     white_noise=true;glass_blocks=true;rng_state=hash(i^hash(sampling.w*0x9e3779b9u+0x7f4a7c15u));cone_width=0;cone_spread=0;
-    bool tri=scene_info.x>0,sky=hdri_on() || any(background.rgb>0) || environment.x>0;float p_env=sky?(tri?0.5:1):0;
+    bool tri=scene_info.x>0,sdf_lights=photon.z>0,sky=hdri_on() || any(background.rgb>0) || environment.x>0;
+    float p_env=sky?(tri || sdf_lights?0.5:1):0;
+    // With emissive procedurals, half the emitted (non-sky) photons start on them.
+    float p_tri=(1-p_env)*(sdf_lights?(tri?0.5:0):1);
     float3 o,w,b;float disk=PI*bounds.w*bounds.w;
     if(random()<p_env){
         float pw;float3 ld;
         if(hdri_on())ld=sample_env(pw);else{float z=1-2*random(),s=sqrt(max(0,1-z*z)),a=2*PI*random();ld=float3(s*cos(a),z,s*sin(a));pw=1/(4*PI);}
         if(pw<=0)return;
         o=disk_origin(ld);w=-ld;b=environment_radiance(ld)*disk/(p_env*pw);
+    }else if(sdf_lights && (!tri || random()<0.5)){
+        if(!sdf_photon((1-p_env)-p_tri,o,w,b))return;
     }else{
         if(!tri)return;
         uint k=select_index(random());Emitter e=emitters[k];
         if(e.position_area.w<0 && e.position_area.w!=-1){
             float pc;float3 ld=cone_sample(e.position_area.xyz,e.edge1_cdf.x,pc);
-            o=disk_origin(ld);w=-ld;b=e.emission_material.rgb*disk/((1-p_env)*e.edge2_probability.w*pc);
+            o=disk_origin(ld);w=-ld;b=e.emission_material.rgb*disk/(p_tri*e.edge2_probability.w*pc);
         }else{
-            LightPoint l=light_point(k,pack_uv(float2(random(),random())));float po=(1-p_env)*l.source;
+            LightPoint l=light_point(k,pack_uv(float2(random(),random())));float po=p_tri*l.source;
             bool two=two_sided(k,l);float3 n=l.n;if(two && random()<0.5)n=-n;
             float pd;w=emit_dir(k,l,n,two,pd);float c=dot(n,w);if(po<=0 || pd<=0)return;
             b=emission_toward(k,l,w)*c/(po*pd);o=l.p+n*0.0003;
@@ -502,7 +544,7 @@ float3 gather(BVertex x,Material m,float3 v){
         int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
         for(;j!=0xffffffffu && guard<4096;guard++){
             uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x.p;
-            if((B.x>>31)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r){float3 wi=unpack_normal(A.w);float pdf;
+            if((B.x>>31)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r && abs(dot(dq,x.n))<GATHER_SLAB*r){float3 wi=unpack_normal(A.w);float pdf;
                 if(dot(x.n,wi)>0)cell+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*asfloat(B.xyz);}
             j=B.w;
         }
