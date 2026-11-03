@@ -50,6 +50,19 @@ fn main() {
     // CAUSTICA_SHADER_DEBUG=1 embeds debug info (same -O3 code) so Nsight's shader profiler can
     // map stalls to HLSL lines (track 20a). Off by default.
     println!("cargo:rerun-if-env-changed=CAUSTICA_SHADER_DEBUG");
+    // Track 20 experiments: CAUSTICA_SER_BITS sets the SER coherence-hint width (0: no
+    // MaybeReorderThread, just the ray generation shader); CAUSTICA_SER_AT the one bounce to reorder at.
+    println!("cargo:rerun-if-env-changed=CAUSTICA_SER_BITS");
+    println!("cargo:rerun-if-env-changed=CAUSTICA_SER_AT");
+    let mut ser_bits: Vec<String> = vec![];
+    for (var, define) in [
+        ("CAUSTICA_SER_BITS", "SER_BITS"),
+        ("CAUSTICA_SER_AT", "SER_AT"),
+    ] {
+        if let Ok(v) = env::var(var) {
+            ser_bits.extend(["-D".into(), format!("{define}={v}")]);
+        }
+    }
     let shader_debug: &[&str] = if env::var("CAUSTICA_SHADER_DEBUG").is_ok_and(|v| v == "1") {
         &["-Zi", "-Qembed_debug"]
     } else {
@@ -162,12 +175,49 @@ fn main() {
             "trace_maps_lean",
             &["-D", "TEXTURE_MAPS", "-D", "LEAN"],
         ),
+        // Track 20: the four tracer variants as SER ray generation shaders (Shader Model 6.9,
+        // a DXIL library exporting trace_rg; Gpu uses them where the device supports SER).
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_ser",
+            &["-D", "SER"],
+        ),
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_maps_ser",
+            &["-D", "TEXTURE_MAPS", "-D", "SER"],
+        ),
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_lean_ser",
+            &["-D", "LEAN", "-D", "SER"],
+        ),
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_maps_lean_ser",
+            &["-D", "TEXTURE_MAPS", "-D", "LEAN", "-D", "SER"],
+        ),
     ] {
+        // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
+        let entry_args = if profile.starts_with("lib_") {
+            ["-exports", entry, "-Wno-misplaced-attributes"]
+        } else {
+            ["-E", entry, "-Ges"]
+        };
         let status = Command::new(&dxc)
-            .args([
-                "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-Ges", "-I", "shaders",
-            ])
+            .args(["-T", profile])
+            .args(entry_args)
+            .args(["-HV", "2021", "-O3", "-I", "shaders"])
             .args(defines)
+            .args(ser_bits.iter().filter(|_| profile.starts_with("lib_")))
             .args(shader_debug)
             .arg("-Fo")
             .arg(out.join(format!("{name}.dxil")))
@@ -244,6 +294,21 @@ fn main() {
             );
         }
     }
+    // Track 20: the D3D12 Agility SDK runtime (Shader Model 6.9, SER) in D3D12\ beside the
+    // exe, found through the D3D12SDKVersion / D3D12SDKPath exports (src/main.rs).
+    std::fs::create_dir_all(destination.join("D3D12")).expect("Create the D3D12 folder");
+    for dll in ["D3D12Core.dll", "d3d12SDKLayers.dll"] {
+        let source = PathBuf::from("vendor/agility").join(dll);
+        println!("cargo:rerun-if-changed={}", source.display());
+        let dest = destination.join("D3D12").join(dll);
+        let bytes = std::fs::read(&source).expect("Read the Agility SDK (tools/setup.ps1)");
+        if std::fs::read(&dest).ok().as_deref() != Some(bytes.as_slice()) {
+            std::fs::write(dest, bytes)
+                .expect("Copy the Agility SDK; close any running app using an older DLL");
+        }
+    }
+    println!("cargo:rustc-link-arg-bins=/EXPORT:D3D12SDKVersion,DATA");
+    println!("cargo:rustc-link-arg-bins=/EXPORT:D3D12SDKPath,DATA");
 }
 /// The exe's icon (assets/caustica.ico, drawn by tools/make_icon.py) and version info, compiled
 /// by the Windows SDK's rc.exe (`RC_PATH` overrides) and linked into the binary. Without

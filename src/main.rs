@@ -3920,6 +3920,20 @@ fn app_icon(size: Option<u32>) -> Option<winit::window::Icon> {
     use winit::platform::windows::IconExtWindows;
     winit::window::Icon::from_resource(1, size.map(|s| winit::dpi::PhysicalSize::new(s, s))).ok()
 }
+/// D3D12 Agility SDK (track 20): the runtime loads D3D12Core.dll of this SDK version from
+/// D3D12\ beside the exe (build.rs copies it; tools/setup.ps1 fetches it). Must match the
+/// version setup.ps1 downloads. Exported by name from the exe (build.rs /EXPORT).
+#[unsafe(no_mangle)]
+#[used]
+#[allow(non_upper_case_globals)]
+pub static D3D12SDKVersion: u32 = 620;
+#[repr(transparent)]
+pub struct SdkPath(*const u8);
+unsafe impl Sync for SdkPath {}
+#[unsafe(no_mangle)]
+#[used]
+#[allow(non_upper_case_globals)]
+pub static D3D12SDKPath: SdkPath = SdkPath(c".\\D3D12\\".as_ptr().cast());
 fn main() {
     if let Err(e) = run() {
         eprintln!("{e:#}");

@@ -40,6 +40,7 @@ cargo fmt; cargo test --locked; cargo clippy --locked -- -D warnings; cargo buil
 
 - `Constants` (gpu.rs) ↔ `cbuffer Frame` (common.hlsli), field for field. gui.hlsl relies on the offset of `dimensions`.
 - build.rs shader entries ↔ `hotreload::ENTRIES` (same order) ↔ `Shaders` and `Gpu::reload_shaders`.
+- `D3D12SDKVersion` (main.rs) ↔ the Agility SDK version `tools/setup.ps1` fetches (`Get-Agility`); the SER tracers (`*_ser`, `lib_6_9`) ↔ their compute twins (`Gpu::ser`, same order).
 - A new `Settings` field needs `validate()`, the UI ranges to match it, the `transport_key` exclusions if it is display-only, and `keep_output` / `preset()` if it is a viewer choice.
 - The NGX jitter offset is −ray jitter. Don't change it without rerunning `tools/rr_stability.py`.
 - Sobol sampling must stay bit-identical, or convergence must be re-measured.

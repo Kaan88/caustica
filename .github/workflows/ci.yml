@@ -82,6 +82,8 @@ jobs:
           $dist = "dist/$name"
           New-Item -ItemType Directory -Force $dist | Out-Null
           Copy-Item target/release/caustica.exe, target/release/*.dll $dist
+          # The D3D12 Agility SDK runtime (track 20: Shader Model 6.9, SER), found as .\D3D12\.
+          Copy-Item -Recurse target/release/D3D12 $dist/D3D12
           if (Test-Path target/release/ffmpeg.exe) { Copy-Item target/release/ffmpeg.exe $dist }
           Copy-Item -Recurse scenes $dist/scenes
           Copy-Item README.md $dist

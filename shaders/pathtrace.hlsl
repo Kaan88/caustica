@@ -975,7 +975,15 @@ void write_guides(uint2 p,out Hit guide){
         specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
     }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
 }
-[numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){
+// Track 20: the same kernel as a ray generation shader for Shader Execution Reordering (SER,
+// Shader Model 6.9), dispatched by DispatchRays over the same threads (Gpu::integrate).
+void trace_main(uint3 tid);
+#ifdef SER
+[shader("raygeneration")]void trace_rg(){trace_main(DispatchRaysIndex());}
+#else
+[numthreads(8,8,1)]void trace(uint3 tid:SV_DispatchThreadID){trace_main(tid);}
+#endif
+void trace_main(uint3 tid){
     uint2 p=tid.xy;
     if(recording){if(any(p!=0))return;p=min(path_record.xy,dimensions.xy-1);}
     else{p+=region.xy;if(any(p>=region.zw))return;}
@@ -1038,6 +1046,22 @@ void write_guides(uint2 p,out Hit guide){
                 false_hits++;origin=h.p-h.ng*0.0003;
                 record(8,bounce,h.p,throughput,0,direction);
             }
+#ifdef SER
+            // Regroup the threads by what they hit before shading it (misses together), so a
+            // warp runs one material's code; the image is unchanged, only the thread order.
+// SER_BITS 0 (the default) leaves the call out: measured 2026-11-03, the ray generation shader
+// alone is 12-13% faster than the compute kernel, and a reorder at every bounce 55-75% slower
+// (the whole path state spills at each reorder point). SER_AT reorders at one bounce only.
+#ifndef SER_BITS
+#define SER_BITS 0
+#endif
+#ifndef SER_AT
+#define SER_AT -1
+#endif
+#if SER_BITS>0
+            if(SER_AT<0 || bounce==SER_AT)dx::MaybeReorderThread(found?min(h.material,(1u<<SER_BITS)-2):(1u<<SER_BITS)-1,SER_BITS);
+#endif
+#endif
             {float sigma,g,t0,t1;float3 albedo;
             if((density>0 || (fog_on() && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
                 float ts=t0-log(1-random())/sigma;

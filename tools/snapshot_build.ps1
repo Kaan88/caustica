@@ -17,6 +17,8 @@ $dest = Join-Path $root "builds\$date-$Name"
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item (Join-Path $release "caustica.exe") $dest -Force
 Get-ChildItem $release -Filter *.dll | Copy-Item -Destination $dest -Force
+# The D3D12 Agility SDK runtime (track 20), loaded from the D3D12 folder beside the exe.
+if (Test-Path (Join-Path $release 'D3D12')) { Copy-Item -Recurse -Force (Join-Path $release 'D3D12') (Join-Path $dest 'D3D12') }
 if (Test-Path (Join-Path $release "ffmpeg.exe")) { Copy-Item (Join-Path $release "ffmpeg.exe") $dest -Force }
 $scenes = Join-Path $root "scenes"
 if (Test-Path $scenes) {

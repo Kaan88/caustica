@@ -25,9 +25,13 @@ pub struct Shaders {
     pub ps: Vec<u8>,
     pub trace_lean: Vec<u8>,
     pub trace_maps_lean: Vec<u8>,
+    pub trace_ser: Vec<u8>,
+    pub trace_maps_ser: Vec<u8>,
+    pub trace_lean_ser: Vec<u8>,
+    pub trace_maps_lean_ser: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 19] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 23] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -126,6 +130,34 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 19] = [
         "trace_maps_lean",
         &["-D", "TEXTURE_MAPS", "-D", "LEAN"],
     ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_ser",
+        &["-D", "SER"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_maps_ser",
+        &["-D", "TEXTURE_MAPS", "-D", "SER"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_lean_ser",
+        &["-D", "LEAN", "-D", "SER"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_maps_lean_ser",
+        &["-D", "TEXTURE_MAPS", "-D", "LEAN", "-D", "SER"],
+    ),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -166,9 +198,13 @@ impl HotReload {
             let target = out.join(format!("{name}.dxil"));
             let mut command = std::process::Command::new(&self.dxc);
             command
-                .args([
-                    "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-Ges", "-I",
-                ])
+                .args(["-T", profile])
+                .args(if profile.starts_with("lib_") {
+                    ["-exports", entry, "-Wno-misplaced-attributes"]
+                } else {
+                    ["-E", entry, "-Ges"]
+                })
+                .args(["-HV", "2021", "-O3", "-I"])
                 .arg(&self.dir)
                 .args(defines)
                 .arg("-Fo")
@@ -212,6 +248,10 @@ impl HotReload {
             ps: b.next().unwrap(),
             trace_lean: b.next().unwrap(),
             trace_maps_lean: b.next().unwrap(),
+            trace_ser: b.next().unwrap(),
+            trace_maps_ser: b.next().unwrap(),
+            trace_lean_ser: b.next().unwrap(),
+            trace_maps_lean_ser: b.next().unwrap(),
         })
     }
 }

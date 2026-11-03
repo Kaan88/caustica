@@ -295,6 +295,9 @@ pub struct Gpu {
     /// `lean_scene` holds and the frame has neither fog nor ReSTIR.
     trace_lean: ID3D12PipelineState,
     trace_maps_lean: ID3D12PipelineState,
+    /// Track 20: the four tracers above as SER ray generation pipelines, in the order trace,
+    /// trace_maps, trace_lean, trace_maps_lean; None without SER (or CAUSTICA_NO_SER=1).
+    ser: Option<[SerPipeline; 4]>,
     /// Path visualizer (track 14): the trace variant that re-traces one pixel into
     /// `path_buffer` (bound at u0 space 2 for every dispatch), read back through `path_readback`.
     trace_paths: ID3D12PipelineState,
@@ -502,6 +505,56 @@ fn instance_mask(m: &crate::lighting::PackedMaterial) -> (u32, bool) {
 /// Instance mask bits (pathtrace.hlsl MASK_HIDDEN, MASK_CLEAR_GLASS).
 const MASK_HIDDEN: u32 = 2;
 const MASK_CLEAR_GLASS: u32 = 4;
+/// What the device offers for Shader Execution Reordering (track 20): Shader Model 6.9 (with
+/// the Agility SDK, src/main.rs) and raytracing tier 1.2; `reorders` says whether
+/// `MaybeReorderThread` does anything on this GPU (D3D12_OPTIONS22).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SerSupport {
+    pub shader_model: u32,
+    pub tier: u32,
+    pub reorders: bool,
+}
+impl SerSupport {
+    pub fn available(&self) -> bool {
+        self.shader_model >= 0x69 && self.tier >= 12
+    }
+}
+unsafe fn ser_support(device: &ID3D12Device5) -> SerSupport {
+    unsafe {
+        let mut sm = D3D12_FEATURE_DATA_SHADER_MODEL {
+            HighestShaderModel: D3D_SHADER_MODEL(0x69),
+        };
+        let shader_model = if device
+            .CheckFeatureSupport(
+                D3D12_FEATURE_SHADER_MODEL,
+                &mut sm as *mut _ as _,
+                size_of_val(&sm) as u32,
+            )
+            .is_ok()
+        {
+            sm.HighestShaderModel.0 as u32
+        } else {
+            0x60
+        };
+        let mut o5 = D3D12_FEATURE_DATA_D3D12_OPTIONS5::default();
+        let _ = device.CheckFeatureSupport(
+            D3D12_FEATURE_D3D12_OPTIONS5,
+            &mut o5 as *mut _ as _,
+            size_of_val(&o5) as u32,
+        );
+        // D3D12_FEATURE_D3D12_OPTIONS22 (65): ShaderExecutionReorderingActuallyReorders first.
+        let mut o22 = [0u32; 4];
+        let reorders = device
+            .CheckFeatureSupport(D3D12_FEATURE(65), o22.as_mut_ptr() as _, 16)
+            .is_ok()
+            && o22[0] != 0;
+        SerSupport {
+            shader_model,
+            tier: o5.RaytracingTier.0 as u32,
+            reorders,
+        }
+    }
+}
 impl Gpu {
     pub unsafe fn new(
         hwnd: HWND,
@@ -574,6 +627,19 @@ impl Gpu {
             break;
         }
         let (device,adapter_name)=selected.context("No D3D12 adapter with DXR tier 1.1. Update the GPU driver and use a ray-tracing-capable GPU.")?;
+        let ser = ser_support(&device);
+        eprintln!(
+            "D3D12: shader model {}.{}, raytracing tier {}.{}; SER {}",
+            ser.shader_model >> 4,
+            ser.shader_model & 15,
+            ser.tier / 10,
+            ser.tier % 10,
+            match (ser.available(), ser.reorders) {
+                (false, _) => "unavailable",
+                (true, false) => "accepted, no reordering",
+                (true, true) => "reorders",
+            }
+        );
         let queue: ID3D12CommandQueue = device.CreateCommandQueue(&D3D12_COMMAND_QUEUE_DESC {
             Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
             ..Default::default()
@@ -817,6 +883,17 @@ impl Gpu {
             env!("OUT_DIR"),
             "/trace_maps_lean.dxil"
         )))?;
+        let ser_pipelines = make_ser(
+            &device,
+            &root,
+            ser,
+            [
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_lean_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps_lean_ser.dxil")),
+            ],
+        );
         let trace_paths = compute(include_bytes!(concat!(
             env!("OUT_DIR"),
             "/trace_paths.dxil"
@@ -1013,6 +1090,7 @@ impl Gpu {
             trace_maps,
             trace_lean,
             trace_maps_lean,
+            ser: ser_pipelines,
             trace_paths,
             path_buffer,
             path_readback,
@@ -1773,6 +1851,19 @@ impl Gpu {
         )?;
         self.wait_idle()?;
         (self.trace_lean, self.trace_maps_lean) = (trace_lean, trace_maps_lean);
+        if self.ser.is_some() {
+            self.ser = make_ser(
+                &self.device,
+                &self.root,
+                ser_support(&self.device),
+                [
+                    &sh.trace_ser,
+                    &sh.trace_maps_ser,
+                    &sh.trace_lean_ser,
+                    &sh.trace_maps_lean_ser,
+                ],
+            );
+        }
         (
             self.trace,
             self.trace_maps,
@@ -2581,15 +2672,35 @@ impl Gpu {
                 }
                 // LEAN exactly when the shader's fog and ReSTIR flags are off for this frame.
                 let lean = self.lean_scene && c.fog[0] <= 0. && c.restir[0] & 1 == 0;
-                self.list
-                    .SetPipelineState(match (self.lpe_slots > 0, self.textured, lean) {
-                        (true, _, _) => &self.trace_lpe,
-                        (_, true, true) => &self.trace_maps_lean,
-                        (_, true, false) => &self.trace_maps,
-                        (_, false, true) => &self.trace_lean,
-                        (_, false, false) => &self.trace,
+                let variant = self.textured as usize + 2 * lean as usize;
+                if let Some(ser) = self.ser.as_ref().filter(|_| self.lpe_slots == 0) {
+                    // Track 20: the same threads as the compute dispatch, through
+                    // DispatchRays so the shader may reorder them (MaybeReorderThread).
+                    let p = &ser[variant];
+                    self.list.SetPipelineState1(&p.state);
+                    self.list.DispatchRays(&D3D12_DISPATCH_RAYS_DESC {
+                        RayGenerationShaderRecord: D3D12_GPU_VIRTUAL_ADDRESS_RANGE {
+                            StartAddress: p.table.GetGPUVirtualAddress(),
+                            SizeInBytes: D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES as u64,
+                        },
+                        Width: gx * 8,
+                        Height: gy * 8,
+                        Depth: 1,
+                        ..Default::default()
                     });
-                self.list.Dispatch(gx, gy, 1);
+                } else {
+                    self.list.SetPipelineState(if self.lpe_slots > 0 {
+                        &self.trace_lpe
+                    } else {
+                        [
+                            &self.trace,
+                            &self.trace_maps,
+                            &self.trace_lean,
+                            &self.trace_maps_lean,
+                        ][variant]
+                    });
+                    self.list.Dispatch(gx, gy, 1);
+                }
                 uav(&self.list, None);
             }
         }
@@ -4195,14 +4306,22 @@ impl Gpu {
                 let p = bytes.as_mut_ptr() as *mut D3D12_MESSAGE;
                 if q.GetMessage(i, Some(p), &mut len).is_ok() {
                     let msg = &*p;
-                    if msg.Severity.0 <= D3D12_MESSAGE_SEVERITY_WARNING.0 {
-                        result.push(
-                            String::from_utf8_lossy(std::slice::from_raw_parts(
-                                msg.pDescription,
-                                msg.DescriptionByteLength.saturating_sub(1),
-                            ))
-                            .into(),
-                        );
+                    let text: String = String::from_utf8_lossy(std::slice::from_raw_parts(
+                        msg.pDescription,
+                        msg.DescriptionByteLength.saturating_sub(1),
+                    ))
+                    .into();
+                    // The Agility SDK's layer (track 20) flags every CheckFeatureSupport as
+                    // superseded by ID3D12Device16::CheckFeatureSupport1, which the windows
+                    // crate doesn't bind; the old call still answers correctly.
+                    // It also notes every buffer created in a state other than COMMON, which
+                    // the upscaler SDKs (DLSS, FSR, XeSS) do for theirs; the runtime uses COMMON.
+                    let superseded = text
+                        .contains("superseded by ID3D12Device16::CheckFeatureSupport1")
+                        || (text.contains("Ignoring InitialState")
+                            && text.contains("Buffers are effectively created in state"));
+                    if msg.Severity.0 <= D3D12_MESSAGE_SEVERITY_WARNING.0 && !superseded {
+                        result.push(text);
                     }
                 }
             }
@@ -4377,6 +4496,98 @@ unsafe fn create_compute_pipeline(
     ManuallyDrop::drop(&mut d.pRootSignature);
     Ok(p?)
 }
+/// A SER tracer (track 20): a ray tracing state object with just the `trace_rg` ray
+/// generation shader of a DXIL library (it traces with inline RayQuery, so no hit groups),
+/// on the compute root signature as its global one, and the one-record shader table.
+pub struct SerPipeline {
+    state: ID3D12StateObject,
+    table: ID3D12Resource,
+}
+unsafe fn create_ser_pipeline(
+    device: &ID3D12Device5,
+    root: &ID3D12RootSignature,
+    code: &[u8],
+) -> Result<SerPipeline> {
+    unsafe {
+        let library = D3D12_DXIL_LIBRARY_DESC {
+            DXILLibrary: bytecode(code),
+            ..Default::default()
+        };
+        let mut global = D3D12_GLOBAL_ROOT_SIGNATURE {
+            pGlobalRootSignature: ManuallyDrop::new(Some(root.clone())),
+        };
+        // Inline ray queries only: no TraceRay, so the smallest payload and recursion.
+        let shader = D3D12_RAYTRACING_SHADER_CONFIG {
+            MaxPayloadSizeInBytes: 4,
+            MaxAttributeSizeInBytes: 8,
+        };
+        let pipeline = D3D12_RAYTRACING_PIPELINE_CONFIG {
+            MaxTraceRecursionDepth: 1,
+        };
+        let sub = |t: D3D12_STATE_SUBOBJECT_TYPE, d: *const std::ffi::c_void| {
+            D3D12_STATE_SUBOBJECT { Type: t, pDesc: d }
+        };
+        let subobjects = [
+            sub(
+                D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY,
+                &library as *const _ as _,
+            ),
+            sub(
+                D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE,
+                &global as *const _ as _,
+            ),
+            sub(
+                D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG,
+                &shader as *const _ as _,
+            ),
+            sub(
+                D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG,
+                &pipeline as *const _ as _,
+            ),
+        ];
+        let desc = D3D12_STATE_OBJECT_DESC {
+            Type: D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE,
+            NumSubobjects: subobjects.len() as u32,
+            pSubobjects: subobjects.as_ptr(),
+        };
+        let state = device.CreateStateObject::<ID3D12StateObject>(&desc);
+        ManuallyDrop::drop(&mut global.pGlobalRootSignature);
+        let state = state?;
+        let props: ID3D12StateObjectProperties = state.cast()?;
+        let id = props.GetShaderIdentifier(windows::core::w!("trace_rg"));
+        anyhow::ensure!(!id.is_null(), "trace_rg has no shader identifier");
+        let id = std::slice::from_raw_parts(
+            id as *const u8,
+            D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES as usize,
+        );
+        // Upload heaps start 64 KiB aligned, past the 64-byte shader table alignment.
+        let table = upload(device, id)?;
+        Ok(SerPipeline { state, table })
+    }
+}
+/// The SER tracers, when the device supports SER and CAUSTICA_NO_SER isn't set (A/B
+/// measurements); a creation failure falls back to the compute tracers with a message.
+unsafe fn make_ser(
+    device: &ID3D12Device5,
+    root: &ID3D12RootSignature,
+    support: SerSupport,
+    code: [&[u8]; 4],
+) -> Option<[SerPipeline; 4]> {
+    if !support.available() || std::env::var_os("CAUSTICA_NO_SER").is_some() {
+        return None;
+    }
+    let made: Result<Vec<SerPipeline>> = code
+        .iter()
+        .map(|c| unsafe { create_ser_pipeline(device, root, c) })
+        .collect();
+    match made {
+        Ok(v) => v.try_into().ok(),
+        Err(e) => {
+            eprintln!("SER tracers unavailable, using the compute tracers: {e:#}");
+            None
+        }
+    }
+}
 unsafe fn create_gui_pipeline(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
@@ -4493,7 +4704,17 @@ unsafe fn buffer(
         },
         D3D12_HEAP_FLAG_NONE,
         &desc,
-        state,
+        // Default-heap buffers start in COMMON whatever is asked (the Agility SDK's layer
+        // warns about any other state, track 20) and promote to UAV / shader-resource use on
+        // their own; upload, readback and acceleration-structure states still apply.
+        if heap == D3D12_HEAP_TYPE_DEFAULT
+            && (state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+                || state == D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+        {
+            D3D12_RESOURCE_STATE_COMMON
+        } else {
+            state
+        },
         None,
         &mut r,
     )?;

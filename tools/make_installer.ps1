@@ -26,6 +26,8 @@ if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
 New-Item -ItemType Directory -Force $dist | Out-Null
 Get-ChildItem $release -File | Where-Object { $_.Name -eq 'caustica.exe' -or $_.Name -eq 'ffmpeg.exe' -or $_.Extension -eq '.dll' } |
     Copy-Item -Destination $dist
+# The D3D12 Agility SDK runtime (Shader Model 6.9, SER), which the exe loads from .\D3D12\.
+if (Test-Path (Join-Path $release 'D3D12')) { Copy-Item -Recurse (Join-Path $release 'D3D12') (Join-Path $dist 'D3D12') }
 Copy-Item (Join-Path $root 'README.md') $dist
 Push-Location $root
 try {
