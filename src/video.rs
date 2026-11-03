@@ -797,6 +797,7 @@ impl Job {
                 self.physics_time = t;
             }
         }
+        self.settings.add_flashlight();
         let geometry = crate::geometry_key(&self.settings);
         let materials = crate::material_key(&self.settings);
         if geometry != self.geometry {

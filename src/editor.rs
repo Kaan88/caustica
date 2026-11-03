@@ -571,7 +571,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
     }
     material_ui(ui, "object", &mut o.material, advanced);
 }
-pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
+pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: bool) {
     ui.add(
         egui::TextEdit::singleline(&mut l.name)
             .char_limit(128)
@@ -691,6 +691,32 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
                     "Show the light's panel in the image.",
                     |ui| {
                         ui.checkbox(&mut l.visible, "");
+                    },
+                );
+                if audio {
+                    row(
+                        ui,
+                        "Follows",
+                        "What this light follows while lights follow the music (the Audio section of the Scene tab)",
+                        |ui| {
+                            const BANDS: [&str; 6] =
+                                ["Automatic", "Bass", "Mid", "Treble", "Beats", "Nothing"];
+                            egui::ComboBox::from_id_salt("audio band")
+                                .selected_text(BANDS[l.audio_band.min(5) as usize])
+                                .show_ui(ui, |ui| {
+                                    for (i, b) in BANDS.iter().enumerate() {
+                                        ui.selectable_value(&mut l.audio_band, i as u32, *b);
+                                    }
+                                });
+                        },
+                    );
+                }
+                row(
+                    ui,
+                    "Casts shadows",
+                    "The light's own panel blocks other lights. Off: they shine through it, while reflections still see it.",
+                    |ui| {
+                        ui.checkbox(&mut l.shadows, "");
                     },
                 );
                 if !matches!(l.kind, LightKind::Spot | LightKind::Sun) {

@@ -1,8 +1,10 @@
 //! Keyframe animation (roadmap track 8). A track drives one numeric field of `Settings`, named
 //! by its JSON path ("yaw", "objects/2/position/0", "lights/0/color/1"), so anything stored as a
 //! float can be animated without per-field code: camera, object transforms, lights, materials,
-//! exposure. Integers, enums, strings and booleans are not animated. The animation lives in the
-//! scene file (`Settings::animation`); the playhead lives in the app (`Timeline`).
+//! exposure. Booleans, integers and choices (enum names) are keyed too and hold each key's value
+//! until the next (light on / off, a shape, the tone map); free text such as names and file
+//! paths is not. The animation lives in the scene file (`Settings::animation`); the playhead
+//! lives in the app (`Timeline`).
 use crate::scene::Settings;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,6 +41,9 @@ pub struct Key {
     pub value: f64,
     #[serde(default)]
     pub interp: Interp,
+    /// A choice's name (an enum field's JSON string); `value` is unused then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -48,6 +53,12 @@ pub struct Track {
     pub keys: Vec<Key>,
 }
 impl Track {
+    /// The key in force at `t` for fields that don't interpolate: the last at or before `t`,
+    /// else the first.
+    pub fn held(&self, t: f32) -> Option<&Key> {
+        let i = self.keys.partition_point(|k| k.time <= t + 1e-6);
+        self.keys.get(i.saturating_sub(1))
+    }
     pub fn value(&self, t: f32) -> f64 {
         let k = &self.keys;
         let Some(first) = k.first() else { return 0. };
@@ -104,9 +115,12 @@ impl Track {
             _ => 0.,
         }
     }
-    pub fn insert(&mut self, time: f32, value: f64) {
+    fn insert_text(&mut self, time: f32, value: f64, text: Option<String>) {
         match self.keys.iter_mut().find(|k| (k.time - time).abs() < 1e-4) {
-            Some(k) => k.value = value,
+            Some(k) => {
+                k.value = value;
+                k.text = text;
+            }
             None => {
                 let at = self.keys.partition_point(|k| k.time < time);
                 // A new key takes the interpolation of the segment it splits.
@@ -119,6 +133,7 @@ impl Track {
                         time,
                         value,
                         interp,
+                        text,
                     },
                 );
             }
@@ -183,9 +198,9 @@ impl Animation {
             anyhow::ensure!(
                 !t.keys.is_empty()
                     && t.path.len() <= 256
-                    && t.keys
-                        .iter()
-                        .all(|k| k.time.is_finite() && k.value.is_finite())
+                    && t.keys.iter().all(|k| k.time.is_finite()
+                        && k.value.is_finite()
+                        && k.text.as_ref().is_none_or(|s| s.len() <= 64))
                     && t.keys.windows(2).all(|w| w[0].time < w[1].time),
                 "Invalid animation track {}",
                 t.path
@@ -210,11 +225,37 @@ impl Animation {
             return s.clone();
         };
         for track in self.tracks.iter().filter(|t| animatable(&t.path)) {
-            if let Some(slot) = v.pointer_mut(&format!("/{}", track.path))
-                && slot.is_f64()
-                && let Some(n) = serde_json::Number::from_f64(track.value(t))
-            {
-                *slot = Value::Number(n);
+            let Some(slot) = v.pointer_mut(&format!("/{}", track.path)) else {
+                continue;
+            };
+            let held = track.held(t);
+            match slot {
+                Value::Number(n) if n.is_f64() => {
+                    if let Some(n) = serde_json::Number::from_f64(track.value(t)) {
+                        *slot = Value::Number(n);
+                    }
+                }
+                Value::Number(n) => {
+                    if let Some(k) = held.filter(|k| k.text.is_none()) {
+                        let r = k.value.round();
+                        *slot = Value::Number(if n.is_u64() {
+                            (r.max(0.) as u64).into()
+                        } else {
+                            (r as i64).into()
+                        });
+                    }
+                }
+                Value::Bool(_) => {
+                    if let Some(k) = held.filter(|k| k.text.is_none()) {
+                        *slot = Value::Bool(k.value >= 0.5);
+                    }
+                }
+                Value::String(_) => {
+                    if let Some(text) = held.and_then(|k| k.text.clone()) {
+                        *slot = Value::String(text);
+                    }
+                }
+                _ => {}
             }
         }
         match serde_json::from_value::<Settings>(v) {
@@ -227,14 +268,27 @@ impl Animation {
     }
     /// Sets a key on `path` at `t` (replacing one at the same time).
     pub fn key(&mut self, path: &str, t: f32, value: f64) {
+        self.key_leaf(path, t, &Leaf::Number(value));
+    }
+    /// Sets a key of any keyable kind; discrete ones start on Hold.
+    pub fn key_leaf(&mut self, path: &str, t: f32, leaf: &Leaf) {
+        let (value, text) = match leaf {
+            Leaf::Number(v) | Leaf::Discrete(v) => (*v, None),
+            Leaf::Text(s) => (0., Some(s.clone())),
+        };
         match self.tracks.iter_mut().find(|tr| tr.path == path) {
-            Some(tr) => tr.insert(t, value),
+            Some(tr) => tr.insert_text(t, value, text),
             None => self.tracks.push(Track {
                 path: path.into(),
                 keys: vec![Key {
                     time: t,
                     value,
-                    interp: Interp::default(),
+                    interp: if matches!(leaf, Leaf::Number(_)) {
+                        Interp::default()
+                    } else {
+                        Interp::Hold
+                    },
+                    text,
                 }],
             }),
         }
@@ -268,6 +322,53 @@ impl Animation {
                 n += 1;
             }
         }
+        n
+    }
+    /// Retimes the keys under `prefixes` about `pivot`: t → pivot + (t − pivot) · scale +
+    /// offset, clamped to 0 and the length (which grows to fit). Keys that land on the same
+    /// time merge (the later one wins). Returns how many keys moved.
+    pub fn retime(&mut self, prefixes: &[String], pivot: f32, scale: f32, offset: f32) -> usize {
+        let mut n = 0;
+        let mut end: f32 = self.length;
+        for tr in self
+            .tracks
+            .iter_mut()
+            .filter(|tr| under_any(&tr.path, prefixes))
+        {
+            let keys = std::mem::take(&mut tr.keys);
+            for mut k in keys {
+                let t = (pivot + (k.time - pivot) * scale + offset).clamp(0., 3600.);
+                n += usize::from((t - k.time).abs() > 1e-6);
+                end = end.max(t);
+                k.time = t;
+                match tr.keys.iter_mut().find(|x| (x.time - t).abs() < 1e-4) {
+                    Some(x) => *x = k,
+                    None => tr.keys.push(k),
+                }
+            }
+            tr.keys.sort_by(|a, b| a.time.total_cmp(&b.time));
+        }
+        self.length = end;
+        n
+    }
+    /// Copies the tracks under `from` (an object's or light's prefix) to `to`, replacing
+    /// `to`'s own. Returns the number of tracks copied.
+    pub fn copy_keys(&mut self, from: &str, to: &str) -> usize {
+        if from == to || from.is_empty() || to.is_empty() {
+            return 0;
+        }
+        self.tracks.retain(|tr| !under(&tr.path, to));
+        let copies: Vec<Track> = self
+            .tracks
+            .iter()
+            .filter(|tr| under(&tr.path, from))
+            .map(|tr| Track {
+                path: format!("{to}{}", &tr.path[from.len()..]),
+                keys: tr.keys.clone(),
+            })
+            .collect();
+        let n = copies.len();
+        self.tracks.extend(copies);
         n
     }
     /// Key times under `prefixes` (empty = all), sorted and deduplicated.
@@ -330,15 +431,51 @@ pub fn under(path: &str, prefix: &str) -> bool {
 pub fn under_any(path: &str, prefixes: &[String]) -> bool {
     prefixes.is_empty() || prefixes.iter().any(|p| under(path, p))
 }
-/// Every animatable float under `prefix` in `v` ("" = the whole settings), as (path, value).
-pub fn leaves(v: &Value, prefix: &str) -> Vec<(String, f64)> {
-    fn walk(v: &Value, path: String, out: &mut Vec<(String, f64)>) {
+/// A keyable value: a float (interpolated), a boolean or integer (held), or a choice's name.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Leaf {
+    Number(f64),
+    Discrete(f64),
+    Text(String),
+}
+/// Fields under these names hold free text or references, not choices to key.
+const NOT_KEYED: [&str; 12] = [
+    "name",
+    "mesh",
+    "texture",
+    "maps_from",
+    "scene_name",
+    "hdri",
+    "lpe",
+    "title",
+    "portal",
+    "target",
+    "targets",
+    "object",
+];
+/// A string that looks like an enum's JSON name (snake case).
+fn choice(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 32
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+/// Every keyable field under `prefix`: floats, booleans, integers and choices.
+pub fn keyable(v: &Value, prefix: &str) -> Vec<(String, Leaf)> {
+    fn walk(v: &Value, path: String, out: &mut Vec<(String, Leaf)>) {
+        // Any segment: `puzzle/targets/0` is a reference too.
+        let free = path.split('/').any(|seg| NOT_KEYED.contains(&seg)) || !animatable(&path);
         match v {
             Value::Number(n) if n.is_f64() => {
                 if animatable(&path) {
-                    out.push((path, n.as_f64().unwrap_or(0.)));
+                    out.push((path, Leaf::Number(n.as_f64().unwrap_or(0.))));
                 }
             }
+            Value::Number(n) if !free => {
+                out.push((path, Leaf::Discrete(n.as_f64().unwrap_or(0.))));
+            }
+            Value::Bool(b) if !free => out.push((path, Leaf::Discrete(*b as u8 as f64))),
+            Value::String(s) if !free && choice(s) => out.push((path, Leaf::Text(s.clone()))),
             Value::Array(a) => {
                 for (i, x) in a.iter().enumerate() {
                     walk(x, join(&path, &i.to_string()), out);
@@ -359,7 +496,7 @@ pub fn leaves(v: &Value, prefix: &str) -> Vec<(String, f64)> {
             format!("{a}/{b}")
         }
     }
-    let mut out = vec![];
+    let mut out: Vec<(String, Leaf)> = vec![];
     let start = if prefix.is_empty() {
         Some(v)
     } else {
@@ -382,6 +519,8 @@ pub struct Timeline {
     /// The time and tracks `rest` was evaluated at; the animation is applied again when either
     /// changes (not for length, fps or shutter, which move no key).
     pub applied: Option<(f32, Vec<Track>)>,
+    /// Auto-key: every finished edit at a still playhead is keyed (Shift+I by itself).
+    pub auto_key: bool,
 }
 impl Default for Timeline {
     fn default() -> Self {
@@ -391,6 +530,7 @@ impl Default for Timeline {
             looping: true,
             rest: None,
             applied: None,
+            auto_key: false,
         }
     }
 }
@@ -442,6 +582,45 @@ impl Timeline {
     pub fn settle(&mut self, s: &Settings) {
         self.rest = (!s.animation.is_empty()).then(|| s.clone());
         self.applied = Some((self.time, s.animation.tracks.clone()));
+    }
+    /// Auto-key: keys what changed since the last applied or keyed state, once no edit is in
+    /// progress. Before the scene's first key, the state when auto-key was turned on (or the
+    /// last frame's) is the reference. Returns the number of keys set.
+    pub fn auto_key(&mut self, s: &mut Settings, busy: bool, last: &mut Option<Settings>) -> usize {
+        if !self.auto_key || self.playing {
+            *last = None;
+            return 0;
+        }
+        if busy {
+            return 0;
+        }
+        if self.rest.is_none() {
+            self.rest = last.take();
+        }
+        let n = match &self.rest {
+            Some(r) if r != s => key_changed(s, self),
+            _ => 0,
+        };
+        if n > 0 {
+            self.settle(s);
+        }
+        if last.as_ref() != Some(s) {
+            *last = Some(s.clone());
+        }
+        n
+    }
+    /// Auto-key: takes `s` as the reference without keying (after the app's own changes:
+    /// physics, walking, the remote).
+    pub fn absorb(&mut self, s: &Settings, last: &mut Option<Settings>) {
+        if !self.auto_key || self.playing {
+            return;
+        }
+        if self.rest.as_ref().is_some_and(|r| r != s) {
+            self.settle(s);
+        }
+        if last.as_ref() != Some(s) {
+            *last = Some(s.clone());
+        }
     }
     /// Snaps a time to the animation's frame grid.
     pub fn snap(a: &Animation, t: f32) -> f32 {
@@ -505,10 +684,10 @@ pub fn key_selection(s: &mut Settings, tl: &Timeline, selection: crate::ui::Sele
         None => v.clone(),
     };
     // Top-level groups (camera, main light) list their fields; objects and lights cover all.
-    let candidates: Vec<(String, f64)> = if prefix.is_empty() {
-        first.iter().flat_map(|f| leaves(&v, f)).collect()
+    let candidates: Vec<(String, Leaf)> = if prefix.is_empty() {
+        first.iter().flat_map(|f| keyable(&v, f)).collect()
     } else {
-        leaves(&v, &prefix)
+        keyable(&v, &prefix)
     };
     let fresh = !candidates
         .iter()
@@ -526,13 +705,13 @@ pub fn key_selection(s: &mut Settings, tl: &Timeline, selection: crate::ui::Sele
         })
     };
     let mut n = 0;
-    for (path, value) in candidates {
+    for (path, leaf) in candidates {
         let changed = rest
             .pointer(&format!("/{path}"))
-            .and_then(Value::as_f64)
-            .is_some_and(|r| r != value);
-        if s.animation.track(&path).is_some() || changed || (fresh && first_key(&path)) {
-            s.animation.key(&path, tl.time, value);
+            .is_some_and(|r| Some(r) != v.pointer(&format!("/{path}")));
+        let floats_first = fresh && first_key(&path) && matches!(leaf, Leaf::Number(_));
+        if s.animation.track(&path).is_some() || changed || floats_first {
+            s.animation.key_leaf(&path, tl.time, &leaf);
             n += 1;
         }
     }
@@ -546,13 +725,12 @@ pub fn key_changed(s: &mut Settings, tl: &Timeline) -> usize {
         None => v.clone(),
     };
     let mut n = 0;
-    for (path, value) in leaves(&v, "") {
+    for (path, leaf) in keyable(&v, "") {
         let changed = rest
             .pointer(&format!("/{path}"))
-            .and_then(Value::as_f64)
-            .is_some_and(|r| r != value);
+            .is_some_and(|r| Some(r) != v.pointer(&format!("/{path}")));
         if changed {
-            s.animation.key(&path, tl.time, value);
+            s.animation.key_leaf(&path, tl.time, &leaf);
             n += 1;
         }
     }
@@ -571,6 +749,7 @@ mod tests {
                     time,
                     value,
                     interp,
+                    text: None,
                 })
                 .collect(),
         }
@@ -598,7 +777,7 @@ mod tests {
         assert!((e.value(0.5) - 0.5).abs() < 1e-9 && e.value(0.1) < 0.1);
     }
     #[test]
-    fn apply_drives_floats_and_skips_the_rest() {
+    fn apply_drives_floats_and_holds_discrete_fields() {
         let mut s = Settings::default();
         s.animation.key("objects/0/position/0", 0., -0.5);
         s.animation.key("objects/0/position/0", 2., 0.5);
@@ -607,13 +786,65 @@ mod tests {
         s.animation.key("objects/9/size", 0., 2.);
         let out = s.animation.apply(&s, 1.);
         assert!(out.objects[0].position[0].abs() < 1e-6);
-        assert_eq!(out.bounces, s.bounces);
+        assert_eq!(out.bounces, 2, "integers hold their key");
         // Out-of-range values leave the settings alone.
         s.animation.key("exposure", 0., -1.);
         assert_eq!(
             s.animation.apply(&s, 1.).objects[0].position[0],
             s.objects[0].position[0]
         );
+    }
+    #[test]
+    fn booleans_and_choices_hold_until_the_next_key() {
+        let mut s = Settings::default();
+        let mut tl = Timeline {
+            rest: Some(s.clone()),
+            ..Timeline::default()
+        };
+        s.light_on = false;
+        s.objects[0].shape = crate::scene::Shape::Sphere;
+        tl.time = 1.;
+        assert!(key_changed(&mut s, &tl) >= 2);
+        tl.rest = Some(s.clone());
+        s.light_on = true;
+        s.objects[0].shape = crate::scene::Shape::Box;
+        tl.time = 2.;
+        key_changed(&mut s, &tl);
+        let a = &s.animation;
+        let at = |t: f32| a.apply(&s, t);
+        assert!(!at(1.5).light_on && at(2.).light_on && !at(0.).light_on);
+        assert!(at(1.9).objects[0].shape == crate::scene::Shape::Sphere);
+        assert!(at(2.5).objects[0].shape == crate::scene::Shape::Box);
+        // Names are never keyed.
+        assert!(a.tracks.iter().all(|t| !t.path.ends_with("name")));
+    }
+    #[test]
+    fn auto_key_keys_finished_edits() {
+        let mut s = Settings::default();
+        let mut tl = Timeline {
+            auto_key: true,
+            ..Timeline::default()
+        };
+        let mut last = None;
+        assert_eq!(tl.auto_key(&mut s, false, &mut last), 0);
+        s.exposure = 1.5;
+        assert_eq!(tl.auto_key(&mut s, true, &mut last), 0, "waits while busy");
+        assert_eq!(tl.auto_key(&mut s, false, &mut last), 1);
+        assert!(s.animation.track("exposure").is_some());
+        assert_eq!(tl.auto_key(&mut s, false, &mut last), 0, "keyed once");
+    }
+    #[test]
+    fn retiming_and_copying_keys() {
+        let mut a = Animation::default();
+        a.key("objects/0/size", 1., 1.);
+        a.key("objects/0/size", 2., 2.);
+        a.key("objects/1/size", 1., 5.);
+        let only = vec!["objects/0".to_string()];
+        assert_eq!(a.retime(&only, 1., 2., 0.5), 2);
+        assert_eq!(a.times(&only), vec![1.5, 3.5]);
+        assert_eq!(a.times(&["objects/1".to_string()]), vec![1.]);
+        assert_eq!(a.copy_keys("objects/0", "objects/1"), 1);
+        assert_eq!(a.track("objects/1/size").unwrap().keys.len(), 2);
     }
     #[test]
     fn keying_a_selection_and_removing_an_object() {

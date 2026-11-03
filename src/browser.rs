@@ -502,8 +502,10 @@ impl crate::App {
             }
             Use::Model(path) => {
                 let full = crate::mesh::resolve(&path);
-                match crate::mesh::import_objects(&full) {
-                    Ok(objects) => {
+                match crate::mesh::import_scene(&full, false) {
+                    Ok((objects, lights)) => {
+                        let room = crate::scene::MAX_LIGHTS - self.settings.lights.len();
+                        self.settings.lights.extend(lights.into_iter().take(room));
                         let room = crate::scene::MAX_OBJECTS - self.settings.objects.len();
                         let count = objects.len().min(room);
                         self.settings

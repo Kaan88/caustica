@@ -1,0 +1,463 @@
+{
+ "format": 1,
+ "title": "The Weather Project",
+ "description": "After Olafur Eliasson's installation: a monofrequency half sun under a mirrored ceiling that completes the disc, in a hall filled with haze; visitors lie on the floor and find themselves overhead.",
+ "tags": [
+  "interior",
+  "fog",
+  "art",
+  "mirror"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 12.0,
+  "sky": 0.0,
+  "base": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "floor": {
+   "color": [
+    0.3,
+    0.27,
+    0.22
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.04,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0
+  },
+  "light_on": false,
+  "lights": [],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 8,
+  "distance": 9.5,
+  "target": [
+   0,
+   1.5,
+   -2
+  ],
+  "fov": 60,
+  "exposure": 1.5,
+  "fog": {
+   "density": 0.08,
+   "color": [
+    0.95,
+    0.95,
+    0.95
+   ],
+   "phase": 0.3,
+   "height": 6.0,
+   "extent": 3.5
+  },
+  "objects": [
+   {
+    "name": "Mirror ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 2.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     5.0,
+     10.0
+    ],
+    "elevation": 5.05,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.92,
+      0.92
+     ],
+     "roughness": 0.02,
+     "metallic": 1.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Left wall",
+    "shape": "box",
+    "position": [
+     -3.6,
+     0
+    ],
+    "size": 2.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1429,
+     10.0
+    ],
+    "elevation": 2.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.23,
+      0.2
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Right wall",
+    "shape": "box",
+    "position": [
+     3.6,
+     0
+    ],
+    "size": 2.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1429,
+     10.0
+    ],
+    "elevation": 2.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.23,
+      0.2
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "End wall",
+    "shape": "box",
+    "position": [
+     0,
+     -7.1
+    ],
+    "size": 1.0,
+    "stretch": 8.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     0.2857
+    ],
+    "elevation": 2.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.18,
+      0.16
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sun",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -6.95
+    ],
+    "size": 0.6286,
+    "stretch": 0.0909,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     10.0
+    ],
+    "elevation": 4.99,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.12
+     ],
+     "roughness": 1.0,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Visitor 1",
+    "shape": "cylinder",
+    "position": [
+     -1.2,
+     2.0
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": 20,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.75
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.07,
+      0.06
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Visitor 2",
+    "shape": "cylinder",
+    "position": [
+     0.8,
+     3.0
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": -50,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.75
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.07,
+      0.06
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Visitor 3",
+    "shape": "cylinder",
+    "position": [
+     1.8,
+     0.5
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": 80,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.75
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.07,
+      0.06
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Visitor 4",
+    "shape": "cylinder",
+    "position": [
+     -2.0,
+     -0.5
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": 10,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.75
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.07,
+      0.06
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Visitor 5",
+    "shape": "cylinder",
+    "position": [
+     0.2,
+     1.0
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": 35,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.75
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.07,
+      0.06
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Visitor 6",
+    "shape": "cylinder",
+    "position": [
+     -0.5,
+     4.0
+    ],
+    "size": 0.2286,
+    "stretch": 10.0,
+    "rotation": -70,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.75
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.07,
+      0.06
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

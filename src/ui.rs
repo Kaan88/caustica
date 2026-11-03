@@ -154,6 +154,8 @@ pub struct UiState {
     /// Tab cycles: everything → top bar only → nothing (screenshot mode).
     pub panel_hidden: bool,
     pub selection: Selection,
+    /// + Mesh imports stand Z-up files upright (scans, CAD exports).
+    pub mesh_z_up: bool,
     pub add_shape: Shape,
     pub search: String,
     pub export_scale: u32,
@@ -288,6 +290,7 @@ impl Default for UiState {
             advanced: false,
             panel_hidden: false,
             selection: Selection::Stage,
+            mesh_z_up: false,
             add_shape: Shape::Sphere,
             search: String::new(),
             export_scale: 2,
@@ -2148,8 +2151,7 @@ impl App {
         // top of them would hide what they light.
         if self.settings.puzzle.enabled && !self.settings.puzzle.beam && self.settings.perspective()
         {
-            self.laser
-                .draw(&painter, ppp, &view, self.settings.puzzle.color);
+            self.laser.draw(&painter, ppp, &view);
         }
         if self.ui.paths.open && self.settings.perspective() {
             crate::paths::draw(
@@ -3496,25 +3498,31 @@ impl App {
                         pick(state, &r, Selection::Light(i));
                     });
                 }
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(format!(
-                        "Objects ({} / {})",
-                        s.objects.len(),
-                        scene::MAX_OBJECTS
-                    ))
-                    .small(),
-                );
-                if s.objects.len() > 8 {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut state.search).hint_text("Search objects…"),
-                    );
-                }
-                let search = state.search.to_lowercase();
-                for (i, o) in s.objects.iter_mut().enumerate() {
-                    if !o.name.to_lowercase().contains(&search) {
-                        continue;
-                    }
+            });
+        ui.separator();
+        ui.label(
+            egui::RichText::new(format!(
+                "Objects ({} / {})",
+                s.objects.len(),
+                scene::MAX_OBJECTS
+            ))
+            .small(),
+        );
+        if s.objects.len() > 8 {
+            ui.add(egui::TextEdit::singleline(&mut state.search).hint_text("Search objects…"));
+        }
+        let search = state.search.to_lowercase();
+        let shown: Vec<usize> = (0..s.objects.len())
+            .filter(|&i| s.objects[i].name.to_lowercase().contains(&search))
+            .collect();
+        // Only the rows in view are laid out (4096 objects stay cheap).
+        let row_height = ui.spacing().interact_size.y;
+        egui::ScrollArea::vertical()
+            .id_salt("outliner objects")
+            .max_height(260.)
+            .show_rows(ui, row_height, shown.len(), |ui, rows| {
+                for &i in &shown[rows] {
+                    let o = &mut s.objects[i];
                     ui.horizontal(|ui| {
                         ui.push_id(("object", i), |ui| {
                             ui.checkbox(&mut o.visible, "").on_hover_text("Visible");
@@ -3554,16 +3562,18 @@ impl App {
                     s.objects.len() < scene::MAX_OBJECTS,
                     egui::Button::new("+ Mesh…"),
                 )
-                .on_hover_text("Import an OBJ, glTF or GLB file")
+                .on_hover_text("Import an OBJ, glTF, GLB, PLY or STL file (glTF lights come along)")
                 .clicked()
                 && let Some(path) = rfd::FileDialog::new()
-                    .add_filter("Meshes", &["obj", "gltf", "glb"])
+                    .add_filter("Meshes", &["obj", "gltf", "glb", "ply", "stl"])
                     .set_directory(crate::scenes::folder().unwrap_or_default())
                     .pick_file()
             {
-                match crate::mesh::import_objects(&path) {
-                    Ok(parts) => {
+                match crate::mesh::import_scene(&path, state.mesh_z_up) {
+                    Ok((parts, lights)) => {
                         state.checkpoint(s);
+                        let room = scene::MAX_LIGHTS - s.lights.len();
+                        s.lights.extend(lights.into_iter().take(room));
                         let first = s.objects.len();
                         let room = scene::MAX_OBJECTS - first;
                         if parts.len() > room {
@@ -3579,6 +3589,12 @@ impl App {
                     Err(e) => state.error(format!("{e:#}")),
                 }
             }
+            ui.checkbox(&mut s.flashlight, "Flashlight").on_hover_text(
+                "A spot light on the camera, aimed where you look (with walk mode: a horror game)",
+            );
+            ui.checkbox(&mut state.mesh_z_up, "Z-up").on_hover_text(
+                "Stand the next imported mesh upright when its file is Z-up (scans, CAD)",
+            );
             ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
                 ui.menu_button("+ Light", |ui| {
                     for kind in scene::LightKind::ALL {
@@ -3735,6 +3751,14 @@ impl App {
                 row(ui, "Smoothing", "Higher is calmer", |ui| {
                     ui.add(egui::Slider::new(&mut a.smoothing, 0. ..=0.99));
                 });
+                row(
+                    ui,
+                    "Colour shift",
+                    "How far each light's colour moves toward its band's at full level: bass red, mid green, treble blue, beats white. Each light's band is in its own settings.",
+                    |ui| {
+                        ui.add(egui::Slider::new(&mut a.color_shift, 0. ..=1.));
+                    },
+                );
             });
         }
         // Track 17 laser puzzle (see laser.rs).
@@ -3826,9 +3850,22 @@ impl App {
                         ui.checkbox(&mut p.beam, "");
                     },
                 );
-                row(ui, "Colour", "Beam colour in the viewport", |ui| {
-                    ui.color_edit_button_rgb(&mut p.color);
-                });
+                row(
+                    ui,
+                    "Colour",
+                    "The laser's colour: its red, green and blue are filtered by coloured glass and split apart by glass with dispersion",
+                    |ui| {
+                        ui.color_edit_button_rgb(&mut p.color);
+                    },
+                );
+                row(
+                    ui,
+                    "Match colours",
+                    "Targets count only when the beam arriving has exactly their colour's channels",
+                    |ui| {
+                        ui.checkbox(&mut p.colors, "");
+                    },
+                );
             });
             let status = if solved {
                 "Solved"
@@ -3891,7 +3928,8 @@ impl App {
             Selection::MainLight => main_light_ui(ui, s, advanced),
             Selection::Light(i) => {
                 section(ui, "Area light");
-                editor::light_ui(ui, &mut s.lights[i], advanced);
+                let audio = s.audio.enabled;
+                editor::light_ui(ui, &mut s.lights[i], advanced, audio);
                 if ui.button("Delete light (Del)").clicked()
                     && let Some(name) = state.delete_selected(s)
                 {

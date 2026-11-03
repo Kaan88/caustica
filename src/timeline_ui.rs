@@ -127,6 +127,9 @@ impl App {
                 );
                 ui.checkbox(&mut self.timeline.looping, "Loop");
                 ui.separator();
+                ui.checkbox(&mut self.timeline.auto_key, "Auto-key").on_hover_text(
+                    "Every edit you finish at a still playhead is keyed there (as Shift+I)",
+                );
                 if ui
                     .button("Key")
                     .on_hover_text(
@@ -135,6 +138,54 @@ impl App {
                     .clicked()
                 {
                     self.key_selection(false);
+                }
+                let frame = 1. / self.settings.animation.fps.max(1) as f32;
+                let mut retime = None;
+                let mut copy = false;
+                ui.add_enabled_ui(!keys.is_empty(), |ui| {
+                    ui.menu_button("Keys", |ui| {
+                        for (label, r) in [
+                            ("Later by a frame", (1., frame)),
+                            ("Earlier by a frame", (1., -frame)),
+                            ("Later by a second", (1., 1.)),
+                            ("Earlier by a second", (1., -1.)),
+                            ("Twice as slow (from the playhead)", (2., 0.)),
+                            ("Twice as fast (from the playhead)", (0.5, 0.)),
+                        ] {
+                            if ui.button(label).clicked() {
+                                retime = Some(r);
+                                ui.close_menu();
+                            }
+                        }
+                        let others = self.ui.also.len();
+                        if ui
+                            .add_enabled(
+                                others > 0,
+                                egui::Button::new(format!("Copy to the {others} other selected")),
+                            )
+                            .on_hover_text("Replace the other selected objects' or lights' keys with the active one's")
+                            .clicked()
+                        {
+                            copy = true;
+                            ui.close_menu();
+                        }
+                    })
+                    .response
+                    .on_hover_text("Move, stretch or copy the selection's keys");
+                });
+                if let Some((scale, offset)) = retime {
+                    self.ui.checkpoint(&self.settings);
+                    self.settings.animation.retime(&prefixes, t, scale, offset);
+                }
+                if copy {
+                    self.ui.checkpoint(&self.settings);
+                    let (from, _) = anim::entity(self.ui.selection);
+                    let mut n = 0;
+                    for other in self.ui.also.clone() {
+                        let (to, _) = anim::entity(other);
+                        n += self.settings.animation.copy_keys(&from, &to);
+                    }
+                    self.ui.toast(format!("Copied {n} track(s)"));
                 }
                 let here = keys.iter().any(|k| (k - t).abs() < 1e-4);
                 if ui

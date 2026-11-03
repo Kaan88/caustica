@@ -54,6 +54,11 @@ pub struct Audio {
     rate: f32,
     /// Smoothed levels, 0..1 against each band's recent peak.
     pub levels: [f32; 3],
+    /// Beat envelope (track 19): jumps to 1 on a bass onset, then decays (half-life 80 ms).
+    pub beat: f32,
+    /// Running mean of the raw bass energy and the time since the last beat.
+    bass_mean: f32,
+    since_beat: f32,
     /// Each band's slowly decaying peak (automatic gain).
     peaks: [f32; 3],
     planner: rustfft::FftPlanner<f32>,
@@ -112,6 +117,9 @@ impl Audio {
             ring,
             rate,
             levels: [0.; 3],
+            beat: 0.,
+            bass_mean: -1.,
+            since_beat: 1.,
             peaks: [1e-4; 3],
             planner: rustfft::FftPlanner::new(),
             error,
@@ -155,19 +163,64 @@ impl Audio {
             *peak = (*peak * decay).max(raw).max(1e-4);
             *level = *level * keep + (raw / *peak).clamp(0., 1.) * (1. - keep);
         }
+        (self.beat, self.bass_mean, self.since_beat, _) = beat_step(
+            self.beat,
+            self.bass_mean,
+            self.since_beat,
+            raw[0],
+            self.peaks[0],
+            dt,
+        );
     }
 }
 
+/// One step of the beat detector: an onset is bass energy 1.5× its running mean (about a
+/// second long), above 30% of the band's peak, at least 0.25 s after the last one. Returns the
+/// new envelope, mean, time since the last beat, and whether this step was an onset.
+fn beat_step(
+    beat: f32,
+    mean: f32,
+    since: f32,
+    bass: f32,
+    peak: f32,
+    dt: f32,
+) -> (f32, f32, f32, bool) {
+    // A negative mean is "no history yet": the first window only starts it.
+    if mean < 0. {
+        return (beat, bass, since + dt, false);
+    }
+    let onset = bass > 1.5 * mean && bass > 0.3 * peak && since > 0.25;
+    let mean = mean + (bass - mean) * (1. - 0.5f32.powf(dt / 0.7));
+    let beat = if onset {
+        1.
+    } else {
+        beat * 0.5f32.powf(dt / 0.08)
+    };
+    (beat, mean, if onset { 0. } else { since + dt }, onset)
+}
 /// Scales the lights and emitters of `s` by the band levels: the main light follows the bass,
 /// area light i band i % 3, emissive object i band i % 3. A level of 0 gives `floor` of the
 /// set intensity, a level of 1 gives `floor + gain`.
 /// `emitters`: also scale emissive objects.
-pub fn apply(s: &mut Settings, levels: [f32; 3], emitters: bool) {
+pub fn apply(s: &mut Settings, levels: [f32; 3], beat: f32, emitters: bool) {
     let a = s.audio;
     let scale = |band: usize| a.floor + a.gain * levels[band % 3];
     s.light_intensity *= scale(0);
+    const BAND_COLORS: [[f32; 3]; 4] = [[1., 0.25, 0.1], [0.3, 1., 0.3], [0.3, 0.5, 1.], [1.; 3]];
     for (i, l) in s.lights.iter_mut().enumerate() {
-        l.intensity *= scale(i);
+        // The light's band: 0..3 bass, mid, treble, 3 beats, None for nothing.
+        let band = match l.audio_band {
+            0 => Some(i % 3),
+            b @ 1..=4 => Some(b as usize - 1),
+            _ => None,
+        };
+        let Some(band) = band else { continue };
+        let level = if band == 3 { beat } else { levels[band] };
+        l.intensity = (l.intensity * (a.floor + a.gain * level)).min(2000.);
+        let w = a.color_shift * level;
+        for (c, b) in l.color.iter_mut().zip(BAND_COLORS[band]) {
+            *c = (*c * (1. - w) + b * w).clamp(0., 1.);
+        }
     }
     for (i, o) in s.objects.iter_mut().enumerate() {
         if emitters && o.material.emission > 0. {
@@ -213,11 +266,46 @@ mod tests {
                 gain: 2.,
                 floor: 0.5,
                 smoothing: 0.5,
+                color_shift: 0.,
             },
             ..Settings::default()
         };
         let base = s.light_intensity;
-        apply(&mut s, [1., 0., 0.], true);
+        apply(&mut s, [1., 0., 0.], 0., true);
         assert!((s.light_intensity - base * 2.5).abs() < 1e-4);
+        // A light on beats with full colour shift turns white at a beat; one set to nothing
+        // keeps its intensity.
+        s.audio.color_shift = 1.;
+        s.lights = vec![
+            crate::scene::AreaLight {
+                audio_band: 4,
+                color: [1., 0., 0.],
+                ..Default::default()
+            },
+            crate::scene::AreaLight {
+                audio_band: 5,
+                ..Default::default()
+            },
+        ];
+        let before = s.lights[1].intensity;
+        apply(&mut s, [0.; 3], 1., true);
+        assert_eq!(s.lights[0].color, [1.; 3]);
+        assert_eq!(s.lights[1].intensity, before);
+    }
+    #[test]
+    fn beats_fire_on_bass_onsets_only() {
+        let (mut beat, mut mean, mut since) = (0., 0.1, 1.);
+        let mut onsets = 0;
+        // Steady bass for 2 s, then a kick every 0.5 s.
+        for f in 0..240 {
+            let t = f as f32 / 60.;
+            let kick = t > 2. && (t % 0.5) < 1. / 60.;
+            let bass = if kick { 1. } else { 0.1 };
+            let o;
+            (beat, mean, since, o) = beat_step(beat, mean, since, bass, 1., 1. / 60.);
+            onsets += o as u32;
+        }
+        assert_eq!(onsets, 4);
+        assert!(beat < 1.);
     }
 }

@@ -4,10 +4,12 @@
  "license": "Own work",
  "commercial_use": true,
  "attribution": "Caustica",
- "description": "Track 17 laser puzzle levels: route the beam to the green target in few moves.",
+ "description": "Track 17 laser puzzle levels: route the beam to its targets in few moves (levels 4 and 5 match colours).",
  "scenes": [
   "laser-1.json",
   "laser-2.json",
-  "laser-3.json"
+  "laser-3.json",
+  "laser-4.json",
+  "laser-5.json"
  ]
 }

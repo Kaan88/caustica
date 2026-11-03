@@ -355,6 +355,20 @@ pub struct AreaLight {
     pub blend: f32,
     /// Sun: angular diameter in degrees (the real sun is 0.53).
     pub angle: f32,
+    /// The light's own panel blocks shadow rays (physical). Off: other lights shine through it
+    /// (a studio rim light that shouldn't shadow the sun); bounce rays still see it.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub shadows: bool,
+    /// Track 19 audio: what this light follows (0 automatic: band i mod 3; 1 bass, 2 mid,
+    /// 3 treble, 4 beats, 5 nothing).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub audio_band: u32,
+}
+fn yes() -> bool {
+    true
+}
+fn is_true(b: &bool) -> bool {
+    *b
 }
 impl AreaLight {
     /// The direction the light faces (a sun's light travels along it).
@@ -408,6 +422,8 @@ impl Default for AreaLight {
             spread: 60.,
             blend: 0.25,
             angle: 0.53,
+            shadows: true,
+            audio_band: 0,
         }
     }
 }
@@ -581,6 +597,10 @@ pub struct AudioReact {
     pub floor: f32,
     /// How much of the last level each frame keeps (at 60 fps), 0 = none.
     pub smoothing: f32,
+    /// How far each light's colour moves toward its band's colour at full level (bass red,
+    /// mid green, treble blue, beats white), 0–1.
+    #[serde(default)]
+    pub color_shift: f32,
 }
 impl Default for AudioReact {
     fn default() -> Self {
@@ -589,6 +609,7 @@ impl Default for AudioReact {
             gain: 1.5,
             floor: 0.3,
             smoothing: 0.6,
+            color_shift: 0.,
         }
     }
 }
@@ -614,6 +635,10 @@ pub struct Puzzle {
     pub targets: Vec<i32>,
     /// The beam also renders as thin glowing rods in the image (not only the overlay).
     pub beam: bool,
+    /// Targets count only when the beam's channels match their colour (red, green, blue each
+    /// above 0.5 wanted, below not allowed); filters and prisms make the colours.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub colors: bool,
 }
 impl Default for Puzzle {
     fn default() -> Self {
@@ -626,6 +651,7 @@ impl Default for Puzzle {
             color: [1., 0.1, 0.1],
             targets: vec![],
             beam: false,
+            colors: false,
         }
     }
 }
@@ -729,6 +755,9 @@ impl Object {
 pub struct Settings {
     pub objects: Vec<Object>,
     pub lights: Vec<AreaLight>,
+    /// Flashlight mode (track 7): a spot light rides on the camera, a little below the eye,
+    /// aimed at the view's centre. Added to each frame's copy, never stored as a light.
+    pub flashlight: bool,
     pub scene_name: String,
     pub cornell_room: bool,
     pub floor_extent: f32,
@@ -917,6 +946,7 @@ impl Default for Settings {
                 },
             ],
             lights: vec![],
+            flashlight: false,
             scene_name: "Classic Cornell box".into(),
             cornell_room: true,
             floor_extent: 1.,
@@ -1388,7 +1418,9 @@ impl Settings {
         anyhow::ensure!(
             (0. ..=8.).contains(&self.audio.gain)
                 && (0. ..=1.).contains(&self.audio.floor)
-                && (0. ..=0.99).contains(&self.audio.smoothing),
+                && (0. ..=0.99).contains(&self.audio.smoothing)
+                && (0. ..=1.).contains(&self.audio.color_shift)
+                && self.lights.iter().all(|l| l.audio_band <= 5),
             "Invalid audio settings"
         );
         let p = &self.puzzle;
@@ -1537,6 +1569,43 @@ impl Settings {
     /// pinhole math of RR's motion vectors, the upscalers, picking and the gizmo.
     pub fn real_lens(&self) -> bool {
         self.projection == 0 && self.lens_system > 0
+    }
+    /// The flashlight's spot (track 7) for the current camera.
+    pub fn flashlight_light(&self) -> AreaLight {
+        let (view, _, eye) = self.camera(1.);
+        let inv = view.inverse();
+        let forward = inv.transform_vector3(-Vec3::Z).normalize_or(-Vec3::Z);
+        let down = inv.transform_vector3(-Vec3::Y).normalize_or(-Vec3::Y);
+        let position = eye + down * 0.08 + forward * 0.05;
+        let pitch = (-forward.y).clamp(-1., 1.).acos();
+        let yaw = if pitch.sin() > 1e-4 {
+            (-forward.x).atan2(-forward.z)
+        } else {
+            0.
+        };
+        AreaLight {
+            name: "Flashlight".into(),
+            position: position.to_array().map(|v| v.clamp(-50., 50.)),
+            rotation: [pitch.to_degrees(), yaw.to_degrees(), 0.],
+            size: [0.06; 2],
+            color: [1., 0.93, 0.82],
+            intensity: 60.,
+            visible: false,
+            kind: LightKind::Spot,
+            spread: 40.,
+            blend: 0.6,
+            shadows: false,
+            // Audio-reactive lights leave it alone.
+            audio_band: 5,
+            ..AreaLight::default()
+        }
+    }
+    /// Appends the flashlight when it is on and a light slot is free.
+    pub fn add_flashlight(&mut self) {
+        if self.flashlight && self.lights.len() < MAX_LIGHTS {
+            let l = self.flashlight_light();
+            self.lights.push(l);
+        }
     }
     pub fn camera(&self, aspect: f32) -> (Mat4, Mat4, Vec3) {
         let (sy, cy) = self.yaw.to_radians().sin_cos();

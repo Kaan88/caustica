@@ -73,7 +73,7 @@ Footprint footprint(float3 d,float3 n,float w,float3 T,float3 B,float uv_scale){
     return f;
 }
 // Material flag bits (lobes.w): 1 unlit, 2 hidden from the camera, 4 portal, 8 masked texture
-// maps, 16 any texture maps, 4096 beam splitter. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
+// maps, 16 any texture maps, 4096 beam splitter, 8192 a light that casts no shadows. Without TEXTURE_MAPS (build.rs's `trace` variant, for scenes with
 // no maps) the map code folds away: it cost untextured scenes about 7% even when never run.
 // Diffraction gratings ride in the same variant (Gpu picks it when any material has one): their
 // code cost scenes without one 2–15% in registers even when never run.
@@ -275,10 +275,11 @@ bool sdf_hit(uint raw,float3 o,float3 d,float tmin,float tmax,out float t){
 // and objects under both rules, which keep mask 0xff.
 #define MASK_HIDDEN 2u
 #define MASK_CLEAR_GLASS 4u
+#define MASK_NO_SHADOW 8u
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
-    uint mask=0xffu&~(camera_ray?MASK_HIDDEN:0u)&~(shadow && jitter.w<=0.5?MASK_CLEAR_GLASS:0u);
+    uint mask=0xffu&~(camera_ray?MASK_HIDDEN:0u)&~(shadow && jitter.w<=0.5?MASK_CLEAR_GLASS:0u)&~(shadow?MASK_NO_SHADOW:0u);
     RayQuery<RQ_BASE RQ_OMM> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
@@ -291,6 +292,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
         uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
         if(camera_ray && (((uint)materials[m].lobes.w&2u)!=0))continue;
+        if(shadow && (((uint)materials[m].lobes.w&8192u)!=0))continue;
         if(!shadow || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();
     }
     h=(Hit)0;
@@ -352,7 +354,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
-    uint mask=glass_blocks || jitter.w>0.5?0xffu:0xffu&~MASK_CLEAR_GLASS;
+    uint mask=(glass_blocks || jitter.w>0.5?0xffu:0xffu&~MASK_CLEAR_GLASS)&~MASK_NO_SHADOW;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH|RQ_BASE RQ_OMM> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
@@ -362,6 +364,7 @@ bool occluded(float3 o,float3 d,float limit){
         }
         uint m=candidate_material(q.CandidateInstanceID(),q.CandidatePrimitiveIndex());
         if(flagged(m,8u) && alpha_hole(q.CandidateInstanceID(),q.CandidatePrimitiveIndex(),q.CandidateTriangleBarycentrics(),m))continue;
+        if(((uint)materials[m].lobes.w&8192u)!=0)continue;
         if(glass_blocks || jitter.w>0.5 || materials[m].lobes.z<0.5)q.CommitNonOpaqueTriangleHit();}
     return q.CommittedStatus()!=COMMITTED_NOTHING;
 }

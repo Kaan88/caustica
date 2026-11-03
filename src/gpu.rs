@@ -505,16 +505,20 @@ pub struct Gpu {
 fn instance_mask(m: &crate::lighting::PackedMaterial) -> (u32, bool) {
     let hidden = (m.lobes[3] as u32 & 2) != 0;
     let clear = m.lobes[2] >= 0.5;
-    match (hidden, clear) {
+    // A light that casts no shadows (flag 8192) is left out of every shadow ray.
+    let unshadowed = (m.lobes[3] as u32 & 8192) != 0;
+    match (hidden, clear || unshadowed) {
         (true, true) => (0xff, true),
         (true, false) => (MASK_HIDDEN, false),
+        (false, true) if unshadowed => (MASK_NO_SHADOW, false),
         (false, true) => (MASK_CLEAR_GLASS, false),
         (false, false) => (0xff, false),
     }
 }
-/// Instance mask bits (pathtrace.hlsl MASK_HIDDEN, MASK_CLEAR_GLASS).
+/// Instance mask bits (pathtrace.hlsl MASK_HIDDEN, MASK_CLEAR_GLASS, MASK_NO_SHADOW).
 const MASK_HIDDEN: u32 = 2;
 const MASK_CLEAR_GLASS: u32 = 4;
+const MASK_NO_SHADOW: u32 = 8;
 /// What the device offers for Shader Execution Reordering (track 20): Shader Model 6.9 (with
 /// the Agility SDK, src/main.rs) and raytracing tier 1.2; `reorders` says whether
 /// `MaybeReorderThread` does anything on this GPU (D3D12_OPTIONS22).

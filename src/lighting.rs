@@ -150,7 +150,7 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
         });
         // Flat lights shine from their front only; a sphere all round.
         m.optical[3] = (l.kind != LightKind::Sphere) as u32 as f32;
-        m.lobes[3] = 1. + if l.visible { 0. } else { 2. };
+        m.lobes[3] = 1. + if l.visible { 0. } else { 2. } + if l.shadows { 0. } else { 8192. };
         // Spot (flag bit 5): emission × smoothstep(cos outer, cos inner, cos to the normal).
         if l.kind == LightKind::Spot {
             let (outer, inner) = l.cone();

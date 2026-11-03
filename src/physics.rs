@@ -2124,6 +2124,7 @@ mod tests {
                         time,
                         value: y,
                         interp: crate::anim::Interp::Linear,
+                        text: None,
                     }
                 })
                 .collect(),

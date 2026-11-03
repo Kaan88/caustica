@@ -19,6 +19,7 @@ mod lighting;
 mod look;
 mod lpe;
 mod mesh;
+mod meshfmt;
 mod omm;
 mod paths;
 mod physics;
@@ -166,6 +167,8 @@ struct App {
     painting: bool,
     /// Walk mode (`): WASD and mouse look; the keys held down right now.
     walking: Option<walk::Walk>,
+    /// Auto-key's reference state before the scene has keys (anim::Timeline::auto_key).
+    auto_key_base: Option<scene::Settings>,
     keys_down: std::collections::HashSet<KeyCode>,
     /// Screensaver show mode (`/s`): cycles scenes and quits on input.
     saver: Option<saver::Saver>,
@@ -303,7 +306,12 @@ fn geometry_key(s: &Settings) -> String {
         s.floor_extent,
         s.lights
             .iter()
-            .map(|l| (l.enabled, l.visible, l.position, l.rotation, l.size, l.kind))
+            // `shadows` picks the instance mask, like `visible`.
+            .map(|l| {
+                (
+                    l.enabled, l.visible, l.shadows, l.position, l.rotation, l.size, l.kind,
+                )
+            })
             .collect::<Vec<_>>()
     ])
     .to_string()
@@ -692,6 +700,7 @@ impl App {
             cursor_pick: None,
             painting: false,
             walking: None,
+            auto_key_base: None,
             keys_down: Default::default(),
             saver: screensaver.then(saver::Saver::new),
             turntable_cli,
@@ -1461,6 +1470,20 @@ impl App {
                     self.toggle_walk();
                     self.keys_down.insert(KeyCode::KeyW);
                 }
+                // Flashlight mode while walking, with a hidden light that casts no shadows.
+                248 => {
+                    self.settings.flashlight = true;
+                    self.settings.lights.push(scene::AreaLight {
+                        visible: false,
+                        shadows: false,
+                        audio_band: 4,
+                        ..scene::AreaLight::default()
+                    });
+                }
+                251 => {
+                    self.settings.flashlight = false;
+                    self.settings.lights.pop();
+                }
                 // A three-frame turntable (PNG frames when ffmpeg is missing).
                 253 => {
                     let path = std::env::temp_dir().join("caustica-self-test-turntable.mp4");
@@ -1918,6 +1941,15 @@ impl App {
         if self.export.is_none() {
             self.timeline.advance(&self.settings.animation, dt);
             self.timeline.update(&mut self.settings);
+            // Auto-key waits for a drag or transform to end (one key per edit, not per frame).
+            let busy = self.ui.transform.is_some() || self.drag.is_some();
+            if self
+                .timeline
+                .auto_key(&mut self.settings, busy, &mut self.auto_key_base)
+                > 0
+            {
+                self.ui.show_timeline = true;
+            }
             self.step_physics(dt);
             if self
                 .laser
@@ -2039,7 +2071,12 @@ impl App {
             self.open_scene(&path);
         }
         // Audio-reactive lights scale this frame's copy only (track 19).
+        // Auto-key: what walking, physics, the remote and the gamepad changed this frame is
+        // not an edit; only the UI's changes before the next auto-key count.
+        self.timeline
+            .absorb(&self.settings, &mut self.auto_key_base);
         let mut frame = self.settings.clone();
+        frame.add_flashlight();
         // Laser puzzle (track 17): the beam as glowing rods in this frame's copy.
         if frame.puzzle.enabled && frame.puzzle.beam {
             let rods = laser::beam_objects(&frame, &self.laser.segments);
@@ -2058,7 +2095,7 @@ impl App {
             if let Some(a) = &mut self.audio {
                 a.update(&frame.audio, dt);
                 // Light painting keeps exposing through light changes, not emitter changes.
-                audio::apply(&mut frame, a.levels, !self.painting);
+                audio::apply(&mut frame, a.levels, a.beat, !self.painting);
             }
             if let Some(Err(e)) = self.audio.as_mut().map(|a| a.recover()) {
                 self.audio = None;

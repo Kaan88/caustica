@@ -5,6 +5,11 @@
 //! 0.2) reflect, beam splitters fork it, transmissive objects refract (total internal reflection
 //! included), anything else stops it. Hitting the target solves the level. Tracing on the CPU
 //! keeps win detection exact and free of GPU readback; see engine-notes "Laser puzzle".
+//!
+//! Colour: the beam carries red, green and blue (650, 550 and 450 nm). Transmissive objects
+//! filter it by their colour as it enters, and glass with dispersion (an Abbe number) splits it
+//! into one beam per channel, each refracted by its own index. With `Puzzle::colors` a target
+//! counts only once the channels it shows (its colour above 0.5) arrive, and no others.
 use crate::scene::{Object, Settings};
 use glam::Vec3;
 
@@ -19,6 +24,20 @@ pub struct Segment {
     pub b: Vec3,
     /// Share of the laser's power along this segment (splitters halve it).
     pub power: f32,
+    /// The channels it carries (0–1 each, after filters).
+    pub color: [f32; 3],
+}
+/// Wavelengths (nm) of the beam's red, green and blue.
+const WAVELENGTHS: [f32; 3] = [650., 550., 450.];
+/// Cauchy index at `nm` for an IOR at the d line (587.6 nm) and an Abbe number (as the shader's
+/// `ior_of`).
+fn cauchy(ior: f32, abbe: f32, nm: f32) -> f32 {
+    if abbe <= 0. {
+        return ior;
+    }
+    let inv = |l: f32| 1. / (l * l);
+    let b = (ior - 1.) / abbe / (inv(486.1) - inv(656.3));
+    ior + b * (inv(nm) - inv(587.6))
 }
 
 /// One triangle of an object, world space, with its vertex normals.
@@ -96,19 +115,21 @@ pub fn trace(s: &Settings) -> (Vec<Segment>, bool) {
         .filter_map(|t| usize::try_from(t).ok())
         .filter(|&t| t < s.objects.len())
         .collect();
-    let mut reached = vec![false; required.len()];
-    // (origin, direction, power, inside glass of this ior or 0)
+    // The channels that arrived at each target.
+    let mut arrived = vec![[0f32; 3]; required.len()];
+    // (origin, direction, power, channels)
     let mut stack = vec![(
         Vec3::from(p.origin),
         Vec3::from(p.direction).normalize_or(Vec3::X),
         1f32,
+        p.color.map(|c| c.clamp(0., 1.)),
     )];
-    while let Some((o, d, power)) = stack.pop() {
+    while let Some((o, d, power, color)) = stack.pop() {
         if segments.len() >= MAX_SEGMENTS {
             break;
         }
         // A faint branch ends; the others on the stack go on.
-        if power < 0.01 {
+        if power < 0.01 || color.iter().all(|&c| c < 0.05) {
             continue;
         }
         let Some((t, i, n)) = hit(&tris, o, d) else {
@@ -116,13 +137,21 @@ pub fn trace(s: &Settings) -> (Vec<Segment>, bool) {
                 a: o,
                 b: o + d * FAR,
                 power,
+                color,
             });
             continue;
         };
         let x = o + d * t;
-        segments.push(Segment { a: o, b: x, power });
+        segments.push(Segment {
+            a: o,
+            b: x,
+            power,
+            color,
+        });
         if let Some(k) = required.iter().position(|&t| t == i) {
-            reached[k] = true;
+            for c in 0..3 {
+                arrived[k][c] += color[c] * power;
+            }
             continue;
         }
         let m = &s.objects[i].material;
@@ -132,27 +161,59 @@ pub fn trace(s: &Settings) -> (Vec<Segment>, bool) {
         let ahead = |dir: Vec3| x + dir * 1e-3;
         if m.splitter {
             if front {
-                stack.push((ahead(reflect), reflect, power * m.reflectivity));
-                stack.push((ahead(d), d, power * (1. - m.reflectivity)));
+                stack.push((ahead(reflect), reflect, power * m.reflectivity, color));
+                stack.push((ahead(d), d, power * (1. - m.reflectivity), color));
             } else {
-                stack.push((ahead(d), d, power));
+                stack.push((ahead(d), d, power, color));
             }
         } else if mirror(&s.objects[i]) {
-            stack.push((ahead(reflect), reflect, power));
+            stack.push((ahead(reflect), reflect, power, color));
         } else if m.transmission > 0.5 {
-            // Snell at this face; inside → outside when the hit is a back face.
-            let eta = if front { 1. / m.ior } else { m.ior };
-            let c = -d.dot(nf);
-            let k = 1. - eta * eta * (1. - c * c);
-            let next = if k < 0. {
-                reflect
+            // A coloured glass filters the beam where it enters.
+            let color = if front {
+                [0, 1, 2].map(|c| color[c] * m.color[c].clamp(0., 1.))
             } else {
-                (eta * d + (eta * c - k.sqrt()) * nf).normalize()
+                color
             };
-            stack.push((ahead(next), next, power));
+            let refract = |ior: f32| {
+                // Snell at this face; inside → outside when the hit is a back face.
+                let eta = if front { 1. / ior } else { ior };
+                let c = -d.dot(nf);
+                let k = 1. - eta * eta * (1. - c * c);
+                if k < 0. {
+                    reflect
+                } else {
+                    (eta * d + (eta * c - k.sqrt()) * nf).normalize()
+                }
+            };
+            let lit = color.iter().filter(|&&c| c >= 0.05).count();
+            if m.dispersion > 0. && lit > 1 {
+                // One beam per channel, each bent by its own index.
+                for c in 0..3 {
+                    let mut one = [0.; 3];
+                    one[c] = color[c];
+                    let next = refract(cauchy(m.ior, m.dispersion, WAVELENGTHS[c]));
+                    stack.push((ahead(next), next, power, one));
+                }
+            } else {
+                let ior = match (m.dispersion > 0., color.iter().position(|&c| c >= 0.05)) {
+                    (true, Some(c)) => cauchy(m.ior, m.dispersion, WAVELENGTHS[c]),
+                    _ => m.ior,
+                };
+                let next = refract(ior);
+                stack.push((ahead(next), next, power, color));
+            }
         }
     }
-    let solved = !required.is_empty() && reached.iter().all(|&r| r);
+    let reached = |k: usize| {
+        let a = arrived[k];
+        if !p.colors {
+            return a.iter().any(|&c| c > 0.);
+        }
+        let want = s.objects[required[k]].material.color;
+        (0..3).all(|c| (a[c] > 0.02) == (want[c] > 0.5))
+    };
+    let solved = !required.is_empty() && (0..required.len()).all(reached);
     (segments, solved)
 }
 
@@ -185,7 +246,7 @@ pub fn beam_objects(s: &Settings, segments: &[Segment]) -> Vec<Object> {
             tilt: [x.to_degrees(), z.to_degrees()],
             body: crate::scene::Body::None,
             material: crate::scene::Material {
-                color: s.puzzle.color,
+                color: seg.color,
                 emission: 30. * seg.power,
                 unlit: true,
                 ..Default::default()
@@ -244,16 +305,10 @@ impl Laser {
         }
         just
     }
-    pub fn draw(
-        &self,
-        painter: &egui::Painter,
-        ppp: f32,
-        view: &crate::gizmo::View,
-        color: [f32; 3],
-    ) {
+    pub fn draw(&self, painter: &egui::Painter, ppp: f32, view: &crate::gizmo::View) {
         let to_points = |p: glam::Vec2| egui::pos2(p.x / ppp, p.y / ppp);
-        let c = color.map(|v| (v.clamp(0., 1.) * 255.) as u8);
         for s in &self.segments {
+            let c = s.color.map(|v| (v.clamp(0., 1.) * 255.) as u8);
             if let Some((a, b)) = view.segment(s.a, s.b) {
                 let alpha = (80. + 175. * s.power.sqrt()) as u8;
                 let stroke = egui::Stroke::new(
@@ -348,21 +403,31 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scenes/puzzles");
         let level = |n: u32| crate::scenes::read(&dir.join(format!("laser-{n}.json"))).unwrap();
         // (level, [(object, rotation, optional new z)])
-        let solutions: [(u32, &[(usize, f32, Option<f32>)]); 3] = [
+        // (level, [(object, rotation, optional new position)])
+        type Move = (usize, f32, Option<[f32; 2]>);
+        let solutions: [(u32, &[Move]); 5] = [
             (1, &[(0, 45., None)]),
             (2, &[(0, 45., None), (1, 45., None)]),
-            (3, &[(0, 45., None), (1, -45., Some(2.))]),
+            (3, &[(0, 45., None), (1, -45., Some([1., 2.]))]),
+            (4, &[(1, 90., Some([0., 1.3])), (2, 0., Some([1.3, 0.]))]),
+            (5, &[(0, 0., None)]),
         ];
         for (n, moves) in solutions {
             let mut s = level(n);
             assert!(!trace(&s).1, "level {n} starts solved");
-            for &(i, rotation, z) in moves {
+            for &(i, rotation, at) in moves {
                 s.objects[i].rotation = rotation;
-                if let Some(z) = z {
-                    s.objects[i].position[1] = z;
+                if let Some(at) = at {
+                    s.objects[i].position = at;
                 }
             }
             assert!(trace(&s).1, "level {n}: {:?}", trace(&s).0);
+            if n == 4 {
+                // One filter alone is not enough: white light on a coloured target fails.
+                let mut one = level(4);
+                one.objects[1].position = [0., 1.3];
+                assert!(!trace(&one).1);
+            }
             assert!(moves.len() + usize::from(n == 3) <= s.puzzle.par as usize);
         }
     }

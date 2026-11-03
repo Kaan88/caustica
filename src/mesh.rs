@@ -1,4 +1,5 @@
-//! Imported meshes (roadmap core track 2): OBJ through tobj, glTF / GLB through gltf. A mesh is
+//! Imported meshes (roadmap core track 2): OBJ through tobj, glTF / GLB through gltf, PLY and
+//! STL through `meshfmt`. A mesh is
 //! centred and scaled into the same -1..1 box as the built-in shapes, so an object's size means
 //! the same for both. Loads (and failures) are cached per resolved path.
 //!
@@ -7,7 +8,7 @@
 //!
 //! Parts keep their texture coordinates and decoded texture maps (core track 5): base colour,
 //! tangent-space normal and metallic-roughness, plus an alpha cutoff for masked materials.
-use crate::scene::{Material, Object, Shape};
+use crate::scene::{AreaLight, LightKind, Material, Object, Shape};
 use anyhow::{Context, Result, bail, ensure};
 use glam::{Mat3, Mat4, Vec3};
 use std::collections::HashMap;
@@ -130,6 +131,10 @@ pub struct Part {
 /// A loaded file: its parts (at least one), and every part merged, built on first use.
 pub struct Imported {
     pub parts: Vec<Part>,
+    /// glTF KHR_lights_punctual lights, in the normalized box.
+    pub lights: Vec<FileLight>,
+    /// File units per normalized unit undone: normalized = (file − centre) × scale.
+    pub scale: f32,
     whole: OnceLock<(Arc<Mesh>, Arc<Uvs>)>,
 }
 impl Imported {
@@ -251,6 +256,59 @@ pub fn import_object(path: &Path) -> Result<Object> {
     let imported = load(&stored)?;
     Ok(object(path, stored, imported.material()))
 }
+/// glTF light units to the scene's: 1 lux lights a white surface to 1/50 (a 100 lux room to 2).
+const LUX: f32 = 1. / 50.;
+/// The objects of a mesh file (`import_objects`) and its glTF punctual lights placed with them;
+/// `z_up` stands Z-up files (scans, CAD) upright.
+pub fn import_scene(path: &Path, z_up: bool) -> Result<(Vec<Object>, Vec<AreaLight>)> {
+    let mut objects = import_objects(path)?;
+    if z_up {
+        for o in &mut objects {
+            o.tilt[0] = -90.;
+        }
+    }
+    let imported = load(&store(path))?;
+    let Some(first) = objects.first() else {
+        return Ok((objects, vec![]));
+    };
+    let (pivot, r) = crate::geometry::object_frame(first);
+    // Scene units per file unit (taken as metres for the photometric units).
+    let units = first.size * 0.35 * imported.scale;
+    let lights = imported
+        .lights
+        .iter()
+        .map(|l| {
+            let position = pivot + r * (l.position * first.size * 0.35);
+            let d = (r * l.direction).normalize_or(-Vec3::Y);
+            // Rotation (YXZ, degrees) that turns the light's -Y onto d.
+            let pitch = (-d.y).clamp(-1., 1.).acos();
+            let yaw = if pitch.sin() > 1e-4 {
+                (-d.x).atan2(-d.z)
+            } else {
+                0.
+            };
+            let peak = l.color.iter().fold(1e-6f32, |a, &b| a.max(b));
+            let sun = l.kind == LightKind::Sun;
+            AreaLight {
+                name: l.name.clone(),
+                position: (if sun { pivot - d * 3. } else { position })
+                    .to_array()
+                    .map(|v| v.clamp(-50., 50.)),
+                rotation: [pitch.to_degrees(), yaw.to_degrees(), 0.],
+                size: [0.1; 2],
+                color: l.color.map(|c| (c / peak).clamp(0., 1.)),
+                intensity: (l.intensity * peak * LUX * if sun { 1. } else { units * units })
+                    .clamp(0., 2000.),
+                kind: l.kind,
+                spread: l.spread,
+                blend: l.blend,
+                visible: false,
+                ..AreaLight::default()
+            }
+        })
+        .collect();
+    Ok((objects, lights))
+}
 /// One object per part (per material) of a mesh file, all with the same transform.
 pub fn import_objects(path: &Path) -> Result<Vec<Object>> {
     let stored = store(path);
@@ -287,12 +345,25 @@ fn object(path: &Path, mesh: String, material: Option<Material>) -> Object {
         ..Object::default()
     }
 }
+/// A glTF punctual light as read (position and direction in the file's space until
+/// `normalize`; intensity in candela, or lux for a sun).
+pub struct FileLight {
+    pub name: String,
+    pub position: Vec3,
+    pub direction: Vec3,
+    pub kind: LightKind,
+    pub color: [f32; 3],
+    pub intensity: f32,
+    /// Spot: full outer cone (degrees) and the share of it that fades.
+    pub spread: f32,
+    pub blend: f32,
+}
 fn read(path: &Path) -> Result<Imported> {
-    let mut parts = match path
+    let (mut parts, mut lights) = match path
         .to_str()
         .and_then(|p| p.strip_prefix(crate::procedural::PREFIX))
     {
-        Some(spec) => read_procedural(spec)?,
+        Some(spec) => (read_procedural(spec)?, vec![]),
         None => read_file(path)?,
     };
     // Empty parts stay, so `#n` indices never shift (a terrain band can be empty).
@@ -303,8 +374,26 @@ fn read(path: &Path) -> Result<Imported> {
         "{} has {triangles} triangles (limit 20M)",
         path.display(),
     );
-    normalize(&mut parts);
+    let (centre, scale) = normalize(&mut parts);
+    for l in &mut lights {
+        l.position = (l.position - centre) * scale;
+    }
+    // KHR_materials_volume: white light turns `colour` after `distance` file units. The material
+    // colour of glass is its absorption per scene unit (`medium_absorption`), and an imported
+    // object (size 2) is 0.7 scene units per normalized unit.
+    for p in &mut parts {
+        if let (Some((c, d)), Some(m)) = (p.attenuation, p.material.as_mut())
+            && m.transmission > 0.
+        {
+            let per_unit = (d * scale * 0.7).max(1e-4);
+            for (v, a) in m.color.iter_mut().zip(c) {
+                *v = (*v * a.clamp(1e-3, 1.).powf(1. / per_unit)).clamp(0., 1.);
+            }
+        }
+    }
     Ok(Imported {
+        lights,
+        scale,
         parts: parts
             .into_iter()
             .map(|p| Part {
@@ -318,7 +407,7 @@ fn read(path: &Path) -> Result<Imported> {
         whole: OnceLock::new(),
     })
 }
-fn read_file(path: &Path) -> Result<Vec<RawPart>> {
+fn read_file(path: &Path) -> Result<(Vec<RawPart>, Vec<FileLight>)> {
     let size = std::fs::metadata(path)
         .with_context(|| format!("{}", path.display()))?
         .len();
@@ -327,10 +416,31 @@ fn read_file(path: &Path) -> Result<Vec<RawPart>> {
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
+    let plain = |f: crate::meshfmt::Indexed| {
+        let mut part = RawPart {
+            name: "default".into(),
+            material: f.color.map(|color| Material {
+                color,
+                ..Material::default()
+            }),
+            ..RawPart::default()
+        };
+        triangles(
+            &f.positions,
+            f.normals.as_deref(),
+            f.uvs.as_deref(),
+            &f.indices,
+            &mut part,
+        );
+        (vec![part], vec![])
+    };
+    let bytes = || std::fs::read(path).with_context(|| format!("Reading {}", path.display()));
     match ext.as_str() {
-        "obj" => read_obj(path),
+        "obj" => Ok((read_obj(path)?, vec![])),
         "gltf" | "glb" => read_gltf(path),
-        _ => bail!("Unsupported mesh format .{ext} (OBJ, glTF, GLB)"),
+        "ply" => Ok(plain(crate::meshfmt::read_ply(&bytes()?)?)),
+        "stl" => Ok(plain(crate::meshfmt::read_stl(&bytes()?)?)),
+        _ => bail!("Unsupported mesh format .{ext} (OBJ, glTF, GLB, PLY, STL)"),
     }
 }
 fn read_procedural(spec: &str) -> Result<Vec<RawPart>> {
@@ -353,8 +463,9 @@ fn read_procedural(spec: &str) -> Result<Vec<RawPart>> {
         })
         .collect())
 }
-/// Centre every part on the file's bounding box and scale its largest half-extent to 1.
-fn normalize(parts: &mut [RawPart]) {
+/// Centre every part on the file's bounding box and scale its largest half-extent to 1;
+/// returns the centre and the scale.
+fn normalize(parts: &mut [RawPart]) -> (Vec3, f32) {
     let (lo, hi) = parts.iter().flat_map(|p| &p.mesh).fold(
         (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),
         |(lo, hi), (p, _)| (lo.min(*p), hi.max(*p)),
@@ -364,6 +475,7 @@ fn normalize(parts: &mut [RawPart]) {
     for (p, _) in parts.iter_mut().flat_map(|p| p.mesh.iter_mut()) {
         *p = (*p - centre) * scale;
     }
+    (centre, scale)
 }
 /// A part as read.
 #[derive(Default)]
@@ -373,6 +485,8 @@ struct RawPart {
     name: String,
     material: Option<Material>,
     maps: Maps,
+    /// KHR_materials_volume attenuation colour and distance (file units).
+    attenuation: Option<([f32; 3], f32)>,
 }
 /// The part for a material key, created in first-seen order.
 fn part_for<K: PartialEq>(
@@ -542,24 +656,51 @@ fn read_obj(path: &Path) -> Result<Vec<RawPart>> {
     Ok(parts)
 }
 /// The MTL diffuse colour times the diffuse map's average (the map is then scaled by
-/// colour / average on the GPU, see `Material::textures`).
+/// colour / average on the GPU, see `Material::textures`). `Ke` becomes emission, `d` / `Tr`
+/// below 1 transmission with `Ni` as the IOR, and a bright `Ks` over a dark `Kd` a metal.
 fn obj_material(m: &tobj::Material, maps: &Maps) -> Option<Material> {
     let average = maps
         .base
         .as_ref()
         .map(|b| [b.average[0], b.average[1], b.average[2]]);
-    if m.diffuse.is_none() && average.is_none() {
+    let emission = m.emissive.filter(|e| e.iter().any(|&v| v > 0.));
+    let opacity = m.dissolve.or_else(|| {
+        m.unknown_param
+            .get("Tr")
+            .and_then(|t| t.trim().parse::<f32>().ok())
+            .map(|t| 1. - t)
+    });
+    let see_through = opacity.is_some_and(|o| o < 0.99);
+    if m.diffuse.is_none() && average.is_none() && emission.is_none() && !see_through {
         return None;
     }
     let d = m.diffuse.unwrap_or([1.; 3]);
     let a = average.unwrap_or([1.; 3]);
-    Some(Material {
+    let mut out = Material {
         color: [0, 1, 2].map(|k| (d[k] * a[k]).clamp(0., 1.)),
         roughness: m
             .shininess
             .map_or(0.5, |s| (1. - (s / 1000.).sqrt()).clamp(0.05, 1.)),
         ..Material::default()
-    })
+    };
+    let luma = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    if let Some(ks) = m.specular
+        && luma(ks) > 0.5
+        && luma(out.color) < 0.1
+    {
+        out.metallic = 1.;
+        out.color = ks.map(|v| v.clamp(0., 1.));
+    }
+    if let Some(o) = opacity.filter(|&o| o < 0.99) {
+        out.transmission = (1. - o).clamp(0., 1.);
+        out.ior = m.optical_density.unwrap_or(1.5).clamp(1., 2.5);
+    }
+    if let Some(e) = emission {
+        let peak = e[0].max(e[1]).max(e[2]);
+        out.emission = peak.clamp(0., 20.);
+        out.color = e.map(|v| (v / peak).clamp(0., 1.));
+    }
+    Some(out)
 }
 /// RGBA8 from the layouts gltf decodes to (16-bit channels keep their high byte; float
 /// images are not supported as maps).
@@ -661,7 +802,7 @@ fn layers(m: &gltf::Material) -> Material {
     }
     out
 }
-fn read_gltf(path: &Path) -> Result<Vec<RawPart>> {
+fn read_gltf(path: &Path) -> Result<(Vec<RawPart>, Vec<FileLight>)> {
     let gltf = gltf::Gltf::open(path).with_context(|| format!("Reading {}", path.display()))?;
     let buffers = gltf::import_buffers(&gltf.document, path.parent(), gltf.blob.clone())
         .context("Loading glTF buffers")?;
@@ -697,8 +838,35 @@ fn read_gltf(path: &Path) -> Result<Vec<RawPart>> {
         .or_else(|| gltf.document.scenes().next())
         .context("glTF has no scene")?;
     let mut stack: Vec<(gltf::Node, Mat4)> = scene.nodes().map(|n| (n, Mat4::IDENTITY)).collect();
+    let mut lights = vec![];
     while let Some((node, parent)) = stack.pop() {
         let world = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
+        // KHR_lights_punctual: lights shine down their node's -Z.
+        if let Some(l) = node.light() {
+            use gltf::khr_lights_punctual::Kind;
+            let (kind, spread, blend) = match l.kind() {
+                Kind::Directional => (LightKind::Sun, 60., 0.25),
+                Kind::Point => (LightKind::Sphere, 60., 0.25),
+                Kind::Spot {
+                    inner_cone_angle,
+                    outer_cone_angle,
+                } => (
+                    LightKind::Spot,
+                    (2. * outer_cone_angle.to_degrees()).clamp(1., 179.),
+                    (1. - inner_cone_angle / outer_cone_angle.max(1e-4)).clamp(0., 1.),
+                ),
+            };
+            lights.push(FileLight {
+                name: l.name().unwrap_or("glTF light").chars().take(64).collect(),
+                position: world.transform_point3(Vec3::ZERO),
+                direction: world.transform_vector3(-Vec3::Z).normalize_or(-Vec3::Y),
+                kind,
+                color: l.color(),
+                intensity: l.intensity(),
+                spread,
+                blend,
+            });
+        }
         if let Some(mesh) = node.mesh() {
             let normal_matrix = Mat3::from_mat4(world).inverse().transpose();
             for prim in mesh
@@ -788,6 +956,12 @@ fn read_gltf(path: &Path) -> Result<Vec<RawPart>> {
                     };
                     (name, Some(material), maps)
                 });
+                if let Some(v) = m.volume()
+                    && v.attenuation_distance().is_finite()
+                    && v.attenuation_color() != [1.; 3]
+                {
+                    parts[i].attenuation = Some((v.attenuation_color(), v.attenuation_distance()));
+                }
                 let before = parts[i].mesh.len();
                 triangles(&p, n.as_deref(), uv.as_deref(), &indices, &mut parts[i]);
                 total += (parts[i].mesh.len() - before) / 3;
@@ -800,7 +974,7 @@ fn read_gltf(path: &Path) -> Result<Vec<RawPart>> {
         }
         stack.extend(node.children().map(|c| (c, world)));
     }
-    Ok(parts)
+    Ok((parts, lights))
 }
 /// Standard base64 (for the embedded buffers and images of `write_test_gltf`).
 fn base64(bytes: &[u8]) -> String {
@@ -898,6 +1072,79 @@ mod tests {
         );
         assert!(materials.iter().any(|m| m.sheen > 0.), "a sheen part");
         assert!(materials.iter().all(|m| (0. ..=1.).contains(&m.sheen)));
+    }
+    #[test]
+    fn obj_mtl_emission_and_transparency() {
+        let dir = std::env::temp_dir();
+        std::fs::write(
+            dir.join("caustica-test-mat.mtl"),
+            "newmtl lamp
+Kd 0 0 0
+Ke 4 2 0
+newmtl glass
+Kd 1 1 1
+d 0.2
+Ni 1.33
+",
+        )
+        .unwrap();
+        let p = temp(
+            "caustica-test-mat.obj",
+            "mtllib caustica-test-mat.mtl
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+usemtl lamp
+f 1 2 3
+usemtl glass
+f 1 3 4
+",
+        );
+        let parts = read(&p).unwrap().parts;
+        let lamp = parts[0].material.as_ref().unwrap();
+        assert_eq!((lamp.emission, lamp.color), (4., [1., 0.5, 0.]));
+        let glass = parts[1].material.as_ref().unwrap();
+        assert!((glass.transmission - 0.8).abs() < 1e-5 && glass.ior == 1.33);
+    }
+    #[test]
+    fn gltf_lights_and_volume_import() {
+        let mut bin = vec![];
+        for v in [0f32, 0., 0., 2., 0., 0., 0., 2., 0.] {
+            bin.extend(v.to_le_bytes());
+        }
+        let json = format!(
+            r#"{{"asset":{{"version":"2.0"}},"extensionsUsed":["KHR_lights_punctual","KHR_materials_transmission","KHR_materials_volume"],
+            "extensions":{{"KHR_lights_punctual":{{"lights":[{{"type":"spot","intensity":100,"color":[1,0.5,0.5],"spot":{{"innerConeAngle":0.2,"outerConeAngle":0.4}}}}]}}}},
+            "buffers":[{{"byteLength":36,"uri":"data:application/octet-stream;base64,{}"}}],
+            "bufferViews":[{{"buffer":0,"byteLength":36}}],
+            "accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[2,2,0]}}],
+            "materials":[{{"extensions":{{"KHR_materials_transmission":{{"transmissionFactor":1}},"KHR_materials_volume":{{"attenuationColor":[0.5,1,1],"attenuationDistance":1}}}}}}],
+            "meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"material":0}}]}}],
+            "nodes":[{{"mesh":0}},{{"extensions":{{"KHR_lights_punctual":{{"light":0}}}},"translation":[1,4,0],"rotation":[-0.7071068,0,0,0.7071068]}}],
+            "scenes":[{{"nodes":[0,1]}}],"scene":0}}"#,
+            base64(&bin)
+        );
+        let p = temp("caustica-test-light.gltf", &json);
+        let (objects, lights) = import_scene(&p, false).unwrap();
+        assert_eq!((objects.len(), lights.len()), (1, 1));
+        let l = &lights[0];
+        assert_eq!(l.kind, LightKind::Spot);
+        assert!((l.spread - 0.8f32.to_degrees()).abs() < 1e-3 && (l.blend - 0.5).abs() < 1e-5);
+        // The node turns -Z to -Y: the spot points straight down.
+        assert!(
+            (l.direction() + Vec3::Y).length() < 1e-4,
+            "{:?}",
+            l.direction()
+        );
+        assert_eq!(l.color, [1., 0.5, 0.5]);
+        // Red is absorbed: 0.5 per file unit, the file is 2 units wide, so per scene unit
+        // (0.7 per normalized unit = 0.7 file units) 0.5^(1/0.7).
+        let c = objects[0].material.color;
+        assert!(
+            (c[0] - 0.5f32.powf(1. / 0.7)).abs() < 1e-4 && c[1] == 1.,
+            "{c:?}"
+        );
     }
     #[test]
     fn obj_files_load_and_normalize() {

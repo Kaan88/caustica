@@ -1,0 +1,242 @@
+{
+ "format": 1,
+ "title": "Laser 4: Filters",
+ "description": "A white laser and two targets that want one colour each. Coloured glass lets only its own colour through: G moves the filters into the beams. Par 2.",
+ "tags": [
+  "puzzle",
+  "laser"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 8.0,
+  "yaw": 0,
+  "pitch": 60,
+  "distance": 10.5,
+  "target": [
+   0.0,
+   -1.0,
+   0.3
+  ],
+  "fov": 45,
+  "light_on": true,
+  "light_position": [
+   0.0,
+   4.0,
+   1.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 10.0,
+  "light_visible": false,
+  "objects": [
+   {
+    "name": "Beam splitter",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 45,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.04,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.97,
+      0.97,
+      0.97
+     ],
+     "roughness": 0.0,
+     "metallic": 0,
+     "reflectivity": 0.5,
+     "transmission": 0,
+     "ior": 1.5,
+     "emission": 0,
+     "splitter": true
+    },
+    "portal": -1,
+    "locked": true
+   },
+   {
+    "name": "Red filter",
+    "shape": "box",
+    "position": [
+     -1.5,
+     2.0
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 90,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.04,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.02,
+      0.02
+     ],
+     "roughness": 0.0,
+     "metallic": 0,
+     "reflectivity": 0.04,
+     "transmission": 1.0,
+     "ior": 1.5,
+     "emission": 0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Blue filter",
+    "shape": "box",
+    "position": [
+     -1.5,
+     -2.0
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.04,
+     0.8
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.02,
+      0.02,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0,
+     "reflectivity": 0.04,
+     "transmission": 1.0,
+     "ior": 1.5,
+     "emission": 0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Red target",
+    "shape": "box",
+    "position": [
+     0,
+     2.6
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.1,
+      0.08
+     ],
+     "roughness": 0.5,
+     "metallic": 0,
+     "reflectivity": 0.04,
+     "transmission": 0,
+     "ior": 1.5,
+     "emission": 1.5
+    },
+    "portal": -1,
+    "locked": true
+   },
+   {
+    "name": "Blue target",
+    "shape": "box",
+    "position": [
+     2.6,
+     0
+    ],
+    "size": 0.8,
+    "stretch": 1.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.25,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0,
+     "reflectivity": 0.04,
+     "transmission": 0,
+     "ior": 1.5,
+     "emission": 1.5
+    },
+    "portal": -1,
+    "locked": true
+   }
+  ],
+  "puzzle": {
+   "enabled": true,
+   "origin": [
+    -2.5,
+    -0.6,
+    0
+   ],
+   "direction": [
+    1,
+    0,
+    0
+   ],
+   "target": 3,
+   "targets": [
+    4
+   ],
+   "par": 2,
+   "color": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "colors": true
+  }
+ }
+}
