@@ -65,6 +65,8 @@ pub struct Sim {
     stage: (bool, u32),
     accumulator: f32,
     pub grab: Option<Grab>,
+    /// Dynamic bodies a gizmo transform holds, made kinematic until it ends (`hold`).
+    held: Vec<usize>,
     /// The physics settings last applied.
     applied: crate::scene::Physics,
     /// Simulated seconds (wind gusts).
@@ -494,6 +496,7 @@ impl Sim {
             stage: Self::stage_key(s),
             accumulator: 0.,
             grab: None,
+            held: vec![],
             applied: s.physics,
             time: 0.,
         };
@@ -733,7 +736,10 @@ impl Sim {
             if i < old.len() && same_body(&old[i], &new[i]) {
                 continue;
             }
-            if i < old.len() && self.animated[i] && same_shape(&old[i], &new[i]) {
+            if i < old.len()
+                && (self.animated[i] || self.held.contains(&i))
+                && same_shape(&old[i], &new[i])
+            {
                 edits.push((i, true));
                 continue;
             }
@@ -756,6 +762,14 @@ impl Sim {
             if i < self.handles.len() {
                 self.remove_body(i);
                 self.handles[i] = self.insert_body(i, o);
+                // A held body that changed shape (a scale) stays held: kinematic, not falling.
+                if self.held.contains(&i)
+                    && let Some(Some(h)) = self.handles.get(i)
+                    && let Some(b) = self.bodies.get_mut(*h)
+                    && b.is_dynamic()
+                {
+                    b.set_body_type(RigidBodyType::KinematicPositionBased, true);
+                }
             } else {
                 let h = self.insert_body(i, o);
                 self.handles.push(h);
@@ -774,6 +788,34 @@ impl Sim {
         self.written = new.clone();
         self.wake_touching();
         true
+    }
+    /// A gizmo transform holds `objects` (owner report 2026-11-03): their dynamic bodies turn
+    /// kinematic, so `sync` moves them to the edited poses and they push the others, which
+    /// keep simulating. Bodies no longer held turn dynamic again, at rest where they were put.
+    pub fn hold(&mut self, objects: &[usize]) {
+        for i in std::mem::take(&mut self.held) {
+            if objects.contains(&i) {
+                self.held.push(i);
+            } else if let Some(Some(h)) = self.handles.get(i)
+                && let Some(b) = self.bodies.get_mut(*h)
+            {
+                b.set_body_type(RigidBodyType::Dynamic, true);
+                b.set_linvel(v(Vec3::ZERO), true);
+                b.set_angvel(v(Vec3::ZERO), true);
+            }
+        }
+        for &i in objects {
+            if self.held.contains(&i) || self.grab.as_ref().is_some_and(|g| g.index == i) {
+                continue;
+            }
+            if let Some(Some(h)) = self.handles.get(i)
+                && let Some(b) = self.bodies.get_mut(*h)
+                && b.is_dynamic()
+            {
+                b.set_body_type(RigidBodyType::KinematicPositionBased, true);
+                self.held.push(i);
+            }
+        }
     }
     /// After an edit: wakes every body whose island is asleep near an awake one (rapier
     /// wakes contacts of a moving body itself; a removed support needs this).
@@ -1078,6 +1120,7 @@ impl Sim {
                 h.and_then(|h| self.bodies.get(h))
                     .is_some_and(|b| b.is_dynamic())
                     .then_some(i)
+                    .or_else(|| self.held.contains(&i).then_some(i))
             })
             .collect();
         v.extend(self.cloths.iter().map(|c| c.index));
@@ -1158,9 +1201,28 @@ impl crate::App {
             self.finish_recording();
             return;
         }
-        // A gizmo transform owns the poses until it ends. Stepping meanwhile would drop the
-        // object between pointer moves; afterwards the edited body joins the running world.
-        if self.ui.transform.is_some() {
+        // The objects a gizmo transform moves are kinematic while it runs: they follow the
+        // edited poses (gravity can't drop them between pointer moves) and push the rest,
+        // which keeps simulating. Afterwards they join the running world at rest.
+        let held: Vec<usize> = self.ui.transform.as_ref().map_or(vec![], |t| {
+            t.targets
+                .iter()
+                .filter_map(|s| match s {
+                    crate::ui::Selection::Object(i) => Some(*i),
+                    _ => None,
+                })
+                .collect()
+        });
+        // Strings and links: a held end changes the joint (its length), which only a restart
+        // takes, so the simulation waits for the transform to end, as before.
+        let jointed_held = held.iter().any(|&i| {
+            self.settings.objects.get(i).is_some_and(jointed)
+                || self.settings.objects.iter().any(|o| {
+                    o.tether.is_some_and(|t| t.object as usize == i)
+                        || o.links.iter().any(|l| l.object as usize == i)
+                })
+        });
+        if jointed_held {
             return;
         }
         let recording = self.ui.physics_record;
@@ -1170,10 +1232,15 @@ impl crate::App {
                 self.ui.checkpoint(&self.settings);
                 true
             }
-            Some(sim) => !sim.sync(&self.settings, recording),
+            Some(sim) => {
+                sim.hold(&held);
+                !sim.sync(&self.settings, recording)
+            }
         };
         if rebuild {
-            self.physics = Some(Sim::with(&self.settings, recording));
+            let mut sim = Sim::with(&self.settings, recording);
+            sim.hold(&held);
+            self.physics = Some(sim);
         }
         let sim = self.physics.as_mut().unwrap();
         let (a, p) = (sim.applied, self.settings.physics);
@@ -1560,6 +1627,65 @@ mod tests {
                 .map(|o| (o.position, o.elevation))
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// Owner report 2026-11-03: a gizmo drag moves its body kinematically while the rest keeps
+    /// simulating (as `step_physics` does: hold, sync the edited pose, advance).
+    #[test]
+    fn a_gizmo_held_box_pushes_the_others() {
+        let mut s = Settings {
+            objects: vec![],
+            cornell_room: false,
+            ..Settings::default()
+        };
+        for x in [-0.6, 0.2] {
+            s.objects.push(Object {
+                shape: Shape::Box,
+                size: 1.,
+                stretch: 1.,
+                rotation: 0.,
+                position: [x, 0.],
+                grounded: false,
+                elevation: -0.4,
+                ..Object::default()
+            });
+        }
+        s.physics.enabled = true;
+        let mut sim = Sim::new(&s);
+        // Held half a unit up and dragged through the second box over one second: gravity
+        // must not drop it, and the other box (which falls meanwhile) is pushed ahead.
+        for k in 0..60 {
+            s.objects[0].position[0] = -0.6 + 1.6 * k as f32 / 59.;
+            sim.hold(&[0]);
+            assert!(sim.sync(&s, false), "a held move restarted the simulation");
+            sim.advance(&mut s, 1. / 60.);
+            assert_eq!(
+                s.objects[0].elevation, -0.4,
+                "the held box moved on its own"
+            );
+        }
+        let [a, b] = [s.objects[0].position[0], s.objects[1].position[0]];
+        assert!(b > a + 0.6, "the other box was pushed ahead ({a} {b})");
+        // A scale while held replaces the body (new shape); it stays held, not falling.
+        for k in 0..30 {
+            s.objects[0].size = 1. + 0.2 * k as f32 / 29.;
+            sim.hold(&[0]);
+            assert!(sim.sync(&s, false));
+            sim.advance(&mut s, 1. / 60.);
+            assert_eq!(s.objects[0].elevation, -0.4, "the scaled box fell");
+        }
+        assert_eq!(
+            sim.moving_objects(),
+            vec![0, 1],
+            "Record keys the held box too"
+        );
+        // Let go: it is dynamic again and falls.
+        sim.hold(&[]);
+        assert!(sim.sync(&s, false));
+        for _ in 0..60 {
+            sim.advance(&mut s, 1. / 60.);
+        }
+        assert!(s.objects[0].elevation < -0.45, "the released box stayed up");
     }
 
     /// The cradle scene: ball 1 swings down, the middle balls barely move and ball 5 flies out.

@@ -165,7 +165,13 @@ pub struct Frame {
 pub fn frame(s: &Settings, selection: Selection) -> Option<Frame> {
     match selection {
         Selection::Object(i) => s.objects.get(i).map(|o| {
-            let (pivot, rotation) = crate::geometry::object_frame(o);
+            let (mut pivot, rotation) = crate::geometry::object_frame(o);
+            // A simulated cloth keeps its object at the frame it started in and moves its
+            // vertices: the gizmo goes to the middle of the drape's box instead.
+            if o.cloth.is_some() {
+                let c = crate::geometry::object_corners(o);
+                pivot = c.iter().sum::<Vec3>() / 8.;
+            }
             Frame {
                 pivot,
                 rotation,
@@ -446,11 +452,19 @@ impl Transform {
         } else {
             String::new()
         };
-        // Each target's own origin, for turning and scaling around the pivot.
+        // Each target's own origin, for turning and scaling around the pivot: an object's real
+        // origin (a cloth's gizmo sits at its drape, away from it).
         let origins: Vec<Option<Vec3>> = self
             .targets
             .iter()
-            .map(|t| frame(&self.original, *t).map(|f| f.pivot))
+            .map(|t| match *t {
+                Selection::Object(i) => self
+                    .original
+                    .objects
+                    .get(i)
+                    .map(|o| crate::geometry::object_frame(o).0),
+                _ => frame(&self.original, *t).map(|f| f.pivot),
+            })
             .collect();
         let around_pivot = self.pivot != Pivot::Individual;
         match self.mode {
@@ -840,6 +854,14 @@ pub fn hit(view: &View, f: &Frame, local: bool, tool: Tool, mouse: Vec2) -> Opti
                 .then_some(Handle::ViewRing)
         }
     }
+}
+
+/// Whether `mouse` is on the gizmo's inner part: the center, the plane squares and the inner
+/// 60% of the arrows, which lie over the object itself. With physics running a press there
+/// grabs the body (owner report 2026-11-03); the arrow tips and the rings still transform.
+pub fn inner(view: &View, f: &Frame, local: bool, tool: Tool, mouse: Vec2) -> bool {
+    tool != Tool::Rotate
+        && layout(view, f, local, tool).is_some_and(|l| (mouse - l.center).length() < LENGTH * 0.6)
 }
 
 /// Draws the gizmo for `tool` (or for the running transform's constraint) onto `painter`.

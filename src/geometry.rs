@@ -88,10 +88,12 @@ fn lowest_y(o: &Object, scale: Vec3, r: Mat4) -> f32 {
 /// The eight corners of an object's local bounding box, in the world (selection outlines).
 /// The local box is cached per mesh; a part of a file gets its own, tighter box.
 pub fn object_corners(o: &Object) -> [Vec3; 8] {
-    static CACHE: LazyLock<std::sync::Mutex<std::collections::HashMap<usize, (Vec3, Vec3)>>> =
+    // Keyed by the source's name, not its address: a cloth publishes a new mesh each step and
+    // frees the old one, so a reused address gave an old drape's bounds (owner report
+    // 2026-11-03: the selection box stayed where the cloth started).
+    static CACHE: LazyLock<std::sync::Mutex<std::collections::HashMap<String, (Vec3, Vec3)>>> =
         LazyLock::new(Default::default);
-    let (_, source) = object_source(o);
-    let key = source.as_ptr() as usize;
+    let (key, source) = object_source(o);
     let cached = CACHE
         .lock()
         .unwrap_or_else(|e| e.into_inner())

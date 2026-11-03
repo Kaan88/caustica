@@ -218,6 +218,9 @@ pub struct UiState {
     pub tool: gizmo::Tool,
     pub local: bool,
     pub hover: Option<gizmo::Handle>,
+    /// The pointer is on the gizmo's inner part (`gizmo::inner`): with physics running, a
+    /// press there grabs the body under it instead.
+    pub hover_inner: bool,
     /// Multi-select (3b): the selected items besides `selection` (the active one), the pivot
     /// they turn and scale around, the 3D cursor, and what Ctrl snaps a move to.
     pub also: Vec<Selection>,
@@ -343,6 +346,7 @@ impl Default for UiState {
             tool: gizmo::Tool::Move,
             local: false,
             hover: None,
+            hover_inner: false,
             also: vec![],
             pivot: gizmo::Pivot::Median,
             cursor3d: glam::Vec3::new(0., -1., 0.),
@@ -2140,7 +2144,10 @@ impl App {
         ));
         let targets = self.ui.targets();
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, &targets);
-        if self.settings.puzzle.enabled && self.settings.perspective() {
+        // With "Beam in image" the rods show the beam in the render itself; the overlay line on
+        // top of them would hide what they light.
+        if self.settings.puzzle.enabled && !self.settings.puzzle.beam && self.settings.perspective()
+        {
             self.laser
                 .draw(&painter, ppp, &view, self.settings.puzzle.color);
         }
@@ -2310,6 +2317,7 @@ impl App {
             );
         }
         self.ui.hover = None;
+        self.ui.hover_inner = false;
         if let Some(t) = &self.ui.transform {
             if let Some(f) = t.frame() {
                 gizmo::draw(
@@ -2352,6 +2360,7 @@ impl App {
         {
             let mouse = glam::Vec2::new(p.x * ppp, p.y * ppp);
             self.ui.hover = gizmo::hit(&view, &f, self.ui.local, self.ui.tool, mouse);
+            self.ui.hover_inner = gizmo::inner(&view, &f, self.ui.local, self.ui.tool, mouse);
         }
         gizmo::draw(
             &painter,
@@ -2408,7 +2417,24 @@ impl App {
     }
     pub fn finish_transform(&mut self) {
         if let Some(t) = self.ui.transform.take() {
-            if self.settings != t.original {
+            // Only the targets count: with physics running the other bodies moved meanwhile.
+            let changed = t.targets.iter().any(|sel| match *sel {
+                Selection::Object(i) => self.settings.objects.get(i) != t.original.objects.get(i),
+                Selection::Light(i) => self.settings.lights.get(i) != t.original.lights.get(i),
+                Selection::MainLight => {
+                    (
+                        self.settings.light_position,
+                        self.settings.light_size,
+                        self.settings.light_aspect,
+                    ) != (
+                        t.original.light_position,
+                        t.original.light_size,
+                        t.original.light_aspect,
+                    )
+                }
+                _ => self.settings != t.original,
+            });
+            if changed {
                 self.ui.checkpoint(&t.original);
                 // Laser puzzle (track 17): each finished transform of puzzle pieces (objects,
                 // not lights or the camera) is one move.

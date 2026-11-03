@@ -276,8 +276,9 @@ fn geometry_key(s: &Settings) -> String {
                 o.sdf,
                 o.phase,
                 &o.mesh,
-                // Glass goes to the non-opaque BLAS range (shadow rays may pass it).
-                o.material.transmission > 0.,
+                // Glass goes to the non-opaque BLAS range (shadow rays may pass it), and from
+                // 0.5 shadow rays leave its instance out by mask (track 20a (a)).
+                (o.material.transmission > 0., o.material.transmission >= 0.5),
                 // Masked texture maps need the any-hit loop too.
                 o.material.textures,
                 o.visible,
@@ -3466,7 +3467,7 @@ impl ApplicationHandler for App {
                     self.drag_distance = 0.;
                 } else if !consumed
                     && button == MouseButton::Left
-                    && self.ui.hover.is_none()
+                    && (self.ui.hover.is_none() || self.ui.hover_inner)
                     && self.walking.is_none()
                     && self.physics_grab()
                 {

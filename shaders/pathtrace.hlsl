@@ -202,10 +202,17 @@ bool sdf_hit(uint raw,float3 o,float3 d,float tmin,float tmax,out float t){
     }
     return false;
 }
+// Instance masks (track 20a (a), Gpu instance_mask): an object hidden from camera rays, or of
+// glass that shadow rays pass, is opaque with just this bit, and the rays below leave it out.
+// The per-candidate tests stay for the static BLAS's non-opaque range, alpha-tested objects
+// and objects under both rules, which keep mask 0xff.
+#define MASK_HIDDEN 2u
+#define MASK_CLEAR_GLASS 4u
 bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_ray){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
     // Nonopaque geometry allows the light quad and optional glass to be ignored for shadow rays.
-    RayQuery<RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    uint mask=0xffu&~(camera_ray?MASK_HIDDEN:0u)&~(shadow && jitter.w<=0.5?MASK_CLEAR_GLASS:0u);
+    RayQuery<RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];uint pm=pi.material;float t;
@@ -277,7 +284,8 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
 // Shadow test: any blocker ends the search, and no hit data is reconstructed.
 bool occluded(float3 o,float3 d,float limit){
     RayDesc ray;ray.Origin=o;ray.Direction=d;ray.TMin=0.0001;ray.TMax=limit;
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH|RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,255,ray);
+    uint mask=glass_blocks || jitter.w>0.5?0xffu:0xffu&~MASK_CLEAR_GLASS;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH|RQ_BASE> q;q.TraceRayInline(scene,RAY_FLAG_NONE,mask,ray);
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;

@@ -483,6 +483,25 @@ pub struct Gpu {
     query: ID3D12QueryHeap,
     timing: ID3D12Resource,
 }
+/// An object instance's mask and whether it still needs the shader per candidate (track 20a
+/// (a)). Rays leave out `MASK_HIDDEN` on camera rays and `MASK_CLEAR_GLASS` on shadow rays
+/// when glass doesn't block (pathtrace.hlsl); every other ray includes all of 0xff. An object
+/// under one rule gets just that bit and goes opaque; under both no single bit says it, so it
+/// stays non-opaque with the shader's tests (as do glass objects below 0.5 transmission,
+/// opaque now: the shader committed every candidate of theirs anyway).
+fn instance_mask(m: &crate::lighting::PackedMaterial) -> (u32, bool) {
+    let hidden = (m.lobes[3] as u32 & 2) != 0;
+    let clear = m.lobes[2] >= 0.5;
+    match (hidden, clear) {
+        (true, true) => (0xff, true),
+        (true, false) => (MASK_HIDDEN, false),
+        (false, true) => (MASK_CLEAR_GLASS, false),
+        (false, false) => (0xff, false),
+    }
+}
+/// Instance mask bits (pathtrace.hlsl MASK_HIDDEN, MASK_CLEAR_GLASS).
+const MASK_HIDDEN: u32 = 2;
+const MASK_CLEAR_GLASS: u32 = 4;
 impl Gpu {
     pub unsafe fn new(
         hwnd: HWND,
@@ -2075,13 +2094,14 @@ impl Gpu {
             object: u32::MAX,
         }];
         let identity = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
-        let mut push = |transform: &[f32; 12], id: u32, flags: u32, blas: &ID3D12Resource| {
-            descs.extend_from_slice(bytemuck::cast_slice(transform));
-            descs.extend_from_slice(&(id | 0xff00_0000).to_le_bytes());
-            descs.extend_from_slice(&(flags << 24).to_le_bytes());
-            descs.extend_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
-        };
-        push(&identity, 0, cull, self.static_blas.as_ref().unwrap());
+        let mut push =
+            |transform: &[f32; 12], id: u32, flags: u32, blas: &ID3D12Resource, mask: u32| {
+                descs.extend_from_slice(bytemuck::cast_slice(transform));
+                descs.extend_from_slice(&(id | mask << 24).to_le_bytes());
+                descs.extend_from_slice(&(flags << 24).to_le_bytes());
+                descs.extend_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
+            };
+        push(&identity, 0, cull, self.static_blas.as_ref().unwrap(), 0xff);
         let mut triangle_count = self.static_cache.len() / 3;
         for (i, key, _) in &visible {
             let mesh = &self.meshes[key];
@@ -2090,7 +2110,12 @@ impl Gpu {
             let o = &s.objects[*i];
             let masked = o.material.texture.is_empty()
                 && crate::mesh::maps(o).is_some_and(|m| m.cutoff > 0.);
-            let opacity = if needs_any_hit(material) || masked {
+            // Track 20a (a): an object's two skip rules (hidden from camera rays, glass that
+            // shadow rays pass) become instance masks, which the rays leave out (pathtrace.hlsl
+            // MASK_*), so the RT cores commit its hits without running the shader per candidate.
+            // Only alpha-tested objects, and ones under both rules, stay non-opaque.
+            let (mask, any_hit) = instance_mask(&packed[material as usize]);
+            let opacity = if any_hit || masked {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
             } else {
                 D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
@@ -2100,6 +2125,7 @@ impl Gpu {
                 table.len() as u32,
                 cull | opacity,
                 &mesh.blas,
+                if masked { 0xff } else { mask },
             );
             table.push(InstanceRecord {
                 vertex_base: mesh.first,
@@ -2150,6 +2176,7 @@ impl Gpu {
                     table.len() as u32,
                     cull | opacity,
                     &blas,
+                    0xff,
                 );
                 table.push(InstanceRecord {
                     vertex_base: o.sdf.id(o.phase),
