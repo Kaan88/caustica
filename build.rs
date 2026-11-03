@@ -213,6 +213,54 @@ fn main() {
             "trace_lpe_ser",
             &["-D", "TEXTURE_MAPS", "-D", "LPE", "-D", "SER"],
         ),
+        // Spectral rendering: the full tracer (with the map code) carrying wavelengths, as a
+        // compute kernel and as the SER ray generation shader (Gpu::ser index 5).
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_spectral",
+            &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+        ),
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_spectral_ser",
+            &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL", "-D", "SER"],
+        ),
+        // Photon mapping with spectral photons (one wavelength each; the gather stays RGB).
+        (
+            "integrators.hlsl",
+            "photon_trace",
+            "cs_6_5",
+            "photon_trace_spectral",
+            &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+        ),
+        // LEAN spectral (track 20a's LEAN rules), compute and SER (Gpu::ser index 6).
+        (
+            "pathtrace.hlsl",
+            "trace",
+            "cs_6_5",
+            "trace_spectral_lean",
+            &["-D", "TEXTURE_MAPS", "-D", "LEAN", "-D", "SPECTRAL"],
+        ),
+        (
+            "pathtrace.hlsl",
+            "trace_rg",
+            "lib_6_9",
+            "trace_spectral_lean_ser",
+            &[
+                "-D",
+                "TEXTURE_MAPS",
+                "-D",
+                "LEAN",
+                "-D",
+                "SPECTRAL",
+                "-D",
+                "SER",
+            ],
+        ),
     ] {
         // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
         let entry_args = if profile.starts_with("lib_") {

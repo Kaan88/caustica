@@ -606,9 +606,12 @@ A better denoiser than DLSS RR, for both stills and interactive use:
 - **NVIDIA NRD** (ReBLUR / ReLAX, real time): replaces or sits beside the native SVGF filter, and fixes its low-frequency blotches at low spp (known issue). Needs separate diffuse and specular radiance with hit distances, which the AOVs nearly provide.
 - Compare each against RR and the native filter with `tools/motion_error.py` and the convergence graph. Medium to large.
 
-### Spectral rendering
+### Spectral rendering — part 1 done 2026-11-03
 
 The biggest single jump in physical realism.
+
+- Done 2026-11-03 (engine-notes "Spectral rendering"): Render → *Spectral* for the path tracer (`trace_spectral` and its SER twin) and photon mapping (spectral photons, `photon_trace_spectral`). Hero sampling with three wavelengths in the colour channels, Mallett–Yuksel uplift (linear, so emission and HDRIs too), D65 in the output weights, negative components kept in the mean. Dispersion (`Material::dispersion`, Abbe number), the exact thin film, gratings at the hero wavelength and the spectral real lens. The `dark-side` scene (a prism's rainbow in fog).
+- Not done: BDPT, the photon gather's camera side, LPE and the path visualizer stay RGB; Kelvin lights are uplifted RGB, not exact blackbody spectra (the light needs its temperature on the GPU); fluorescence; the measured Cornell box spectra (item 18); Jakob–Hanika uplift (smoother spectra for saturated colours; Mallett–Yuksel's are broad); colour noise under RR and the native filter not yet measured; four wavelengths instead of three not tried.
 
 - **Approach:**
   - Hero-wavelength sampling (Wilkie et al. 2014): 4 wavelengths per path, with throughput as a 4-vector.

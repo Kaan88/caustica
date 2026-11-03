@@ -1,0 +1,135 @@
+{
+ "format": 1,
+ "title": "Dark side of the moon",
+ "description": "A white beam through a dense flint prism in light haze: spectral photons (Render → Spectral, photon mapping) split it by wavelength into a rainbow fanning onto the floor.",
+ "tags": [
+  "optics",
+  "spectral",
+  "dispersion",
+  "caustics",
+  "fog"
+ ],
+ "credits": "Caustica built-in scenes; after the 1973 album cover",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0,
+   0,
+   0
+  ],
+  "floor": {
+   "color": [
+    0.55,
+    0.55,
+    0.55
+   ],
+   "roughness": 0.9,
+   "metallic": 0,
+   "reflectivity": 0.02,
+   "transmission": 0,
+   "ior": 1.5,
+   "emission": 0
+  },
+  "light_on": false,
+  "bounces": 12,
+  "yaw": 0,
+  "pitch": 16,
+  "distance": 5.2,
+  "target": [
+   0.6,
+   -0.15,
+   0
+  ],
+  "fov": 45,
+  "background": [
+   0,
+   0,
+   0
+  ],
+  "lights": [
+   {
+    "name": "Beam",
+    "position": [
+     -2.324,
+     -0.594,
+     0.0
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     118.2
+    ],
+    "size": [
+     0.08,
+     0.08
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 2000.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "spot",
+    "spread": 1.0,
+    "blend": 0.1
+   }
+  ],
+  "objects": [
+   {
+    "name": "Prism",
+    "shape": "prism",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 2.0,
+    "stretch": 1.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1,
+     1
+    ],
+    "elevation": 0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0,
+     "reflectivity": 0.5,
+     "transmission": 1.0,
+     "ior": 1.7,
+     "emission": 0.0,
+     "dispersion": 12.0
+    },
+    "portal": -1
+   }
+  ],
+  "fog": {
+   "density": 0.08,
+   "color": [
+    1,
+    1,
+    1
+   ],
+   "phase": 0.3,
+   "height": 3.0,
+   "extent": 6.0
+  },
+  "integrator": 2,
+  "spectral": true,
+  "exposure": 3.0
+ }
+}

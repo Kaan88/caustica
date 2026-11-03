@@ -30,9 +30,14 @@ pub struct Shaders {
     pub trace_lean_ser: Vec<u8>,
     pub trace_maps_lean_ser: Vec<u8>,
     pub trace_lpe_ser: Vec<u8>,
+    pub trace_spectral: Vec<u8>,
+    pub trace_spectral_ser: Vec<u8>,
+    pub photon_trace_spectral: Vec<u8>,
+    pub trace_spectral_lean: Vec<u8>,
+    pub trace_spectral_lean_ser: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 24] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 29] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -166,6 +171,50 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 24] = [
         "trace_lpe_ser",
         &["-D", "TEXTURE_MAPS", "-D", "LPE", "-D", "SER"],
     ),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_spectral",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_spectral_ser",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL", "-D", "SER"],
+    ),
+    (
+        "integrators.hlsl",
+        "photon_trace",
+        "cs_6_5",
+        "photon_trace_spectral",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_spectral_lean",
+        &["-D", "TEXTURE_MAPS", "-D", "LEAN", "-D", "SPECTRAL"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_spectral_lean_ser",
+        &[
+            "-D",
+            "TEXTURE_MAPS",
+            "-D",
+            "LEAN",
+            "-D",
+            "SPECTRAL",
+            "-D",
+            "SER",
+        ],
+    ),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -261,6 +310,11 @@ impl HotReload {
             trace_lean_ser: b.next().unwrap(),
             trace_maps_lean_ser: b.next().unwrap(),
             trace_lpe_ser: b.next().unwrap(),
+            trace_spectral: b.next().unwrap(),
+            trace_spectral_ser: b.next().unwrap(),
+            photon_trace_spectral: b.next().unwrap(),
+            trace_spectral_lean: b.next().unwrap(),
+            trace_spectral_lean_ser: b.next().unwrap(),
         })
     }
 }

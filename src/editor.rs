@@ -251,6 +251,20 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 if m.transmission > 0. {
                     row(
                         ui,
+                        "Dispersion",
+                        "Splits white light into a rainbow by wavelength (only with Spectral on, in the Render tab). The Abbe number: lower disperses more; crown glass 60, flint 30, dense flint 20.",
+                        |ui| {
+                            let mut on = m.dispersion > 0.;
+                            if ui.checkbox(&mut on, "").changed() {
+                                m.dispersion = if on { 30. } else { 0. };
+                            }
+                            if on {
+                                ui.add(crate::slider(&mut m.dispersion, 10. ..=100.));
+                            }
+                        },
+                    );
+                    row(
+                        ui,
                         "Volume density",
                         "Fills the object with a scattering medium (smoke, milk, jade): extinction per unit                          length. 0 is clear; the colour above still tints by absorption.",
                         |ui| {

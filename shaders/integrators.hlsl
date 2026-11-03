@@ -85,7 +85,14 @@ Material vertex_material(BVertex x,float3 v){
     if((x.info&V_TEXTURED)!=0){m.color_rough.rgb=x.albedo;m.color_rough.a=x.rough_metal.x;m.lobes.x=x.rough_metal.y;}
     if(m.surface_scale.z>0){bool front=(x.info&V_FRONT)!=0;float c=saturate(dot(v,x.n));
         if(m.lobes.z>0)prepare_film(m,c,front?1:m.optical.x,front?m.optical.x:1);else prepare_film(m,c,1,0);}
-    if(has_grating(m))grating_wavelength(hash(asuint(x.p.x))^hash(asuint(x.p.y)+0x68e31da4u)^hash(asuint(x.p.z)+0x1b873593u));
+    if(has_grating(m)){if(spectral_on)path_lambda=path_lambdas.x;else grating_wavelength(hash(asuint(x.p.x))^hash(asuint(x.p.y)+0x68e31da4u)^hash(asuint(x.p.z)+0x1b873593u));}
+    // Spectral photons (photon_trace_spectral): the photon's one wavelength (path_lambdas.x;
+    // hero_only from emission) sees the uplifted colours and the film at that wavelength.
+    if(spectral_on){
+        m.color_rough.rgb=up(m.color_rough.rgb);m.sheen.rgb=up(m.sheen.rgb);
+        if(m.surface_scale.z>0){bool front=(x.info&V_FRONT)!=0;float c=saturate(dot(v,x.n));
+            if(m.lobes.z>0)prepare_film_waves(m,c,front?1:ior_of(m),front?ior_of(m):1);else prepare_film_waves(m,c,1,0);}
+    }
     return m;
 }
 // The emission a hit vertex sends toward w, as trace counts it (flat colour, one-sided, spot).
@@ -121,7 +128,7 @@ bool sample_vertex(inout BVertex x,float3 d,bool radiance,uint mode,out float3 n
         if(z<=0)return false;
         // Both sides' indices from the walk's medium stack (sv_media), as trace takes them.
         uint e=medium_entry(x.info&0xffffffu,m.lobes.w);uint64_t after=front?medium_push(sv_media,e):medium_remove(sv_media,e);
-        float n1=front?medium_ior(sv_media,medium_top(sv_media)):m.optical.x,n2=front?m.optical.x:medium_ior(after,medium_top(after));
+        float n1=front?medium_ior(sv_media,medium_top(sv_media)):ior_of(m),n2=front?ior_of(m):medium_ior(after,medium_top(after));
         float eta=n1/n2,fr=fresnel_dielectric(saturate(dot(-d,x.n)),eta);
         float3 frc=fr.xxx;
         if(m.surface_scale.z>0 && fr<1){frc=lerp(frc,m.base_scale.rgb,m.surface_scale.z);fr=clamp((frc.r+frc.g+frc.b)/3,1e-4,1-1e-4);}
@@ -398,12 +405,14 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
 }
 // The frame's estimate b (a mean over sampling.y samples) into the running mean, as trace's
 // tail does; the direct-light AOV holds the beauty (the direct / indirect sliders do nothing).
+// The running mean keeps negative components (spectral photons: one wavelength each lies outside
+// the sRGB gamut; clamping per frame biased the hue). The RGB integrators never produce them.
 void finish_frame(uint2 p,float3 b){
-    if(!all(isfinite(b)))b=0;b=max(b,0);
+    if(!all(isfinite(b)))b=0;
     float n=max(sampling.y,1u),count=sampling.x+n;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float dl=luminance(b)-luminance(mean);mean+=(b-mean)*n/count;m2+=n*dl*(luminance(b)-luminance(mean));
-    accumulation[p]=float4(mean,max(0,m2));noisy[p]=float4(b,1);direct_light[p]=float4(mean,1);specular_light[p]=0;trace_stats[p]=0;
+    accumulation[p]=float4(mean,max(0,m2));noisy[p]=float4(max(b,0),1);direct_light[p]=float4(mean,1);specular_light[p]=0;trace_stats[p]=0;
 }
 float pixel_angle_now(){return camera_model.x==1?0:2*environment.z/dimensions.w;}
 float pixel_width_now(){return camera_model.x==1?2*camera_model.w/dimensions.w:0;}
@@ -448,12 +457,16 @@ bool keeps_photons(Material m){return gather_surface(m);}
     if(tid.x<HASH)aux.Store(16+4*tid.x,0xffffffffu);
     if(tid.x==0)aux.Store(0,0);
 }
-// A volume photon (deposited at a scatter in a medium) carries its power's red with the sign
-// bit set; surface gathers skip those and volume gathers take only those.
+// A volume photon (deposited at a scatter in a medium) has the lowest mantissa bit of its
+// power's blue set (one ulp); surface gathers skip those and volume gathers take only those.
+// (It was red's sign bit until spectral photons, whose power can be negative in any channel.)
 void deposit(float3 p,float3 wi,float3 b,bool volume){
+    // A spectral photon stores its power as linear sRGB (one wavelength: negative components
+    // kept, as the spectral tracer keeps them; the gather's running mean stays unbiased).
+    b=to_rgb(b);
     uint idx;aux.InterlockedAdd(0,1,idx);if(idx>=integrator.y)return;
     uint prev;aux.InterlockedExchange(16+4*cell_hash((int3)floor(p/photon.x)),idx,prev);
-    uint a=PHOTON_BASE+idx*32;aux.Store4(a,uint4(asuint(p),pack_normal(wi)));aux.Store4(a+16,uint4(asuint(b.r)|(volume?0x80000000u:0),asuint(b.g),asuint(b.b),prev));
+    uint a=PHOTON_BASE+idx*32;aux.Store4(a,uint4(asuint(p),pack_normal(wi)));aux.Store4(a+16,uint4(asuint(b.r),asuint(b.g),(asuint(b.b)&~1u)|(volume?1u:0u),prev));
 }
 // A point on the disk of the bounding sphere facing direction ld (toward the sun or sky).
 float3 disk_origin(float3 ld){float r=bounds.w*sqrt(random()),a=2*PI*random();return bounds.xyz+basis(ld,float3(r*cos(a),r*sin(a),bounds.w*1.01));}
@@ -516,6 +529,8 @@ bool sdf_photon(float p,out float3 o,out float3 w,out float3 b){
             b=emission_toward(k,l,w)*c/(po*pd);o=l.p+n*0.0003;
         }
     }
+    // Spectral photons: one wavelength each from the start (hero only, weight 3).
+    begin_wavelengths(i^hash(sampling.w*0x85ebca6bu+0x2545f491u));b=up(b);hero(b);
     float3 ab=0;Walk wk=new_walk();
     for(uint k=0;k<min(sampling.z,PHOTON_WALK);k++){
         Hit h;float3 x,alb;float g,sigma;uint step=walk_step(o,w,false,wk,b,h,x,alb,g,sigma);
@@ -523,7 +538,7 @@ bool sdf_photon(float p,out float3 o,out float3 w,out float3 b){
             // A scatter in a medium: a volume photon from the second interaction on (the first
             // is direct light, which the gather takes by next-event estimation).
             if(k>0)deposit(x,-w,b,true);
-            float before=max3(b),pf;b*=alb;float3 next=hg_sample(w,g,pf);
+            float before=max3(b),pf;b*=up(alb);float3 next=hg_sample(w,g,pf);
             if(k>=2){float survival=clamp(max3(b)/max(before,1e-30),0.05,0.95);if(random()>survival)return;b/=survival;}
             o=x;w=next;continue;
         }
@@ -544,7 +559,7 @@ float3 gather(BVertex x,Material m,float3 v){
         int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
         for(;j!=0xffffffffu && guard<4096;guard++){
             uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x.p;
-            if((B.x>>31)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r && abs(dot(dq,x.n))<GATHER_SLAB*r){float3 wi=unpack_normal(A.w);float pdf;
+            if((B.z&1u)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r && abs(dot(dq,x.n))<GATHER_SLAB*r){float3 wi=unpack_normal(A.w);float pdf;
                 if(dot(x.n,wi)>0)cell+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*asfloat(B.xyz);}
             j=B.w;
         }
@@ -564,8 +579,8 @@ float3 gather_volume(float3 x,float3 d,float g,float sigma){
         int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
         for(;j!=0xffffffffu && guard<4096;guard++){
             uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x;
-            if((B.x>>31)!=0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r)
-                cell+=hg_pdf(dot(unpack_normal(A.w),d),g)*float3(asfloat(B.x&0x7fffffffu),asfloat(B.y),asfloat(B.z));
+            if((B.z&1u)!=0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r)
+                cell+=hg_pdf(dot(unpack_normal(A.w),d),g)*asfloat(B.xyz);
             j=B.w;
         }
         uint total=guard;for(;j!=0xffffffffu && total<(1u<<20);total++)j=aux.Load(PHOTON_BASE+j*32+28);
@@ -636,7 +651,7 @@ float3 direct_light_at(BVertex x,Material m,float3 v,float p_env){
             cross_surface(x,next,wk);
             o=h.p+h.ng*(dot(next,h.ng)>0?0.0003:-0.0003);d=next;
         }
-        if(all(isfinite(L)))sum+=max(L,0);
+        if(all(isfinite(L)))sum+=L;
     }
     finish_frame(p,sum/max(sampling.y,1u));
 }

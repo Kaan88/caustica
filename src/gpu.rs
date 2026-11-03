@@ -295,10 +295,16 @@ pub struct Gpu {
     /// `lean_scene` holds and the frame has neither fog nor ReSTIR.
     trace_lean: ID3D12PipelineState,
     trace_maps_lean: ID3D12PipelineState,
+    /// Spectral rendering (`Settings::spectral`): the full tracer with the map code, carrying
+    /// wavelengths (engine-notes "Spectral rendering").
+    trace_spectral: ID3D12PipelineState,
+    /// `trace_spectral` with LEAN, picked under the same rule as `trace_lean`.
+    trace_spectral_lean: ID3D12PipelineState,
     /// Track 20: the four tracers above as SER ray generation pipelines, in the order trace,
     /// trace_maps, trace_lean, trace_maps_lean; None without SER (or CAUSTICA_NO_SER=1).
-    /// The SER tracers: the four `trace` variants (index textured + 2 × LEAN), then LPE.
-    ser: Option<[SerPipeline; 5]>,
+    /// The SER tracers: the four `trace` variants (index textured + 2 × LEAN), then LPE, then
+    /// spectral and spectral LEAN.
+    ser: Option<[SerPipeline; 7]>,
     /// Path visualizer (track 14): the trace variant that re-traces one pixel into
     /// `path_buffer` (bound at u0 space 2 for every dispatch), read back through `path_readback`.
     trace_paths: ID3D12PipelineState,
@@ -344,6 +350,8 @@ pub struct Gpu {
     bdpt_resolve: ID3D12PipelineState,
     photon_clear: ID3D12PipelineState,
     photon_trace: ID3D12PipelineState,
+    /// `photon_trace` with spectral photons (`Settings::spectral`).
+    photon_trace_spectral: ID3D12PipelineState,
     photon_gather: ID3D12PipelineState,
     aux: Option<ID3D12Resource>,
     aux_len: u64,
@@ -889,6 +897,14 @@ impl Gpu {
             env!("OUT_DIR"),
             "/trace_maps_lean.dxil"
         )))?;
+        let trace_spectral = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/trace_spectral.dxil"
+        )))?;
+        let trace_spectral_lean = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/trace_spectral_lean.dxil"
+        )))?;
         let ser_pipelines = make_ser(
             &device,
             &root,
@@ -899,6 +915,8 @@ impl Gpu {
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_lean_ser.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_maps_lean_ser.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_lpe_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_spectral_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_spectral_lean_ser.dxil")),
             ],
         );
         let trace_paths = compute(include_bytes!(concat!(
@@ -968,6 +986,10 @@ impl Gpu {
         let photon_trace = compute(include_bytes!(concat!(
             env!("OUT_DIR"),
             "/photon_trace.dxil"
+        )))?;
+        let photon_trace_spectral = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/photon_trace_spectral.dxil"
         )))?;
         let photon_gather = compute(include_bytes!(concat!(
             env!("OUT_DIR"),
@@ -1097,6 +1119,8 @@ impl Gpu {
             trace_maps,
             trace_lean,
             trace_maps_lean,
+            trace_spectral,
+            trace_spectral_lean,
             ser: ser_pipelines,
             trace_paths,
             path_buffer,
@@ -1127,6 +1151,7 @@ impl Gpu {
             bdpt_resolve,
             photon_clear,
             photon_trace,
+            photon_trace_spectral,
             photon_gather,
             aux: None,
             aux_len: 0,
@@ -1821,6 +1846,9 @@ impl Gpu {
         let trace_lean = create_compute_pipeline(&self.device, &self.root, &sh.trace_lean)?;
         let trace_maps_lean =
             create_compute_pipeline(&self.device, &self.root, &sh.trace_maps_lean)?;
+        let trace_spectral = create_compute_pipeline(&self.device, &self.root, &sh.trace_spectral)?;
+        let trace_spectral_lean =
+            create_compute_pipeline(&self.device, &self.root, &sh.trace_spectral_lean)?;
         let trace_paths = create_compute_pipeline(&self.device, &self.root, &sh.trace_paths)?;
         let trace_lpe = create_compute_pipeline(&self.device, &self.root, &sh.trace_lpe)?;
         let restir_presample =
@@ -1831,6 +1859,8 @@ impl Gpu {
         let bdpt_resolve = create_compute_pipeline(&self.device, &self.root, &sh.bdpt_resolve)?;
         let photon_clear = create_compute_pipeline(&self.device, &self.root, &sh.photon_clear)?;
         let photon_trace = create_compute_pipeline(&self.device, &self.root, &sh.photon_trace)?;
+        let photon_trace_spectral =
+            create_compute_pipeline(&self.device, &self.root, &sh.photon_trace_spectral)?;
         let photon_gather = create_compute_pipeline(&self.device, &self.root, &sh.photon_gather)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
@@ -1858,6 +1888,9 @@ impl Gpu {
         )?;
         self.wait_idle()?;
         (self.trace_lean, self.trace_maps_lean) = (trace_lean, trace_maps_lean);
+        self.trace_spectral = trace_spectral;
+        self.trace_spectral_lean = trace_spectral_lean;
+        self.photon_trace_spectral = photon_trace_spectral;
         if self.ser.is_some() {
             self.ser = make_ser(
                 &self.device,
@@ -1869,6 +1902,8 @@ impl Gpu {
                     &sh.trace_lean_ser,
                     &sh.trace_maps_lean_ser,
                     &sh.trace_lpe_ser,
+                    &sh.trace_spectral_ser,
+                    &sh.trace_spectral_lean_ser,
                 ],
             );
         }
@@ -2911,7 +2946,11 @@ impl Gpu {
                 self.list.SetPipelineState(&self.photon_clear);
                 self.list.Dispatch((PHOTON_HASH / 64) as u32, 1, 1);
                 uav(&self.list, None);
-                self.list.SetPipelineState(&self.photon_trace);
+                self.list.SetPipelineState(if s.spectral {
+                    &self.photon_trace_spectral
+                } else {
+                    &self.photon_trace
+                });
                 self.list.Dispatch(photons.div_ceil(64), 1, 1);
                 uav(&self.list, None);
                 self.list.SetPipelineState(&self.photon_gather);
@@ -2938,10 +2977,18 @@ impl Gpu {
                 // LEAN exactly when the shader's fog and ReSTIR flags are off for this frame.
                 let lean = self.lean_scene && c.fog[0] <= 0. && c.restir[0] & 1 == 0;
                 let variant = self.textured as usize + 2 * lean as usize;
+                // Light path expressions stay RGB (their tracer has no spectral twin).
+                let spectral = s.spectral && self.lpe_slots == 0;
                 if let Some(ser) = self.ser.as_ref() {
                     // Track 20: the same threads as the compute dispatch, through
                     // DispatchRays so the shader may reorder them (MaybeReorderThread).
-                    let p = &ser[if self.lpe_slots > 0 { 4 } else { variant }];
+                    let p = &ser[if self.lpe_slots > 0 {
+                        4
+                    } else if spectral {
+                        5 + lean as usize
+                    } else {
+                        variant
+                    }];
                     self.list.SetPipelineState1(&p.state);
                     self.list.DispatchRays(&D3D12_DISPATCH_RAYS_DESC {
                         RayGenerationShaderRecord: D3D12_GPU_VIRTUAL_ADDRESS_RANGE {
@@ -2956,6 +3003,10 @@ impl Gpu {
                 } else {
                     self.list.SetPipelineState(if self.lpe_slots > 0 {
                         &self.trace_lpe
+                    } else if spectral && lean {
+                        &self.trace_spectral_lean
+                    } else if spectral {
+                        &self.trace_spectral
                     } else {
                         [
                             &self.trace,
@@ -4959,8 +5010,8 @@ unsafe fn make_ser(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
     support: SerSupport,
-    code: [&[u8]; 5],
-) -> Option<[SerPipeline; 5]> {
+    code: [&[u8]; 7],
+) -> Option<[SerPipeline; 7]> {
     if !support.available() || std::env::var_os("CAUSTICA_NO_SER").is_some() {
         return None;
     }

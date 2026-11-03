@@ -83,6 +83,10 @@ pub struct Material {
     pub scatter_color: [f32; 3],
     #[serde(skip_serializing_if = "is_zero_f32")]
     pub phase: f32,
+    /// Dispersion of a transmissive material, as its Abbe number (0 = none; crown glass 60,
+    /// flint 30, diamond 55 at a high IOR). Only the spectral tracer bends wavelengths apart.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub dispersion: f32,
 }
 /// Global fog (track 12): a homogeneous medium filling a box from the floor (y = −1) up to
 /// `height`, `extent` units out from the centre on x and z.
@@ -179,6 +183,7 @@ impl Default for Material {
             density: 0.,
             scatter_color: [1.; 3],
             phase: 0.,
+            dispersion: 0.,
         }
     }
 }
@@ -841,6 +846,11 @@ pub struct Settings {
     /// Integrator (track 15): 0 path tracing, 1 bidirectional (BDPT), 2 progressive photon
     /// mapping (see engine-notes "BDPT and photon mapping").
     pub integrator: u32,
+    /// Spectral rendering: the path tracer carries wavelengths instead of RGB (dispersion,
+    /// exact thin film and gratings; see engine-notes "Spectral rendering"). Photon mapping
+    /// traces spectral photons (its gather stays RGB); BDPT, light path expressions and the path
+    /// visualizer stay RGB.
+    pub spectral: bool,
     /// Photon mapping: photons emitted per frame.
     pub photons: u32,
     /// Photon mapping: the starting gather radius as a share of the scene's bounding radius.
@@ -993,6 +1003,7 @@ impl Default for Settings {
             restir_neighbors: 4,
             restir_history: 20,
             integrator: 0,
+            spectral: false,
             photons: 1 << 18,
             photon_radius: 0.01,
             battle: false,
@@ -1434,7 +1445,8 @@ impl Settings {
                     && (0.3..=10.).contains(&m.grating_spacing)
                     && (0. ..=100.).contains(&m.density)
                     && m.scatter_color.iter().all(|v| (0. ..=1.).contains(v))
-                    && (-0.95..=0.95).contains(&m.phase),
+                    && (-0.95..=0.95).contains(&m.phase)
+                    && (m.dispersion == 0. || (10. ..=100.).contains(&m.dispersion)),
                 "Invalid material"
             );
             anyhow::ensure!(

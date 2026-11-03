@@ -25,7 +25,9 @@ void reproject(uint2 p){
     color/=total;color.a*=saturate(total);history[p]=color;history_moments[p]=moment/total;
 }
 void integrate(uint2 p){
-    float count=max(1,sampling.x+sampling.y);float4 acc=accumulation[p];float id=object_id[p];
+    // max: the spectral tracer's mean may hold negative components (engine-notes "Spectral
+    // rendering"); RGB means never do.
+    float count=max(1,sampling.x+sampling.y);float4 acc=accumulation[p];acc.rgb=max(acc.rgb,0);float id=object_id[p];
     float3 alb=albedo_at(int2(p));float ld=luminance(acc.rgb/alb),lr=luminance(acc.rgb);float s=lr>1e-6?ld/lr:1/luminance(alb);
     float2 m=float2(ld,acc.a/count*s*s+ld*ld);float3 c=acc.rgb/alb;float effective=count;
     if(filter_settings.y!=0 && filter_settings.z==0){
@@ -42,7 +44,7 @@ void integrate(uint2 p){
     if(effective<4){
         // Too few samples for moments: use the spread of same-surface neighbors instead.
         float s1=0,s2=0,k=0;
-        for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){int2 q=int2(p)+int2(x,y);if(any(q<0)||any(q>=int2(dimensions.xy))||object_id[q]!=id)continue;float l=luminance(accumulation[q].rgb/albedo_at(q));s1+=l;s2+=l*l;k++;}
+        for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){int2 q=int2(p)+int2(x,y);if(any(q<0)||any(q>=int2(dimensions.xy))||object_id[q]!=id)continue;float l=luminance(max(accumulation[q].rgb,0)/albedo_at(q));s1+=l;s2+=l*l;k++;}
         variance=max(0,s2/k-(s1/k)*(s1/k))*count/effective;
     }else variance=max(0,m.y-m.x*m.x)/effective;
     integrated[p]=float4(c,effective);moments[p]=float4(m,variance,0);

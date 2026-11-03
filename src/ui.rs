@@ -4140,6 +4140,11 @@ impl App {
                         });
                 },
             );
+            if s.integrator != 1 || s.battle {
+                row(ui, "Spectral", "Trace wavelengths of light instead of red, green and blue: glass with dispersion splits white light into a rainbow, and thin films and gratings get their exact colours. Colours shift slightly where light bounces between coloured surfaces, as in reality. A little more colour noise at low samples. Path tracing and photon mapping (there the photons carry wavelengths, so a prism throws a rainbow); BDPT stays RGB.", |ui| {
+                    ui.checkbox(&mut s.spectral, "");
+                });
+            }
             if s.integrator == 2 || s.battle {
                 row(ui, "Photons per frame", "Photons traced from the lights each frame.", |ui| {
                     ui.add(crate::slider(&mut s.photons, 1 << 12..=1 << 20).logarithmic(true));

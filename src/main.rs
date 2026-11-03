@@ -1804,7 +1804,17 @@ impl App {
                     self.settings.preset(3);
                     self.settings.integrator = 1;
                 }
-                286 => self.settings.integrator = 2,
+                // Spectral rendering from here to 289: spectral photons through dispersive glass,
+                // then battle mode (the spectral path tracer and its SER twin) and the spectral lens.
+                286 => {
+                    self.settings.integrator = 2;
+                    self.settings.spectral = true;
+                    for o in &mut self.settings.objects {
+                        if o.material.transmission > 0. {
+                            o.material.dispersion = 20.;
+                        }
+                    }
+                }
                 287 => {
                     self.settings.integrator = 0;
                     self.settings.battle = true;
@@ -1822,7 +1832,10 @@ impl App {
                     self.settings.dispersion = 1.;
                     self.settings.glare = 1.;
                 }
-                290 => self.settings.lens_system = 3,
+                290 => {
+                    self.settings.lens_system = 3;
+                    self.settings.spectral = false;
+                }
                 291 => {
                     self.settings.lens_system = 0;
                     self.settings.f_number = 0.;

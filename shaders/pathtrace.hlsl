@@ -103,6 +103,61 @@ static const bool lean=false;
 #else
 #define RQ_OMM
 #endif
+// Spectral rendering (engine-notes "Spectral rendering"): the SPECTRAL variant carries three
+// wavelengths per path (hero wavelength sampling, Wilkie et al. 2014, with three instead of four)
+// in the float3 colour channels, so every per-channel operation of the tracer is per wavelength.
+// RGB values become spectra where they enter (up(): Mallett and Yuksel's primaries, linear, so
+// emission and HDRIs uplift too) and a sample's radiance goes back to linear sRGB at its end
+// (to_rgb()). D65 sits in the output weights. A thin film is exact per wavelength. An event whose
+// direction depends on the wavelength (dispersion, a grating's orders, a dispersive real lens)
+// keeps the hero only (hero()): the other two are dropped and the hero weighs 3, as pbrt-v4's
+// TerminateSecondary.
+// Wavelengths come from a per-pixel rotated Weyl sequence over the sample index, not from the
+// Sobol dimensions, so the RGB variants' sampling is untouched.
+static float3 path_lambdas; // nm
+static bool hero_only;
+#ifdef SPECTRAL
+#include "spectral_tables.hlsli"
+static const bool spectral_on=true;
+static float3x3 uplift_rows; // row i: the basis spectra at wavelength i
+float3 spectral_table(float l,bool out_table){
+    float x=clamp((l-SPECTRAL_LO)/SPECTRAL_STEP,0,SPECTRAL_COUNT-1.001);uint i=(uint)x;float f=x-i;
+    return out_table?lerp(SPECTRAL_OUT[i],SPECTRAL_OUT[i+1],f):lerp(SPECTRAL_BASIS[i],SPECTRAL_BASIS[i+1],f);
+}
+// Visible-wavelength importance (Radziszewski et al. 2009, as pbrt-v4): pdf ∝ sech²(a(λ − 538)),
+// cut to the tables' range, inverted in closed form.
+static const float WAVE_A=0.0072;
+float wave_t(float l){return tanh(WAVE_A*(l-538));}
+float wave_pdf(float l){float c=cosh(WAVE_A*(l-538));return WAVE_A/((wave_t(SPECTRAL_HI)-wave_t(SPECTRAL_LO))*c*c);}
+float wave_sample(float u){float t=lerp(wave_t(SPECTRAL_LO),wave_t(SPECTRAL_HI),u);return 538+0.5*log((1+t)/(1-t))/WAVE_A;}
+void begin_wavelengths(uint key){
+    float u=(hash(hash(pixel_seed^0x2c1b3c6du)+key*0x9e3779b9u)>>8)*(1.0/16777216.0);
+    [unroll]for(uint i=0;i<3;i++){path_lambdas[i]=wave_sample(frac(u+i/3.0));uplift_rows[i]=spectral_table(path_lambdas[i],false);}
+    hero_only=false;
+}
+float3 up(float3 rgb){return mul(uplift_rows,rgb);}
+// A sample's spectral radiance as linear sRGB: (1/3) Σ out(λi) v_i / p(λi), or the hero alone.
+float3 to_rgb(float3 v){
+    float3 c=0;[unroll]for(uint i=0;i<3;i++)c+=spectral_table(path_lambdas[i],true)*(v[i]/(3*wave_pdf(path_lambdas[i])));
+    return c;
+}
+void hero(inout float3 throughput){if(!hero_only){throughput=float3(3*throughput.x,0,0);hero_only=true;}}
+#else
+static const bool spectral_on=false;
+void begin_wavelengths(uint key){}
+float3 up(float3 rgb){return rgb;}
+float3 to_rgb(float3 v){return v;}
+void hero(inout float3 throughput){}
+#endif
+// Dispersion (spectral only): phase.y holds the Abbe number V (0 = none). Cauchy's n(λ) = A +
+// B/λ² through n_d = optical.x at 587.6 nm with n_F − n_C = (n_d − 1)/V; read at the hero
+// wavelength once the path keeps only it.
+bool dispersive(Material m){return spectral_on && m.phase.y>0;}
+float ior_of(Material m){
+    if(!dispersive(m) || !hero_only)return m.optical.x;
+    float l=path_lambdas.x*1e-3,b=(m.optical.x-1)/(m.phase.y*(1/(0.4861*0.4861)-1/(0.6563*0.6563)));
+    return m.optical.x+b*(1/(l*l)-1/(0.5876*0.5876));
+}
 bool fog_on(){return !lean && fog.x>0;}
 bool restir_on(){return !lean && (restir.x&1)!=0;}
 // The gates only (coat, anisotropy, sheen, film strength, extinction): every use of the other
@@ -392,8 +447,8 @@ int medium_find(uint64_t s,uint e){int j=-1;[unroll]for(uint i=0;i<4;i++)if(medi
 uint64_t medium_push(uint64_t s,uint e){[unroll]for(uint i=0;i<4;i++)if(medium_at(s,i)==0)return s|((uint64_t)e<<(16*i));return s;}
 uint64_t medium_remove(uint64_t s,uint e){int j=medium_find(s,e);if(j<0)return s;uint64_t low=j>0?s&((1ull<<(16*j))-1):0;return low|((s>>(16*(j+1)))<<(16*j));}
 Material medium_material(uint64_t s,int top){Material m=materials[(medium_at(s,top)&0x1fffu)-1];lean_strip(m);return m;}
-float medium_ior(uint64_t s,int top){return top>=0?medium_material(s,top).optical.x:1;}
-float3 medium_absorption(uint64_t s,int top){return top>=0?-log(max(medium_material(s,top).color_rough.rgb,0.001)):float3(0,0,0);}
+float medium_ior(uint64_t s,int top){return top>=0?ior_of(medium_material(s,top)):1;}
+float3 medium_absorption(uint64_t s,int top){return top>=0?-log(max(up(medium_material(s,top).color_rough.rgb),0.001)):float3(0,0,0);}
 // Thin-film interference (track 11, glTF's KHR_materials_iridescence): Belcour and Barla
 // (2017), the Airy sum of a film between the outside and the base, kept to its first two
 // orders, with the spectral integral done in closed form against Gaussian fits of the CIE XYZ
@@ -409,7 +464,7 @@ float3 film_sensitivity(float opd,float3 shift){
     return mul(XYZ_TO_REC709,xyz/1.0685e-7);
 }
 float schlick(float f0,float c){return f0+(1-f0)*pow(1-saturate(c),5);}
-float3 film_fresnel(float c1,float eta2,float3 eta3,float thickness){
+float3 film_fresnel(float c1,float eta2,float3 eta3,float thickness,bool waves){
     // Below ~30 nm the film fades out (its IOR towards the outside's), leaving the base's Fresnel.
     eta2=lerp(1,eta2,smoothstep(0,30,thickness));
     float s2=(1-c1*c1)/(eta2*eta2);if(s2>=1)return 1;float c2=sqrt(1-s2);
@@ -419,7 +474,8 @@ float3 film_fresnel(float c1,float eta2,float3 eta3,float thickness){
     float3 phi=phi21+select(eta3<eta2,PI.xxx,0.0.xxx);
     float opd=2*eta2*thickness*c2;
     float3 r123=clamp(r12*r23,1e-5,0.9999),rs=t121*t121*r23/(1-r123),i=r12+rs,cm=rs-t121,sq=sqrt(r123);
-    [unroll]for(int k=1;k<=2;k++){cm*=sq;i+=cm*2*film_sensitivity(k*opd,k*phi);}
+    // Spectral: the Airy terms at the path's own wavelengths, exactly (no CMF fit).
+    [unroll]for(int k=1;k<=2;k++){cm*=sq;i+=cm*2*(waves?cos(k*(2*PI*opd/path_lambdas+phi)):film_sensitivity(k*opd,k*phi));}
     return saturate(i);
 }
 float film_thickness(Material m){return m.surface_scale.w-floor(m.surface_scale.w/2048)*2048;}
@@ -435,7 +491,13 @@ float spec_probability(Material m){return clamp(0.25+0.5*m.lobes.x+0.25*m.lobes.
 void prepare_film(inout Material m,float c,float outside,float base){
     if(m.surface_scale.z<=0)return;
     float3 q=sqrt(clamp(f0_of(m),0,0.9999));float3 eta3=base>0?(base/outside).xxx:(1+q)/(1-q);
-    m.base_scale.rgb=film_fresnel(c,film_ior(m)/outside,eta3,film_thickness(m));
+    m.base_scale.rgb=film_fresnel(c,film_ior(m)/outside,eta3,film_thickness(m),false);
+}
+// The spectral tracer's film, on a material already uplifted (f0 per wavelength).
+void prepare_film_waves(inout Material m,float c,float outside,float base){
+    if(m.surface_scale.z<=0)return;
+    float3 q=sqrt(clamp(f0_of(m),0,0.9999));float3 eta3=base>0?(base/outside).xxx:(1+q)/(1-q);
+    m.base_scale.rgb=film_fresnel(c,film_ior(m)/outside,eta3,film_thickness(m),true);
 }
 // The base specular's Fresnel at cosine c, with the film (if any, prepare_film) over it.
 float3 spec_fresnel(Material m,float c,float3 f0){
@@ -547,7 +609,7 @@ void grating_wavelength(uint key){
 // The RGB weight of the hit's wavelength, recomputed where needed: kept from the hit, it (like the
 // groove axis and the order shares, also recomputed) stayed live across the whole bounce, and
 // those registers cost scenes without a grating 4–12%.
-float3 grating_weight(){float3 x=(path_lambda-GRATING_MU)/GRATING_SIGMA,nc=exp(-0.5*x*x)/GRATING_SIGMA;return 3*nc/max(nc.r+nc.g+nc.b,1e-30);}
+float3 grating_weight(){if(spectral_on)return 1;float3 x=(path_lambda-GRATING_MU)/GRATING_SIGMA,nc=exp(-0.5*x*x)/GRATING_SIGMA;return 3*nc/max(nc.r+nc.g+nc.b,1e-30);}
 float grating_share(Material m){return floor(-m.optical.w/16384)/1000;}
 float grating_shift(Material m){float c=-m.optical.w;return path_lambda/(c-floor(c/16384)*16384);}
 static const float GRATING_ORDER[4]={-1,1,-2,2};
@@ -656,6 +718,14 @@ float2 aperture_point(){
 // -z. camera_weight is the sample's weight from the camera (1 except through a lens system).
 static float3 camera_weight=1;
 #define LENS_BANDS_BASE 34
+// A surface's index in channel c, or (c = 3, spectral) at the hero wavelength: lens.rs `indices`
+// builds the three on one Cauchy curve (green at 550 nm, red 610, blue 465), so the curve is
+// recovered exactly from red and blue.
+float lens_ior(float4 n,uint c){
+    if(c<3)return n[c];
+    float l=path_lambdas.x*1e-3,b=(n.z-n.x)/(1/(0.465*0.465)-1/(0.61*0.61));
+    return n.y+b*(1/(l*l)-1/(0.55*0.55));
+}
 // From the film to the object side through every surface, in channel c's indices.
 bool trace_lens(inout float3 o,inout float3 d,uint c){
     for(int i=int(real_lens.x)-1;i>=0;i--){
@@ -668,8 +738,8 @@ bool trace_lens(inout float3 o,inout float3 d,uint c){
         if(!(t>0))return false;o+=t*d;
         if(s.x==0){if(!inside_aperture(o.xy,s.z))return false;continue;}
         if(dot(o.xy,o.xy)>s.z*s.z)return false;
-        float before=i>0?lens_data[3+2*(i-1)][c]:1;
-        float3 w=refract(d,dot(nrm,d)>0?-nrm:nrm,lens_data[3+2*i][c]/before);if(dot(w,w)==0)return false;d=w;
+        float before=i>0?lens_ior(lens_data[3+2*(i-1)],c):1;
+        float3 w=refract(d,dot(nrm,d)>0?-nrm:nrm,lens_ior(lens_data[3+2*i],c)/before);if(dot(w,w)==0)return false;d=w;
     }
     return true;
 }
@@ -694,8 +764,9 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
     float2 ndc=(pixel/float2(dimensions.xy))*2-1;ndc.y=-ndc.y;float aspect=float(dimensions.x)/dimensions.y;
     uint model=(uint)camera_model.x;o=eye.xyz;valid=true;camera_weight=1;
     if(model==0 && real_lens.x>0){
-        // Dispersion: each sample traces one channel (weight 3 there) through that channel's indices.
-        bool spectral=lens_sample && real_lens.y>0;uint c=spectral?min((uint)(random()*3),2u):1;
+        // Dispersion: each sample traces one channel (weight 3 there) through that channel's indices;
+        // the spectral tracer traces the hero wavelength instead (no random number taken).
+        bool spectral=lens_sample && real_lens.y>0;uint c=spectral?(spectral_on?3:min((uint)(random()*3),2u)):1;
         float3 lo,ld;
         if(!lens_ray(ndc,lens_sample,c,lo,ld)){
             // A vignetted sample is invalid; the guide falls back to the pinhole ray.
@@ -703,7 +774,8 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         }
         o=eye.xyz+(right*lo.x+up*lo.y+forward*(lens_data[1].z-lo.z))*real_lens.z;
         d=normalize(right*ld.x+up*ld.y-forward*ld.z);
-        if(spectral){float3 m=0;m[c]=3;camera_weight*=m;}
+        if(spectral && spectral_on){camera_weight*=float3(3,0,0);hero_only=true;}
+        else if(spectral){float3 m=0;m[c]=3;camera_weight*=m;}
         return;
     }
     if(model==1){o=eye.xyz+(right*ndc.x*aspect+up*ndc.y)*camera_model.w;d=forward;return;}
@@ -752,7 +824,7 @@ bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,o
     Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
     if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(x,lp,light);limit=nee_limit(len,dot(ln,ld));nee=true;}
     }}
-    return nee;
+    le=up(le);return nee;
 }
 // ReSTIR DI (track 15; Bitterli et al. 2020, with the generalized RIS weights of Lin et al.
 // 2022). A light sample is an emitter index and two 16-bit numbers that name the same point from
@@ -863,7 +935,7 @@ bool restir_nee(uint2 p,uint layer,Hit h,float3 v,out float3 ld,out float3 le,ou
     uint lc=alias_index(random(),random()),qc=pack_uv(float2(random(),random()));float Wc=1/max(light_point(lc,qc).source,1e-30);
     Reservoir r=reservoirs[restir_slot(0,layer)+p.y*dimensions.x+p.x];uint light=lc,q=qc;float W=Wc;
     if(reservoir_valid(r))restir_merge(a,lc,qc,Wc,1,domain_of(r),r.light,r.uv,r.W,reservoir_m(r),light,q,W);
-    LightPoint l=light_point(light,q);float g;le=light_toward(light,l,h.p,ld,g,limit)*g*W;
+    LightPoint l=light_point(light,q);float g;le=up(light_toward(light,l,h.p,ld,g,limit))*g*W;
     return W>0 && any(le>0);
 }
 // Volumes (track 12): homogeneous media, sampled by free flight on their extinction (one grey
@@ -911,7 +983,7 @@ float surface_distance(float3 o,float3 d,float limit){
 float3 medium_transmittance(uint64_t media,float3 o,float3 d,float limit){
     float3 tr=1;float start=0;int top=medium_top(media);
     if(top>=0){Material m=medium_material(media,top);
-        if(m.medium.w>0){start=surface_distance(o,d,limit);tr=exp(-(m.medium.w-log(max(m.color_rough.rgb,0.001)))*start);}
+        if(m.medium.w>0){start=surface_distance(o,d,limit);tr=exp(-(m.medium.w-log(max(up(m.color_rough.rgb),0.001)))*start);}
         else return 1;
     }
     float t0,t1;if(fog_interval(o,d,limit,t0,t1)){t0=max(t0,start);if(t1>t0)tr*=exp(-fog.x*(t1-t0));}
@@ -1026,6 +1098,7 @@ void trace_main(uint3 tid){
         sequence_index=scene_info.z+sampling.x+sample_id;dimension_index=0;
         // RR and the temporal upscalers need every sample of a frame at that frame's jitter.
         float2 subpixel=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
+        begin_wavelengths(sequence_index);
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
         float3 throughput=lens_valid?camera_weight:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
@@ -1081,7 +1154,7 @@ void trace_main(uint3 tid){
                 if(ts<t1){
                     // A scatter before the surface: NEE by the phase function, then a new direction.
                     float3 arriving=throughput*exp(-absorption*ts);
-                    throughput*=exp(-absorption*ts)*albedo;cone_width+=cone_spread*ts;
+                    throughput*=exp(-absorption*ts)*up(albedo);cone_width+=cone_spread*ts;
                     float3 x=origin+direction*ts;
                     if(bounce==0 && sample_albedo)first_diffuse=float4(albedo,0);
                     float3 ld,le;float pl,limit;
@@ -1100,7 +1173,7 @@ void trace_main(uint3 tid){
             if(!found){
                 if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
-                float3 env=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction);
+                float3 env=up(bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction));
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
                 float3 e=throughput*env*weight;lpe_add(8,6,e);
                 // Suns (they lead the emitter table): seen inside their disk, weighted against
@@ -1111,7 +1184,7 @@ void trace_main(uint3 tid){
                     if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
                     float w=1;if(bounce>0 && !previous_delta)w=mis==1 || previous_restir?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
-                    float3 se=throughput*sun.emission_material.rgb*w;e+=se;lpe_add(8,5,se);}
+                    float3 se=throughput*up(sun.emission_material.rgb)*w;e+=se;lpe_add(8,5,se);}
                 radiance+=e;if(bounce<=1)direct+=e;record(10,bounce,origin,throughput,luminance(e),direction);end_reason=0;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
             float3 arriving=throughput;
@@ -1137,24 +1210,27 @@ void trace_main(uint3 tid){
                 // or a thin box would split twice and reflect ~67% instead of 50%.
                 portal_crossings++;previous_delta=true;
                 if(!h.front){origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;continue;}
-                throughput*=m.color_rough.rgb;
+                throughput*=up(m.color_rough.rgb);
                 if(random()<m.lobes.y){direction=reflect(direction,h.n);origin=h.p+direction*0.0005;record(3,bounce,h.p,throughput,0,direction);lpe_advance(2);}
                 else{origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;}
                 continue;
             }
-            float3 emitted=m.color_rough.rgb*m.optical.y;
+            float3 emitted=up(m.color_rough.rgb)*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
             emitted*=spot(m,-dot(direction,h.n));
             // Emission keeps the flat colour: light sampling has no texture lookup.
             apply_maps(h,m);
             // A dielectric's film sits between the media on both sides (the transmission branch).
+            float film_n1=1,film_n2=0;
             if(m.surface_scale.z>0){
-                float n1=1,n2=0;
-                if(m.lobes.z>0){uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);n1=h.front?medium_ior(media,medium_top(media)):m.optical.x;n2=h.front?m.optical.x:medium_ior(after,medium_top(after));}
-                prepare_film(m,saturate(dot(-direction,h.n)),n1,n2);
+                if(m.lobes.z>0){uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);film_n1=h.front?medium_ior(media,medium_top(media)):ior_of(m);film_n2=h.front?ior_of(m):medium_ior(after,medium_top(after));}
+                prepare_film(m,saturate(dot(-direction,h.n)),film_n1,film_n2);
             }
-            if(has_grating(m))grating_wavelength(pixel_seed^(sequence_index*0x9e3779b9u)^(bounce*0x85ebca6bu));
+            // Spectral: a grating's orders leave at the hero wavelength's angles only.
+            if(has_grating(m)){if(spectral_on){hero(throughput);path_lambda=path_lambdas.x;}else grating_wavelength(pixel_seed^(sequence_index*0x9e3779b9u)^(bounce*0x85ebca6bu));}
             if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=spec_fresnel(m,abs(dot(-direction,h.n)),f0_of(m));}
+            // Spectral: the guides above keep RGB; the BSDF from here on sees spectra.
+            if(spectral_on){m.color_rough.rgb=up(m.color_rough.rgb);m.sheen.rgb=up(m.sheen.rgb);prepare_film_waves(m,saturate(dot(-direction,h.n)),film_n1,film_n2);}
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
             float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1 || (previous_restir && restir_covers(previous_position,emitters[h.emitter-1]))?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
@@ -1184,8 +1260,10 @@ void trace_main(uint3 tid){
             if(random()<m.lobes.z){
                 // The media on both sides: entering, the current one and this; leaving, this and
                 // the one the stack falls back to (air when empty, as before nesting).
+                // Spectral dispersion: from here the path follows the hero wavelength's index.
+                if(dispersive(m))hero(throughput);
                 uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);
-                float n1=h.front?medium_ior(media,medium_top(media)):m.optical.x,n2=h.front?m.optical.x:medium_ior(after,medium_top(after));
+                float n1=h.front?medium_ior(media,medium_top(media)):ior_of(m),n2=h.front?ior_of(m):medium_ior(after,medium_top(after));
                 float eta=n1/n2,ci=saturate(dot(-direction,h.n));float fr=fresnel_dielectric(ci,eta);
                 // A thin film (a soap bubble: IOR 1 inside a 1.33 film) colours the reflection and,
                 // by what it leaves, the transmission: choose by the mean, weight per channel.
@@ -1225,8 +1303,12 @@ void trace_main(uint3 tid){
             record(lobe,bounce,h.p,arriving,emitted_l,direction);
             if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
         }
+        radiance=to_rgb(radiance);direct=to_rgb(direct);
         if(!all(isfinite(radiance))){radiance=0;direct=0;}
-        radiance=max(radiance,0);if(options.x>0 && sampling.x>4){float l=luminance(radiance);float scale=min(1,options.x*max(luminance(mean),0.05)/max(l,1e-6));radiance*=scale;direct*=scale;}
+        // Spectral samples keep their negative components: one wavelength lies outside the sRGB
+        // gamut (500 nm has negative red), and clamping each sample added red and green (+35% red
+        // on Classic with hero-only paths). The mean stays unbiased; only `noisy` is clamped.
+        if(!spectral_on)radiance=max(radiance,0);if(options.x>0 && sampling.x>4){float l=luminance(radiance);float scale=min(1,options.x*max(luminance(mean),0.05)/max(l,1e-6));radiance*=scale;direct*=scale;}
         record(13,last_bounce,0,radiance,end_reason,0);
         float count=sampling.x+sample_id+1;float delta_l=luminance(radiance)-luminance(mean);mean+=(radiance-mean)/count;m2+=delta_l*(luminance(radiance)-luminance(mean));
         dmean+=(direct-dmean)/count;smean+=((first_spec?radiance:0)-smean)/count;batch+=radiance/sampling.y;
@@ -1239,7 +1321,7 @@ void trace_main(uint3 tid){
         [unroll]for(uint k=0;k<4;k++)if(k<lpe.x){float3 old=sampling.x>0?lpe_aov[base+k].rgb:0;lpe_aov[base+k]=float4((old*sampling.x+lpe_sum[k])/n,1);}}
     if(sample_albedo){diffuse_albedo[p]=damean;specular_albedo[p]=float4(samean,1);}
     trace_stats[p]=float2(bounces_used/max(1,sampling.y),proceed_steps);
-    noisy[p]=float4(batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);
+    noisy[p]=float4(spectral_on?max(batch,0):batch,1);accumulation[p]=float4(mean,max(0,m2));direct_light[p]=float4(dmean,1);specular_light[p]=float4(smean,1);
 }
 
 // ReSTIR DI, pass 0: the frame's light tiles, one sample per thread.

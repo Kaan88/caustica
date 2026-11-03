@@ -25,7 +25,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `optical` | IOR, emission, pattern id, w: one-sided emitter (1 for lights); negative = a diffraction grating, −(strength ‰ × 16384 + spacing nm) (track 11) |
 | `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
 | `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |
-| `medium`, `phase` | Track 12: scattering albedo rgb + extinction (0 unless transmissive); HG g in x. See "Volumes". |
+| `medium`, `phase` | Track 12: scattering albedo rgb + extinction (0 unless transmissive); HG g in x. See "Volumes". `phase.y`: the Abbe number for spectral dispersion (0 = none; transmissive only, engine-notes "Spectral rendering"). |
 | `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
 | `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
 | `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled); z, w the thin film (track 11): strength, thickness nm + 2048 × IOR in hundredths. |

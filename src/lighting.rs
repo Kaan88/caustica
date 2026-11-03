@@ -23,7 +23,7 @@ pub struct PackedMaterial {
     pub sheen: [f32; 4],
     /// Track 12: scattering albedo (rgb), w the medium's extinction per unit (0 = clear).
     pub medium: [f32; 4],
-    /// Track 12: x the phase function's g; yzw unused.
+    /// Track 12: x the phase function's g; y the Abbe number (spectral dispersion); zw unused.
     pub phase: [f32; 4],
 }
 #[repr(C)]
@@ -104,7 +104,17 @@ fn pack(m: &Material) -> PackedMaterial {
             m.scatter_color[2],
             if m.transmission > 0. { m.density } else { 0. },
         ],
-        phase: [m.phase, 0., 0., 0.],
+        // y: the Abbe number for spectral dispersion (0 = none), only on transmissive materials.
+        phase: [
+            m.phase,
+            if m.transmission > 0. {
+                m.dispersion
+            } else {
+                0.
+            },
+            0.,
+            0.,
+        ],
     }
 }
 pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
