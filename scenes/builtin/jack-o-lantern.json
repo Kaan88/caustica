@@ -1,458 +1,268 @@
 {
- "format": 1,
- "title": "Jack-o'-lantern",
- "description": "A carved pumpkin lit by a candle: the shell is a scattering medium that glows from inside, and the hollow and the face are air shapes ranked above it (nested dielectrics as solid geometry).",
- "tags": [
-  "volume",
-  "subsurface",
-  "night",
-  "miniature"
- ],
- "credits": "Caustica built-in scenes",
- "settings": {
-  "cornell_room": false,
-  "floor_extent": 10.0,
-  "sky": 0.0,
-  "base": [
-   0.01,
-   0.01,
-   0.015
+  "format": 1,
+  "title": "Jack-o'-lantern",
+  "description": "A carved pumpkin lit by a candle: the shell is a scattering medium that glows from inside, and the hollow and the face are air shapes ranked above it (nested dielectrics as solid geometry).",
+  "tags": [
+    "volume",
+    "subsurface",
+    "night",
+    "miniature"
   ],
-  "background": [
-   0.005,
-   0.006,
-   0.012
-  ],
-  "floor": {
-   "color": [
-    0.05,
-    0.05,
-    0.05
-   ],
-   "roughness": 0.8,
-   "metallic": 0.0,
-   "reflectivity": 0.04,
-   "transmission": 0.0,
-   "ior": 1.5,
-   "emission": 0.0
-  },
-  "light_on": false,
-  "lights": [
-   {
-    "name": "Moonlight",
-    "position": [
-     -3.0,
-     4.0,
-     2.0
+  "credits": "Caustica built-in scenes",
+  "settings": {
+    "cornell_room": false,
+    "floor_extent": 10.0,
+    "sky": 0.0,
+    "base": [
+      0.01,
+      0.01,
+      0.015
     ],
-    "rotation": [
-     45.0,
-     -56.0,
-     0.0
+    "background": [
+      0.005,
+      0.006,
+      0.012
     ],
-    "size": [
-     1.0,
-     1.0
-    ],
-    "color": [
-     0.55,
-     0.65,
-     1.0
-    ],
-    "intensity": 0.6,
-    "enabled": true,
-    "visible": false,
-    "kind": "rect"
-   }
-  ],
-  "bounces": 24,
-  "yaw": 15,
-  "pitch": 10,
-  "distance": 2.6,
-  "target": [
-   0,
-   -0.55,
-   0
-  ],
-  "fov": 40,
-  "exposure": 3.0,
-  "objects": [
-   {
-    "name": "Pumpkin",
-    "shape": "sphere",
-    "position": [
-     0,
-     0
-    ],
-    "size": 0.1429,
-    "stretch": 8.2,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     10.0,
-     10.0
-    ],
-    "elevation": -0.55,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      0.95,
-      0.45,
-      0.08
-     ],
-     "roughness": 0.5,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 1.0,
-     "ior": 1.4,
-     "emission": 0.0,
-     "priority": 1,
-     "density": 40.0,
-     "scatter_color": [
-      0.98,
-      0.6,
-      0.15
-     ],
-     "phase": 0.3
+    "floor": {
+      "color": [
+        0.05,
+        0.05,
+        0.05
+      ],
+      "roughness": 0.8,
+      "metallic": 0.0,
+      "reflectivity": 0.04,
+      "transmission": 0.0,
+      "ior": 1.5,
+      "emission": 0.0
     },
-    "portal": -1
-   },
-   {
-    "name": "Hollow",
-    "shape": "sphere",
-    "position": [
-     0,
-     0
+    "light_on": false,
+    "lights": [
+      {
+        "name": "Moonlight",
+        "position": [
+          -3.0,
+          4.0,
+          2.0
+        ],
+        "rotation": [
+          45.0,
+          -56.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0
+        ],
+        "color": [
+          0.55,
+          0.65,
+          1.0
+        ],
+        "intensity": 2.5,
+        "enabled": true,
+        "visible": false,
+        "kind": "rect"
+      }
     ],
-    "size": 0.12,
-    "stretch": 7.8571,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
+    "bounces": 24,
+    "yaw": 15,
+    "pitch": 10,
+    "distance": 2.6,
+    "target": [
+      0,
+      -0.55,
+      0
     ],
-    "scale_xz": [
-     10.0,
-     10.0
-    ],
-    "elevation": -0.53,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      1,
-      1,
-      1
-     ],
-     "roughness": 0.0,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 1.0,
-     "ior": 1.0,
-     "emission": 0.0,
-     "priority": 2
-    },
-    "portal": -1
-   },
-   {
-    "name": "Left eye",
-    "shape": "prism",
-    "position": [
-     -0.18,
-     0.42
-    ],
-    "size": 0.05,
-    "stretch": 4.0,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     4.5714,
-     8.5714
-    ],
-    "elevation": -0.43000000000000005,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      1,
-      1,
-      1
-     ],
-     "roughness": 0.0,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 1.0,
-     "ior": 1.0,
-     "emission": 0.0,
-     "priority": 2
-    },
-    "portal": -1
-   },
-   {
-    "name": "Right eye",
-    "shape": "prism",
-    "position": [
-     0.18,
-     0.42
-    ],
-    "size": 0.05,
-    "stretch": 4.0,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     4.5714,
-     8.5714
-    ],
-    "elevation": -0.43000000000000005,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      1,
-      1,
-      1
-     ],
-     "roughness": 0.0,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 1.0,
-     "ior": 1.0,
-     "emission": 0.0,
-     "priority": 2
-    },
-    "portal": -1
-   },
-   {
-    "name": "Nose",
-    "shape": "prism",
-    "position": [
-     0,
-     0.45
-    ],
-    "size": 0.05,
-    "stretch": 2.2857,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     2.5714,
-     8.5714
-    ],
-    "elevation": -0.56,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      1,
-      1,
-      1
-     ],
-     "roughness": 0.0,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 1.0,
-     "ior": 1.0,
-     "emission": 0.0,
-     "priority": 2
-    },
-    "portal": -1
-   },
-   {
-    "name": "Mouth",
-    "shape": "box",
-    "position": [
-     0,
-     0.4
-    ],
-    "size": 0.0571,
-    "stretch": 1.75,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     10.0,
-     7.5
-    ],
-    "elevation": -0.7000000000000001,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      1,
-      1,
-      1
-     ],
-     "roughness": 0.0,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 1.0,
-     "ior": 1.0,
-     "emission": 0.0,
-     "priority": 2
-    },
-    "portal": -1
-   },
-   {
-    "name": "Stem",
-    "shape": "cylinder",
-    "position": [
-     0,
-     0
-    ],
-    "size": 0.05,
-    "stretch": 4.5714,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     2.2857,
-     2.2857
-    ],
-    "elevation": -0.09000000000000002,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      0.25,
-      0.3,
-      0.1
-     ],
-     "roughness": 0.8,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 0.0
-    },
-    "portal": -1
-   },
-   {
-    "name": "Candle",
-    "shape": "cylinder",
-    "position": [
-     0,
-     0
-    ],
-    "size": 0.05,
-    "stretch": 4.5714,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     2.2857,
-     2.2857
-    ],
-    "elevation": -0.79,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      0.95,
-      0.92,
-      0.85
-     ],
-     "roughness": 0.6,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 0.0,
-     "priority": 3
-    },
-    "portal": -1
-   },
-   {
-    "name": "Flame",
-    "shape": "sphere",
-    "position": [
-     0,
-     0
-    ],
-    "size": 0.05,
-    "stretch": 2.0,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     1.0,
-     1.0
-    ],
-    "elevation": -0.67,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      1.0,
-      0.62,
-      0.22
-     ],
-     "roughness": 1.0,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 20.0,
-     "unlit": true,
-     "priority": 3
-    },
-    "portal": -1
-   },
-   {
-    "name": "Table",
-    "shape": "box",
-    "position": [
-     0,
-     0
-    ],
-    "size": 0.4286,
-    "stretch": 0.1333,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     10.0,
-     6.6667
-    ],
-    "elevation": -0.98,
-    "grounded": false,
-    "visible": true,
-    "material": {
-     "color": [
-      0.18,
-      0.11,
-      0.06
-     ],
-     "roughness": 0.45,
-     "metallic": 0.0,
-     "reflectivity": 0.04,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 0.0
-    },
-    "portal": -1
-   }
-  ]
- }
+    "fov": 40,
+    "exposure": 3.0,
+    "objects": [
+      {
+        "name": "Pumpkin",
+        "shape": "box",
+        "position": [
+          0,
+          0
+        ],
+        "size": 1.429,
+        "stretch": 1.0,
+        "rotation": 0.0,
+        "tilt": [
+          0,
+          0
+        ],
+        "scale_xz": [
+          1.0,
+          1.0
+        ],
+        "elevation": -0.55,
+        "grounded": false,
+        "visible": true,
+        "material": {
+          "color": [
+            0.9,
+            0.38,
+            0.05
+          ],
+          "roughness": 0.55,
+          "metallic": 0.0,
+          "reflectivity": 0.04,
+          "transmission": 0.0,
+          "ior": 1.4,
+          "emission": 0.0,
+          "sheen": 0.3
+        },
+        "portal": -1,
+        "mesh": "builtin/jack-o-lantern.obj"
+      },
+      {
+        "name": "Stem",
+        "shape": "cylinder",
+        "position": [
+          0,
+          0
+        ],
+        "size": 0.05,
+        "stretch": 4.5714,
+        "rotation": 0.0,
+        "tilt": [
+          8,
+          4
+        ],
+        "scale_xz": [
+          2.2857,
+          2.2857
+        ],
+        "elevation": -0.17,
+        "grounded": false,
+        "visible": true,
+        "material": {
+          "color": [
+            0.25,
+            0.3,
+            0.1
+          ],
+          "roughness": 0.8,
+          "metallic": 0.0,
+          "reflectivity": 0.04,
+          "transmission": 0.0,
+          "ior": 1.5,
+          "emission": 0.0
+        },
+        "portal": -1
+      },
+      {
+        "name": "Candle",
+        "shape": "cylinder",
+        "position": [
+          0,
+          0
+        ],
+        "size": 0.05,
+        "stretch": 4.5714,
+        "rotation": 0.0,
+        "tilt": [
+          0,
+          0
+        ],
+        "scale_xz": [
+          2.2857,
+          2.2857
+        ],
+        "elevation": -0.79,
+        "grounded": false,
+        "visible": true,
+        "material": {
+          "color": [
+            0.95,
+            0.92,
+            0.85
+          ],
+          "roughness": 0.6,
+          "metallic": 0.0,
+          "reflectivity": 0.04,
+          "transmission": 0.0,
+          "ior": 1.5,
+          "emission": 0.0,
+          "priority": 3
+        },
+        "portal": -1
+      },
+      {
+        "name": "Flame",
+        "shape": "sphere",
+        "position": [
+          0,
+          0
+        ],
+        "size": 0.05,
+        "stretch": 2.0,
+        "rotation": 0.0,
+        "tilt": [
+          0,
+          0
+        ],
+        "scale_xz": [
+          1.0,
+          1.0
+        ],
+        "elevation": -0.67,
+        "grounded": false,
+        "visible": true,
+        "material": {
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "roughness": 1.0,
+          "metallic": 0.0,
+          "reflectivity": 0.04,
+          "transmission": 0.0,
+          "ior": 1.5,
+          "emission": 20.0,
+          "unlit": true,
+          "priority": 3,
+          "temperature": 1900.0
+        },
+        "portal": -1
+      },
+      {
+        "name": "Table",
+        "shape": "box",
+        "position": [
+          0,
+          0
+        ],
+        "size": 0.4286,
+        "stretch": 0.1333,
+        "rotation": 0.0,
+        "tilt": [
+          0,
+          0
+        ],
+        "scale_xz": [
+          10.0,
+          6.6667
+        ],
+        "elevation": -0.98,
+        "grounded": false,
+        "visible": true,
+        "material": {
+          "color": [
+            0.18,
+            0.11,
+            0.06
+          ],
+          "roughness": 0.45,
+          "metallic": 0.0,
+          "reflectivity": 0.04,
+          "transmission": 0.0,
+          "ior": 1.5,
+          "emission": 0.0
+        },
+        "portal": -1
+      }
+    ]
+  }
 }

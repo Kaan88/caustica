@@ -545,7 +545,7 @@ pub fn environment_key(s: &crate::scene::Settings) -> String {
     if s.physical_sky.on {
         s.physical_sky.map_key()
     } else {
-        s.hdri.clone()
+        format!("{}{}", s.hdri, if s.hdri_sun { "|sun" } else { "" })
     }
 }
 /// Loads or bakes the environment `environment_key` names into the GPU.
@@ -562,7 +562,7 @@ pub unsafe fn upload_environment(
         } else if s.hdri.is_empty() {
             g.set_environment(None)
         } else {
-            g.set_environment(Some(&crate::environment::load(&s.hdri)?))
+            g.set_environment(Some(&crate::environment::load(&s.hdri, s.hdri_sun)?))
         }
     }
 }

@@ -468,6 +468,58 @@ fn make_mesh(shape: Shape) -> Mesh {
     }
     out
 }
+/// The medium-stack entry (pathtrace.hlsl `medium_entry`) of the transmissive object the camera
+/// is inside, 0 if none (underwater: a camera in a water box sees through water). Built-in
+/// shapes only (an imported mesh could be millions of triangles): the eye is inside when a ray
+/// from it crosses the object's surface an odd number of times; of several, the highest
+/// priority wins, as the shader's stack would pick.
+pub fn camera_medium(s: &Settings, eye: Vec3) -> u32 {
+    let mut best: Option<(u32, u32)> = None;
+    for (i, o) in s.objects.iter().enumerate() {
+        if !o.visible
+            || o.material.transmission <= 0.
+            || !o.mesh.is_empty()
+            || !o.sdf.is_none()
+            || o.cloth.is_some()
+            || best.is_some_and(|(p, _)| p >= o.material.priority)
+        {
+            continue;
+        }
+        let tris = object_geometry(o, 0);
+        // An odd direction so no edge or vertex lies exactly on the ray.
+        let d = Vec3::new(0.000_137, 1., 0.000_291).normalize();
+        let crossings = tris
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .filter(|t| {
+                let [a, b, c] = [t[0], t[1], t[2]].map(|v| Vec3::from(v.position));
+                ray_triangle(eye, d, a, b, c).is_some()
+            })
+            .count();
+        if crossings % 2 == 1 {
+            // Material index: the room's five, then the objects (`lighting::materials`).
+            let entry = ((5 + i as u32 + 1) & 0x1fff) | (o.material.priority.min(7) << 13);
+            best = Some((o.material.priority, entry));
+        }
+    }
+    best.map_or(0, |(_, e)| e)
+}
+/// Möller–Trumbore: the distance along d (> 0) to triangle abc, if hit.
+fn ray_triangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
+    let (e1, e2) = (b - a, c - a);
+    let p = d.cross(e2);
+    let det = e1.dot(p);
+    if det.abs() < 1e-12 {
+        return None;
+    }
+    let s = o - a;
+    let u = s.dot(p) / det;
+    let q = s.cross(e1);
+    let v = d.dot(q) / det;
+    let t = e2.dot(q) / det;
+    (u >= 0. && v >= 0. && u + v <= 1. && t > 0.).then_some(t)
+}
 /// The object's pivot (mesh origin in the world, as placed by `object_geometry`) and rotation.
 pub fn object_frame(o: &Object) -> (Vec3, glam::Mat3) {
     let (scale, r) = scale_rotation(o);
@@ -744,6 +796,10 @@ impl Settings {
     }
     /// The nearest object under `pixel` and its distance along the camera ray.
     pub fn pick_object_hit(&self, pixel: [f32; 2], size: [u32; 2]) -> Option<(usize, f32)> {
+        self.pick_object_hits(pixel, size).into_iter().next()
+    }
+    /// Every visible object the pixel's ray hits, nearest first, with its nearest distance.
+    pub fn pick_object_hits(&self, pixel: [f32; 2], size: [u32; 2]) -> Vec<(usize, f32)> {
         let (view, proj, eye) = self.camera(size[0] as f32 / size[1] as f32);
         let ndc = glam::Vec4::new(
             pixel[0] / size[0] as f32 * 2. - 1.,
@@ -753,8 +809,12 @@ impl Settings {
         );
         let p = (proj * view).inverse() * ndc;
         let d = (p.truncate() / p.w - eye).normalize();
-        let (mut closest, mut selected) = (f32::INFINITY, None);
+        let mut hits = Vec::new();
         for (i, o) in self.objects.iter().enumerate() {
+            if !o.visible {
+                continue;
+            }
+            let mut closest = f32::INFINITY;
             let g = object_geometry(o, 0);
             for t in g.as_chunks::<3>().0 {
                 let a = Vec3::from(t[0].position);
@@ -781,11 +841,14 @@ impl Settings {
                 let distance = e2.dot(q) * inv;
                 if distance > 0.0001 && distance < closest {
                     closest = distance;
-                    selected = Some((i, distance));
                 }
             }
+            if closest.is_finite() {
+                hits.push((i, closest));
+            }
         }
-        selected
+        hits.sort_by(|a, b| a.1.total_cmp(&b.1));
+        hits
     }
 }
 /// Track 17 physics: up to `max` points of the object's grounding mesh in its local frame

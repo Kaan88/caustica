@@ -35,9 +35,11 @@ pub struct Shaders {
     pub photon_trace_spectral: Vec<u8>,
     pub trace_spectral_lean: Vec<u8>,
     pub trace_spectral_lean_ser: Vec<u8>,
+    pub photon_gather_spectral: Vec<u8>,
+    pub bdpt_spectral: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 29] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 31] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -215,6 +217,20 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 29] = [
             "SER",
         ],
     ),
+    (
+        "integrators.hlsl",
+        "photon_gather",
+        "cs_6_5",
+        "photon_gather_spectral",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+    ),
+    (
+        "integrators.hlsl",
+        "bdpt",
+        "cs_6_5",
+        "bdpt_spectral",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+    ),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -315,6 +331,8 @@ impl HotReload {
             photon_trace_spectral: b.next().unwrap(),
             trace_spectral_lean: b.next().unwrap(),
             trace_spectral_lean_ser: b.next().unwrap(),
+            photon_gather_spectral: b.next().unwrap(),
+            bdpt_spectral: b.next().unwrap(),
         })
     }
 }

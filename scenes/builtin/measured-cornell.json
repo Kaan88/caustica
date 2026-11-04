@@ -1,10 +1,11 @@
 {
  "format": 1,
  "title": "Measured Cornell box",
- "description": "The original box's measured wall colours, light size and block layout (approximate positions).",
+ "description": "The original box with its measured spectra: the walls' and blocks' reflectances and the light's emission, as measured at Cornell (exact with Spectral on, which this scene sets), with its light size and block layout (approximate positions).",
  "tags": [
   "cornell",
-  "reference"
+  "reference",
+  "spectral"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -50,7 +51,8 @@
       0.04
      ],
      "pattern_scale": 3.0,
-     "unlit": false
+     "unlit": false,
+     "spectrum": 1
     },
     "portal": -1
    },
@@ -94,7 +96,8 @@
       0.04
      ],
      "pattern_scale": 3.0,
-     "unlit": false
+     "unlit": false,
+     "spectrum": 1
     },
     "portal": -1
    }
@@ -131,6 +134,8 @@
    0,
    0
   ],
-  "fov": 39.3
+  "fov": 39.3,
+  "measured_room": true,
+  "spectral": true
  }
 }

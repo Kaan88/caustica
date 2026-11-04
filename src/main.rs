@@ -13,6 +13,7 @@ mod geometry;
 mod gizmo;
 mod gpu;
 mod hotreload;
+mod ies;
 mod laser;
 mod lens;
 mod lighting;
@@ -33,6 +34,8 @@ mod scenes;
 mod script;
 mod sky;
 mod snap;
+mod spectral_tables;
+mod spectrum;
 mod stats;
 mod teapot_data;
 mod textscene;
@@ -195,7 +198,7 @@ struct App {
     audio: Option<audio::Audio>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 292;
+const SCENES_FROM: u32 = 297;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -279,6 +282,7 @@ fn geometry_key(s: &Settings) -> String {
                 o.kind(),
                 o.sdf,
                 o.phase,
+                o.detail,
                 &o.mesh,
                 // Glass goes to the non-opaque BLAS range (shadow rays may pass it), and from
                 // 0.5 shadow rays leave its instance out by mask (track 20a (a)).
@@ -1295,6 +1299,68 @@ impl App {
                     self.settings = *saved;
                     self.settings.physics.enabled = false;
                 }
+                // Physics grab (owner reports 2026-11-03): a press on a body grabs it; a gizmo
+                // handle under the pointer wins over a body that is not the gizmo's own.
+                292 => {
+                    // A ball at the view's centre; the simulation starts next frame (with it on, the
+                    // new object would reach the GPU only as a pose update).
+                    let t = self.settings.target;
+                    self.settings.objects.push(scene::Object {
+                        name: "Grab test".into(),
+                        shape: scene::Shape::Sphere,
+                        size: 0.5,
+                        stretch: 1.,
+                        rotation: 0.,
+                        grounded: false,
+                        position: [t[0], t[2]],
+                        elevation: t[1],
+                        ..Default::default()
+                    });
+                    self.ui.select(ui::Selection::Stage);
+                }
+                293 => {
+                    self.settings.physics.enabled = true;
+                    self.step_physics(1. / 60.);
+                    let i = self.settings.objects.len() - 1;
+                    let view = gizmo::View::new(&self.settings, self.size);
+                    let at = view
+                        .project(crate::geometry::object_frame(&self.settings.objects[i]).0)
+                        .context("The test ball is off screen")?;
+                    self.cursor = [at.x as f64, at.y as f64];
+                    self.ui.hover = Some(gizmo::Handle::Center);
+                    self.ui.hover_inner = true;
+                    anyhow::ensure!(
+                        !self.physics_press(),
+                        "A press on a gizmo handle grabbed an unselected body in front of it"
+                    );
+                    self.ui.hover = None;
+                    self.ui.hover_inner = false;
+                    anyhow::ensure!(self.physics_press(), "A press on a body did not grab it");
+                    let before = self.settings.objects[i].elevation;
+                    self.cursor[1] -= 60.;
+                    anyhow::ensure!(self.physics_drag(), "The grab did not follow the pointer");
+                    for _ in 0..30 {
+                        self.step_physics(1. / 60.);
+                    }
+                    let held = self.physics.as_ref().is_some_and(|p| p.grab.is_some());
+                    let now = self.settings.objects[i].elevation;
+                    self.physics_release();
+                    self.settings.physics.enabled = false;
+                    self.settings.objects.pop();
+                    anyhow::ensure!(held, "The grab was lost while held");
+                    anyhow::ensure!(
+                        now > before,
+                        "The held body did not rise ({before} -> {now})"
+                    );
+                }
+                // Spectral BDPT, then RGB BDPT after it (the spectral twin once hung the RGB one
+                // that followed, 2026-11-03), then back to the path tracer.
+                294 => {
+                    self.settings.integrator = 1;
+                    self.settings.spectral = true;
+                }
+                295 => self.settings.spectral = false,
+                296 => self.settings.integrator = 0,
                 // Physics on while a gizmo arrow holds an object: it must not fall.
                 237 => {
                     self.settings.physics.enabled = true;
@@ -2667,7 +2733,7 @@ impl App {
                     }
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
-                285..=287 => {
+                285..=287 | 294 | 295 => {
                     let image = unsafe { g.read_floats(18)? };
                     let pixels = image.as_chunks::<4>().0;
                     let mean = pixels
@@ -3013,7 +3079,24 @@ impl App {
         if self.script.is_some() && !self.poll_script(event_loop) {
             return;
         }
-        if let Err(e) = self.redraw() {
+        let result = self.redraw();
+        // A device removal surfaces from any GPU call: the error names why (and, in debug runs,
+        // DRED's last GPU operations); a self-test failure also names its frame and scene.
+        let result = result.map_err(|e| {
+            let e = match self.gpu.as_ref().and_then(|g| g.removed_reason()) {
+                Some(r) => e.context(format!("Device removed: {r}")),
+                None => e,
+            };
+            if self.self_test {
+                e.context(format!(
+                    "Self-test frame {} ({})",
+                    self.rendered, self.settings.scene_name
+                ))
+            } else {
+                e
+            }
+        });
+        if let Err(e) = result {
             self.fail(event_loop, e);
             return;
         }
@@ -3518,9 +3601,8 @@ impl ApplicationHandler for App {
                     self.drag_distance = 0.;
                 } else if !consumed
                     && button == MouseButton::Left
-                    && (self.ui.hover.is_none() || self.ui.hover_inner)
                     && self.walking.is_none()
-                    && self.physics_grab()
+                    && self.physics_press()
                 {
                     // Track 17: grabbed a body; the drag moves it instead of the camera, and a
                     // release without moving still counts as a click.

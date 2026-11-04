@@ -1,7 +1,7 @@
 #include "common.hlsli"
 #include "layers.hlsli"
 uint hash(uint x){x^=x>>16;x*=0x7feb352d;x^=x>>15;x*=0x846ca68b;x^=x>>16;return x;}
-static uint rng_state,sequence_index,dimension_index,pixel_seed;
+static uint rng_state=0,sequence_index=0,dimension_index=0,pixel_seed=0;
 uint permute(uint x,uint seed){x^=x*0x3d20adea;x+=seed;x*=(seed>>16)|1;x^=x*0x05526c56;x^=x*0x53a22864;return x;}
 uint owen(uint x,uint seed){return reversebits(permute(reversebits(x),seed));}
 // Second Sobol dimension, in reversed bit order. Its generator is the Pascal matrix mod 2:
@@ -15,7 +15,7 @@ static bool white_noise;
 // come from real paths, not from the path tracer's transparent shadows.
 static bool glass_blocks;
 // Debug statistics for this pixel and frame (views 8 and 9).
-static uint proceed_steps;
+static uint proceed_steps=0;
 float random(){
     if(!white_noise && jitter.z>0.5 && modes.w==0){
         // Padded 2D Owen-scrambled Sobol. RR uses independent white noise per NVIDIA's guide.
@@ -114,8 +114,11 @@ static const bool lean=false;
 // TerminateSecondary.
 // Wavelengths come from a per-pixel rotated Weyl sequence over the sample index, not from the
 // Sobol dimensions, so the RGB variants' sampling is untouched.
-static float3 path_lambdas; // nm
-static bool hero_only;
+// Initialized: a static without one starts with whatever the thread's registers held, and the
+// RGB variants never write these (an RGB BDPT hung in the self-test after a spectral battle
+// frame, 2026-11-03).
+static float3 path_lambdas=550; // nm
+static bool hero_only=false;
 #ifdef SPECTRAL
 #include "spectral_tables.hlsli"
 static const bool spectral_on=true;
@@ -142,13 +145,56 @@ float3 to_rgb(float3 v){
     return c;
 }
 void hero(inout float3 throughput){if(!hero_only){throughput=float3(3*throughput.x,0,0);hero_only=true;}}
+// A material's own spectrum (phase.z, `lighting::spectrum_fields`): > 0 a measured one (the
+// Cornell box's white, green, red, light), < 0 a blackbody at −phase.z K, Planck relative to
+// 560 nm over D65 (emission is relative to D65); emitters (blackbody, the light) times phase.w,
+// so the spectrum's RGB is the colour.
+float4 spectral_measured(float l){
+    float x=clamp((l-SPECTRAL_LO)/SPECTRAL_STEP,0,SPECTRAL_COUNT-1.001);uint i=(uint)x;float f=x-i;
+    return lerp(SPECTRAL_MEASURED[i],SPECTRAL_MEASURED[i+1],f);
+}
+float spectral_d65(float l){float x=clamp((l-SPECTRAL_LO)/SPECTRAL_STEP,0,SPECTRAL_COUNT-1.001);uint i=(uint)x;return lerp(SPECTRAL_D65[i],SPECTRAL_D65[i+1],x-i);}
+float3 own_spectrum(Material m){
+    float3 v;
+    [unroll]for(uint i=0;i<3;i++){float l=path_lambdas[i];
+        if(m.phase.z<0){float t=-m.phase.z,r=560/l;v[i]=r*r*r*r*r*(exp(1.438777e7/(560*t))-1)/(exp(1.438777e7/(l*t))-1)/spectral_d65(l)*m.phase.w;}
+        else{float4 s=spectral_measured(l);uint c=(uint)m.phase.z;v[i]=c==1?s.x:c==2?s.y:c==3?s.z:s.w*m.phase.w;}}
+    return v;
+}
 #else
 static const bool spectral_on=false;
 void begin_wavelengths(uint key){}
 float3 up(float3 rgb){return rgb;}
 float3 to_rgb(float3 v){return v;}
 void hero(inout float3 throughput){}
+float3 own_spectrum(Material m){return 0;}
 #endif
+// A material's colour as the tracer carries it: its own spectrum where it has one, else the
+// uplift (RGB variants: the colour).
+float3 up_material(Material m,float3 rgb){return spectral_on && m.phase.z!=0?own_spectrum(m):up(rgb);}
+// Emitted RGB x of material id (its colour times scalars) as the tracer carries it.
+float3 up_emitted(uint id,float3 x){
+    if(spectral_on){Material m=materials[id];if(m.phase.z!=0)return own_spectrum(m)*(dot(x,1)/max(dot(m.color_rough.rgb,1),1e-12));}
+    return up(x);
+}
+// A medium's extinction per channel: sigma times the tint packed 8 bits per channel in t
+// (`lighting::pack_tint`; 0 = grey), uplifted in the spectral variants.
+float3 tint_of(float t){uint p=(uint)t;return p==0?1:up(float3(p&255u,(p>>8)&255u,p>>16)/255.0);}
+float3 extinction_of(Material m){return m.medium.w*(m.phase.z<0 || m.phase.z==4?1:tint_of(m.phase.w));}
+float3 fog_extinction(){return fog.x*tint_of(fog_color.w);}
+// Free flight over [t0, t1) in a medium of extinction sigma, from t0. Grey: the old sampling
+// (the pdf cancels the transmittance, w = 1). Chromatic (Kutz et al. 2017 / pbrt-v3): a
+// channel picked uniformly sets the distance and w is the one-sample MIS weight, T·σ / mean(T·σ)
+// at a scatter (ts < t1) or T / mean(T) past t1; the caller multiplies its throughput by w.
+float flight(float3 sigma,float t0,float t1,out float3 w){
+    w=1;if(hero_only)sigma=sigma.xxx;
+    if(all(sigma==sigma.x))return t0-log(1-random())/sigma.x;
+    uint c=min((uint)(random()*3),2u);float s=c==0?sigma.x:c==1?sigma.y:sigma.z;
+    float ts=t0-log(1-random())/max(s,1e-12);
+    float3 f=ts<t1?exp(-sigma*(ts-t0))*sigma:exp(-sigma*(t1-t0));
+    w=f/max((f.x+f.y+f.z)/3,1e-30);
+    return ts;
+}
 // Dispersion (spectral only): phase.y holds the Abbe number V (0 = none). Cauchy's n(λ) = A +
 // B/λ² through n_d = optical.x at 587.6 nm with n_F − n_C = (n_d − 1)/V; read at the hero
 // wavelength once the path keeps only it.
@@ -165,12 +211,18 @@ bool restir_on(){return !lean && (restir.x&1)!=0;}
 void lean_strip(inout Material m){if(lean){m.layers.x=0;m.layers.w=0;m.sheen.rgb=0;m.surface_scale.z=0;m.medium.w=0;}}
 bool has_grating(Material m){return texture_maps && m.optical.w<0;}
 bool flagged(uint m,uint bit){return texture_maps && ((uint)materials[m].lobes.w&bit)!=0;}
-// Masked texture maps: a candidate whose base-colour alpha is below the cutoff is a hole.
+// Masked texture maps: a candidate whose base-colour alpha is below the cutoff is a hole. A
+// negative cutoff is glTF BLEND, −(the factor's alpha): stochastic transparency, a hole with
+// probability 1 − alpha, from a hash of the pixel, sample, path state and the candidate (no
+// random() call, which would shift the Sobol dimensions by the candidate count).
 bool alpha_hole(uint instance,uint prim,float2 b,uint m){
     uint4 mp=materials[m].maps;
     uint idx=instances[instance].vertex_base+prim*3;
     float2 uv=vertices[idx].uv*(1-b.x-b.y)+vertices[idx+1].uv*b.x+vertices[idx+2].uv*b.y;
-    return sample_map(mp.x,uv).a<asfloat(mp.w);
+    float a=sample_map(mp.x,uv).a,c=asfloat(mp.w);
+    if(c>=0)return a<c;
+    uint k=hash(pixel_seed^hash(sequence_index*0x9e3779b9u+dimension_index)^rng_state^hash(instance*0x85ebca6bu+prim)^asuint(b.x));
+    return a*-c<=(k>>8)*(1.0/16777216.0);
 }
 // Texture sets on geometry without UVs (core track 5): box mapping along the dominant axis of
 // the normal n, from a position p in world units, with dP/du (t) and dP/dv (bt) in that space.
@@ -204,9 +256,15 @@ void sample_maps(inout Hit h,float2 uv,float4 tangent,Footprint footprint){
 // Procedural surfaces (track 13): kinds as scene::Sdf, inside the unit cube of object space.
 // Sphere tracing in object space along the unnormalized object ray, so t stays the world t.
 float sdf_box(float3 p,float3 b){float3 q=abs(p)-b;return length(max(q,0))+min(max(q.x,max(q.y,q.z)),0);}
-float sdf_mandelbulb(float3 p){
+float sdf_mandelbulb(float3 p,float n){
+    p*=1.15;
+    // Other powers (Object::detail): the spherical-coordinate formula, y up.
+    if(n!=8){float3 w=p;float dr=1,r=length(w);
+        for(int i=0;i<6 && r<2;i++){float th=acos(clamp(w.y/max(r,1e-12),-1,1))*n,ph=atan2(w.z,w.x)*n;
+            dr=pow(r,n-1)*n*dr+1;w=pow(r,n)*float3(sin(th)*cos(ph),cos(th),sin(th)*sin(ph))+p;r=length(w);}
+        return 0.5*log(max(r,1e-8))*r/dr/1.15;}
     // Quilez's trigonometry-free power 8 (the same bulb, about 3× cheaper).
-    p*=1.15;float3 w=p;float m=dot(w,w),dz=1;
+    float3 w=p;float m=dot(w,w),dz=1;
     for(int i=0;i<6 && m<4;i++){
         dz=8*m*m*m*sqrt(m)*dz+1;
         float x=w.x,x2=x*x,x4=x2*x2,y=w.y,y2=y*y,y4=y2*y2,z=w.z,z2=z*z,z4=z2*z2;
@@ -217,9 +275,9 @@ float sdf_mandelbulb(float3 p){
     return 0.25*log(max(m,1e-16))*sqrt(m)/dz/1.15;
 }
 // Quilez's Menger sponge: the cube minus three crosses per level.
-float sdf_menger(float3 p){
+float sdf_menger(float3 p,int levels){
     float d=sdf_box(p,1),s=1;
-    for(int m=0;m<5;m++){float3 a=p*s;a=a-2*floor(a*0.5)-1;s*=3;float3 r=abs(1-3*abs(a));
+    for(int m=0;m<levels;m++){float3 a=p*s;a=a-2*floor(a*0.5)-1;s*=3;float3 r=abs(1-3*abs(a));
         d=max(d,(min(max(r.x,r.y),min(max(r.y,r.z),max(r.z,r.x)))-1)/s);}
     return d;
 }
@@ -236,17 +294,32 @@ float sdf_metaballs(float3 p,float ph){
     }
     return d/3;
 }
+// Exact capped cylinder and cone (kinds 6, 7), the mesh shapes': radius 1, y in [−1, 1]; the
+// cone's radius is (1 − y) / 2 (Quilez's capped cone).
+float sdf_cylinder(float3 p){float2 d=abs(float2(length(p.xz),p.y))-1;return min(max(d.x,d.y),0)+length(max(d,0));}
+float sdf_cone(float3 p){
+    float2 q=float2(length(p.xz),p.y),k1=float2(0,1),k2=float2(-1,2);
+    float2 ca=float2(q.x-min(q.x,q.y<0?1:0),abs(q.y)-1),cb=q-k1+k2*saturate(dot(k1-q,k2)/dot(k2,k2));
+    float s=cb.x<0 && ca.y<0?-1:1;return s*sqrt(min(dot(ca,ca),dot(cb,cb)));
+}
+// The parameter in the high 24 bits (Object::detail, thousandths; 0 = default).
+float sdf_detail(uint raw,float fallback){float v=(raw>>8)*0.001;return v>0?v:fallback;}
 float sdf(uint raw,float3 p){
     uint kind=raw&255;
     if(kind==5)return sdf_metaballs(p,(raw>>8)*0.001);
-    if(kind==2)return length(float2(length(p.xz)-0.72,p.y))-0.28;
-    if(kind==3)return sdf_mandelbulb(p);
-    if(kind==4)return sdf_menger(p);
+    if(kind==2){float r=sdf_detail(raw,0.28);return length(float2(length(p.xz)-(1-r),p.y))-r;}
+    if(kind==3)return sdf_mandelbulb(p,sdf_detail(raw,8));
+    if(kind==4)return sdf_menger(p,clamp((int)sdf_detail(raw,5),1,6));
+    if(kind==6)return sdf_cylinder(p);
+    if(kind==7)return sdf_cone(p);
     return length(p)-1;
 }
 float3 sdf_normal(uint raw,float3 p){
     uint kind=raw&255;
     if(kind==1)return p;
+    // Analytic: the cap or the side, whichever p lies closer to.
+    if(kind==6){float rho=length(p.xz);return abs(abs(p.y)-1)<abs(rho-1)?float3(0,p.y,0):float3(p.x,0,p.z);}
+    if(kind==7){float rho=length(p.xz);return abs(p.y+1)<abs(rho-0.5*(1-p.y))*0.894?float3(0,-1,0):float3(p.x/max(rho,1e-8),0.5,p.z/max(rho,1e-8));}
     const float e=1e-4;const float2 k=float2(1,-1);
     return k.xyy*sdf(raw,p+k.xyy*e)+k.yyx*sdf(raw,p+k.yyx*e)+k.yxy*sdf(raw,p+k.yxy*e)+k.xxx*sdf(raw,p+k.xxx*e);
 }
@@ -257,6 +330,17 @@ bool sdf_hit(uint raw,float3 o,float3 d,float tmin,float tmax,out float t){
     float t0=max(tmin,max(lo.x,max(lo.y,lo.z))),t1=min(tmax,min(hi.x,min(hi.y,hi.z)));
     if(t0>t1)return false;
     if(kind==1){float A=dot(d,d),B=dot(o,d),D=B*B-A*(dot(o,o)-1);if(D<0)return false;float r=sqrt(D);t=(-B-r)/A;if(t<=tmin)t=(-B+r)/A;return t>tmin && t<tmax;}
+    // Cylinder and cone: the side's quadric roots inside y in [−1, 1], and the caps' planes
+    // inside their discs; the nearest beyond tmin.
+    if(kind==6 || kind==7){
+        bool cone=kind==7;float best=tmax;
+        float k=1-o.y,A=dot(d.xz,d.xz)-(cone?0.25*d.y*d.y:0),B=2*dot(o.xz,d.xz)+(cone?0.5*k*d.y:0),C=dot(o.xz,o.xz)-(cone?0.25*k*k:1);
+        float D=B*B-4*A*C;
+        if(abs(A)>1e-12 && D>=0){float r=sqrt(D);[unroll]for(int i=0;i<2;i++){float x=(-B+(i==0?-r:r))/(2*A),y=o.y+d.y*x;if(x>tmin && x<best && abs(y)<=1)best=x;}}
+        [unroll]for(int i=0;i<2;i++){float y=i==0?-1:1;if(cone && y>0)continue;if(abs(d.y)<1e-12)continue;
+            float x=(y-o.y)/d.y;float2 q=o.xz+d.xz*x;if(x>tmin && x<best && dot(q,q)<=1)best=x;}
+        t=best;return best<tmax;
+    }
     float L=length(d),s=t0*L,e=t1*L;float3 u=d/L;
     // Round shapes start at their bounding sphere (radius 1) instead of the cube's corners.
     if(kind!=4 && kind!=5){float b=dot(o,u),D=b*b-dot(o,o)+1;if(D<0)return false;float r=sqrt(D);s=max(s,-b-r);e=min(e,-b+r);}
@@ -386,9 +470,15 @@ uint2 env_texel(float3 d,out float sin_theta,out float sin_row){
     float u=frac(phi/(2*PI)+0.5);uint2 t=min(uint2(float2(u,theta/PI)*size),size-1);
     sin_theta=sin(theta);sin_row=sin(PI*(t.y+0.5)/size.y);return t;
 }
+// The HDRI's split sun (Settings::hdri_sun, environment.rs split_sun): a disc of uniform
+// radiance the map no longer holds, sampled as a share env_sun_color.w of environment samples.
+bool env_sun_on(){return env_sun.w>0;}
+bool in_env_sun(float3 d){float3 x=cross(d,env_sun.xyz);float om=env_sun.w;return dot(d,env_sun.xyz)>0 && dot(x,x)<=om*(2-om)*1.000001;}
 float env_pdf(float3 d){
     if(!hdri_on())return 0;float s,r;uint2 t=env_texel(d,s,r);
-    return luminance(env_map[t].rgb)*environment_map.w*r/max(s,1e-6);
+    float p=luminance(env_map[t].rgb)*environment_map.w*r/max(s,1e-6);
+    if(env_sun_on())p=(1-env_sun_color.w)*p+(in_env_sun(d)?env_sun_color.w/(2*PI*env_sun.w):0);
+    return p;
 }
 // First index whose CDF value exceeds u, among `count` entries of row `row`. The row's
 // cutpoints (environment::build, rows h + 1 on; K a power of two, so u·K is exact) bracket the
@@ -398,7 +488,16 @@ uint cdf_search(uint row,uint count,float u){
     uint lo=(uint)env_cdf[uint2(k,g)],hi=k+1<K?(uint)env_cdf[uint2(k+1,g)]:count-1;
     while(lo<hi){uint mid=(lo+hi)/2;if(u<env_cdf[uint2(mid,row)])hi=mid;else lo=mid+1;}return lo;}
 // A direction from the HDRI's luminance · sinθ, uniform within the chosen texel.
+float3 sample_env_map(out float pdf);
+// The map or, with a split sun, the sun's disc by its share; pdf the mixture's (env_pdf).
 float3 sample_env(out float pdf){
+    if(env_sun_on() && random()<env_sun_color.w){
+        float om=env_sun.w,x=random()*om,s=sqrt(x*(2-x)),a=2*PI*random();
+        float3 d=basis(env_sun.xyz,float3(s*cos(a),s*sin(a),1-x));pdf=env_pdf(d);return d;
+    }
+    float3 d=sample_env_map(pdf);if(env_sun_on())pdf=(1-env_sun_color.w)*pdf+(in_env_sun(d)?env_sun_color.w/(2*PI*env_sun.w):0);return d;
+}
+float3 sample_env_map(out float pdf){
     uint2 size=env_size();
     float uy=random(),ux=random();
     uint y=cdf_search(size.y,size.y,uy);float y0=y>0?env_cdf[uint2(y-1,size.y)]:0,y1=env_cdf[uint2(y,size.y)];
@@ -422,7 +521,7 @@ float3 env_bilinear(float3 d){
     return c;
 }
 float3 environment_radiance(float3 d){
-    if(hdri_on())return env_bilinear(d)*environment_map.x;
+    if(hdri_on())return env_bilinear(d)*environment_map.x+(env_sun_on() && in_env_sun(d)?env_sun_color.rgb:0);
     return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));
 }
 float3 fresnel(float c,float3 f0){return f0+(1-f0)*pow(1-saturate(c),5);}
@@ -447,11 +546,13 @@ uint medium_at(uint64_t s,uint i){return (uint)(s>>(16*i))&0xffffu;}
 int medium_top(uint64_t s){int best=-1;uint bp=0;[unroll]for(uint i=0;i<4;i++){uint e=medium_at(s,i);if(e!=0 && (best<0 || (e>>13)>=bp)){best=i;bp=e>>13;}}return best;}
 int medium_find(uint64_t s,uint e){int j=-1;[unroll]for(uint i=0;i<4;i++)if(medium_at(s,i)==e)j=i;return j;}
 // A full stack drops the push; leaving that material later then counts as leaving into the rest.
+// The stack a camera ray starts with: the object the camera is inside (underwater), or none.
+uint64_t camera_media(){return (uint64_t)(uint)environment.w;}
 uint64_t medium_push(uint64_t s,uint e){[unroll]for(uint i=0;i<4;i++)if(medium_at(s,i)==0)return s|((uint64_t)e<<(16*i));return s;}
 uint64_t medium_remove(uint64_t s,uint e){int j=medium_find(s,e);if(j<0)return s;uint64_t low=j>0?s&((1ull<<(16*j))-1):0;return low|((s>>(16*(j+1)))<<(16*j));}
 Material medium_material(uint64_t s,int top){Material m=materials[(medium_at(s,top)&0x1fffu)-1];lean_strip(m);return m;}
 float medium_ior(uint64_t s,int top){return top>=0?ior_of(medium_material(s,top)):1;}
-float3 medium_absorption(uint64_t s,int top){return top>=0?-log(max(up(medium_material(s,top).color_rough.rgb),0.001)):float3(0,0,0);}
+float3 medium_absorption(uint64_t s,int top){if(top<0)return 0;Material m=medium_material(s,top);return -log(max(up_material(m,m.color_rough.rgb),0.001));}
 // Thin-film interference (track 11, glTF's KHR_materials_iridescence): Belcour and Barla
 // (2017), the Airy sum of a film between the outside and the base, kept to its first two
 // orders, with the spectral integral done in closed form against Gaussian fits of the CIE XYZ
@@ -602,7 +703,7 @@ float3 ggx_sample_aniso(float3 n,float3 T,float3 B,float3 d,float2 a){
 // three Gaussian channel curves of equal area (a flat spectrum is white), so the RGB weight is
 // 3·N_c / ΣN: at most 3 per channel. One wavelength per path instead multiplied the same weight
 // in at every grating bounce, which is biased (E[w²] > 1) and blew up between grating spheres.
-static float path_lambda;
+static float path_lambda=550;
 static const float3 GRATING_MU=float3(600,545,455),GRATING_SIGMA=float3(40,35,25);
 void grating_wavelength(uint key){
     uint a=hash(key),b=hash(a^0x68e31da4);uint c=a%3;float u1=max(((a>>8)&0xffff)*(1.0/65536.0),1e-6),u2=(b>>8)*(1.0/16777216.0);
@@ -684,7 +785,23 @@ float3 cone_sample(float3 axis,float om,out float pdf){float x=random()*om,s=sqr
 // 1 − cos of the half angle a sphere covers (0 from inside), without cancellation when far.
 float sphere_om(float d2,float r){float s2=r*r/d2;return d2>r*r?s2/(1+sqrt(1-s2)):0;}
 // Spot lights (flag bit 5): smoothstep between the cosines of the outer and inner half angles.
-float spot(Material m,float c){return ((uint)m.lobes.w&32u)!=0?smoothstep(m.secondary.x,m.secondary.y,c):1;}
+// IES profile (flag bit 14, `ies::pack`): the relative intensity at 60 angles over 0–90° from
+// the light's normal, three 8-bit values per float in layers, sheen, base_scale, surface_scale,
+// medium.xyz and phase.x (a light reads none of them otherwise), linearly interpolated.
+float ies_sample(Material m,uint i){
+    uint k=i/3;float v=k<4?m.layers[k]:k<8?m.sheen[k-4]:k<12?m.base_scale[k-8]:k<16?m.surface_scale[k-12]:k<19?m.medium[k-16]:m.phase.x;
+    return (((uint)v>>(8*(i%3)))&255u)/255.0;
+}
+float ies_profile(Material m,float c){
+    if(c<=0)return 0;
+    float x=acos(min(c,1))*(59/(0.5*PI));uint i=min((uint)x,58u);
+    return lerp(ies_sample(m,i),ies_sample(m,i+1),x-i);
+}
+// A light's emission factor toward cosine c from its normal: the IES profile, a spot's cone, or 1.
+float spot(Material m,float c){
+    uint f=(uint)m.lobes.w;if((f&16384u)!=0)return ies_profile(m,c);
+    return (f&32u)!=0?smoothstep(m.secondary.x,m.secondary.y,c):1;
+}
 float emitter_pdf(float3 from,float3 at,Emitter light){
     if(light.position_area.w==-1){float3 c=light.position_area.xyz-from;float om=sphere_om(dot(c,c),light.edge1_cdf.x);return om>0?light.edge2_probability.w/(2*PI*om):0;}
     float3 d=at-from;float dist2=dot(d,d);float3 n=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));float c=abs(dot(n,normalize(d)));return light.edge2_probability.w*dist2/max(1e-8,light.position_area.w*c);}
@@ -806,28 +923,98 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
 // 0.6 mm off its surface (along the normal, not the ray), so a grazing sample does not hit the
 // emitter's own face (that lost ~0.5% of night-skyline's light-sampled light).
 float nee_limit(float len,float c){return max(0.0002,len-min(0.5*len,0.0006/max(abs(c),0.02)));}
+// The colour an emitter's surface emits at p (times optical.y): the material's colour, or with
+// an emissive map (flag 64, `Gpu::attach_maps`) the texel at p's UV times medium.xyz (1 / the
+// map's mean) and secondary.yzw (the mean emitted colour, which the emitter table holds);
+// secondary.x is the map's heap slot + 1. e1: the emitter index + 1 (0: none, the colour). The
+// UVs are the emitter's UV record, after the SDF photon records (`Gpu::upload_lights`).
+float3 emitted_color(Material m,uint e1,float3 p){
+    if(!texture_maps || e1==0 || ((uint)m.lobes.w&64u)==0)return m.color_rough.rgb;
+    Emitter x=emitters[e1-1];float3 d=p-x.position_area.xyz,u=x.edge1_cdf.xyz,v=x.edge2_probability.xyz;
+    float uu=dot(u,u),uv=dot(u,v),vv=dot(v,v),du=dot(d,u),dv=dot(d,v),det=max(uu*vv-uv*uv,1e-30);
+    float b1=(vv*du-uv*dv)/det,b2=(uu*dv-uv*du)/det;
+    Emitter r=emitters[(uint)photon.w+2*(uint)photon.z+e1-1];
+    float2 t=r.position_area.xy*(1-b1-b2)+r.position_area.zw*b1+r.edge1_cdf.xy*b2;
+    return m.secondary.yzw*sample_map((uint)m.secondary.x,t).rgb*m.medium.xyz;
+}
+// Light sampling of emissive procedural objects (trace only: sdf_nee_on, set by trace_main;
+// BDPT and the photon gather weigh their hits as before). The SDF photon records (`sdf_photon`)
+// give each one's bounding sphere and power CDF: NEE picks one by power, a direction in the
+// cone its bounding sphere covers (the whole sphere of directions from inside it), and keeps
+// the sample when the first surface that way is that object. With triangles too, the two
+// share the non-sky half evenly (`sdf_share`); scenes without them sample as before.
+static bool sdf_nee_on=false;
+float sdf_share(){return sdf_nee_on?(scene_info.x>0?0.5:1):0;}
+float sdf_record_prob(uint k){uint b=(uint)photon.w;return emitters[b+2*k].edge1_cdf.y-(k>0?emitters[b+2*k-2].edge1_cdf.y:0);}
+float sdf_dir_pdf(float3 x,uint k){Emitter a=emitters[(uint)photon.w+2*k];float3 c=a.position_area.xyz-x;float om=sphere_om(dot(c,c),a.position_area.w);return om>0?1/(2*PI*om):1/(4*PI);}
+// The record of the procedural object with material id, or 0xffffffff.
+uint sdf_record_of(uint material){
+    for(uint k=0;k<(uint)photon.z;k++)if(instances[asuint(emitters[(uint)photon.w+2*k].edge1_cdf.x)].material==material)return k;
+    return 0xffffffffu;
+}
+// The cosine from a triangle light's normal below which it emits nothing (a spot's outer cone,
+// an IES profile's or a one-sided light's half space), or −1: equiangular sampling skips the
+// part of a ray outside it.
+float emission_cos(Material lm){
+    uint f=(uint)lm.lobes.w;float k=(f&16384u)!=0 || lm.optical.w>0.5?0:-1;
+    if((f&32u)!=0 && (f&16384u)==0)k=max(k,lm.secondary.x);return k;
+}
+// The part [a, b] of [t0, t1] on o + d t inside the cone of apex p, axis n and cosine k (convex
+// for k ≥ 0, so one interval); false when empty. k < 0 keeps [t0, t1].
+bool cone_interval(float3 o,float3 d,float3 p,float3 n,float k,float t0,float t1,out float a,out float b){
+    a=t0;b=t1;if(k<0)return true;
+    float3 w=o-p;float dn=dot(d,n),wn=dot(w,n),dw=dot(d,w),k2=k*k;
+    float A=dn*dn-k2,B=2*(dn*wn-k2*dw),C=wn*wn-k2*dot(w,w);
+    float r[5]={t0,t1,t1,t1,t1};
+    if(abs(dn)>1e-8)r[2]=clamp(-wn/dn,t0,t1);
+    if(abs(A)>1e-8){float disc=B*B-4*A*C;if(disc>=0){float q=sqrt(disc);r[3]=clamp((-B-q)/(2*A),t0,t1);r[4]=clamp((-B+q)/(2*A),t0,t1);}}
+    else if(abs(B)>1e-8)r[3]=clamp(-C/B,t0,t1);
+    [unroll]for(uint i=1;i<5;i++)[unroll]for(uint j=4;j>i;j--)if(r[j]<r[j-1]){float x=r[j];r[j]=r[j-1];r[j-1]=x;}
+    float lo=t1,hi=t0;
+    [unroll]for(uint i=0;i<4;i++){if(r[i+1]<=r[i])continue;float3 q=w+d*(0.5*(r[i]+r[i+1]));
+        if(dot(q,n)>=k*length(q)){lo=min(lo,r[i]);hi=max(hi,r[i+1]);}}
+    a=lo;b=hi;return hi>lo;
+}
+// The light sample_light chose, for equiangular MIS in media: a sphere's centre or the triangle
+// point (nee_anchored false for the sky and suns).
+static float3 nee_anchor=0,nee_axis=0;
+static float nee_cos=-1;
+static bool nee_anchored=false;
 bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,out float3 le,out float pl,out float limit){
-    bool nee=false;ld=float3(0,1,0);le=0;pl=0;limit=1e4;if(lpe_on)lpe_env_sample=false;
+    bool nee=false;uint lmat=0xffffffffu;ld=float3(0,1,0);le=0;pl=0;limit=1e4;nee_anchored=false;if(lpe_on)lpe_env_sample=false;
     if(env_nee && random()<p_env){
         float pe;ld=sample_env(pe);if(lpe_on)lpe_env_sample=true;
         if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
+    }else if(sdf_nee_on && (scene_info.x==0 || random()<0.5)){
+        uint b=(uint)photon.w,n=(uint)photon.z,j=0;float u=random();
+        for(;j+1<n && u>=emitters[b+2*j].edge1_cdf.y;j++){}
+        Emitter A=emitters[b+2*j];float q=sdf_record_prob(j);uint mat=instances[asuint(A.edge1_cdf.x)].material;
+        float3 c=A.position_area.xyz-x;float d2=dot(c,c),om=sphere_om(d2,A.position_area.w),pc;
+        if(om>0)ld=cone_sample(c*rsqrt(d2),om,pc);else{float z=1-2*random(),s=sqrt(max(0,1-z*z)),a=2*PI*random();ld=float3(s*cos(a),z,s*sin(a));pc=1/(4*PI);}
+        Hit hh;
+        if(q>0 && intersect(x,ld,1e4,hh,true,false) && hh.material==mat){
+            Material lm=material_at(mat,hh.p);
+            if(lm.optical.w<0.5 || hh.front){le=lm.color_rough.rgb*lm.optical.y*spot(lm,-dot(ld,hh.n));pl=(1-p_env)*sdf_share()*q*pc;limit=nee_limit(hh.t,dot(hh.n,ld));lmat=mat;nee=true;}
+        }
     }else if(tri_nee){
-    Emitter light=emitters[select_index(random())];
+    uint li=select_index(random());Emitter light=emitters[li];lmat=(uint)light.emission_material.w;
     if(light.position_area.w<0){
         // Sphere or sun: a direction in the cone it covers, then a shadow ray up to the
         // sphere's true surface (its inscribed mesh lies beyond) or to infinity.
         float om=0,pc=0;
         if(light.position_area.w==-1){
+            nee_anchor=light.position_area.xyz;nee_cos=-1;nee_anchored=true;
             float3 c=light.position_area.xyz-x;float d2=dot(c,c),r=light.edge1_cdf.x;om=sphere_om(d2,r);
             if(om>0){ld=cone_sample(c*rsqrt(d2),om,pc);float b=dot(c,ld);limit=b-sqrt(max(0,r*r-(d2-b*b)));}
         }else{om=light.edge1_cdf.x;ld=cone_sample(light.position_area.xyz,om,pc);}
-        if(pc>0){le=light.emission_material.rgb;pl=(1-p_env)*light.edge2_probability.w*pc;limit=max(0.0002,limit-0.0006);nee=true;}
+        if(pc>0){le=light.emission_material.rgb;pl=(1-p_env)*(1-sdf_share())*light.edge2_probability.w*pc;limit=max(0.0002,limit-0.0006);nee=true;}
     }else{
     float su=sqrt(random()),v=random();float3 lp=light.position_area.xyz+light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);ld=lp-x;float len=length(ld);ld/=max(len,1e-8);
     Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
-    if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=lm.color_rough.rgb*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*emitter_pdf(x,lp,light);limit=nee_limit(len,dot(ln,ld));nee=true;}
+    nee_anchor=lp;nee_axis=ln;nee_cos=emission_cos(lm);nee_anchored=true;
+    if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=emitted_color(lm,li+1,lp)*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*(1-sdf_share())*emitter_pdf(x,lp,light);limit=nee_limit(len,dot(ln,ld));nee=true;}
     }}
-    le=up(le);return nee;
+    le=lmat!=0xffffffffu?up_emitted(lmat,le):up(le);return nee;
 }
 // ReSTIR DI (track 15; Bitterli et al. 2020, with the generalized RIS weights of Lin et al.
 // 2022). A light sample is an emitter index and two 16-bit numbers that name the same point from
@@ -881,7 +1068,7 @@ float3 light_toward(uint i,LightPoint l,float3 x,out float3 ld,out float g,out f
     ld=l.p-x;float d2=dot(ld,ld),len=sqrt(d2);ld/=max(len,1e-8);float c=dot(l.n,-ld);limit=nee_limit(len,c);
     if(l.kind==1){g=max(c,0)/max(d2,1e-8);return c>0?l.le:0;}
     Material lm=material_at((uint)emitters[i].emission_material.w,l.p);g=abs(c)/max(d2,1e-8);
-    return lm.optical.w>=0.5 && c<=0?0:lm.color_rough.rgb*lm.optical.y*spot(lm,c);
+    return lm.optical.w>=0.5 && c<=0?0:emitted_color(lm,i+1,l.p)*lm.optical.y*spot(lm,c);
 }
 // The target function: unshadowed reflected luminance from the table's flat emission (no
 // pattern or spot cone: a target only has to be positive wherever the light can be) through
@@ -938,12 +1125,12 @@ bool restir_nee(uint2 p,uint layer,Hit h,float3 v,out float3 ld,out float3 le,ou
     uint lc=alias_index(random(),random()),qc=pack_uv(float2(random(),random()));float Wc=1/max(light_point(lc,qc).source,1e-30);
     Reservoir r=reservoirs[restir_slot(0,layer)+p.y*dimensions.x+p.x];uint light=lc,q=qc;float W=Wc;
     if(reservoir_valid(r))restir_merge(a,lc,qc,Wc,1,domain_of(r),r.light,r.uv,r.W,reservoir_m(r),light,q,W);
-    LightPoint l=light_point(light,q);float g;le=up(light_toward(light,l,h.p,ld,g,limit))*g*W;
+    LightPoint l=light_point(light,q);float g;le=up_emitted((uint)emitters[light].emission_material.w,light_toward(light,l,h.p,ld,g,limit))*g*W;
     return W>0 && any(le>0);
 }
-// Volumes (track 12): homogeneous media, sampled by free flight on their extinction (one grey
-// sigma, so the pdf cancels the transmittance), with the albedo applied at each scatter and a
-// Henyey-Greenstein phase function. c is the cosine between the travel and the new direction.
+// Volumes (track 12): homogeneous media, sampled by free flight on their extinction (`flight`:
+// grey or per channel), with the albedo applied at each scatter and a Henyey-Greenstein phase
+// function. c is the cosine between the travel and the new direction.
 float hg_pdf(float c,float g){float d=max(1+g*g-2*g*c,1e-6);return (1-g*g)/(4*PI*d*sqrt(d));}
 float3 hg_sample(float3 d,float g,out float pdf){
     float u=random(),c;
@@ -959,10 +1146,10 @@ bool fog_interval(float3 o,float3 d,float tmax,out float t0,out float t1){
 }
 // The scattering medium the path is in: the top of the dielectric stack, else the fog (only
 // outside every object). [t0, t1] is where it fills the ray up to tmax.
-bool medium_params(uint64_t media,float3 o,float3 d,float tmax,out float sigma,out float3 albedo,out float g,out float t0,out float t1){
+bool medium_params(uint64_t media,float3 o,float3 d,float tmax,out float3 sigma,out float3 albedo,out float g,out float t0,out float t1){
     int top=medium_top(media);t0=0;t1=tmax;
-    if(top>=0){Material m=medium_material(media,top);sigma=m.medium.w;albedo=m.medium.rgb;g=m.phase.x;return sigma>0;}
-    sigma=fog.x;albedo=fog_color.rgb;g=fog.y;return fog_interval(o,d,tmax,t0,t1);
+    if(top>=0){Material m=medium_material(media,top);sigma=extinction_of(m);albedo=m.medium.rgb;g=m.phase.x;return m.medium.w>0;}
+    sigma=fog_extinction();albedo=fog_color.rgb;g=fog.y;return fog_interval(o,d,tmax,t0,t1);
 }
 // The distance to the nearest surface (alpha-tested holes skipped), or limit: a medium's exit.
 float surface_distance(float3 o,float3 d,float limit){
@@ -986,11 +1173,63 @@ float surface_distance(float3 o,float3 d,float limit){
 float3 medium_transmittance(uint64_t media,float3 o,float3 d,float limit){
     float3 tr=1;float start=0;int top=medium_top(media);
     if(top>=0){Material m=medium_material(media,top);
-        if(m.medium.w>0){start=surface_distance(o,d,limit);tr=exp(-(m.medium.w-log(max(up(m.color_rough.rgb),0.001)))*start);}
+        if(m.medium.w>0){start=surface_distance(o,d,limit);tr=exp(-(extinction_of(m)-log(max(up_material(m,m.color_rough.rgb),0.001)))*start);}
         else return 1;
     }
-    float t0,t1;if(fog_interval(o,d,limit,t0,t1)){t0=max(t0,start);if(t1>t0)tr*=exp(-fog.x*(t1-t0));}
+    float t0,t1;if(fog_interval(o,d,limit,t0,t1)){t0=max(t0,start);if(t1>t0)tr*=exp(-fog_extinction()*(t1-t0));}
     return tr;
+}
+// Equiangular sampling (Kulla and Fajardo 2012): a distance on [t0, t1] of the ray o + d t with
+// density proportional to 1 / (h² + (t − Δ)²) about the anchor a (a light point), so the
+// single scattering a light close to the ray lights is sampled where it is bright.
+float equiangular(float3 o,float3 d,float3 a,float t0,float t1,float u,out float pdf){
+    float c=dot(a-o,d),h=max(length(a-o-d*c),1e-4),a0=atan2(t0-c,h),a1=atan2(t1-c,h);
+    float t=clamp(c+h*tan(lerp(a0,a1,u)),t0,t1),s=t-c;pdf=h/max((a1-a0)*(h*h+s*s),1e-30);return t;
+}
+float equiangular_pdf(float3 o,float3 d,float3 a,float t0,float t1,float t){
+    float c=dot(a-o,d),h=max(length(a-o-d*c),1e-4),s=t-c;return h/max((atan2(t1-c,h)-atan2(t0-c,h))*(h*h+s*s),1e-30);
+}
+// The density of `flight` scattering at t (one-sample MIS over the channels when chromatic).
+float flight_pdf(float3 sigma,float t0,float t){if(hero_only)sigma=sigma.xxx;float3 f=sigma*exp(-sigma*(t-t0));return (f.x+f.y+f.z)/3;}
+// Equiangular single scattering on a medium segment [t0, t1) from o along d (trace): one light
+// chosen as sample_light chooses it, a distance about it, then the light from there. MIS against
+// the free-flight scatter's light sample (weights pd / (pd + pe) there and pe / (pd + pe) here,
+// both inside the phase / light MIS), so it adds the part a far scatter misses. 0 for the sky
+// and suns, which free flight keeps whole. A triangle light's distances stay inside the cone it
+// emits into (`cone_interval`), in both weights.
+static uint side_state=0;
+float side_random(){side_state=hash(side_state+0x9e3779b9);return (side_state>>8)*(1.0/16777216.0);}
+float3 equiangular_light_side(uint64_t media,float3 o,float3 d,float t0,float t1,float3 sigma,float3 albedo,float3 absorption,float g,bool env_nee,float p_env,uint mis){
+    if(env_nee && side_random()<p_env)return 0;
+    if(sdf_nee_on && side_random()<0.5)return 0;
+    uint li=select_index(side_random());Emitter light=emitters[li];if(light.position_area.w<0 && light.position_area.w!=-1)return 0;
+    bool sphere=light.position_area.w==-1;float3 lp=light.position_area.xyz;
+    float ea=t0,eb=t1;
+    if(!sphere){float su=sqrt(side_random()),v=side_random();lp+=light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);
+        if(!cone_interval(o,d,lp,normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz)),emission_cos(materials[(uint)light.emission_material.w]),t0,t1,ea,eb))return 0;}
+    float pe;float t=equiangular(o,d,lp,ea,eb,side_random(),pe);float3 x=o+d*t;
+    float3 ld,le=0;float pl=0,limit=1e4;
+    if(sphere){
+        float3 c=lp-x;float d2=dot(c,c),r=light.edge1_cdf.x,om=sphere_om(d2,r),pc=0;if(om<=0)return 0;
+        {float x0=side_random()*om,s0=sqrt(x0*(2-x0)),a0=2*PI*side_random();pc=1/(2*PI*om);ld=basis(c*rsqrt(d2),float3(s0*cos(a0),s0*sin(a0),1-x0));}float b=dot(c,ld);limit=max(0.0002,b-sqrt(max(0,r*r-(d2-b*b)))-0.0006);
+        le=light.emission_material.rgb;pl=(1-p_env)*(1-sdf_share())*light.edge2_probability.w*pc;
+    }else{
+        ld=lp-x;float len=length(ld);ld/=max(len,1e-8);
+        Material lm=material_at((uint)light.emission_material.w,lp);float3 ln=normalize(cross(light.edge1_cdf.xyz,light.edge2_probability.xyz));
+        if(lm.optical.w>0.5 && dot(ln,-ld)<=0)return 0;
+        le=emitted_color(lm,li+1,lp)*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*(1-sdf_share())*emitter_pdf(x,lp,light);limit=nee_limit(len,dot(ln,ld));
+    }
+    if(pl<=0 || !any(le>0))return 0;
+    float pp=hg_pdf(dot(d,ld),g),pd=flight_pdf(sigma,t0,t);float nw=mis==1?1:pl/(pl+pp);
+    if(occluded(x,ld,limit))return 0;
+    float3 tr=exp(-absorption*t-sigma*(t-t0));
+    return tr*sigma*up(albedo)*pp*up_emitted((uint)light.emission_material.w,le)*medium_transmittance(media,x,ld,limit)*nw/(pl*(pe+pd));
+}
+// Its random numbers come from a side stream (white noise keyed by the pixel, sample and path
+// state), so the path's own Sobol dimensions stay bit-identical.
+float3 equiangular_light(uint64_t media,float3 o,float3 d,float t0,float t1,float3 sigma,float3 albedo,float3 absorption,float g,bool env_nee,float p_env,uint mis){
+    side_state=hash(pixel_seed^hash(sequence_index*0x85ebca6bu+dimension_index*0x9e3779b9u)^rng_state);
+    return equiangular_light_side(media,o,d,t0,t1,sigma,albedo,absorption,g,env_nee,p_env,mis);
 }
 // Giles' single-precision inverse error function.
 float erfinv(float x){
@@ -1076,7 +1315,8 @@ void trace_main(uint3 tid){
     if(recording){if(any(p!=0))return;p=min(path_record.xy,dimensions.xy-1);}
     else{p+=region.xy;if(any(p>=region.zw))return;}
     if(any(p>=dimensions.xy))return;
-    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;float bounces_used=0;
+    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;
+    sdf_nee_on=!lean && photon.z>0 && ((scene_info.w>>4)&3)!=2;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
     // Without RR the albedo guides are the mean first-hit albedo of the samples themselves, read
@@ -1105,6 +1345,7 @@ void trace_main(uint3 tid){
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
         float3 throughput=lens_valid?camera_weight:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
+        if(environment.w>0){media=camera_media();int top=medium_top(media);absorption=medium_absorption(media,top);density=medium_material(media,top).medium.w;}
         // Recording only (dead code otherwise): why the path ended, and its last bounce.
         uint end_reason=lens_valid?3:5,last_bounce=0;
         if(lpe_on){lpe_state=0;lpe_weight=1;}
@@ -1115,7 +1356,7 @@ void trace_main(uint3 tid){
             uint mis=(scene_info.w>>4)&3;
             // Light selection: the HDRI and the emissive triangles share NEE half and half.
             bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
-            float p_env=env_nee?(tri_nee?0.5:1):0;
+            float p_env=env_nee?(tri_nee || sdf_nee_on?0.5:1):0;
             // False hits on dielectrics (see medium_top): entering one ranked below the current
             // medium, or leaving one that is not the current medium. The ray goes on in the same
             // direction without a bounce, so the MIS state of the last real vertex stays. Kept in
@@ -1151,19 +1392,27 @@ void trace_main(uint3 tid){
             if(SER_AT<0 || bounce==SER_AT)dx::MaybeReorderThread(found?min(h.material,(1u<<SER_BITS)-2):(1u<<SER_BITS)-1,SER_BITS);
 #endif
 #endif
-            {float sigma,g,t0,t1;float3 albedo;
+            {float g,t0,t1;float3 sigma,albedo,fw;
             if((density>0 || (fog_on() && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
-                float ts=t0-log(1-random())/sigma;
-                if(ts<t1){
+                // Equiangular single scattering toward local lights in fog (opt in, flag bit 6:
+                // Fog::equiangular; `equiangular_light`).
+                bool equi=(scene_info.w&64u)!=0 && media==0 && tri_nee && mis!=2;
+                if(equi){float3 e=throughput*equiangular_light(media,origin,direction,t0,t1,sigma,albedo,absorption,g,env_nee,p_env,mis);
+                    if(all(isfinite(e))){radiance+=e;if(bounce==0)direct+=e;lpe_add(4,5,e);}}
+                float ts=flight(sigma,t0,t1,fw);
+                if(ts>=t1)throughput*=fw;
+                else{
                     // A scatter before the surface: NEE by the phase function, then a new direction.
-                    float3 arriving=throughput*exp(-absorption*ts);
-                    throughput*=exp(-absorption*ts)*up(albedo);cone_width+=cone_spread*ts;
+                    float3 arriving=throughput*exp(-absorption*ts)*fw;
+                    throughput*=exp(-absorption*ts)*fw*up(albedo);cone_width+=cone_spread*ts;
                     float3 x=origin+direction*ts;
                     if(bounce==0 && sample_albedo)first_diffuse=float4(albedo,0);
                     float3 ld,le;float pl,limit;
                     if(sample_light(x,env_nee,tri_nee,p_env,ld,le,pl,limit)){
                         float pp=hg_pdf(dot(direction,ld),g);
-                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);lpe_add(4,lpe_env_sample?6:5,e);}
+                        // MIS against the equiangular sample of the same light.
+                        float we=1;if(equi && nee_anchored){float pd=flight_pdf(sigma,t0,ts),ea,eb;float pe=cone_interval(origin,direction,nee_anchor,nee_axis,nee_cos,t0,t1,ea,eb) && ts>=ea && ts<=eb?equiangular_pdf(origin,direction,nee_anchor,ea,eb,ts):0;we=pd/max(pd+pe,1e-30);}
+                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le*we/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);lpe_add(4,lpe_env_sample?6:5,e);}
                         else record(12,bounce,x,0,limit,ld);
                     }
                     float pp;direction=hg_sample(direction,g,pp);
@@ -1186,8 +1435,8 @@ void trace_main(uint3 tid){
                     float3 x=cross(direction,sun.position_area.xyz);float om=sun.edge1_cdf.x;
                     if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
-                    float w=1;if(bounce>0 && !previous_delta)w=mis==1 || previous_restir?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
-                    float3 se=throughput*up(sun.emission_material.rgb)*w;e+=se;lpe_add(8,5,se);}
+                    float w=1;if(bounce>0 && !previous_delta)w=mis==1 || previous_restir?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*(1-sdf_share())*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
+                    float3 se=throughput*up_emitted((uint)sun.emission_material.w,sun.emission_material.rgb)*w;e+=se;lpe_add(8,5,se);}
                 radiance+=e;if(bounce<=1)direct+=e;record(10,bounce,origin,throughput,luminance(e),direction);end_reason=0;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
             float3 arriving=throughput;
@@ -1213,15 +1462,15 @@ void trace_main(uint3 tid){
                 // or a thin box would split twice and reflect ~67% instead of 50%.
                 portal_crossings++;previous_delta=true;
                 if(!h.front){origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;continue;}
-                throughput*=up(m.color_rough.rgb);
+                throughput*=up_material(m,m.color_rough.rgb);
                 if(random()<m.lobes.y){direction=reflect(direction,h.n);origin=h.p+direction*0.0005;record(3,bounce,h.p,throughput,0,direction);lpe_advance(2);}
                 else{origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;}
                 continue;
             }
-            float3 emitted=up(m.color_rough.rgb)*m.optical.y;
+            // Emission: the flat colour or the emissive map, as light sampling sees it.
+            float3 emitted=up_material(m,emitted_color(m,h.emitter,h.p))*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
             emitted*=spot(m,-dot(direction,h.n));
-            // Emission keeps the flat colour: light sampling has no texture lookup.
             apply_maps(h,m);
             // A dielectric's film sits between the media on both sides (the transmission branch).
             float film_n1=1,film_n2=0;
@@ -1233,9 +1482,14 @@ void trace_main(uint3 tid){
             if(has_grating(m)){if(spectral_on){hero(throughput);path_lambda=path_lambdas.x;}else grating_wavelength(pixel_seed^(sequence_index*0x9e3779b9u)^(bounce*0x85ebca6bu));}
             if(bounce==0 && sample_albedo){first_diffuse=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),h.material==guide.material?1:0);first_specular=spec_fresnel(m,abs(dot(-direction,h.n)),f0_of(m));}
             // Spectral: the guides above keep RGB; the BSDF from here on sees spectra.
-            if(spectral_on){m.color_rough.rgb=up(m.color_rough.rgb);m.sheen.rgb=up(m.sheen.rgb);prepare_film_waves(m,saturate(dot(-direction,h.n)),film_n1,film_n2);}
+            if(spectral_on){m.color_rough.rgb=up_material(m,m.color_rough.rgb);m.sheen.rgb=up(m.sheen.rgb);prepare_film_waves(m,saturate(dot(-direction,h.n)),film_n1,film_n2);}
             // Emission found by BSDF sampling: MIS weight, or all / nothing in the single-strategy modes.
-            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1 || (previous_restir && restir_covers(previous_position,emitters[h.emitter-1]))?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
+            float weight=1;if(h.emitter!=0 && bounce>0 && !previous_delta)weight=mis==1 || (previous_restir && restir_covers(previous_position,emitters[h.emitter-1]))?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*(previous_restir?1:1-sdf_share())*emitter_pdf(previous_position,h.p,emitters[h.emitter-1]));
+            // An emissive procedural object, against its light sample (`sdf_nee_on`).
+            else if(h.emitter==0 && sdf_nee_on && bounce>0 && !previous_delta && !previous_restir && m.optical.y>0){
+                uint k=sdf_record_of(h.material);
+                if(k!=0xffffffffu)weight=mis==1?0:previous_pdf/(previous_pdf+(1-p_env)*sdf_share()*sdf_record_prob(k)*sdf_dir_pdf(previous_position,k));
+            }
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
             float emitted_l=luminance(e);lpe_add(8,5,e);
             if(((uint)m.lobes.w&1u)!=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=1;break;}

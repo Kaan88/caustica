@@ -1,0 +1,311 @@
+{
+ "format": 1,
+ "title": "IES profiles",
+ "description": "Four ceiling lights graze a wall, each shaped by a different IES profile (narrow spot, recessed downlight, batwing, ring): the scallops lighting designers draw. The profiles are in scenes/ies.",
+ "tags": [
+  "light",
+  "interior",
+  "reference"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 10.0,
+  "sky": 0.0,
+  "base": [
+   0.5,
+   0.48,
+   0.45
+  ],
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "floor": {
+   "color": [
+    0.35,
+    0.3,
+    0.26
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.04,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0
+  },
+  "light_on": false,
+  "bounces": 8,
+  "lights": [
+   {
+    "name": "Narrow spot",
+    "kind": "disk",
+    "position": [
+     -2.6,
+     2.48,
+     -1.55
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "temperature": 3000.0,
+    "intensity": 40.0,
+    "enabled": true,
+    "visible": true,
+    "ies": "ies/narrow-spot.ies"
+   },
+   {
+    "name": "Downlight",
+    "kind": "disk",
+    "position": [
+     -0.8,
+     2.48,
+     -1.55
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "temperature": 3000.0,
+    "intensity": 40.0,
+    "enabled": true,
+    "visible": true,
+    "ies": "ies/downlight.ies"
+   },
+   {
+    "name": "Batwing",
+    "kind": "disk",
+    "position": [
+     1.0,
+     2.48,
+     -1.55
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "temperature": 3000.0,
+    "intensity": 40.0,
+    "enabled": true,
+    "visible": true,
+    "ies": "ies/batwing.ies"
+   },
+   {
+    "name": "Ring",
+    "kind": "disk",
+    "position": [
+     2.8,
+     2.48,
+     -1.55
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "temperature": 3000.0,
+    "intensity": 40.0,
+    "enabled": true,
+    "visible": true,
+    "ies": "ies/ring.ies"
+   }
+  ],
+  "yaw": 0,
+  "pitch": 6,
+  "distance": 6.2,
+  "target": [
+   0.1,
+   0.6,
+   -1.6
+  ],
+  "fov": 55,
+  "exposure": 1.0,
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -2.1
+    ],
+    "size": 1.1429,
+    "stretch": 5.625,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     0.25
+    ],
+    "elevation": 1.25,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.78,
+      0.74
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.1429,
+    "stretch": 0.25,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     6.25
+    ],
+    "elevation": 2.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.6,
+      0.6
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plinth",
+    "shape": "box",
+    "position": [
+     -0.8,
+     -1.4
+    ],
+    "size": 0.1143,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     6.25,
+     6.25
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.2,
+      0.22
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vase",
+    "shape": "cylinder",
+    "position": [
+     -0.8,
+     -1.4
+    ],
+    "size": 0.06,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     5.2381,
+     5.2381
+    ],
+    "elevation": 0.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.3,
+      0.12
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

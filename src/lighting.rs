@@ -52,9 +52,44 @@ fn grating_code(m: &Material) -> f32 {
     let d = (m.grating_spacing * 1000.).round().clamp(300., 10000.);
     -(g * 16384. + d)
 }
+/// An extinction tint as 8 bits per channel in one float (exact below 2^24), relative to its
+/// largest channel; 0 = grey (`tint_of` in pathtrace.hlsl).
+pub fn pack_tint(c: [f32; 3]) -> f32 {
+    let top = c.iter().fold(0f32, |a, &v| a.max(v));
+    if top <= 0. || c.iter().all(|&v| v == top) {
+        return 0.;
+    }
+    let q = c.map(|v| (v / top * 255.).round().clamp(0., 255.) as u32);
+    if q == [255; 3] {
+        return 0.;
+    }
+    (q[0] | q[1] << 8 | q[2] << 16) as f32
+}
+/// The spectrum fields of a material (phase.z, phase.w) and the colour they imply: phase.z > 0 a
+/// measured spectrum, < 0 a blackbody at −phase.z kelvin. For emitters (a blackbody, the
+/// measured light 4) phase.w is the scale from the spectrum's RGB to the colour; otherwise the
+/// packed extinction tint.
+fn spectrum_fields(m: &Material) -> ([f32; 3], f32, f32) {
+    let tint = if m.transmission > 0. && m.density > 0. {
+        pack_tint(m.extinction)
+    } else {
+        0.
+    };
+    if m.spectrum > 0 {
+        // The measured light (4) is an emitter: phase.w its scale, 1 here (no medium tint).
+        let w = if m.spectrum == 4 { 1. } else { tint };
+        (crate::spectrum::measured(m.spectrum), m.spectrum as f32, w)
+    } else if m.temperature > 0. && m.emission > 0. {
+        let (c, scale) = crate::spectrum::blackbody_peak(m.temperature);
+        (c, -m.temperature, scale)
+    } else {
+        (m.color, 0., tint)
+    }
+}
 fn pack(m: &Material) -> PackedMaterial {
+    let (color, spectrum, phase_w) = spectrum_fields(m);
     PackedMaterial {
-        color_rough: [m.color[0], m.color[1], m.color[2], m.roughness],
+        color_rough: [color[0], color[1], color[2], m.roughness],
         lobes: [
             m.metallic,
             m.reflectivity,
@@ -112,8 +147,8 @@ fn pack(m: &Material) -> PackedMaterial {
             } else {
                 0.
             },
-            0.,
-            0.,
+            spectrum,
+            phase_w,
         ],
     }
 }
@@ -130,7 +165,24 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
     if s.floor.texture.is_empty() {
         out[3].color_rough[..3].copy_from_slice(&s.base);
     }
-    let c = s.light_color();
+    // The measured Cornell box: the original's wall and light spectra (codes 1–4).
+    if s.measured_room {
+        for (i, code) in [3, 2, 1, 1].into_iter().enumerate() {
+            if (i < 3 && s.walls.texture.is_empty()) || (i == 3 && s.floor.texture.is_empty()) {
+                out[i].color_rough[..3].copy_from_slice(&crate::spectrum::measured(code));
+                out[i].phase[2] = code as f32;
+            }
+        }
+    }
+    let c = if s.measured_room {
+        // At luminance 1, as `light_color` scales its blackbody.
+        let m = crate::spectrum::measured(4);
+        let k = if s.light_on { s.light_intensity } else { 0. }
+            / (m[0] * 0.2126 + m[1] * 0.7152 + m[2] * 0.0722);
+        m.map(|v| v * k)
+    } else {
+        s.light_color()
+    };
     out[4] = pack(&Material {
         color: c,
         emission: 1.,
@@ -139,6 +191,18 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
     });
     out[4].optical[3] = 1.;
     out[4].lobes[3] = 1. + if s.light_visible { 0. } else { 2. };
+    // Exact blackbody in the spectral tracer while the tint is white (a tint is per channel,
+    // which no spectrum times a scale matches).
+    if s.measured_room {
+        let m = crate::spectrum::measured(4);
+        out[4].phase[2] = 4.;
+        out[4].phase[3] = c[0] / m[0];
+    } else if s.light_tint == [1.; 3] && c.iter().any(|&v| v > 0.) {
+        let b = crate::spectrum::blackbody(s.light_temperature);
+        let k = (0..3).max_by(|&i, &j| b[i].total_cmp(&b[j])).unwrap_or(0);
+        out[4].phase[2] = -s.light_temperature;
+        out[4].phase[3] = c[k] / b[k];
+    }
     out.extend(s.objects.iter().map(|o| pack(&o.material)));
     let first_object = 5;
     out.extend(s.lights.iter().map(|l| {
@@ -146,13 +210,29 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
             color: l.color,
             emission: if l.enabled { l.radiance() } else { 0. },
             unlit: true,
+            temperature: l.temperature,
             ..Material::default()
         });
         // Flat lights shine from their front only; a sphere all round.
         m.optical[3] = (l.kind != LightKind::Sphere) as u32 as f32;
         m.lobes[3] = 1. + if l.visible { 0. } else { 2. } + if l.shadows { 0. } else { 8192. };
-        // Spot (flag bit 5): emission × smoothstep(cos outer, cos inner, cos to the normal).
-        if l.kind == LightKind::Spot {
+        // IES profile (flag bit 14, flat lights): 60 samples over 0–90° in fields a light never
+        // reads (`ies::pack`, pathtrace.hlsl `ies_profile`); it replaces a spot's cone.
+        let profile = (matches!(l.kind, LightKind::Rect | LightKind::Disk | LightKind::Spot)
+            && !l.ies.is_empty())
+        .then(|| crate::ies::profile(&l.ies))
+        .flatten();
+        if let Some(p) = profile {
+            let v = crate::ies::pack(&p);
+            m.lobes[3] += 16384.;
+            m.layers.copy_from_slice(&v[0..4]);
+            m.sheen.copy_from_slice(&v[4..8]);
+            m.base_scale.copy_from_slice(&v[8..12]);
+            m.surface_scale.copy_from_slice(&v[12..16]);
+            m.medium[..3].copy_from_slice(&v[16..19]);
+            m.phase[0] = v[19];
+        } else if l.kind == LightKind::Spot {
+            // Spot (flag bit 5): emission × smoothstep(cos outer, cos inner, cos to the normal).
             let (outer, inner) = l.cone();
             m.lobes[3] += 32.;
             m.secondary = [outer, inner, 0., 0.];
@@ -280,6 +360,16 @@ fn luminance(c: Vec3) -> f32 {
 /// an emitter). Analytic lights come first, encoded by a negative `position_area.w` (−1 sphere,
 /// −2 sun) with the centre or direction in xyz and radius or 1 − cos in `edge1_cdf.x`; a
 /// sphere's triangles all point at its entry.
+/// The RGB a material emits (its colour times the emission value), with an emissive map
+/// (flag 64, `Gpu::attach_maps`) the map's mean emitted colour in `secondary.yzw` instead.
+pub fn emitted(m: &PackedMaterial) -> Vec3 {
+    let c = if m.lobes[3] as u32 & 64 != 0 {
+        &m.secondary[1..4]
+    } else {
+        &m.color_rough[..3]
+    };
+    Vec3::new(c[0], c[1], c[2]) * m.optical[1]
+}
 pub fn emitter_table(
     vertices: &[Vertex],
     materials: &[PackedMaterial],
@@ -289,10 +379,7 @@ pub fn emitter_table(
     let mut lookup = vec![0; vertices.len() / 3];
     let mut powers = vec![];
     let mut sum = 0f64;
-    let emission = |id: u32| {
-        let m = materials[id as usize];
-        Vec3::new(m.color_rough[0], m.color_rough[1], m.color_rough[2]) * m.optical[1]
-    };
+    let emission = |id: u32| emitted(&materials[id as usize]);
     let mut spheres = std::collections::HashMap::new();
     for a in analytic {
         let l = emission(a.material);

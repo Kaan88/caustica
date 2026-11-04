@@ -202,7 +202,7 @@ fn read(path: &Path) -> Result<Maps> {
         base: Some(base.clone()),
         normal,
         metal_rough,
-        cutoff: 0.,
+        ..Maps::default()
     })
 }
 /// Colour, roughness and metallic of a material that now uses a set: the map averages, so the

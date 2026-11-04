@@ -104,6 +104,10 @@ struct Constants {
     glare: [u32; 4],
     /// Glare strength (0 = off), threshold, aperture diameter in grid texels, -.
     glare_settings: [f32; 4],
+    /// The HDRI's split sun (`environment::Sun`): world direction, cosine of the half angle
+    /// (0 = none); radiance times the HDRI strength, the share of environment samples.
+    env_sun: [f32; 4],
+    env_sun_color: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -352,6 +356,8 @@ pub struct Gpu {
     photon_trace: ID3D12PipelineState,
     /// `photon_trace` with spectral photons (`Settings::spectral`).
     photon_trace_spectral: ID3D12PipelineState,
+    photon_gather_spectral: ID3D12PipelineState,
+    bdpt_spectral: ID3D12PipelineState,
     photon_gather: ID3D12PipelineState,
     aux: Option<ID3D12Resource>,
     aux_len: u64,
@@ -393,6 +399,7 @@ pub struct Gpu {
     env: Texture,
     env_cdf: Texture,
     env_inv_norm: f32,
+    env_sun: Option<(crate::environment::Sun, f32)>,
     /// The map is stored as RGBA16F divided by this (≥ 1), so a sun brighter than half-float's
     /// 65504 keeps its value; strength and the pdf normalization are multiplied back.
     env_scale: f32,
@@ -581,6 +588,15 @@ impl Gpu {
             let mut d: Option<ID3D12Debug> = None;
             D3D12GetDebugInterface(&mut d)?;
             d.unwrap().EnableDebugLayer();
+            // DRED: on a device removal, `removed_reason` reports the last GPU operations and a
+            // page fault's address (self-test failures name the pass that hung or faulted).
+            let mut dred: Option<ID3D12DeviceRemovedExtendedDataSettings> = None;
+            if D3D12GetDebugInterface(&mut dred).is_ok()
+                && let Some(dred) = dred
+            {
+                dred.SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+                dred.SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+            }
             if let Ok(q) = DXGIGetDebugInterface1::<IDXGIInfoQueue>(0) {
                 q.SetBreakOnSeverity(
                     DXGI_DEBUG_ALL,
@@ -995,6 +1011,14 @@ impl Gpu {
             env!("OUT_DIR"),
             "/photon_trace_spectral.dxil"
         )))?;
+        let photon_gather_spectral = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/photon_gather_spectral.dxil"
+        )))?;
+        let bdpt_spectral = compute(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/bdpt_spectral.dxil"
+        )))?;
         let photon_gather = compute(include_bytes!(concat!(
             env!("OUT_DIR"),
             "/photon_gather.dxil"
@@ -1156,6 +1180,8 @@ impl Gpu {
             photon_clear,
             photon_trace,
             photon_trace_spectral,
+            photon_gather_spectral,
+            bdpt_spectral,
             photon_gather,
             aux: None,
             aux_len: 0,
@@ -1182,6 +1208,7 @@ impl Gpu {
             env,
             env_cdf,
             env_inv_norm: 0.,
+            env_sun: None,
             env_scale: 1.,
             present_count: 0,
             zebras: false,
@@ -1279,6 +1306,68 @@ impl Gpu {
             self.fence_wait_ms += start.elapsed().as_secs_f64() * 1000.;
         }
         Ok(())
+    }
+    /// Why the device was removed, if it was (a hang, a page fault, a driver reset).
+    pub fn removed_reason(&self) -> Option<String> {
+        let r = unsafe { self.device.GetDeviceRemovedReason() };
+        r.is_err()
+            .then(|| format!("{r:?}{}", unsafe { self.dred_report() }))
+    }
+    /// DRED's account of a removal (debug runs only): per command list, the operations after
+    /// the last one the GPU finished; then a page fault's address and the allocations near it.
+    unsafe fn dred_report(&self) -> String {
+        let Ok(dred) = self.device.cast::<ID3D12DeviceRemovedExtendedData>() else {
+            return String::new();
+        };
+        let mut out = String::new();
+        if let Ok(b) = dred.GetAutoBreadcrumbsOutput() {
+            let mut node = b.pHeadAutoBreadcrumbNode;
+            while !node.is_null() {
+                let n = &*node;
+                let done = if n.pLastBreadcrumbValue.is_null() {
+                    0
+                } else {
+                    *n.pLastBreadcrumbValue
+                };
+                if done < n.BreadcrumbCount && !n.pCommandHistory.is_null() {
+                    let ops =
+                        std::slice::from_raw_parts(n.pCommandHistory, n.BreadcrumbCount as usize);
+                    let dispatches = ops[..done as usize]
+                        .iter()
+                        .filter(|o| **o == D3D12_AUTO_BREADCRUMB_OP_DISPATCH)
+                        .count();
+                    let next: Vec<i32> = ops[done as usize..].iter().take(8).map(|o| o.0).collect();
+                    out += &format!(
+                        "; DRED: list {done}/{} ops done ({dispatches} dispatches), next ops {next:?}",
+                        n.BreadcrumbCount
+                    );
+                }
+                node = n.pNext;
+            }
+        }
+        if let Ok(p) = dred.GetPageFaultAllocationOutput()
+            && p.PageFaultVA != 0
+        {
+            out += &format!("; page fault at {:#x}", p.PageFaultVA);
+            for (label, mut node) in [
+                ("live", p.pHeadExistingAllocationNode),
+                ("freed", p.pHeadRecentFreedAllocationNode),
+            ] {
+                let mut k = 0;
+                while !node.is_null() && k < 4 {
+                    let n = &*node;
+                    let name = if n.ObjectNameW.is_null() {
+                        String::new()
+                    } else {
+                        n.ObjectNameW.to_string().unwrap_or_default()
+                    };
+                    out += &format!(" {label}: {name:?} type {}", n.AllocationType.0);
+                    node = n.pNext;
+                    k += 1;
+                }
+            }
+        }
+        out
     }
     pub fn reset(&mut self, reset_history: bool) {
         self.samples = 0;
@@ -1608,8 +1697,10 @@ impl Gpu {
         self.wait_idle()?;
         let Some(env) = env else {
             self.env_inv_norm = 0.;
+            self.env_sun = None;
             return Ok(());
         };
+        self.env_sun = env.sun.map(|s| (s, env.sun_share));
         let (w, h) = (env.width as u32, env.height as u32);
         // Half floats: an 8k map is 256 MB instead of 512 MB.
         let peak = env
@@ -1865,6 +1956,9 @@ impl Gpu {
         let photon_trace = create_compute_pipeline(&self.device, &self.root, &sh.photon_trace)?;
         let photon_trace_spectral =
             create_compute_pipeline(&self.device, &self.root, &sh.photon_trace_spectral)?;
+        let photon_gather_spectral =
+            create_compute_pipeline(&self.device, &self.root, &sh.photon_gather_spectral)?;
+        let bdpt_spectral = create_compute_pipeline(&self.device, &self.root, &sh.bdpt_spectral)?;
         let photon_gather = create_compute_pipeline(&self.device, &self.root, &sh.photon_gather)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
@@ -1895,6 +1989,8 @@ impl Gpu {
         self.trace_spectral = trace_spectral;
         self.trace_spectral_lean = trace_spectral_lean;
         self.photon_trace_spectral = photon_trace_spectral;
+        self.photon_gather_spectral = photon_gather_spectral;
+        self.bdpt_spectral = bdpt_spectral;
         if self.ser.is_some() {
             self.ser = make_ser(
                 &self.device,
@@ -2361,7 +2457,7 @@ impl Gpu {
             // Masked maps (alpha cutoff) are tested in the any-hit loop as well.
             let o = &s.objects[*i];
             let masked = o.material.texture.is_empty()
-                && crate::mesh::maps(o).is_some_and(|m| m.cutoff > 0.);
+                && crate::mesh::maps(o).is_some_and(|m| m.cutoff != 0.);
             // Track 20a (a): an object's two skip rules (hidden from camera rays, glass that
             // shadow rays pass) become instance masks, which the rays leave out (pathtrace.hlsl
             // MASK_*), so the RT cores commit its hits without running the shader per candidate.
@@ -2435,7 +2531,7 @@ impl Gpu {
                     0xff,
                 );
                 table.push(InstanceRecord {
-                    vertex_base: o.sdf.id(o.phase),
+                    vertex_base: o.sdf.id(o.phase, o.detail),
                     material,
                     emitter_base: u32::MAX,
                     object: i as u32,
@@ -2702,30 +2798,34 @@ impl Gpu {
     /// triangles: the static ones, then each emissive object's (its lookup range is
     /// `emitter_base` in the instance table; other objects have none).
     pub unsafe fn update_materials(&mut self, s: &Settings) -> Result<()> {
-        let materials = crate::lighting::materials(s);
+        let mut materials = crate::lighting::materials(s);
+        // Maps first: an emissive map sets the emitted colour the table is built from.
+        self.attach_maps(s, &mut materials)?;
         let mut world = self.static_cache.clone();
+        // Emissive-mapped objects' UVs, by their first triangle in `world`.
+        let mut mapped_uvs = vec![];
         for record in self.instances.iter_mut().filter(|r| r.material != u32::MAX) {
             let m = &materials[record.material as usize];
-            let emission =
-                m.color_rough[0].max(m.color_rough[1]).max(m.color_rough[2]) * m.optical[1];
+            let e = crate::lighting::emitted(m);
+            let emission = e.x.max(e.y).max(e.z);
             // Procedural objects are not light-sampled: their emission is found by BSDF hits.
-            record.emitter_base =
-                if emission > 0. && s.objects[record.object as usize].sdf.is_none() {
-                    let base = (world.len() / 3) as u32;
-                    world.extend(crate::geometry::object_geometry(
-                        &s.objects[record.object as usize],
-                        record.material,
-                    ));
-                    base
-                } else {
-                    u32::MAX
-                };
+            let o = &s.objects[record.object as usize];
+            record.emitter_base = if emission > 0. && o.sdf.is_none() {
+                let base = (world.len() / 3) as u32;
+                world.extend(crate::geometry::object_geometry(o, record.material));
+                if m.lobes[3] as u32 & 64 != 0
+                    && let Some(uv) = crate::mesh::uvs(o)
+                {
+                    mapped_uvs.push((base as usize, uv));
+                }
+                base
+            } else {
+                u32::MAX
+            };
         }
         let analytic = crate::lighting::analytic(s);
         let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials, &analytic);
         self.sun_count = crate::lighting::sun_count(&emitters);
-        let mut materials = materials;
-        self.attach_maps(s, &mut materials)?;
         // Only real material records: the portal matrices after them hold a translation in optical.w.
         self.textured = materials
             .iter()
@@ -2740,6 +2840,8 @@ impl Gpu {
                     && m.sheen[..3].iter().all(|v| *v <= 0.)
                     && m.surface_scale[2] <= 0.
                     && m.medium[3] <= 0.
+                    // IES lights keep their profile in fields LEAN strips.
+                    && (m.lobes[3] as u32 & 16384) == 0
             });
         self.emitter_count = emitters.len();
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
@@ -2752,6 +2854,24 @@ impl Gpu {
         let sdf = sdf_emitter_records(s, &self.instances, &materials);
         self.sdf_emitters = [(sdf.len() / 2) as u32, table.len() as u32];
         table.extend(sdf);
+        // With an emissive map anywhere, one UV record per emitter after them (pathtrace.hlsl
+        // `emitted_color`): a, b in position_area, c in edge1_cdf.xy, zero for the rest.
+        if !mapped_uvs.is_empty() {
+            let mut uvs: Vec<crate::lighting::Emitter> =
+                vec![bytemuck::Zeroable::zeroed(); emitters.len()];
+            for (base, uv) in &mapped_uvs {
+                for (k, t) in uv.as_chunks::<3>().0.iter().enumerate() {
+                    if let Some(&e) = lookup.get(base + k)
+                        && e != 0
+                        && let Some(r) = uvs.get_mut(e as usize - 1)
+                    {
+                        r.position_area = [t[0][0], t[0][1], t[1][0], t[1][1]];
+                        r.edge1_cdf = [t[2][0], t[2][1], 0., 0.];
+                    }
+                }
+            }
+            table.extend(uvs);
+        }
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&table))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
         self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;
@@ -2940,7 +3060,12 @@ impl Gpu {
         let (gx, gy) = (w.div_ceil(8), h.div_ceil(8));
         match integrator {
             1 => {
-                for pass in [&self.bdpt, &self.bdpt_resolve] {
+                let bdpt = if s.spectral {
+                    &self.bdpt_spectral
+                } else {
+                    &self.bdpt
+                };
+                for pass in [bdpt, &self.bdpt_resolve] {
                     self.list.SetPipelineState(pass);
                     self.list.Dispatch(gx, gy, 1);
                     uav(&self.list, None);
@@ -2957,7 +3082,11 @@ impl Gpu {
                 });
                 self.list.Dispatch(photons.div_ceil(64), 1, 1);
                 uav(&self.list, None);
-                self.list.SetPipelineState(&self.photon_gather);
+                self.list.SetPipelineState(if s.spectral {
+                    &self.photon_gather_spectral
+                } else {
+                    &self.photon_gather
+                });
                 self.list.Dispatch(gx, gy, 1);
                 uav(&self.list, None);
                 // Knaus and Zwicker's radius schedule, alpha = 2/3.
@@ -3302,10 +3431,43 @@ impl Gpu {
                 }
                 *slot = self.maps[&key].slot + 1;
             }
+            // An emissive map (flag 64, pathtrace.hlsl `emitted_color`) on an opaque, unpatterned
+            // emitter: secondary = (slot + 1, the mean emitted colour over its brightest
+            // channel), medium.xyz = 1 / the map's mean.
+            let emissive = match &maps.emissive {
+                Some(map)
+                    if materials[record].lobes[2] <= 0.
+                        && materials[record].optical[2] == 0.
+                        && materials[record].optical[1] > 0. =>
+                {
+                    let key = std::sync::Arc::as_ptr(map) as usize;
+                    used.insert(key);
+                    if !self.maps.contains_key(&key) {
+                        let texture = self.upload_map(map)?;
+                        self.maps.insert(key, texture);
+                    }
+                    let mean: [f32; 3] =
+                        std::array::from_fn(|k| maps.emissive_factor[k] * map.average[k]);
+                    let peak = mean[0].max(mean[1]).max(mean[2]);
+                    (peak > 0.).then(|| (self.maps[&key].slot + 1, mean.map(|v| v / peak), map))
+                }
+                _ => None,
+            };
             let m = &mut materials[record];
+            if let Some((slot, colour, map)) = emissive {
+                m.secondary = [slot as f32, colour[0], colour[1], colour[2]];
+                for k in 0..3 {
+                    m.medium[k] = if map.average[k] > 1e-4 {
+                        1. / map.average[k]
+                    } else {
+                        0.
+                    };
+                }
+                m.lobes[3] = (m.lobes[3] as u32 | 16 | 64) as f32;
+            }
             m.maps = [slots[0], slots[1], slots[2], maps.cutoff.to_bits()];
             // Flag bits the shader tests before any map work: 16 has maps, 8 masked.
-            let masked = slots[0] != 0 && maps.cutoff > 0.;
+            let masked = slots[0] != 0 && maps.cutoff != 0.;
             m.lobes[3] = (m.lobes[3] as u32 | 16 | if masked { 8 } else { 0 }) as f32;
             // Scale by value / average, so the map's mean is the slider value. A channel
             // that averages black (no metal anywhere) leaves the value unscaled.
@@ -3536,7 +3698,8 @@ impl Gpu {
             [0., 0.]
         };
         // Display flags: bit 0 jittered primary rays, bit 1 show the upscaled texture (14),
-        // bits 2-3 the spatial upscale filter (1 bilinear, 2 bicubic).
+        // bits 2-3 the spatial upscale filter (1 bilinear, 2 bicubic), bits 4-5 light sampling,
+        // bit 6 equiangular sampling in fog.
         let spatial = if s.upscaler == Upscaler::Bilinear {
             1
         } else {
@@ -3545,7 +3708,8 @@ impl Gpu {
         let flags = jittered as u32
             | ((self.rr_active || sr.is_some()) as u32) << 1
             | spatial << 2
-            | s.mis_mode.min(2) << 4;
+            | s.mis_mode.min(2) << 4
+            | ((s.fog.equiangular && s.fog.density > 0.) as u32) << 6;
         let n = if draw {
             s.spp.min(s.max_samples.saturating_sub(self.samples))
         } else {
@@ -3610,7 +3774,13 @@ impl Gpu {
                 flags,
             ],
             // View-space ray scale (tan of the half field of view) for the denoiser.
-            environment: [s.sky, 1. / proj.x_axis.x, 1. / proj.y_axis.y, 0.],
+            // w: the medium the camera is in (underwater), a stack entry or 0.
+            environment: [
+                s.sky,
+                1. / proj.x_axis.x,
+                1. / proj.y_axis.y,
+                crate::geometry::camera_medium(s, eye) as f32,
+            ],
             hdr: [
                 self.hdr_active as u32 as f32,
                 self.hdr_levels[0],
@@ -3665,7 +3835,13 @@ impl Gpu {
                 self.env_inv_norm * self.env_scale,
             ],
             fog: [s.fog.density, s.fog.phase, s.fog.height, s.fog.extent],
-            fog_color: [s.fog.color[0], s.fog.color[1], s.fog.color[2], 0.],
+            // w: the extinction tint (`lighting::pack_tint`; 0 = grey).
+            fog_color: [
+                s.fog.color[0],
+                s.fog.color[1],
+                s.fog.color[2],
+                crate::lighting::pack_tint(s.fog.extinction),
+            ],
             region: [0, 0, self.rw, self.rh],
             integrator: [0; 4],
             photon: [0.; 4],
@@ -3679,6 +3855,20 @@ impl Gpu {
             glare: [0, 0, 0, self.glare_grid()],
             // A smaller aperture in the grid spreads the pattern wider.
             glare_settings: [s.glare, s.glare_threshold, 256. - 232. * s.glare_size, 0.],
+            env_sun: match self.env_sun.filter(|_| self.env_inv_norm > 0.) {
+                Some((sun, _)) => {
+                    let d = sun.direction(env_rotation);
+                    [d[0], d[1], d[2], sun.om]
+                }
+                None => [0.; 4],
+            },
+            env_sun_color: match self.env_sun.filter(|_| self.env_inv_norm > 0.) {
+                Some((sun, share)) => {
+                    let r = sun.radiance.map(|v| v * env_strength);
+                    [r[0], r[1], r[2], share]
+                }
+                None => [0.; 4],
+            },
             path_record: [0; 4],
             lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
             restir: [

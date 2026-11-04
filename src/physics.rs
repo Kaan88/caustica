@@ -1126,6 +1126,10 @@ impl Sim {
         true
     }
     /// Starts dragging object `index` at the world point `hit` (the cursor ray at `distance`).
+    /// Whether object `index` is a dynamic body (one a press can grab).
+    pub fn is_dynamic(&self, index: usize) -> bool {
+        matches!(self.handles.get(index), Some(Some(h)) if self.bodies.get(*h).is_some_and(|b| b.is_dynamic()))
+    }
     pub fn grab(&mut self, index: usize, hit: Vec3, distance: f32) -> bool {
         let Some(Some(h)) = self.handles.get(index) else {
             return false;
@@ -1519,14 +1523,39 @@ impl crate::App {
             (None, o + d * t, t)
         })
     }
-    /// Left press with the simulation on: grabs the object under the pointer.
-    pub(crate) fn physics_grab(&mut self) -> bool {
+    /// Left press with the simulation on: grabs the body under the pointer, unless a gizmo
+    /// handle is under it. A handle wins over any other body in front of it (it is drawn over
+    /// everything, so it must take the click); on the gizmo's inner part (center, plane squares,
+    /// inner arrows) over one of the gizmo's own bodies the press grabs that body, so a selected
+    /// body can still be thrown. False: the press goes on to the gizmo or the camera.
+    pub(crate) fn physics_press(&mut self) -> bool {
         if self.physics.is_none() {
             return false;
         }
-        let Some((Some(i), hit, t)) = self.cursor_hit() else {
+        // The nearest dynamic body under the pointer, seen through fixed glass (a jar around
+        // balls) but not through an opaque fixed object. Grabbing only the nearest object of all
+        // failed silently behind a hidden or fixed one, and the press orbited instead.
+        let pixel = [self.cursor[0] as f32, self.cursor[1] as f32];
+        let (o, d) =
+            crate::gizmo::View::new(&self.settings, self.size).ray(glam::Vec2::from(pixel));
+        let sim = self.physics.as_ref().unwrap();
+        let Some((i, t)) = self
+            .settings
+            .pick_object_hits(pixel, self.size)
+            .into_iter()
+            .find(|&(i, _)| {
+                sim.is_dynamic(i) || self.settings.objects[i].material.transmission <= 0.5
+            })
+            .filter(|&(i, _)| sim.is_dynamic(i))
+        else {
             return false;
         };
+        let hit = o + d * t;
+        if self.ui.hover.is_some()
+            && !(self.ui.hover_inner && self.ui.is_selected(crate::ui::Selection::Object(i)))
+        {
+            return false;
+        }
         self.physics.as_mut().unwrap().grab(i, hit, t)
     }
     pub(crate) fn physics_release(&mut self) -> bool {

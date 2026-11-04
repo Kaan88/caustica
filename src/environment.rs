@@ -21,6 +21,129 @@ pub struct EnvMap {
     pub cdf: Vec<f32>,
     /// width · height / (2π² Σ lum · sin θ_row).
     pub inv_norm: f32,
+    /// The sun split out of the map (`load` with `split_sun`), and the share of environment
+    /// samples it takes (its power over the total).
+    pub sun: Option<Sun>,
+    pub sun_share: f32,
+}
+/// A sun taken out of an HDRI: a disc of uniform radiance around a direction in map space
+/// (θ from +y, φ as the map's u: φ = 2π (u − 0.5), at rotation 0).
+#[derive(Clone, Copy, Debug)]
+pub struct Sun {
+    pub theta: f32,
+    pub phi: f32,
+    /// 1 − the cosine of the disc's half angle (its solid angle over 2π), kept in this form: a
+    /// sun a few texels wide in an 8k map has 1 − cos near f32's resolution at 1.
+    pub om: f32,
+    /// Linear RGB radiance over the disc.
+    pub radiance: [f32; 3],
+}
+impl Sun {
+    /// The world direction toward the sun with the map turned by `rotation` radians (the
+    /// shader's `env_texel` subtracts it from φ).
+    pub fn direction(&self, rotation: f32) -> [f32; 3] {
+        let (st, ct) = self.theta.sin_cos();
+        let (sp, cp) = (self.phi + rotation).sin_cos();
+        [st * sp, ct, -st * cp]
+    }
+}
+/// Takes a compact sun out of the texels (HDRI *Split sun*): the 4-connected region around the
+/// brightest texel that is above 1/50 of it, if it covers under 0.02 sr and holds at least 5%
+/// of the map's power. Its excess over the ring around it becomes a disc of the same power and
+/// solid angle at its power-weighted centre, and its texels take the ring's mean (so the map
+/// keeps the sky and loses the spike). None leaves the texels as they were.
+pub fn split_sun(w: usize, h: usize, rgb: &mut [[f32; 3]]) -> Option<Sun> {
+    let lum: Vec<f32> = rgb.iter().map(|c| luminance(*c)).collect();
+    let (peak_at, &peak) = lum.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1))?;
+    if peak <= 0. {
+        return None;
+    }
+    let omega = |y: usize| {
+        (2. * PI / w as f32) * (PI / h as f32) * (PI * (y as f32 + 0.5) / h as f32).sin()
+    };
+    let total: f64 = (0..w * h)
+        .map(|i| lum[i] as f64 * omega(i / w) as f64)
+        .sum();
+    let threshold = peak / 50.;
+    let mut inside = vec![false; w * h];
+    let mut region = vec![peak_at];
+    inside[peak_at] = true;
+    let mut ring = std::collections::HashSet::new();
+    let mut k = 0;
+    let mut solid = 0f32;
+    while k < region.len() {
+        let i = region[k];
+        k += 1;
+        solid += omega(i / w);
+        if solid > 0.02 {
+            return None;
+        }
+        let (x, y) = (i % w, i / w);
+        let mut next = vec![(x + 1) % w + y * w, (x + w - 1) % w + y * w];
+        if y > 0 {
+            next.push(i - w);
+        }
+        if y + 1 < h {
+            next.push(i + w);
+        }
+        for j in next {
+            if inside[j] {
+                continue;
+            }
+            if lum[j] > threshold {
+                inside[j] = true;
+                region.push(j);
+            } else {
+                ring.insert(j);
+            }
+        }
+    }
+    let ring: Vec<usize> = ring.into_iter().filter(|&j| !inside[j]).collect();
+    let background: [f32; 3] = if ring.is_empty() {
+        [0.; 3]
+    } else {
+        std::array::from_fn(|c| ring.iter().map(|&j| rgb[j][c]).sum::<f32>() / ring.len() as f32)
+    };
+    let (mut power, mut centre) = ([0f64; 3], [0f64; 3]);
+    let mut area = 0f64;
+    for &i in &region {
+        let (x, y) = (i % w, i / w);
+        let o = omega(y) as f64;
+        area += o;
+        let excess: [f32; 3] = std::array::from_fn(|c| (rgb[i][c] - background[c]).max(0.));
+        let l = luminance(excess) as f64 * o;
+        let (theta, phi) = (
+            PI * (y as f32 + 0.5) / h as f32,
+            2. * PI * ((x as f32 + 0.5) / w as f32 - 0.5),
+        );
+        let d = [
+            theta.sin() * phi.sin(),
+            theta.cos(),
+            -theta.sin() * phi.cos(),
+        ];
+        for c in 0..3 {
+            power[c] += excess[c] as f64 * o;
+            centre[c] += d[c] as f64 * l;
+        }
+    }
+    let sun_lum = luminance(power.map(|v| v as f32)) as f64;
+    if sun_lum < 0.05 * total {
+        return None;
+    }
+    let len = centre.iter().map(|v| v * v).sum::<f64>().sqrt();
+    if len <= 0. {
+        return None;
+    }
+    let d = centre.map(|v| (v / len) as f32);
+    for &i in &region {
+        rgb[i] = background;
+    }
+    Some(Sun {
+        theta: d[1].clamp(-1., 1.).acos(),
+        phi: d[0].atan2(-d[2]),
+        om: (area / (2. * std::f64::consts::PI)) as f32,
+        radiance: power.map(|v| (v / area) as f32),
+    })
 }
 
 pub fn luminance(c: [f32; 3]) -> f32 {
@@ -28,7 +151,7 @@ pub fn luminance(c: [f32; 3]) -> f32 {
 }
 
 /// Loads an equirectangular map; relative paths are relative to the scenes folder.
-pub fn load(path: &str) -> Result<EnvMap> {
+pub fn load(path: &str, sun: bool) -> Result<EnvMap> {
     let full = crate::mesh::resolve(path);
     let image = image::open(&full)
         .with_context(|| format!("Reading {}", full.display()))?
@@ -38,7 +161,19 @@ pub fn load(path: &str) -> Result<EnvMap> {
         .pixels()
         .map(|p| p.0.map(|v| if v.is_finite() { v.max(0.) } else { 0. }))
         .collect();
-    build(w, h, texels)
+    if !sun {
+        return build(w, h, texels);
+    }
+    let mut texels = texels;
+    let found = split_sun(w, h, &mut texels);
+    let mut map = build(w, h, texels)?;
+    if let Some(sun) = found {
+        // Shares by power: the map's is 1 / inv_norm (∫ lum dΩ), the disc's lum · Ω.
+        let disc = luminance(sun.radiance) * 2. * PI * sun.om;
+        map.sun_share = disc / (disc + 1. / map.inv_norm);
+        map.sun = Some(sun);
+    }
+    Ok(map)
 }
 
 pub fn build(w: usize, h: usize, rgb: Vec<[f32; 3]>) -> Result<EnvMap> {
@@ -121,12 +256,43 @@ fn build_capped(
         texels: rgb.into_iter().map(|c| [c[0], c[1], c[2], 1.]).collect(),
         cdf,
         inv_norm: ((w * h) as f64 / (2. * (PI as f64).powi(2) * total)) as f32,
+        sun: None,
+        sun_share: 0.,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A bright 2×2 spot on a grey sky splits into a disc of its excess power, centred on it,
+    /// and the spot's texels take the sky's value; a map without a spike keeps its texels.
+    #[test]
+    fn a_compact_sun_splits_out() {
+        let (w, h) = (256, 128);
+        let mut rgb = vec![[0.5f32; 3]; w * h];
+        for (x, y) in [(64, 32), (65, 32), (64, 33), (65, 33)] {
+            rgb[y * w + x] = [5000., 4000., 3000.];
+        }
+        let sun = split_sun(w, h, &mut rgb).expect("the spot is a sun");
+        assert!(
+            rgb.iter().all(|c| *c == [0.5; 3]),
+            "the spot was filled with the sky"
+        );
+        // Map centre (u 65/256, v 33/128): φ = 2π (u − 0.5), θ = π v.
+        assert!(
+            (sun.phi - 2. * PI * (65. / 256. - 0.5)).abs() < 0.02,
+            "{sun:?}"
+        );
+        assert!((sun.theta - PI * 33. / 128.).abs() < 0.02, "{sun:?}");
+        let disc = 2. * PI * sun.om;
+        let texel = |y: usize| {
+            (2. * PI / w as f32) * (PI / h as f32) * (PI * (y as f32 + 0.5) / h as f32).sin()
+        };
+        let expect = 4999.5 * 2. * (texel(32) + texel(33));
+        assert!((sun.radiance[0] * disc / expect - 1.).abs() < 1e-3);
+        let mut flat = vec![[0.5f32; 3]; w * h];
+        assert!(split_sun(w, h, &mut flat).is_none());
+    }
     /// The pdf integrates to 1 over the sphere, so it can weight samples.
     #[test]
     fn the_pdf_is_normalized() {

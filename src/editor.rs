@@ -118,6 +118,14 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.emission, 0. ..=20.).suffix("×"));
                 },
             );
+            if m.emission > 0. {
+                row(
+                    ui,
+                    "Temperature",
+                    "Glow as a blackbody: candles 1900 K, tungsten 2700–3200 K, daylight 6500 K, blue sky 10000 K and up. Off: the colour sets it.",
+                    |ui| kelvin_ui(ui, &mut m.temperature),
+                );
+            }
             texture_row(ui, m);
         });
     more(ui, (id, "material more"), advanced, |ui| {
@@ -277,6 +285,18 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         });
                         row(
                             ui,
+                            "Extinction colour",
+                            "How strongly each colour is scattered or absorbed, relative to the density. White treats all alike; more blue than red scatters blue out of a beam, so the object looks blue from the side and the light through it turns orange (opal glass, skimmed milk, a sunset).",
+                            |ui| {
+                                ui.color_edit_button_rgb(&mut m.extinction);
+                                // Black would fail validation on load; it means grey.
+                                if m.extinction.iter().all(|v| *v <= 0.) {
+                                    m.extinction = [1.; 3];
+                                }
+                            },
+                        );
+                        row(
+                            ui,
                             "Phase",
                             "Henyey-Greenstein g: negative scatters back, 0 evenly, positive forward (fog, milk ~0.8).",
                             |ui| {
@@ -285,6 +305,25 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         );
                     }
                 }
+                row(
+                    ui,
+                    "Measured spectrum",
+                    "Replaces the colour with a measured reflectance or emission spectrum: exact with Spectral on (Render tab), its colour under daylight otherwise. The Cornell box's walls and light were measured by Cornell's Program of Computer Graphics.",
+                    |ui| {
+                        egui::ComboBox::from_id_salt("measured spectrum")
+                            .selected_text(
+                                crate::spectrum::MEASURED_NAMES
+                                    [(m.spectrum as usize).min(crate::spectrum::MEASURED_NAMES.len() - 1)],
+                            )
+                            .show_ui(ui, |ui| {
+                                for (i, n) in crate::spectrum::MEASURED_NAMES.iter().enumerate() {
+                                    if ui.selectable_value(&mut m.spectrum, i as u32, *n).changed() && i > 0 {
+                                        m.color = crate::spectrum::measured(i as u32);
+                                    }
+                                }
+                            });
+                    },
+                );
                 row(
                     ui,
                     "Priority",
@@ -358,7 +397,10 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                 |ui| {
                     egui::ComboBox::from_id_salt("object sdf").selected_text(o.sdf.label()).show_ui(ui, |ui| {
                         for k in crate::scene::Sdf::ALL {
-                            ui.selectable_value(&mut o.sdf, k, k.label());
+                            // A kind's detail means something else in another (power vs radius).
+                            if ui.selectable_value(&mut o.sdf, k, k.label()).changed() {
+                                o.detail = 0.;
+                            }
                         }
                     });
                 },
@@ -369,6 +411,14 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
             row(ui, "Locked", "The gizmo can't move it (laser puzzle walls and targets)", |ui| {
                 ui.checkbox(&mut o.locked, "");
             });
+            if let Some((label, range, default)) = o.sdf.detail() {
+                row(ui, label, "The procedural surface's shape parameter (reset: its default).", |ui| {
+                    let mut v = if o.detail > 0. { o.detail } else { default };
+                    if ui.add(crate::slider(&mut v, range)).changed() {
+                        o.detail = v;
+                    }
+                });
+            }
             if o.sdf == crate::scene::Sdf::Metaballs {
                 row(ui, "Phase", "Where the blobs are; key it (I) and play the timeline to animate them.", |ui| {
                     ui.add(crate::slider(&mut o.phase, 0. ..=100.));
@@ -571,6 +621,20 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
     }
     material_ui(ui, "object", &mut o.material, advanced);
 }
+/// A blackbody temperature: a checkbox (off = 0) and a kelvin slider.
+fn kelvin_ui(ui: &mut egui::Ui, t: &mut f32) {
+    let mut on = *t > 0.;
+    if ui.checkbox(&mut on, "").changed() {
+        *t = if on { 3200. } else { 0. };
+    }
+    if on {
+        ui.add(
+            crate::slider(t, crate::spectrum::KELVIN)
+                .logarithmic(true)
+                .suffix(" K"),
+        );
+    }
+}
 pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: bool) {
     ui.add(
         egui::TextEdit::singleline(&mut l.name)
@@ -614,8 +678,50 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                 );
             });
             row(ui, "Color", "Linear RGB color of the light.", |ui| {
-                ui.color_edit_button_rgb(&mut l.color);
+                ui.add_enabled_ui(l.temperature == 0., |ui| {
+                    ui.color_edit_button_rgb(&mut l.color);
+                });
             });
+            row(
+                ui,
+                "Temperature",
+                "Colour as a blackbody: candles 1900 K, tungsten 2700–3200 K, daylight 6500 K, blue sky 10000 K and up. Exact with Spectral on. Off: the colour above sets it.",
+                |ui| kelvin_ui(ui, &mut l.temperature),
+            );
+            if !matches!(l.kind, LightKind::Sphere | LightKind::Sun) {
+                row(
+                    ui,
+                    "IES profile",
+                    "A measured light distribution (IES file from a lamp maker): shapes the light by the angle from its front, replacing a spot's cone. Intensity sets its brightest direction. scenes/ies has a few.",
+                    |ui| {
+                        let name = std::path::Path::new(&l.ies)
+                            .file_stem()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| "None".into());
+                        ui.label(name);
+                        if ui.small_button("Load…").clicked() {
+                            let mut dialog = rfd::FileDialog::new().add_filter("IES", &["ies"]);
+                            if let Some(folder) = crate::dirs::scene_roots()
+                                .into_iter()
+                                .map(|f| f.join("ies"))
+                                .find(|f| f.is_dir())
+                            {
+                                dialog = dialog.set_directory(folder);
+                            }
+                            if let Some(path) = dialog.pick_file() {
+                                crate::ies::clear_cache();
+                                l.ies = crate::mesh::store(&path);
+                            }
+                        }
+                        if !l.ies.is_empty() && ui.small_button("Clear").clicked() {
+                            l.ies.clear();
+                        }
+                        if !l.ies.is_empty() && crate::ies::profile(&l.ies).is_none() {
+                            ui.colored_label(ui.visuals().warn_fg_color, "unreadable");
+                        }
+                    },
+                );
+            }
             row(ui, "Position", "In scene units.", |ui| {
                 for (p, axis) in l.position.iter_mut().zip(["x ", "y ", "z "]) {
                     ui.add(

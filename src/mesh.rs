@@ -30,8 +30,8 @@ pub struct Map {
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
-    /// Levels 1.. down to 1×1, each a 2×2 box filter of the last (in the stored encoding, so
-    /// sRGB maps are filtered in sRGB: slightly dark, as in most engines).
+    /// Levels 1.. down to 1×1, each a 2×2 box filter of the last (sRGB maps averaged in linear
+    /// and encoded again, so a level keeps the brightness of the one above).
     pub mips: Vec<Vec<u8>>,
     pub srgb: bool,
     pub average: [f32; 4],
@@ -46,7 +46,7 @@ fn srgb_to_linear(v: f32) -> f32 {
 impl Map {
     pub fn new(mut width: u32, mut height: u32, mut rgba: Vec<u8>, srgb: bool) -> Self {
         while width.max(height) > MAX_MAP && width > 1 && height > 1 {
-            (width, height, rgba) = halve(width, height, &rgba);
+            (width, height, rgba) = halve(width, height, &rgba, srgb);
         }
         // The mean of up to ~64k texels.
         let texels = rgba.len() / 4;
@@ -65,7 +65,7 @@ impl Map {
         let (mut w, mut h) = (width, height);
         while w > 1 || h > 1 {
             let next;
-            (w, h, next) = halve(w, h, mips.last().unwrap_or(&rgba));
+            (w, h, next) = halve(w, h, mips.last().unwrap_or(&rgba), srgb);
             mips.push(next);
         }
         Self {
@@ -84,10 +84,31 @@ impl Map {
         (r - 0.5).abs() < 0.15 && (g - 0.5).abs() < 0.15 && b > 0.6 && b > r + 0.15
     }
 }
+/// sRGB decoding of each 8-bit value, and encoding of linear values quantized to 1/65535 (fine
+/// enough that the darkest sRGB steps, ~3e-4 apart, round as the exact formula would).
+fn srgb_tables() -> &'static ([f32; 256], Vec<u8>) {
+    static T: std::sync::OnceLock<([f32; 256], Vec<u8>)> = std::sync::OnceLock::new();
+    T.get_or_init(|| {
+        let decode = std::array::from_fn(|i| srgb_to_linear(i as f32 / 255.));
+        let encode = (0..=65535u32)
+            .map(|i| {
+                let l = i as f32 / 65535.;
+                let v = if l <= 0.0031308 {
+                    12.92 * l
+                } else {
+                    1.055 * l.powf(1. / 2.4) - 0.055
+                };
+                (v * 255. + 0.5).clamp(0., 255.) as u8
+            })
+            .collect();
+        (decode, encode)
+    })
+}
 /// 2×2 box filter to D3D's next mip size (odd edges drop their last row or column; a side of
-/// 1 stays 1).
-fn halve(w: u32, h: u32, rgba: &[u8]) -> (u32, u32, Vec<u8>) {
+/// 1 stays 1). sRGB colour channels are averaged in linear (alpha never is encoded).
+fn halve(w: u32, h: u32, rgba: &[u8], srgb: bool) -> (u32, u32, Vec<u8>) {
     let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
+    let (decode, encode) = srgb_tables();
     let mut out = Vec::with_capacity((nw * nh * 4) as usize);
     for y in 0..nh {
         for x in 0..nw {
@@ -96,8 +117,13 @@ fn halve(w: u32, h: u32, rgba: &[u8]) -> (u32, u32, Vec<u8>) {
                     let (sx, sy) = ((x * 2 + dx).min(w - 1), (y * 2 + dy).min(h - 1));
                     rgba[((sy * w + sx) * 4 + k) as usize]
                 };
-                let sum = at(0, 0) as u32 + at(1, 0) as u32 + at(0, 1) as u32 + at(1, 1) as u32;
-                out.push(((sum + 2) / 4) as u8);
+                let q = [at(0, 0), at(1, 0), at(0, 1), at(1, 1)];
+                out.push(if srgb && k < 3 {
+                    let l = q.iter().map(|&v| decode[v as usize]).sum::<f32>() / 4.;
+                    encode[(l * 65535. + 0.5) as usize]
+                } else {
+                    ((q.iter().map(|&v| v as u32).sum::<u32>() + 2) / 4) as u8
+                });
             }
         }
     }
@@ -110,13 +136,22 @@ pub struct Maps {
     pub base: Option<Arc<Map>>,
     pub normal: Option<Arc<Map>>,
     pub metal_rough: Option<Arc<Map>>,
-    /// Base-colour alpha below this is a hole (glTF MASK, and BLEND treated as MASK at 0.5),
-    /// already divided by the base colour factor's alpha. 0 = opaque.
+    /// Base-colour alpha below this is a hole (glTF MASK), already divided by the base colour
+    /// factor's alpha. 0 = opaque. Negative: glTF BLEND, −(the factor's alpha); a candidate is
+    /// a hole with probability 1 − alpha (stochastic transparency).
     pub cutoff: f32,
+    /// Emissive map (sRGB) and the colour it multiplies (glTF emissiveFactor × strength, MTL
+    /// `Ke`): the surface emits factor × texel, independent of the base colour. A glTF
+    /// emissive colour unlike the base colour gets a 1×1 white map, so it keeps its colour.
+    pub emissive: Option<Arc<Map>>,
+    pub emissive_factor: [f32; 3],
 }
 impl Maps {
     pub fn is_empty(&self) -> bool {
-        self.base.is_none() && self.normal.is_none() && self.metal_rough.is_none()
+        self.base.is_none()
+            && self.normal.is_none()
+            && self.metal_rough.is_none()
+            && self.emissive.is_none()
     }
 }
 
@@ -588,6 +623,11 @@ fn read_obj(path: &Path) -> Result<Vec<RawPart>> {
     for m in &materials {
         wanted.extend(m.diffuse_texture.iter().map(|t| (dir.join(t), true)));
         wanted.extend(m.normal_texture.iter().map(|t| (dir.join(t), false)));
+        wanted.extend(
+            m.unknown_param
+                .get("map_Ke")
+                .map(|t| (dir.join(t.trim()), true)),
+        );
     }
     wanted.sort();
     wanted.dedup();
@@ -610,9 +650,18 @@ fn read_obj(path: &Path) -> Result<Vec<RawPart>> {
                         t.as_ref()
                             .and_then(|t| images.get(&(dir.join(t), srgb)).cloned())
                     };
+                    let emissive = map(
+                        &mat.unknown_param
+                            .get("map_Ke")
+                            .map(|t| t.trim().to_string()),
+                        true,
+                    );
                     let maps = Maps {
                         base: map(&mat.diffuse_texture, true),
                         normal: map(&mat.normal_texture, false).filter(|n| n.looks_like_normals()),
+                        // MTL: map_Ke multiplies Ke (white when Ke is missing).
+                        emissive_factor: mat.emissive.unwrap_or([1.; 3]),
+                        emissive,
                         ..Maps::default()
                     };
                     (mat.name.clone(), obj_material(mat, &maps), maps)
@@ -671,7 +720,12 @@ fn obj_material(m: &tobj::Material, maps: &Maps) -> Option<Material> {
             .map(|t| 1. - t)
     });
     let see_through = opacity.is_some_and(|o| o < 0.99);
-    if m.diffuse.is_none() && average.is_none() && emission.is_none() && !see_through {
+    if m.diffuse.is_none()
+        && average.is_none()
+        && emission.is_none()
+        && maps.emissive.is_none()
+        && !see_through
+    {
         return None;
     }
     let d = m.diffuse.unwrap_or([1.; 3]);
@@ -695,7 +749,15 @@ fn obj_material(m: &tobj::Material, maps: &Maps) -> Option<Material> {
         out.transmission = (1. - o).clamp(0., 1.);
         out.ior = m.optical_density.unwrap_or(1.5).clamp(1., 2.5);
     }
-    if let Some(e) = emission {
+    if let Some(map) = &maps.emissive {
+        // The emissive map keeps the base colour; the emission value is the brightest channel
+        // of Ke times the map's mean.
+        let f = maps.emissive_factor;
+        out.emission = (0..3)
+            .map(|k| f[k] * map.average[k])
+            .fold(0., f32::max)
+            .clamp(0., 20.);
+    } else if let Some(e) = emission {
         let peak = e[0].max(e[1]).max(e[2]);
         out.emission = peak.clamp(0., 20.);
         out.color = e.map(|v| (v / peak).clamp(0., 1.));
@@ -733,6 +795,27 @@ fn rgba8(image: &gltf::image::Data) -> Option<Vec<u8>> {
 /// KHR_materials_clearcoat, _sheen and _anisotropy factors (track 11) over the default
 /// material; their texture maps are not read, and the anisotropy direction turns from the
 /// object's x axis rather than the UV tangent. gltf 1.4 has no typed access, so they come from the raw JSON.
+/// The UV set and `KHR_texture_transform` (2×3, applied to the UVs at import) of a material's
+/// maps: the base colour's, else the metallic-roughness or emissive map's. glTF lets each map
+/// choose its own; a Caustica part has one UV set for all of them.
+fn uv_mapping(m: &gltf::Material) -> (u32, Option<[[f32; 3]; 2]>) {
+    let pbr = m.pbr_metallic_roughness();
+    let Some(info) = pbr
+        .base_color_texture()
+        .or_else(|| pbr.metallic_roughness_texture())
+        .or_else(|| m.emissive_texture())
+    else {
+        return (0, None);
+    };
+    let Some(t) = info.texture_transform() else {
+        return (info.tex_coord(), None);
+    };
+    let ([ox, oy], r, [sx, sy]) = (t.offset(), t.rotation(), t.scale());
+    let (sin, cos) = r.sin_cos();
+    // translation · rotation · scale, as the extension defines them.
+    let x = [[cos * sx, sin * sy, ox], [-sin * sx, cos * sy, oy]];
+    (t.tex_coord().unwrap_or(info.tex_coord()), Some(x))
+}
 fn layers(m: &gltf::Material) -> Material {
     let number = |ext: &str, key: &str| {
         m.extension_value(ext)
@@ -884,13 +967,27 @@ fn read_gltf(path: &Path) -> Result<(Vec<RawPart>, Vec<FileLight>)> {
                     ns.map(|v| (normal_matrix * Vec3::from(v)).normalize_or(Vec3::Y))
                         .collect()
                 });
-                let uv: Option<Vec<[f32; 2]>> =
-                    reader.read_tex_coords(0).map(|t| t.into_f32().collect());
+                let m = prim.material();
+                let (set, xf) = uv_mapping(&m);
+                let uv: Option<Vec<[f32; 2]>> = reader
+                    .read_tex_coords(set)
+                    .or_else(|| reader.read_tex_coords(0))
+                    .map(|t| {
+                        t.into_f32()
+                            .map(|[u, v]| {
+                                xf.map_or([u, v], |x| {
+                                    [
+                                        x[0][0] * u + x[0][1] * v + x[0][2],
+                                        x[1][0] * u + x[1][1] * v + x[1][2],
+                                    ]
+                                })
+                            })
+                            .collect()
+                    });
                 let indices: Vec<u32> = match reader.read_indices() {
                     Some(i) => i.into_u32().collect(),
                     None => (0..p.len() as u32).collect(),
                 };
-                let m = prim.material();
                 let i = part_for(&mut keys, &mut parts, m.index(), || {
                     let name = m.name().map_or_else(
                         || {
@@ -908,7 +1005,7 @@ fn read_gltf(path: &Path) -> Result<(Vec<RawPart>, Vec<FileLight>)> {
                             pbr.metallic_roughness_texture().map(|t| t.texture()),
                             false,
                         ),
-                        cutoff: 0.,
+                        ..Maps::default()
                     };
                     // The values are the factors times the map averages; the GPU scales each
                     // map by value / average (`Material::textures`). Metallic is B and
@@ -923,30 +1020,47 @@ fn read_gltf(path: &Path) -> Result<(Vec<RawPart>, Vec<FileLight>)> {
                         metallic *= mr.average[2];
                         roughness *= mr.average[1];
                     }
-                    // Emission stays a flat colour (light sampling has no texture lookup).
-                    let mut e = m.emissive_factor();
-                    if let Some(avg) = map(m.emissive_texture().map(|t| t.texture()), true) {
+                    // Emission: the factor times the emissive map (`Maps::emissive`); the
+                    // emission value is the brightest channel of their mean.
+                    let factor = m
+                        .emissive_factor()
+                        .map(|v| v * m.emissive_strength().unwrap_or(1.));
+                    let mut emissive = map(m.emissive_texture().map(|t| t.texture()), true);
+                    let mut e = factor;
+                    if let Some(avg) = &emissive {
                         (0..3).for_each(|k| e[k] *= avg.average[k]);
                     }
+                    let peak = e[0].max(e[1]).max(e[2]);
+                    let base = [c[0], c[1], c[2]];
+                    let hue = |v: [f32; 3]| {
+                        let m = v[0].max(v[1]).max(v[2]).max(1e-6);
+                        v.map(|x| x / m)
+                    };
+                    if emissive.is_none()
+                        && peak > 0.
+                        && (0..3).any(|k| (hue(e)[k] - hue(base)[k]).abs() > 0.02)
+                    {
+                        emissive = Some(Arc::new(Map::new(1, 1, vec![255; 4], true)));
+                    }
+                    let alpha = pbr.base_color_factor()[3];
                     let cutoff = match m.alpha_mode() {
                         gltf::material::AlphaMode::Opaque => 0.,
-                        gltf::material::AlphaMode::Mask => m.alpha_cutoff().unwrap_or(0.5),
-                        gltf::material::AlphaMode::Blend => 0.5,
+                        gltf::material::AlphaMode::Mask => {
+                            m.alpha_cutoff().unwrap_or(0.5) / alpha.max(1e-3)
+                        }
+                        gltf::material::AlphaMode::Blend => -alpha.clamp(1e-3, 1.),
                     };
                     let maps = Maps {
-                        cutoff: if maps.base.is_some() {
-                            cutoff / pbr.base_color_factor()[3].max(1e-3)
-                        } else {
-                            0.
-                        },
+                        cutoff: if maps.base.is_some() { cutoff } else { 0. },
+                        emissive_factor: if emissive.is_some() { factor } else { [0.; 3] },
+                        emissive,
                         ..maps
                     };
                     let material = Material {
                         color: [c[0], c[1], c[2]].map(|v| v.clamp(0., 1.)),
                         metallic: metallic.clamp(0., 1.),
                         roughness: roughness.clamp(0., 1.),
-                        emission: (e[0].max(e[1]).max(e[2]) * m.emissive_strength().unwrap_or(1.))
-                            .clamp(0., 20.),
+                        emission: peak.clamp(0., 20.),
                         transmission: m
                             .transmission()
                             .map_or(0., |t| t.transmission_factor())
@@ -1191,6 +1305,24 @@ f 1 3 4
         assert!(read(&temp("caustica-test.stl", "solid")).is_err());
     }
     #[test]
+    fn gltf_texture_transform_moves_the_uvs() {
+        let p = std::env::temp_dir().join("caustica-test-transform.gltf");
+        write_test_gltf(&p).unwrap();
+        let text = std::fs::read_to_string(&p).unwrap().replace(
+            r#""baseColorTexture":{"index":0}"#,
+            r#""baseColorTexture":{"index":0,"extensions":{"KHR_texture_transform":{"offset":[0.5,0.25],"scale":[2,3]}}}"#,
+        );
+        std::fs::write(&p, text).unwrap();
+        let m = read(&p).unwrap();
+        assert_eq!(m.parts[0].uv[2], [2.5, 0.25], "u·2 + 0.5, v·3 + 0.25");
+        // BLEND: a negative cutoff, −(the factor's alpha), for stochastic transparency.
+        let text = std::fs::read_to_string(&p)
+            .unwrap()
+            .replace(r#""alphaMode":"MASK""#, r#""alphaMode":"BLEND""#);
+        std::fs::write(&p, text).unwrap();
+        assert_eq!(read(&p).unwrap().parts[0].maps.cutoff, -1.);
+    }
+    #[test]
     fn gltf_texture_maps_load_with_uvs_and_averages() {
         let p = std::env::temp_dir().join("caustica-test-textured.gltf");
         write_test_gltf(&p).unwrap();
@@ -1216,9 +1348,15 @@ f 1 3 4
     }
     #[test]
     fn maps_halve_past_the_limit_and_reject_height_maps() {
-        let (w, h, rgba) = halve(4, 2, &[10u8; 32]);
+        let (w, h, rgba) = halve(4, 2, &[10u8; 32], false);
         assert_eq!((w, h, rgba.len()), (2, 1, 8));
         assert!(rgba.iter().all(|&v| v == 10));
+        // sRGB: black and white average to linear 0.5 (sRGB 188), not to 128; alpha stays
+        // linear, and a flat level keeps its value.
+        let (_, _, mixed) = halve(2, 1, &[0, 0, 0, 0, 255, 255, 255, 255], true);
+        assert_eq!(mixed, [188, 188, 188, 128]);
+        let (_, _, flat) = halve(2, 2, &[77u8; 16], true);
+        assert!(flat.iter().all(|&v| v == 77), "{flat:?}");
         let grey = Map::new(2, 2, vec![140; 16], false);
         assert!(
             !grey.looks_like_normals(),

@@ -21,12 +21,12 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | Field | Contents |
 |---|---|
 | `color_rough` | RGB + roughness |
-| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7); **bit11** = spun anisotropy; **bit12** = beam splitter (track 17). Bits 3 and 4 are set in `Gpu::attach_maps`. |
+| `lobes` | metallic, reflectivity, transmission, flags. **bit0** = unlit (the path terminates on hit); **bit1** = hidden from camera rays (bounce 0 and the guide ray); **bit2** = portal; **bit3** = masked texture map (alpha test in the any-hit loops); **bit4** = has texture maps; **bit5** = spot light; **bits 8–10** = nested-dielectric priority (0–7); **bit11** = spun anisotropy; **bit12** = beam splitter (track 17); **bit13** = a light that casts no shadows; **bit14** = IES profile (wave 2); **bit6** = emissive map (wave 2: `secondary` = map slot + 1 and the mean emitted colour over its peak, `medium.xyz` = 1 / the map's mean). Bits 3, 4 and 6 are set in `Gpu::attach_maps`. |
 | `optical` | IOR, emission, pattern id, w: one-sided emitter (1 for lights); negative = a diffraction grating, −(strength ‰ × 16384 + spacing nm) (track 11) |
 | `secondary` | Pattern RGB + pattern scale. Patterns are evaluated in **world space**. |
 | `layers`, `sheen` | Track 11: coat, coat roughness, sheen roughness, anisotropy; sheen colour × strength, anisotropy rotation (radians). |
 | `medium`, `phase` | Track 12: scattering albedo rgb + extinction (0 unless transmissive); HG g in x. See "Volumes". `phase.y`: the Abbe number for spectral dispersion (0 = none; transmissive only, engine-notes "Spectral rendering"). |
-| `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque). Filled by `Gpu::attach_maps`. |
+| `maps` (uint4) | Heap slot + 1 of the base colour, normal and metallic-roughness maps (0 = none), alpha cutoff bits (0 = opaque; negative = glTF BLEND, −(factor alpha), stochastic transparency). Filled by `Gpu::attach_maps`. |
 | `base_scale` | Base colour value / map average (rgb); w = texture-set repeats per unit (box mapping; 0 = the mesh's own UVs), set by `lighting::pack`. |
 | `surface_scale` | Roughness and metallic value / map average (x, y; 0 = leave the value unscaled); z, w the thin film (track 11): strength, thickness nm + 2048 × IOR in hundredths. |
 
@@ -39,7 +39,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `edge2_probability` | c−a, selection probability |
 | `emission_material` | Emitted RGB, material id |
 
-After the triangle records and the guide records come the **SDF photon records** (since 2026-11-03, `gpu.rs` `sdf_emitter_records`; `photon.z` = count, `photon.w` = first record), two per emissive SDF object: A = `position_area` bounding sphere (centre, radius), `edge1_cdf` (instance index as bits, CDF over SDF emitters by power, 0, 0), `edge2_probability` / `emission_material` rows 0 and 1 of world-to-object; B = `position_area` row 2. Only photon emission (`sdf_photon`) reads them.
+After the triangle records and the guide records come the **SDF photon records** (since 2026-11-03, `gpu.rs` `sdf_emitter_records`; `photon.z` = count, `photon.w` = first record), two per emissive SDF object: A = `position_area` bounding sphere (centre, radius), `edge1_cdf` (instance index as bits, CDF over SDF emitters by power, 0, 0), `edge2_probability` / `emission_material` rows 0 and 1 of world-to-object; B = `position_area` row 2. Only photon emission (`sdf_photon`) reads them. With an emissive map anywhere, one **UV record** per emitter follows (index `photon.w + 2·photon.z + e`): position_area = uv of a, b; edge1_cdf.xy = uv of c (`emitted_color`).
 
 The emitter buffer (t4) holds the `n` emitters, then the alias records (`lighting::alias_records`, ⌈n/8⌉ records, eight (threshold, alias) pairs each), then the CDF's cutpoints (`lighting::guide_records`, K = the largest power of two ≤ n, sixteen u32 per record) for `select_index`.
 

@@ -261,6 +261,21 @@ fn main() {
                 "SER",
             ],
         ),
+        // The photon gather's camera side and BDPT, one wavelength per sample.
+        (
+            "integrators.hlsl",
+            "photon_gather",
+            "cs_6_5",
+            "photon_gather_spectral",
+            &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+        ),
+        (
+            "integrators.hlsl",
+            "bdpt",
+            "cs_6_5",
+            "bdpt_spectral",
+            &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
+        ),
     ] {
         // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
         let entry_args = if profile.starts_with("lib_") {

@@ -1,6 +1,6 @@
 [package]
 name = "caustica"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 build = "build.rs"
 
@@ -17,7 +17,7 @@ winit = "0.30"
 gilrs = "0.11"
 qrcode = { version = "0.14", default-features = false }
 tobj = "4"
-gltf = { version = "1", default-features = false, features = ["import", "utils", "names", "KHR_materials_emissive_strength", "KHR_materials_transmission", "KHR_materials_ior", "KHR_materials_volume", "KHR_lights_punctual", "extensions"] }
+gltf = { version = "1", default-features = false, features = ["import", "utils", "names", "KHR_materials_emissive_strength", "KHR_materials_transmission", "KHR_materials_ior", "KHR_materials_volume", "KHR_lights_punctual", "KHR_texture_transform", "extensions"] }
 rfd = "0.15"
 ureq = { version = "2", default-features = false, features = ["native-tls", "gzip"] }
 native-tls = "0.2"

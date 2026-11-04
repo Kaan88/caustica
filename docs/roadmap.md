@@ -240,21 +240,22 @@ Owner: "I want items before the future goals finished once and for all. Batch th
 - [x] Lights: per-light *Casts shadows* (decides "hidden lights occlude"), flashlight mode (a spot on the camera). IES profiles moved to wave 2.
 - [x] Animation: hold keys on booleans and choices, offset / scale / copy keys per object, auto-key.
 - [x] Audio: band per light, beat detector (strobe), colour shift per band.
-- [x] Scenes: Vermeer room, *The Weather Project*, jack-o'-lantern (nested-dielectric CSG), a multi-target puzzle level.
+- [x] Scenes: Vermeer room, *The Weather Project*, jack-o'-lantern (carved mesh, 2026-11-03; the nested-dielectric CSG version hid its holes), a multi-target puzzle level.
 - [x] Small fixes: grounding cache, Menger one instance per cube, virtual scrolling in the object list, tight bounds past 256 objects, stale sweep notes.
 
-Wave 1 done 2026-11-03 (engine-notes "Closing the medium term, wave 1").
+Wave 1 done 2026-11-03 (engine-notes "Closing the medium term, wave 1"). Wave 2 in progress (engine-notes "Closing the medium term, wave 2").
 
 **Wave 2 (rendering):**
-- [ ] IES light profiles (from wave 1).
-- [ ] Spectral leftovers: blackbody Kelvin lights, per-wavelength extinction in media, spectral BDPT and photon gather, measured Cornell box (spectral reflectance curves).
-- [ ] Equiangular sampling for lights in fog; camera medium (underwater mode).
-- [ ] Emissive texture maps; stochastic transparency for glTF BLEND; `KHR_texture_transform`; sRGB-correct mip filtering; the alpha test at the ray-cone LOD.
-- [ ] Procedural surfaces: exact cylinder and cone, per-object parameters, light sampling of procedural emitters.
+- [x] IES light profiles (from wave 1).
+- [x] Spectral leftovers: blackbody Kelvin lights, per-wavelength extinction in media, spectral BDPT and photon gather, measured Cornell box (spectral reflectance curves). Open: BDPT renders ~0.9% above the path tracer on `measured-cornell` in RGB and spectral alike (2048 frames; predates wave 2), not yet traced.
+- [x] Equiangular sampling for lights in fog (opt in: 12–17% less noise per sample, 1.4–1.6× trace time); camera medium (underwater mode). Not done: equiangular in BDPT / photon mapping and in object media.
+- [x] Emissive texture maps; stochastic transparency for glTF BLEND; `KHR_texture_transform`; sRGB-correct mip filtering. Closed: the alpha test at the ray-cone LOD (level-0 alpha is the exact coverage; a mip against a cutoff changes it). Not done: per-map texture transforms and UV sets (one per part), BLEND without a base map (stays opaque).
+- [x] Procedural surfaces: exact cylinder and cone, per-object parameters, light sampling of procedural emitters (path tracer; ~8× less error at equal time). Not done: procedural emitter NEE in BDPT and the photon gather's camera side; grounding and colliders use the proxy mesh (a thin torus floats).
 - [ ] Photon mapping: adaptive gather radius, then the kusama-infinity-room gap.
 - [ ] Night sky redesign (track 9, owner).
-- [ ] Shadow catcher / ground projection for HDRIs; a sun split out of an HDRI.
+- [ ] Shadow catcher / ground projection for HDRIs; ~~a sun split out of an HDRI~~ (done 2026-11-04, opt in: 4× less error on a 1k map, mixed on 8k).
 - [ ] Heterogeneous media (procedural noise density, delta / ratio tracking).
+- Review notes from wave 2 (low): blackbody and measured spectra replace the base colour rather than tint it; emissive maps are sampled at LOD 0 (no ray-cone footprint); imported glTF emission is clamped to 20; the IES horizontal average is unweighted (uneven horizontal angle steps over-weight the dense ones). Measurement note: references rendered with the default `max_samples` (4096) stop there, so set `--set max_samples=1000000` for a long reference.
 
 **Wave 3 (engine and tools):**
 - [ ] TLAS refit, BLAS compaction, incremental vertex upload.

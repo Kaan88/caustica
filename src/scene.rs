@@ -87,6 +87,18 @@ pub struct Material {
     /// flint 30, diamond 55 at a high IOR). Only the spectral tracer bends wavelengths apart.
     #[serde(skip_serializing_if = "is_zero_f32")]
     pub dispersion: f32,
+    /// Emission as a blackbody at this many kelvin (0 = the colour sets it): the colour follows
+    /// Planck's law, and the spectral tracer emits the exact spectrum.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub temperature: f32,
+    /// A measured spectrum (`spectrum::MEASURED_NAMES`; 0 = none): replaces the colour, exactly in
+    /// the spectral tracer and as its RGB under D65 otherwise.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub spectrum: u32,
+    /// The medium's extinction per channel relative to `density` (white = grey). Blue above red
+    /// scatters blue out of a beam, as skimmed milk or opal glass does (the beam turns orange).
+    #[serde(skip_serializing_if = "is_white")]
+    pub extinction: [f32; 3],
 }
 /// Global fog (track 12): a homogeneous medium filling a box from the floor (y = −1) up to
 /// `height`, `extent` units out from the centre on x and z.
@@ -98,6 +110,13 @@ pub struct Fog {
     pub phase: f32,
     pub height: f32,
     pub extent: f32,
+    /// Extinction per channel relative to `density` (white = grey; see `Material::extinction`).
+    #[serde(skip_serializing_if = "is_white")]
+    pub extinction: [f32; 3],
+    /// Equiangular sampling toward local lights (Kulla and Fajardo 2012), MIS'd with free
+    /// flight: less noise in beams per sample, at about 1.5× the trace time in fog (opt in).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub equiangular: bool,
 }
 impl Default for Fog {
     fn default() -> Self {
@@ -107,6 +126,8 @@ impl Default for Fog {
             phase: 0.,
             height: 3.,
             extent: 6.,
+            extinction: [1.; 3],
+            equiangular: false,
         }
     }
 }
@@ -184,6 +205,9 @@ impl Default for Material {
             scatter_color: [1.; 3],
             phase: 0.,
             dispersion: 0.,
+            temperature: 0.,
+            spectrum: 0,
+            extinction: [1.; 3],
         }
     }
 }
@@ -363,6 +387,17 @@ pub struct AreaLight {
     /// 3 treble, 4 beats, 5 nothing).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub audio_band: u32,
+    /// Colour as a blackbody at this many kelvin (0 = `color`); exact in the spectral tracer.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub temperature: f32,
+    /// An IES profile (LM-63 file, relative to `scenes/` like mesh paths; empty = none) shaping a
+    /// rectangle or disk light's intensity by the angle from its normal (`ies::parse`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ies: String,
+}
+/// An extinction tint: each channel in 0–1 and one of them positive.
+fn extinction_ok(c: [f32; 3]) -> bool {
+    c.iter().all(|v| (0. ..=1.).contains(v)) && c.iter().any(|&v| v > 0.)
 }
 fn yes() -> bool {
     true
@@ -424,6 +459,8 @@ impl Default for AreaLight {
             angle: 0.53,
             shadows: true,
             audio_band: 0,
+            temperature: 0.,
+            ies: String::new(),
         }
     }
 }
@@ -457,6 +494,10 @@ pub struct Object {
     /// Always serialized: keyframes and the I key find fields in the scene's JSON.
     #[serde(default)]
     pub phase: f32,
+    /// A procedural surface's parameter (0 = its default): the torus's tube radius (0.28; the
+    /// ring radius is 1 − it), the Mandelbulb's power (8), the Menger sponge's levels (5).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub detail: f32,
     /// Track 17 physics: how the sandbox simulates this object.
     #[serde(skip_serializing_if = "Body::is_dynamic")]
     pub body: Body,
@@ -676,12 +717,18 @@ pub enum Sdf {
     Menger,
     /// Six blobs blended with a smooth minimum, moving with `Object::phase` (a lava lamp).
     Metaballs,
+    /// An exact capped cylinder (analytic), the mesh cylinder's: radius 1, y in [−1, 1].
+    Cylinder,
+    /// An exact cone (analytic), the mesh cone's: base radius 1 at y = −1, apex at y = 1.
+    Cone,
 }
 impl Sdf {
-    pub const ALL: [Sdf; 6] = [
+    pub const ALL: [Sdf; 8] = [
         Sdf::None,
         Sdf::Sphere,
         Sdf::Torus,
+        Sdf::Cylinder,
+        Sdf::Cone,
         Sdf::Mandelbulb,
         Sdf::Menger,
         Sdf::Metaballs,
@@ -697,12 +744,29 @@ impl Sdf {
             Sdf::Mandelbulb => "Mandelbulb",
             Sdf::Menger => "Menger sponge",
             Sdf::Metaballs => "Metaballs",
+            Sdf::Cylinder => "Exact cylinder",
+            Sdf::Cone => "Exact cone",
+        }
+    }
+    /// What `Object::detail` sets for this kind, with its range and default (None: nothing).
+    pub fn detail(self) -> Option<(&'static str, std::ops::RangeInclusive<f32>, f32)> {
+        match self {
+            Sdf::Torus => Some(("Tube radius", 0.02..=0.6, 0.28)),
+            Sdf::Mandelbulb => Some(("Power", 2. ..=16., 8.)),
+            Sdf::Menger => Some(("Levels", 1. ..=6., 5.)),
+            _ => None,
         }
     }
     /// The shader's kind id (low 8 bits of `Instance.vertex_base` of a procedural instance);
-    /// the high 24 bits carry the phase in thousandths (metaballs).
-    pub fn id(self, phase: f32) -> u32 {
-        self as u32 | ((((phase.rem_euclid(10000.) * 1000.) as u32) & 0xff_ffff) << 8)
+    /// the high 24 bits carry, in thousandths, the phase (metaballs) or the detail (0 = the
+    /// kind's default).
+    pub fn id(self, phase: f32, detail: f32) -> u32 {
+        let v = if self == Sdf::Metaballs {
+            phase.rem_euclid(10000.)
+        } else {
+            detail.clamp(0., 16.)
+        };
+        self as u32 | ((((v * 1000.) as u32) & 0xff_ffff) << 8)
     }
 }
 impl Default for Object {
@@ -725,6 +789,7 @@ impl Default for Object {
             mesh: String::new(),
             sdf: Sdf::None,
             phase: 0.,
+            detail: 0.,
             body: Body::Dynamic,
             mass: 1.,
             locked: false,
@@ -741,6 +806,8 @@ impl Object {
             Sdf::Sphere | Sdf::Mandelbulb => return Shape::Sphere,
             Sdf::Torus => return Shape::Torus,
             Sdf::Menger | Sdf::Metaballs => return Shape::Box,
+            Sdf::Cylinder => return Shape::Cylinder,
+            Sdf::Cone => return Shape::Cone,
             Sdf::None => {}
         }
         if self.sphere {
@@ -760,6 +827,10 @@ pub struct Settings {
     pub flashlight: bool,
     pub scene_name: String,
     pub cornell_room: bool,
+    /// The Cornell box room with the original's measured spectra (`spectrum::measured`): red
+    /// left wall, green right wall, white elsewhere, and its light's emission spectrum.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub measured_room: bool,
     pub floor_extent: f32,
     pub sky: f32,
     pub left: [f32; 3],
@@ -910,6 +981,10 @@ pub struct Settings {
     pub hdri_rotation: f32,
     /// Camera rays see the HDRI; off, they see the background colour (it still lights).
     pub hdri_visible: bool,
+    /// Split the HDRI's sun out into an analytic disc of the same power (`environment::
+    /// split_sun`): light sampling finds it every time instead of through the map's CDF.
+    #[serde(default)]
+    pub hdri_sun: bool,
     /// Physical sky and sun (track 9); replaces the HDRI and the sky light while on.
     #[serde(skip_serializing_if = "crate::sky::PhysicalSky::is_default")]
     pub physical_sky: crate::sky::PhysicalSky,
@@ -949,6 +1024,7 @@ impl Default for Settings {
             flashlight: false,
             scene_name: "Classic Cornell box".into(),
             cornell_room: true,
+            measured_room: false,
             floor_extent: 1.,
             sky: 0.,
             left: [0.527, 0.051, 0.042],
@@ -1046,6 +1122,7 @@ impl Default for Settings {
             hdri_strength: 1.,
             hdri_rotation: 0.,
             hdri_visible: true,
+            hdri_sun: false,
             physical_sky: Default::default(),
             fog: Default::default(),
             animation: Default::default(),
@@ -1266,7 +1343,8 @@ impl Settings {
                 && f.color.iter().all(|v| (0. ..=1.).contains(v))
                 && (-0.95..=0.95).contains(&f.phase)
                 && (-1. ..=50.).contains(&f.height)
-                && (0.1..=100.).contains(&f.extent),
+                && (0.1..=100.).contains(&f.extent)
+                && extinction_ok(f.extinction),
             "Invalid fog"
         );
         for o in &mut self.objects {
@@ -1478,7 +1556,10 @@ impl Settings {
                     && (0. ..=100.).contains(&m.density)
                     && m.scatter_color.iter().all(|v| (0. ..=1.).contains(v))
                     && (-0.95..=0.95).contains(&m.phase)
-                    && (m.dispersion == 0. || (10. ..=100.).contains(&m.dispersion)),
+                    && (m.dispersion == 0. || (10. ..=100.).contains(&m.dispersion))
+                    && (m.temperature == 0. || crate::spectrum::KELVIN.contains(&m.temperature))
+                    && m.spectrum < crate::spectrum::MEASURED_NAMES.len() as u32
+                    && extinction_ok(m.extinction),
                 "Invalid material"
             );
             anyhow::ensure!(
@@ -1530,6 +1611,7 @@ impl Settings {
                     && o.position.iter().all(|v| v.abs() <= 40.)
                     && o.elevation.abs() <= 40.
                     && (0. ..=10000.).contains(&o.phase)
+                    && (0. ..=16.).contains(&o.detail)
                     && (0.01..=100.).contains(&o.mass)
                     && o.tilt.iter().all(|v| v.abs() <= 360.)
                     && o.scale_xz.iter().all(|v| (0.01..=20.).contains(v))
@@ -1555,7 +1637,9 @@ impl Settings {
                     && (0. ..=2000.).contains(&l.intensity)
                     && (1. ..=179.).contains(&l.spread)
                     && (0. ..=1.).contains(&l.blend)
-                    && (0.05..=30.).contains(&l.angle),
+                    && (0.05..=30.).contains(&l.angle)
+                    && (l.temperature == 0. || crate::spectrum::KELVIN.contains(&l.temperature))
+                    && l.ies.len() <= 512,
                 "Invalid area light"
             );
         }
@@ -1616,35 +1700,10 @@ impl Settings {
         let proj = Mat4::perspective_rh(self.fov.to_radians(), aspect, 0.01, 500.);
         (view, proj, eye)
     }
+    /// The main light's emitted RGB: a blackbody at `light_temperature` (Planck's law, as the
+    /// spectral tracer emits it) at luminance 1, times the tint and the intensity.
     pub fn light_color(&self) -> [f32; 3] {
-        let t = self.light_temperature / 100.;
-        let c = [
-            if t <= 66. {
-                255.
-            } else {
-                329.69873 * (t - 60.).powf(-0.13320476)
-            },
-            if t <= 66. {
-                99.4708 * t.ln() - 161.11957
-            } else {
-                288.12216 * (t - 60.).powf(-0.07551485)
-            },
-            if t >= 66. {
-                255.
-            } else if t <= 19. {
-                0.
-            } else {
-                138.51773 * (t - 10.).ln() - 305.0448
-            },
-        ]
-        .map(|v| {
-            let v = v.clamp(0., 255.) / 255.;
-            if v <= 0.04045 {
-                v / 12.92
-            } else {
-                ((v + 0.055) / 1.055).powf(2.4)
-            }
-        });
+        let c = crate::spectrum::blackbody(self.light_temperature);
         let lum = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
         std::array::from_fn(|i| {
             c[i] / lum

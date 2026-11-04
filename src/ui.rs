@@ -4750,6 +4750,18 @@ fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     );
     row(
         ui,
+        "Fog extinction",
+        "How strongly each colour is scattered, relative to the density. White treats all alike; more blue than red gives a Rayleigh-like haze: blue light scatters toward you and distant lights turn orange.",
+        |ui| {
+            ui.color_edit_button_rgb(&mut f.extinction);
+            // Black would fail validation on load; it means grey.
+            if f.extinction.iter().all(|v| *v <= 0.) {
+                f.extinction = [1.; 3];
+            }
+        },
+    );
+    row(
+        ui,
         "Fog phase",
         "Henyey-Greenstein g: positive scatters forward, which makes beams glow toward the camera.",
         |ui| {
@@ -4770,6 +4782,14 @@ fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "How far the fog reaches from the centre on x and z.",
         |ui| {
             ui.add(crate::slider(&mut f.extent, 0.1..=100.).logarithmic(true));
+        },
+    );
+    row(
+        ui,
+        "Equiangular",
+        "Also samples scattering along each ray where it passes close to a light (path tracer). Cleaner beams per sample, but about 1.5× the trace time in fog: off by default.",
+        |ui| {
+            ui.checkbox(&mut f.equiangular, "");
         },
     );
 }
@@ -4965,6 +4985,16 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 ui.checkbox(&mut s.cornell_room, "");
             },
         );
+        if s.cornell_room {
+            row(
+                ui,
+                "Measured walls",
+                "The original Cornell box's measured spectra on the walls and the light (red left, green right; exact with Spectral on in the Render tab). The wall colours and the light's colour and temperature are then ignored.",
+                |ui| {
+                    ui.checkbox(&mut s.measured_room, "");
+                },
+            );
+        }
         row(
             ui,
             "Ground size",
@@ -5033,6 +5063,14 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 "Off: the camera sees the background colour while the HDRI still lights the scene.",
                 |ui| {
                     ui.checkbox(&mut s.hdri_visible, "");
+                },
+            );
+            row(
+                ui,
+                "Split sun",
+                "Takes a compact sun out of the HDRI as a separate disc light of the same power and colour, so light sampling always finds it: much less noise in sunlit HDRIs. Nothing changes for maps without one.",
+                |ui| {
+                    ui.checkbox(&mut s.hdri_sun, "");
                 },
             );
         }

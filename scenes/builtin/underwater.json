@@ -1,312 +1,453 @@
 {
  "format": 1,
- "title": "Underwater",
- "description": "The whole stage under blue-green water: a forward-scattering medium that swallows the distance, with sun shafts around the pillars.",
+ "title": "Under the surface",
+ "description": "The camera is under water: the sea is one box of water around it, so every ray starts in its medium (blue-green absorption, a light haze). Look up for Snell's window: the sky squeezed into a 97° cone, total internal reflection outside it.",
  "tags": [
   "volume",
-  "fog",
-  "underwater",
-  "sun"
+  "water",
+  "outdoor"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
   "cornell_room": false,
-  "floor_extent": 30.0,
-  "sky": 0.0,
+  "floor_extent": 20.0,
+  "sky": 1.0,
   "base": [
-   0.05,
-   0.05,
-   0.055
+   0.76,
+   0.68,
+   0.5
   ],
   "floor": {
    "color": [
-    0.6,
-    0.55,
-    0.42
+    0.76,
+    0.68,
+    0.5
    ],
-   "roughness": 0.8,
+   "roughness": 0.9,
    "metallic": 0.0,
-   "reflectivity": 0.02,
+   "reflectivity": 0.04,
    "transmission": 0.0,
    "ior": 1.5,
-   "emission": 0.0,
-   "pattern": "solid",
-   "secondary_color": [
-    0.04,
-    0.04,
-    0.04
-   ],
-   "pattern_scale": 3.0,
-   "unlit": false
+   "emission": 0.0
   },
   "light_on": false,
-  "light_position": [
-   -1.0,
-   4.0,
-   2.0
-  ],
-  "light_size": 3.0,
-  "light_intensity": 12.0,
-  "light_visible": false,
-  "light_temperature": 5600.0,
-  "lights": [
-   {
-    "name": "Sun",
-    "position": [
-     0,
-     10,
-     0
-    ],
-    "rotation": [
-     3.337,
-     -120.964,
-     0.0
-    ],
-    "size": [
-     1,
-     1
-    ],
-    "color": [
-     1.0,
-     0.97,
-     0.9
-    ],
-    "intensity": 6.0,
-    "enabled": true,
-    "visible": false,
-    "kind": "sun",
-    "angle": 2.0
-   }
-  ],
-  "bounces": 10,
-  "yaw": 10,
-  "pitch": 4,
-  "distance": 8,
-  "target": [
-   0,
-   0.8,
-   0
-  ],
-  "fov": 55,
-  "background": [
-   0.0,
-   0.0,
-   0.0
-  ],
-  "fog": {
-   "density": 0.07,
-   "color": [
-    0.35,
-    0.75,
-    0.8
-   ],
-   "phase": 0.8,
-   "height": 8.0,
-   "extent": 30.0
+  "bounces": 12,
+  "physical_sky": {
+   "on": true,
+   "time": 12.0,
+   "day": 172.0,
+   "latitude": 20.0,
+   "north": 0.0
   },
+  "yaw": 180,
+  "pitch": -12,
+  "distance": 4.0,
+  "target": [
+   0.0,
+   1.0,
+   -3.0
+  ],
+  "fov": 60,
+  "exposure": 1.5,
   "objects": [
    {
-    "name": "Pillar 0",
-    "shape": "cylinder",
+    "name": "Sea",
+    "shape": "box",
     "position": [
-     -3,
-     -1.5
+     0,
+     0
     ],
-    "size": 1.6,
-    "stretch": 6.0,
+    "size": 2.8571,
+    "stretch": 3.0,
     "rotation": 0.0,
     "tilt": [
      0,
      0
     ],
     "scale_xz": [
-     1.0,
-     1.0
+     10.0,
+     10.0
     ],
-    "elevation": 0.0,
-    "grounded": true,
+    "elevation": 1.95,
+    "grounded": false,
     "visible": true,
     "material": {
      "color": [
-      0.5,
-      0.48,
-      0.42
+      0.55,
+      0.86,
+      0.9
      ],
-     "roughness": 0.8,
+     "roughness": 0.0,
      "metallic": 0.0,
-     "reflectivity": 0.0,
-     "transmission": 0.0,
-     "ior": 1.5,
+     "reflectivity": 0.04,
+     "transmission": 1.0,
+     "ior": 1.33,
      "emission": 0.0,
-     "pattern": "solid",
-     "secondary_color": [
-      0.04,
-      0.04,
-      0.04
+     "density": 0.12,
+     "scatter_color": [
+      0.7,
+      0.9,
+      0.95
      ],
-     "pattern_scale": 3.0,
-     "unlit": false
+     "phase": 0.7,
+     "extinction": [
+      0.7,
+      0.85,
+      1.0
+     ]
     },
     "portal": -1
    },
    {
-    "name": "Pillar 1",
-    "shape": "cylinder",
+    "name": "Rock 1",
+    "shape": "sphere",
     "position": [
-     -1,
-     0.0
+     -2.6395191026256546,
+     -7.2778377603849895
     ],
-    "size": 1.6,
-    "stretch": 6.0,
-    "rotation": 0.0,
+    "size": 0.1081,
+    "stretch": 7.0,
+    "rotation": 27.89500874443385,
     "tilt": [
      0,
      0
     ],
     "scale_xz": [
-     1.0,
-     1.0
+     10.0,
+     9.0
     ],
-    "elevation": 0.0,
-    "grounded": true,
+    "elevation": -0.7730642744951162,
+    "grounded": false,
     "visible": true,
     "material": {
      "color": [
-      0.5,
-      0.48,
-      0.42
-     ],
-     "roughness": 0.8,
-     "metallic": 0.0,
-     "reflectivity": 0.0,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 0.0,
-     "pattern": "solid",
-     "secondary_color": [
-      0.04,
-      0.04,
-      0.04
-     ],
-     "pattern_scale": 3.0,
-     "unlit": false
-    },
-    "portal": -1
-   },
-   {
-    "name": "Pillar 2",
-    "shape": "cylinder",
-    "position": [
-     1,
-     -1.5
-    ],
-    "size": 1.6,
-    "stretch": 6.0,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     1.0,
-     1.0
-    ],
-    "elevation": 0.0,
-    "grounded": true,
-    "visible": true,
-    "material": {
-     "color": [
-      0.5,
-      0.48,
-      0.42
-     ],
-     "roughness": 0.8,
-     "metallic": 0.0,
-     "reflectivity": 0.0,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 0.0,
-     "pattern": "solid",
-     "secondary_color": [
-      0.04,
-      0.04,
-      0.04
-     ],
-     "pattern_scale": 3.0,
-     "unlit": false
-    },
-    "portal": -1
-   },
-   {
-    "name": "Pillar 3",
-    "shape": "cylinder",
-    "position": [
-     3,
-     0.0
-    ],
-    "size": 1.6,
-    "stretch": 6.0,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     1.0,
-     1.0
-    ],
-    "elevation": 0.0,
-    "grounded": true,
-    "visible": true,
-    "material": {
-     "color": [
-      0.5,
-      0.48,
-      0.42
-     ],
-     "roughness": 0.8,
-     "metallic": 0.0,
-     "reflectivity": 0.0,
-     "transmission": 0.0,
-     "ior": 1.5,
-     "emission": 0.0,
-     "pattern": "solid",
-     "secondary_color": [
-      0.04,
-      0.04,
-      0.04
-     ],
-     "pattern_scale": 3.0,
-     "unlit": false
-    },
-    "portal": -1
-   },
-   {
-    "name": "Amphora",
-    "shape": "pawn",
-    "position": [
-     0.3,
-     1.2
-    ],
-    "size": 1.2,
-    "stretch": 1.0,
-    "rotation": 0.0,
-    "tilt": [
-     0,
-     0
-    ],
-    "scale_xz": [
-     1.0,
-     1.0
-    ],
-    "elevation": 0.0,
-    "grounded": true,
-    "visible": true,
-    "material": {
-     "color": [
-      0.6,
+      0.32,
       0.3,
-      0.15
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 2",
+    "shape": "sphere",
+    "position": [
+     -4.334849043204101,
+     -5.1888628986044765
+    ],
+    "size": 0.1752,
+    "stretch": 7.0,
+    "rotation": 144.08142326924553,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.6321521383663159,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 3",
+    "shape": "sphere",
+    "position": [
+     2.6516260250543846,
+     -6.446502770167776
+    ],
+    "size": 0.1261,
+    "stretch": 7.0,
+    "rotation": 49.802875819461036,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.7350963977928003,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 4",
+    "shape": "sphere",
+    "position": [
+     -3.2733547071463107,
+     -7.256716952979289
+    ],
+    "size": 0.0847,
+    "stretch": 7.0,
+    "rotation": 166.94561365705087,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.8221118832036926,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 5",
+    "shape": "sphere",
+    "position": [
+     3.2892004877841945,
+     -2.353433573083736
+    ],
+    "size": 0.1601,
+    "stretch": 7.0,
+    "rotation": 34.8184112434632,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.6638790835933992,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 6",
+    "shape": "sphere",
+    "position": [
+     -1.9015004270046445,
+     -3.611170783108089
+    ],
+    "size": 0.1512,
+    "stretch": 7.0,
+    "rotation": 153.8367044384425,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.6823884286027462,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 7",
+    "shape": "sphere",
+    "position": [
+     3.8005075136119935,
+     -7.3929722315555475
+    ],
+    "size": 0.135,
+    "stretch": 7.0,
+    "rotation": 120.90626217296519,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.7164199913956324,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 8",
+    "shape": "sphere",
+    "position": [
+     0.05953775710415332,
+     -6.755468780314509
+    ],
+    "size": 0.118,
+    "stretch": 7.0,
+    "rotation": 16.08231730777026,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.7521312703520109,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rock 9",
+    "shape": "sphere",
+    "position": [
+     4.34588363899908,
+     -1.941610808704417
+    ],
+    "size": 0.1276,
+    "stretch": 7.0,
+    "rotation": 54.04423312319844,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     9.0
+    ],
+    "elevation": -0.7321375052114955,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.32,
+      0.3,
+      0.28
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Kelp 1",
+    "shape": "box",
+    "position": [
+     3.270962315317491,
+     -3.710532793256434
+    ],
+    "size": 0.3445,
+    "stretch": 10.0,
+    "rotation": 152.64793588025424,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3317,
+     1.2439
+    ],
+    "elevation": 0.20585379190303188,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.42,
+      0.12
      ],
      "roughness": 0.6,
      "metallic": 0.0,
@@ -314,14 +455,191 @@
      "transmission": 0.0,
      "ior": 1.5,
      "emission": 0.0,
-     "pattern": "solid",
-     "secondary_color": [
-      0.04,
-      0.04,
-      0.04
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Kelp 2",
+    "shape": "box",
+    "position": [
+     0.06697900266201273,
+     -4.344215827473072
+    ],
+    "size": 0.2798,
+    "stretch": 10.0,
+    "rotation": 77.58774311279527,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4085,
+     1.532
+    ],
+    "elevation": -0.02087002224800849,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.42,
+      0.12
      ],
-     "pattern_scale": 3.0,
-     "unlit": false
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Kelp 3",
+    "shape": "box",
+    "position": [
+     -2.709435151027132,
+     -4.7795536142690445
+    ],
+    "size": 0.3286,
+    "stretch": 10.0,
+    "rotation": 7.782924433004728,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3478,
+     1.3043
+    ],
+    "elevation": 0.15007385490769654,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.42,
+      0.12
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Kelp 4",
+    "shape": "box",
+    "position": [
+     -3.629424007971899,
+     -3.4945970178403862
+    ],
+    "size": 0.207,
+    "stretch": 10.0,
+    "rotation": 96.23192307829599,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5522,
+     2.0708
+    ],
+    "elevation": -0.2756534307070251,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.42,
+      0.12
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Kelp 5",
+    "shape": "box",
+    "position": [
+     -0.23007931108005586,
+     -4.628626938311376
+    ],
+    "size": 0.3708,
+    "stretch": 10.0,
+    "rotation": 35.20322897999677,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3082,
+     1.1558
+    ],
+    "elevation": 0.2978230993376898,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2,
+      0.42,
+      0.12
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "sheen": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Diver's buoy",
+    "shape": "sphere",
+    "position": [
+     1.2,
+     -3.0
+    ],
+    "size": 0.0571,
+    "stretch": 10.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     10.0
+    ],
+    "elevation": 0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.35,
+      0.05
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0
     },
     "portal": -1
    }
