@@ -562,6 +562,10 @@ pub struct Cloth {
     /// Texture coordinates of the grid: u0, v0 at the first corner of the pinned (−z) edge,
     /// u1, v1 at the opposite corner (u along the edge, v away from it), for `maps_from`.
     pub uv: [f32; 4],
+    /// Total mass in kg (0.01–100): what a dynamic body the cloth touches feels.
+    pub mass: f32,
+    /// Folds push apart instead of passing through each other.
+    pub self_collision: bool,
 }
 impl Default for Cloth {
     fn default() -> Self {
@@ -570,6 +574,8 @@ impl Default for Cloth {
             pin: ClothPin::None,
             stiffness: 0.2,
             uv: [0., 0., 1., 1.],
+            mass: 0.5,
+            self_collision: true,
         }
     }
 }
@@ -1622,6 +1628,7 @@ impl Settings {
             anyhow::ensure!(
                 o.cloth.is_none_or(|c| (4..=48).contains(&c.resolution)
                     && (0. ..=1.).contains(&c.stiffness)
+                    && (0.01..=100.).contains(&c.mass)
                     && c.uv.iter().all(|u| u.is_finite() && u.abs() <= 64.)),
                 "Invalid cloth"
             );

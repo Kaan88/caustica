@@ -443,7 +443,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                 row(
                     ui,
                     "Cloth",
-                    "Simulates the object as a cloth with the physics sandbox: a particle grid over the object's local x-z square that drapes over bodies (they don't feel it).",
+                    "Simulates the object as a cloth with the physics sandbox: a particle grid over the object's local x-z square that drapes over bodies and pushes dynamic ones back.",
                     |ui| {
                         let mut on = o.cloth.is_some();
                         if ui.checkbox(&mut on, "").changed() {
@@ -464,6 +464,15 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                                 .on_hover_text("Particles per side.");
                             ui.add(crate::slider(&mut c.stiffness, 0. ..=1.))
                                 .on_hover_text("Bending stiffness: 0 silk, 1 canvas.");
+                            ui.add(
+                                egui::DragValue::new(&mut c.mass)
+                                    .speed(0.01)
+                                    .range(0.01..=100.)
+                                    .suffix(" kg"),
+                            )
+                            .on_hover_text("The cloth's total mass: what a dynamic body it touches feels.");
+                            ui.checkbox(&mut c.self_collision, "Self-collision")
+                                .on_hover_text("Folds push apart instead of passing through each other.");
                             if !o.maps_from.is_empty() {
                                 ui.label("UV").on_hover_text(format!(
                                     "Texture coordinates of the grid's corners (u0, v0 at the pinned edge, u1, v1 opposite) for the maps of {}.",

@@ -6,6 +6,7 @@
 //! paths is not. The animation lives in the scene file (`Settings::animation`); the playhead
 //! lives in the app (`Timeline`).
 use crate::scene::Settings;
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -151,6 +152,11 @@ pub struct Animation {
     /// (0 off, 0.5 = a 180° shutter).
     pub shutter: f32,
     pub tracks: Vec<Track>,
+    /// Camera path: between the camera's keys the eye and its look-at target move along
+    /// centripetal Catmull-Rom splines through their keyed positions (`camera_on_path`),
+    /// instead of yaw, pitch, distance and target each interpolating alone (which swings the
+    /// eye around the target).
+    pub camera_path: bool,
 }
 impl Default for Animation {
     fn default() -> Self {
@@ -159,8 +165,47 @@ impl Default for Animation {
             fps: 30,
             shutter: 0.,
             tracks: vec![],
+            camera_path: false,
         }
     }
+}
+/// The camera's orbit fields, which a camera path drives together.
+const CAMERA: [&str; 6] = [
+    "yaw", "pitch", "distance", "target/0", "target/1", "target/2",
+];
+/// Centripetal Catmull-Rom between p[1] and p[2] at u ∈ [0, 1] (Barry–Goldman pyramid).
+fn catmull_rom(p: [Vec3; 4], u: f32) -> Vec3 {
+    let knot = |a: Vec3, b: Vec3| a.distance(b).sqrt().max(1e-4);
+    let t1 = knot(p[0], p[1]);
+    let t2 = t1 + knot(p[1], p[2]);
+    let t3 = t2 + knot(p[2], p[3]);
+    let t = t1 + (t2 - t1) * u;
+    let mix = |a: Vec3, b: Vec3, ta: f32, tb: f32| {
+        a * ((tb - t) / (tb - ta)) + b * ((t - ta) / (tb - ta))
+    };
+    let a1 = mix(p[0], p[1], 0., t1);
+    let a2 = mix(p[1], p[2], t1, t2);
+    let a3 = mix(p[2], p[3], t2, t3);
+    let b1 = mix(a1, a2, 0., t2);
+    let b2 = mix(a2, a3, t1, t3);
+    mix(b1, b2, t1, t2)
+}
+/// Points the orbit camera from `eye` at `target`: yaw is kept within half a turn of the
+/// per-field value (so a camera that has turned several times stays continuous), the distance
+/// and pitch inside `validate()`'s ranges.
+fn set_orbit(s: &mut Settings, eye: Vec3, target: Vec3) {
+    let d = eye - target;
+    let len = d.length().max(1e-6);
+    let mut yaw = d.x.atan2(d.z).to_degrees();
+    yaw += 360. * ((s.yaw - yaw) / 360.).round();
+    s.yaw = yaw;
+    s.pitch = (d.y / len)
+        .clamp(-1., 1.)
+        .asin()
+        .to_degrees()
+        .clamp(-89., 89.);
+    s.distance = len.clamp(0.5, 200.);
+    s.target = target.to_array();
 }
 /// Top-level fields that are floats but not part of the picture: render scale and HDR display
 /// levels, the filter width and UI-only values.
@@ -259,12 +304,105 @@ impl Animation {
             }
         }
         match serde_json::from_value::<Settings>(v) {
-            Ok(mut out) => match out.validate() {
-                Ok(()) => out,
-                Err(_) => s.clone(),
-            },
+            Ok(mut out) => {
+                if let Some((eye, target)) = self.camera_on_path(s, t) {
+                    set_orbit(&mut out, eye, target);
+                }
+                match out.validate() {
+                    Ok(()) => out,
+                    Err(_) => s.clone(),
+                }
+            }
             Err(_) => s.clone(),
         }
+    }
+    /// The camera's key times (any of its orbit fields), sorted and deduplicated.
+    fn camera_times(&self) -> Vec<f32> {
+        let mut t: Vec<f32> = self
+            .tracks
+            .iter()
+            .filter(|tr| CAMERA.contains(&tr.path.as_str()))
+            .flat_map(|tr| tr.keys.iter().map(|k| k.time))
+            .collect();
+        t.sort_by(f32::total_cmp);
+        t.dedup_by(|a, b| (*a - *b).abs() < 1e-4);
+        t
+    }
+    /// The eye and target the camera's tracks give at `t` (fields without a track from `s`).
+    fn orbit_at(&self, s: &Settings, t: f32) -> (Vec3, Vec3) {
+        let f = |path: &str, base: f32| self.track(path).map_or(base, |tr| tr.value(t) as f32);
+        let target = Vec3::new(
+            f("target/0", s.target[0]),
+            f("target/1", s.target[1]),
+            f("target/2", s.target[2]),
+        );
+        let (sy, cy) = f("yaw", s.yaw).to_radians().sin_cos();
+        let (sp, cp) = f("pitch", s.pitch).to_radians().sin_cos();
+        let eye = target + Vec3::new(sy * cp, sp, cy * cp) * f("distance", s.distance);
+        (eye, target)
+    }
+    /// Camera path (`camera_path`): the eye and target at `t` on centripetal Catmull-Rom splines
+    /// (Barry–Goldman, α = 0.5: no cusps or self-loops between close keys) through their
+    /// positions at the camera's key times, the ends extended by reflection. A segment keyed
+    /// Ease starts and stops at rest; Hold keeps the key. None outside the keys, at Hold, or
+    /// with fewer than two camera keys (the per-field values are the same there).
+    pub fn camera_on_path(&self, s: &Settings, t: f32) -> Option<(Vec3, Vec3)> {
+        if !self.camera_path {
+            return None;
+        }
+        self.on_path(s, t, &self.camera_times())
+    }
+    /// `camera_on_path` with the camera's key times given.
+    fn on_path(&self, s: &Settings, t: f32, times: &[f32]) -> Option<(Vec3, Vec3)> {
+        let n = times.len();
+        if n < 2 || t <= times[0] || t >= times[n - 1] {
+            return None;
+        }
+        let i = times.partition_point(|k| *k <= t) - 1;
+        let interp = CAMERA
+            .iter()
+            .filter_map(|p| self.track(p))
+            .find_map(|tr| tr.keys.iter().find(|k| (k.time - times[i]).abs() < 1e-4))
+            .map_or(Interp::Smooth, |k| k.interp);
+        let u = (t - times[i]) / (times[i + 1] - times[i]).max(1e-6);
+        let u = match interp {
+            Interp::Hold => return None,
+            Interp::Ease => u * u * (3. - 2. * u),
+            Interp::Smooth | Interp::Linear => u,
+        };
+        let at = |j: usize| self.orbit_at(s, times[j]);
+        let (p1, p2) = (at(i), at(i + 1));
+        let p0 = if i > 0 {
+            at(i - 1)
+        } else {
+            (2. * p1.0 - p2.0, 2. * p1.1 - p2.1)
+        };
+        let p3 = if i + 2 < n {
+            at(i + 2)
+        } else {
+            (2. * p2.0 - p1.0, 2. * p2.1 - p1.1)
+        };
+        Some((
+            catmull_rom([p0.0, p1.0, p2.0, p3.0], u),
+            catmull_rom([p0.1, p1.1, p2.1, p3.1], u),
+        ))
+    }
+    /// The eye's path over the camera's keys, `samples` points per segment (for the viewport).
+    pub fn camera_path_points(&self, s: &Settings, samples: usize) -> Vec<Vec3> {
+        let times = self.camera_times();
+        if times.len() < 2 {
+            return vec![];
+        }
+        let mut out = vec![];
+        for w in times.windows(2) {
+            for k in 0..samples {
+                let t = w[0] + (w[1] - w[0]) * k as f32 / samples as f32;
+                let on = self.camera_path.then(|| self.on_path(s, t, &times));
+                out.push(on.flatten().map_or_else(|| self.orbit_at(s, t).0, |p| p.0));
+            }
+        }
+        out.push(self.orbit_at(s, times[times.len() - 1]).0);
+        out
     }
     /// Sets a key on `path` at `t` (replacing one at the same time).
     pub fn key(&mut self, path: &str, t: f32, value: f64) {
@@ -516,11 +654,17 @@ pub struct Timeline {
     /// The settings as the animation last left them: edits since then are what I and Shift+I
     /// key. None while the scene has no keys (then nothing counts as edited).
     pub rest: Option<Settings>,
-    /// The time and tracks `rest` was evaluated at; the animation is applied again when either
+    /// The time, tracks and camera-path switch `rest` was evaluated at; the animation is
+    /// applied again when any changes
     /// changes (not for length, fps or shutter, which move no key).
-    pub applied: Option<(f32, Vec<Track>)>,
+    pub applied: Option<(f32, Vec<Track>, bool)>,
     /// Auto-key: every finished edit at a still playhead is keyed (Shift+I by itself).
     pub auto_key: bool,
+    /// The curve editor is open (below the strip).
+    pub curves: bool,
+    /// The key being dragged in the curve editor: its track, its index, and the value range
+    /// the editor's height stood for when the drag began.
+    pub curve_drag: Option<(String, usize, f64, f64)>,
 }
 impl Default for Timeline {
     fn default() -> Self {
@@ -531,6 +675,8 @@ impl Default for Timeline {
             rest: None,
             applied: None,
             auto_key: false,
+            curves: false,
+            curve_drag: None,
         }
     }
 }
@@ -557,10 +703,9 @@ impl Timeline {
         if s.animation.is_empty() {
             self.rest = None;
         }
-        let fresh = self
-            .applied
-            .as_ref()
-            .is_none_or(|(t, a)| *t != self.time || *a != s.animation.tracks);
+        let fresh = self.applied.as_ref().is_none_or(|(t, a, path)| {
+            *t != self.time || *a != s.animation.tracks || *path != s.animation.camera_path
+        });
         if !fresh {
             // Objects or lights added or removed since: their indices no longer match `rest`.
             if let Some(r) = &self.rest
@@ -574,14 +719,22 @@ impl Timeline {
             *s = s.animation.apply(s, self.time);
             self.rest = Some(s.clone());
         }
-        self.applied = Some((self.time, s.animation.tracks.clone()));
+        self.applied = Some((
+            self.time,
+            s.animation.tracks.clone(),
+            s.animation.camera_path,
+        ));
         true
     }
     /// Takes `s` as the animation's current result without applying it (after keying, undo and
     /// redo, whose values must stay as they are).
     pub fn settle(&mut self, s: &Settings) {
         self.rest = (!s.animation.is_empty()).then(|| s.clone());
-        self.applied = Some((self.time, s.animation.tracks.clone()));
+        self.applied = Some((
+            self.time,
+            s.animation.tracks.clone(),
+            s.animation.camera_path,
+        ));
     }
     /// Auto-key: keys what changed since the last applied or keyed state, once no edit is in
     /// progress. Before the scene's first key, the state when auto-key was turned on (or the
@@ -753,6 +906,43 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+    #[test]
+    fn a_camera_path_dollies_straight() {
+        // Eye from (-2, 0, 2) to (2, 0, 2) looking at the origin: yaw −45° → 45°, distance √8.
+        let mut s = Settings::default();
+        s.animation.length = 2.;
+        let d = 8f64.sqrt();
+        for (t, yaw) in [(0., -45.), (2., 45.)] {
+            s.animation.key("yaw", t, yaw);
+            s.animation.key("pitch", t, 0.);
+            s.animation.key("distance", t, d);
+            for c in 0..3 {
+                s.animation.key(&format!("target/{c}"), t, 0.);
+            }
+        }
+        let eye = |s: &Settings| {
+            let (sy, cy) = s.yaw.to_radians().sin_cos();
+            let (sp, cp) = s.pitch.to_radians().sin_cos();
+            Vec3::from(s.target) + Vec3::new(sy * cp, sp, cy * cp) * s.distance
+        };
+        // Per field, the eye swings around the target.
+        let arc = eye(&s.animation.apply(&s, 1.));
+        assert!((arc.z - d as f32).abs() < 1e-3, "{arc}");
+        s.animation.camera_path = true;
+        for t in [0.5, 1., 1.5] {
+            let e = eye(&s.animation.apply(&s, t));
+            assert!(
+                (e.z - 2.).abs() < 1e-3 && e.y.abs() < 1e-3,
+                "off the line at {t}: {e}"
+            );
+        }
+        let mid = eye(&s.animation.apply(&s, 1.));
+        assert!(mid.x.abs() < 1e-3, "{mid}");
+        // The keys themselves are unchanged.
+        let start = eye(&s.animation.apply(&s, 0.));
+        assert!(start.distance(Vec3::new(-2., 0., 2.)) < 1e-3, "{start}");
+        assert_eq!(s.animation.camera_path_points(&s, 8).len(), 9);
     }
     #[test]
     fn interpolations_hit_their_keys_and_smooth_never_overshoots() {

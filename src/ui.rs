@@ -2153,6 +2153,27 @@ impl App {
         {
             self.laser.draw(&painter, ppp, &view);
         }
+        // The camera path (timeline *Camera path*), while it isn't the camera's own move.
+        if self.settings.animation.camera_path
+            && !self.timeline.playing
+            && self.settings.perspective()
+        {
+            let points = self
+                .settings
+                .animation
+                .camera_path_points(&self.settings, 24);
+            for w in points.windows(2) {
+                if let Some((a, b)) = view.segment(w[0], w[1]) {
+                    painter.line_segment(
+                        [
+                            egui::pos2(a.x / ppp, a.y / ppp),
+                            egui::pos2(b.x / ppp, b.y / ppp),
+                        ],
+                        egui::Stroke::new(2_f32, egui::Color32::from_rgb(255, 200, 80)),
+                    );
+                }
+            }
+        }
         if self.ui.paths.open && self.settings.perspective() {
             crate::paths::draw(
                 &painter,

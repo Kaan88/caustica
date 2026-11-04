@@ -126,6 +126,19 @@ impl App {
                     .weak(),
                 );
                 ui.checkbox(&mut self.timeline.looping, "Loop");
+                let mut path = self.settings.animation.camera_path;
+                if ui
+                    .checkbox(&mut path, "Camera path")
+                    .on_hover_text("Between the camera's keys, the eye and its target move along smooth curves through their keyed positions (drawn in the viewport), instead of yaw, pitch, distance and target each moving alone, which swings the eye around the target")
+                    .changed()
+                {
+                    self.ui.checkpoint(&self.settings);
+                    self.settings.animation.camera_path = path;
+                    self.timeline.applied = None;
+                }
+                ui.checkbox(&mut self.timeline.curves, "Curves").on_hover_text(
+                    "The curve editor: the selection's animated values over time, each scaled to its own range. Drag a key to move it in time (frames, Shift for free) and value.",
+                );
                 ui.separator();
                 ui.checkbox(&mut self.timeline.auto_key, "Auto-key").on_hover_text(
                     "Every edit you finish at a still playhead is keyed there (as Shift+I)",
@@ -254,6 +267,10 @@ impl App {
                 });
             });
             self.track_strip(ui, &prefixes);
+            if self.timeline.curves {
+                ui.add_space(2.);
+                self.curve_editor(ui, &prefixes);
+            }
             ui.add_space(2.);
         });
     }
@@ -333,6 +350,176 @@ impl App {
             // Frames, unless Shift is held.
             let shift = ui.input(|i| i.modifiers.shift);
             self.timeline.time = if shift { t } else { Timeline::snap(a, t) };
+            self.timeline.playing = false;
+        }
+    }
+}
+impl App {
+    /// The curve editor: the selection's float tracks as curves (each scaled to its own range),
+    /// their keys as dots that drag in time (frames unless Shift; never past a neighbour) and
+    /// value, and the playhead. A click away from the keys moves the playhead.
+    fn curve_editor(&mut self, ui: &mut egui::Ui, prefixes: &[String]) {
+        const COLORS: [egui::Color32; 6] = [
+            egui::Color32::from_rgb(240, 110, 100),
+            egui::Color32::from_rgb(120, 200, 110),
+            egui::Color32::from_rgb(100, 160, 250),
+            egui::Color32::from_rgb(240, 200, 90),
+            egui::Color32::from_rgb(200, 120, 230),
+            egui::Color32::from_rgb(90, 210, 210),
+        ];
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(ui.available_width(), 150.),
+            egui::Sense::click_and_drag(),
+        );
+        let painter = ui.painter_at(rect);
+        let visuals = ui.visuals().clone();
+        painter.rect_filled(rect, 3., visuals.extreme_bg_color);
+        let length = self.settings.animation.length.max(1e-3);
+        let inner = rect.shrink2(egui::vec2(8., 12.));
+        let x_of = |t: f32| inner.left() + inner.width() * (t / length);
+        let t_of = |x: f32| ((x - inner.left()) / inner.width()).clamp(0., 1.) * length;
+        // Float tracks only: held fields (switches, counts, choices) have no curve.
+        let json = serde_json::to_value(&self.settings).ok();
+        let a = &self.settings.animation;
+        let tracks: Vec<usize> = a
+            .tracks
+            .iter()
+            .enumerate()
+            .filter(|(_, tr)| {
+                anim::under_any(&tr.path, prefixes)
+                    && json
+                        .as_ref()
+                        .and_then(|j| j.pointer(&format!("/{}", tr.path)))
+                        .is_some_and(|v| v.is_f64())
+            })
+            .map(|(i, _)| i)
+            .take(24)
+            .collect();
+        if tracks.is_empty() {
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "No animated values on the selection",
+                egui::FontId::proportional(12.),
+                visuals.weak_text_color(),
+            );
+        }
+        let range = |tr: &anim::Track| {
+            let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+            for k in 0..=64 {
+                let v = tr.value(length * k as f32 / 64.);
+                lo = lo.min(v);
+                hi = hi.max(v);
+            }
+            for k in &tr.keys {
+                lo = lo.min(k.value);
+                hi = hi.max(k.value);
+            }
+            if hi - lo < 1e-9 {
+                let pad = (lo.abs() * 0.5).max(0.5);
+                (lo - pad, hi + pad)
+            } else {
+                let pad = (hi - lo) * 0.05;
+                (lo - pad, hi + pad)
+            }
+        };
+        let y_of = |v: f64, (lo, hi): (f64, f64)| {
+            inner.bottom() - ((v - lo) / (hi - lo)) as f32 * inner.height()
+        };
+        let drag = self.timeline.curve_drag.clone();
+        // A drag picks the key under where the press began (egui starts it a few pixels on).
+        let pointer = if response.drag_started() {
+            ui.input(|i| i.pointer.press_origin())
+        } else {
+            response.hover_pos()
+        };
+        let mut nearest: Option<(f32, usize, usize, (f64, f64))> = None;
+        for (n, &i) in tracks.iter().enumerate() {
+            let tr = &a.tracks[i];
+            let r = match &drag {
+                Some((path, _, lo, hi)) if *path == tr.path => (*lo, *hi),
+                _ => range(tr),
+            };
+            let color = COLORS[n % COLORS.len()];
+            let points: Vec<egui::Pos2> = (0..=160)
+                .map(|k| {
+                    let t = length * k as f32 / 160.;
+                    egui::pos2(x_of(t), y_of(tr.value(t), r))
+                })
+                .collect();
+            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5_f32, color)));
+            for (k, key) in tr.keys.iter().enumerate() {
+                let c = egui::pos2(x_of(key.time), y_of(key.value, r));
+                painter.circle_filled(c, 3.5, color);
+                if let Some(p) = pointer {
+                    let d = p.distance(c);
+                    if d < 8. && nearest.is_none_or(|b| d < b.0) {
+                        nearest = Some((d, i, k, r));
+                    }
+                }
+            }
+        }
+        let x = x_of(self.timeline.time.min(length));
+        painter.line_segment(
+            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+            egui::Stroke::new(2_f32, egui::Color32::from_rgb(255, 120, 80)),
+        );
+        if let Some((_, i, k, _)) = nearest {
+            let tr = &a.tracks[i];
+            let key = &tr.keys[k];
+            painter.text(
+                rect.left_top() + egui::vec2(6., 2.),
+                egui::Align2::LEFT_TOP,
+                format!("{}  {:.4} at {:.2} s", tr.path, key.value, key.time),
+                egui::FontId::proportional(11.),
+                visuals.text_color(),
+            );
+        }
+        if response.drag_started()
+            && let Some((_, i, k, (lo, hi))) = nearest
+        {
+            self.ui.checkpoint(&self.settings);
+            let path = self.settings.animation.tracks[i].path.clone();
+            self.timeline.curve_drag = Some((path, k, lo, hi));
+            self.timeline.playing = false;
+        }
+        if response.dragged()
+            && let Some((path, k, lo, hi)) = self.timeline.curve_drag.clone()
+            && let Some(p) = response.interact_pointer_pos()
+        {
+            let shift = ui.input(|i| i.modifiers.shift);
+            let a = &mut self.settings.animation;
+            let t = t_of(p.x);
+            let t = if shift { t } else { Timeline::snap(a, t) };
+            if let Some(tr) = a.tracks.iter_mut().find(|tr| tr.path == path)
+                && k < tr.keys.len()
+            {
+                let before = if k > 0 {
+                    tr.keys[k - 1].time + 1e-3
+                } else {
+                    0.
+                };
+                let after = tr.keys.get(k + 1).map_or(length, |n| n.time - 1e-3);
+                if before <= after {
+                    tr.keys[k].time = t.clamp(before, after);
+                }
+                if tr.keys[k].text.is_none() {
+                    // Inside the editor's range (a value past a field's limits would make the
+                    // whole animation fail validation and stop applying).
+                    let y = p.y.clamp(inner.top(), inner.bottom());
+                    let v = lo + (inner.bottom() - y) as f64 / inner.height() as f64 * (hi - lo);
+                    tr.keys[k].value = v;
+                }
+            }
+        }
+        if response.drag_stopped() {
+            self.timeline.curve_drag = None;
+        }
+        if response.clicked()
+            && nearest.is_none()
+            && let Some(p) = response.interact_pointer_pos()
+        {
+            self.timeline.time = Timeline::snap(&self.settings.animation, t_of(p.x));
             self.timeline.playing = false;
         }
     }

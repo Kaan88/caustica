@@ -8,7 +8,7 @@
 //! the others keep their velocities. Objects driven by keyframes become kinematic bodies that
 //! follow the animation and push the others. See engine-notes "Physics sandbox".
 use crate::scene::{Body, Object, Settings, Shape};
-use glam::{EulerRot, Quat, Vec3};
+use glam::{EulerRot, IVec3, Quat, Vec3};
 use rapier3d::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -334,7 +334,8 @@ fn grid_mesh(p: &[Vec3], n: usize) -> crate::geometry::Mesh {
 }
 /// One simulated cloth: position-based dynamics (XPBD-style Gauss-Seidel distance
 /// constraints, Verlet integration), pinned particles, collisions with the floor and every
-/// collider (pushed out to `THICKNESS`). One-way: the cloth does not push bodies.
+/// collider (pushed out to `THICKNESS`), and optionally with itself. Two-way: a particle pushed
+/// out of a dynamic body gives it the opposite impulse (`pushes`, applied after the step).
 struct ClothSim {
     index: usize,
     n: usize,
@@ -350,6 +351,12 @@ struct ClothSim {
     frame: (Vec3, Quat, Vec3),
     /// Steps with almost no motion; asleep after a second of them.
     still: u32,
+    /// Mass per particle (kg).
+    particle_mass: f32,
+    /// Self-collision: the closest two particles of different folds may come (None: off).
+    self_gap: Option<f32>,
+    /// This step's impulses on bodies: collider, contact point, impulse.
+    pushes: Vec<(ColliderHandle, Vec3, Vec3)>,
 }
 const THICKNESS: f32 = 0.02;
 impl ClothSim {
@@ -403,6 +410,12 @@ impl ClothSim {
             constraints.push((a as u32, b as u32, l, k));
         };
         let bend = (0.05 + 0.95 * c.stiffness).min(1.);
+        // The grid's spacing; 0.75 of it keeps a particle from slipping through a quad (no point
+        // of a quad is farther than 0.71 spacings from its nearest corner).
+        let spacing = (rest_world[0] - rest_world[1]).length();
+        // Below one spacing, so it never fights the constraints of particles three or more
+        // grid steps apart.
+        let self_gap = c.self_collision.then_some(0.75 * spacing);
         for j in 0..n {
             for i in 0..n {
                 let k = j * n + i;
@@ -434,6 +447,9 @@ impl ClothSim {
             published: vec![],
             frame: (centre, rot, scale),
             still: 0,
+            particle_mass: c.mass / (n * n) as f32,
+            self_gap,
+            pushes: vec![],
         })
     }
     fn asleep(&self) -> bool {
@@ -449,6 +465,7 @@ impl ClothSim {
     ) {
         let dt2 = STEP * STEP;
         let mut motion = 0f32;
+        self.pushes.clear();
         for k in 0..self.p.len() {
             if let Some(pin) = self.pinned[k] {
                 self.p[k] = pin;
@@ -481,6 +498,9 @@ impl ClothSim {
                 }
             }
         }
+        if let Some(gap) = self.self_gap {
+            self.self_collide(gap);
+        }
         for k in 0..self.p.len() {
             if self.pinned[k].is_some() {
                 continue;
@@ -496,19 +516,21 @@ impl ClothSim {
             // boxes) that was most of the frame. The mesh's own bounded query prunes its BVH.
             let mut nearest = query
                 .project_point(v(p), THICKNESS * 2., false)
-                .map(|(_, proj)| proj);
+                .map(|(h, proj)| (Some(h), proj));
             for (pose, shape) in meshes {
                 if let Some(proj) =
                     shape.project_point_with_max_dist(pose, v(p), false, THICKNESS * 2.)
-                    && nearest.is_none_or(|n| g(n.point).distance(p) > g(proj.point).distance(p))
+                    && nearest
+                        .is_none_or(|(_, n)| g(n.point).distance(p) > g(proj.point).distance(p))
                 {
-                    nearest = Some(proj);
+                    nearest = Some((None, proj));
                 }
             }
-            if let Some(proj) = nearest {
+            if let Some((handle, proj)) = nearest {
                 let s = g(proj.point);
                 let d = p - s;
                 let len = d.length();
+                let before = p;
                 if proj.is_inside {
                     // Out through the surface (up when the point sits on it).
                     p = s - d.normalize_or(Vec3::NEG_Y) * THICKNESS;
@@ -516,6 +538,14 @@ impl ClothSim {
                 } else if len < THICKNESS {
                     p = s + d.normalize_or(Vec3::Y) * THICKNESS;
                     touched = true;
+                }
+                // The push gives the particle a velocity (p − before) / step; the body takes
+                // the opposite momentum (it settles the cloth's weight on a body it rests on).
+                if let Some(h) = handle
+                    && p != before
+                {
+                    self.pushes
+                        .push((h, s, (before - p) * (self.particle_mass / STEP)));
                 }
             }
             if touched {
@@ -526,6 +556,52 @@ impl ClothSim {
         }
         // Asleep below 1.2 cm/s at its fastest particle (a hanging corner sways for long).
         self.still = if motion < 1e-4 { self.still + 1 } else { 0 };
+    }
+    /// Self-collision: particles closer than `gap` move apart equally (a pinned one stays),
+    /// found through a hash grid of `gap` cells. Grid neighbours up to two steps apart are
+    /// left to the stretch, shear and bend constraints.
+    fn self_collide(&mut self, gap: f32) {
+        let cell = |p: Vec3| (p / gap).floor().as_ivec3();
+        let mut grid: HashMap<IVec3, Vec<u32>> = HashMap::with_capacity(self.p.len());
+        for (k, p) in self.p.iter().enumerate() {
+            grid.entry(cell(*p)).or_default().push(k as u32);
+        }
+        let n = self.n;
+        for k in 0..self.p.len() {
+            let c = cell(self.p[k]);
+            for dz in -1..=1 {
+                for dy in -1..=1 {
+                    for dx in -1..=1 {
+                        let Some(list) = grid.get(&(c + IVec3::new(dx, dy, dz))) else {
+                            continue;
+                        };
+                        for &l in list {
+                            let l = l as usize;
+                            if l <= k
+                                || ((k % n).abs_diff(l % n) <= 2 && (k / n).abs_diff(l / n) <= 2)
+                            {
+                                continue;
+                            }
+                            let d = self.p[l] - self.p[k];
+                            let len = d.length();
+                            if len >= gap || len < 1e-9 {
+                                continue;
+                            }
+                            let corr = d * ((gap - len) / len);
+                            match (self.pinned[k].is_some(), self.pinned[l].is_some()) {
+                                (true, true) => {}
+                                (true, false) => self.p[l] += corr,
+                                (false, true) => self.p[k] -= corr,
+                                (false, false) => {
+                                    self.p[k] -= corr * 0.5;
+                                    self.p[l] += corr * 0.5;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     /// The mesh in the object's frame, published under a new key written to the object.
     fn publish(&mut self, o: &mut Object) {
@@ -967,6 +1043,7 @@ impl Sim {
                 }
             }
             self.pull();
+            self.push_bodies(gravity);
             self.pipeline.step(
                 v(gravity),
                 &self.params,
@@ -1034,6 +1111,58 @@ impl Sim {
                         }
                     });
                 }
+            }
+        }
+    }
+    /// The cloths' pushes on bodies (`ClothSim::pushes`), drained.
+    fn push_bodies(&mut self, gravity: Vec3) {
+        // Two-way coupling: the cloths' pushes from the last step, applied before the rigid
+        // step so its solver takes them in (applied after it, a heavy cloth's weight left a light
+        // body moving at every step's end, so it never slept). Summed after every cloth stepped,
+        // so the order of cloths doesn't matter. Pushes never reset an awake body's sleep timer, and wake a sleeping
+        // one only when, summed, they exceed twice the pushing particles' weight by
+        // 5 cm/s of the body's motion: a cloth resting on a body must not keep both awake
+        // (a cloth stays awake while any body is).
+        // Per body: the pushes, and the weight of the particles pushing (their resting
+        // load over a step).
+        type Pushes = (RigidBodyHandle, Vec<(Vec3, Vec3)>, f32);
+        let mut pushes: Vec<Pushes> = vec![];
+        let weight = gravity.length() * STEP;
+        for c in &mut self.cloths {
+            // A cloth at rest (it counts toward sleep) passes nothing on: its weight on a
+            // resting body would be re-applied every step and keep the body from sleeping.
+            if c.still > 0 {
+                c.pushes.clear();
+                continue;
+            }
+            let load = c.particle_mass * weight;
+            for (h, point, impulse) in c.pushes.drain(..) {
+                let Some(b) = self.colliders.get(h).and_then(|c| c.parent()) else {
+                    continue;
+                };
+                match pushes.iter_mut().find(|p| p.0 == b) {
+                    Some(p) => {
+                        p.1.push((point, impulse));
+                        p.2 += load;
+                    }
+                    None => pushes.push((b, vec![(point, impulse)], load)),
+                }
+            }
+        }
+        for (b, list, load) in pushes {
+            let b = &mut self.bodies[b];
+            if !b.is_dynamic() {
+                continue;
+            }
+            let wake = b.is_sleeping();
+            if wake {
+                let total: Vec3 = list.iter().map(|p| p.1).sum();
+                if total.length() < 2. * load + 0.05 * b.mass() {
+                    continue;
+                }
+            }
+            for (point, impulse) in list {
+                b.apply_impulse_at_point(v(impulse), v(point), wake);
             }
         }
     }
@@ -2052,6 +2181,123 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_falling_cloth_pushes_a_ball_and_folds_dont_pass_through() {
+        // Two-way coupling: a cloth landing off-centre on a ball pushes it; a nearly massless one
+        // barely does.
+        let shift = |mass: f32| {
+            let cloth = Object {
+                shape: Shape::Box,
+                size: 2.,
+                stretch: 1.,
+                grounded: false,
+                elevation: 0.,
+                position: [0.5, 0.],
+                cloth: Some(crate::scene::Cloth {
+                    resolution: 12,
+                    mass,
+                    ..Default::default()
+                }),
+                ..Object::default()
+            };
+            let mut s = Settings {
+                objects: vec![ball(-0.65), cloth],
+                ..Settings::default()
+            };
+            s.objects[0].position = [0., 0.];
+            s.physics.enabled = true;
+            let mut sim = Sim::new(&s);
+            let start = Vec3::new(s.objects[0].position[0], 0., s.objects[0].position[1]);
+            for _ in 0..90 {
+                sim.advance(&mut s, 1. / 60.);
+            }
+            (Vec3::new(s.objects[0].position[0], 0., s.objects[0].position[1]) - start).length()
+        };
+        let (heavy, light) = (shift(20.), shift(0.01));
+        assert!(
+            heavy > 0.02 && heavy > 5. * light,
+            "the cloth pushes the ball (heavy {heavy}, light {light})"
+        );
+        // A cloth nine times heavier than the dynamic box it rests on: both come to rest and sleep (pushes
+        // must not keep resetting the box's sleep timer, which kept the cloth awake too).
+        let mut s = Settings {
+            objects: vec![
+                ball(-0.65),
+                Object {
+                    shape: Shape::Box,
+                    size: 2.,
+                    stretch: 1.,
+                    grounded: false,
+                    elevation: -0.2,
+                    cloth: Some(crate::scene::Cloth {
+                        resolution: 12,
+                        mass: 3.,
+                        ..Default::default()
+                    }),
+                    ..Object::default()
+                },
+            ],
+            ..Settings::default()
+        };
+        s.objects[0].shape = Shape::Box;
+        s.objects[0].position = [0., 0.];
+        s.objects[1].position = [0., 0.];
+        s.physics.enabled = true;
+        let mut sim = Sim::new(&s);
+        for _ in 0..900 {
+            sim.advance(&mut s, 1. / 60.);
+        }
+        assert!(
+            sim.cloths[0].asleep(),
+            "a cloth resting on a box never sleeps"
+        );
+        // Self-collision: a cloth dropped on its edge crumples on the floor; particles of
+        // different folds keep apart.
+        let close = |self_collision: bool| {
+            let cloth = Object {
+                shape: Shape::Box,
+                size: 2.,
+                stretch: 1.,
+                grounded: false,
+                elevation: 0.2,
+                tilt: [90., 0.],
+                position: [0., 0.],
+                cloth: Some(crate::scene::Cloth {
+                    resolution: 16,
+                    self_collision,
+                    stiffness: 0.,
+                    ..Default::default()
+                }),
+                ..Object::default()
+            };
+            let mut s = Settings {
+                objects: vec![cloth],
+                ..Settings::default()
+            };
+            s.physics.enabled = true;
+            let mut sim = Sim::new(&s);
+            for _ in 0..240 {
+                sim.advance(&mut s, 1. / 60.);
+            }
+            let c = &sim.cloths[0];
+            let spacing = 2. / 15.;
+            let mut close = 0;
+            for k in 0..c.p.len() {
+                for l in k + 1..c.p.len() {
+                    let far = (k % c.n).abs_diff(l % c.n) > 2 || (k / c.n).abs_diff(l / c.n) > 2;
+                    if far && c.p[k].distance(c.p[l]) < 0.3 * spacing {
+                        close += 1;
+                    }
+                }
+            }
+            close
+        };
+        let (with, without) = (close(true), close(false));
+        assert!(
+            with * 4 <= without && without > 0,
+            "folds keep apart (with {with}, without {without} close pairs)"
+        );
+    }
     #[test]
     fn a_cloth_drapes_over_a_box_and_a_curtain_hangs() {
         let mut cloth = Object {
