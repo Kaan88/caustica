@@ -713,7 +713,10 @@ impl App {
             size,
             failed: None,
             actions: Actions::default(),
-            ui: interface,
+            ui: {
+                interface.fixed_names = hidden || self_test;
+                interface
+            },
             hwnd: None,
             monitor: None,
             display_dirty: true,
@@ -3062,7 +3065,12 @@ impl App {
             }
         }
         if let Some(format) = self.actions.save_image.take() {
-            let path = format.file("caustica");
+            let path = format.file(&self.ui.export_stem(
+                &self.settings,
+                g.samples,
+                g.width,
+                g.height,
+            ));
             match unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) } {
                 Ok(()) => {
                     self.ui.toast_file(
@@ -3089,7 +3097,11 @@ impl App {
                 size,
                 1,
                 self.ui.export_samples,
-                format.file("caustica-high-res"),
+                format.file(&format!(
+                    "{}-high-res",
+                    self.ui
+                        .export_stem(&self.settings, self.ui.export_samples, size[0], size[1])
+                )),
             );
             o.still = true;
             o.degrees = 0.;

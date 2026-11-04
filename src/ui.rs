@@ -185,6 +185,9 @@ pub struct UiState {
     pub show_stats: bool,
     pub show_remote: bool,
     pub console: crate::console::Console,
+    /// Quick saves and stills use "caustica" in the self-test and headless runs, whatever the
+    /// saved template (their checks look for those files).
+    pub fixed_names: bool,
     remote_qr: Option<egui::TextureHandle>,
     scope_images: Option<(egui::TextureHandle, egui::TextureHandle)>,
     /// Convergence graph: reference image (width, height, RGBA), points (samples, RMSE x1000).
@@ -323,6 +326,7 @@ impl Default for UiState {
             show_stats: false,
             show_remote: false,
             console: Default::default(),
+            fixed_names: false,
             remote_qr: None,
             scope_images: None,
             reference: None,
@@ -387,6 +391,13 @@ impl Default for UiState {
     }
 }
 impl UiState {
+    /// The file stem of quick saves and stills (`video::expand_name` of the saved template).
+    pub fn export_stem(&self, s: &Settings, samples: u32, w: u32, h: u32) -> String {
+        if self.fixed_names {
+            return "caustica".into();
+        }
+        crate::video::expand_name(&self.prefs.name_template, &s.scene_name, samples, w, h)
+    }
     pub fn toast(&mut self, text: impl Into<String>) {
         self.push(text.into(), false, None);
     }
@@ -2933,6 +2944,11 @@ impl App {
                 } else {
                     egui::RichText::new(&text)
                 });
+                // What the denoiser is doing right now (Advanced): reprojecting, integrating,
+                // or starting over after an edit.
+                if self.ui.advanced && !g.denoiser_activity.is_empty() {
+                    ui.label(egui::RichText::new(g.denoiser_activity).weak());
+                }
                 ui.separator();
                 if g.rw == g.width {
                     ui.label(format!("{} × {}", g.width, g.height));
@@ -4621,6 +4637,25 @@ impl App {
         let g = self.gpu.as_ref().unwrap();
         use crate::video::ImageFormat;
         section(ui, "Save the current image");
+        grid("export_name").show(ui, |ui| {
+            row(
+                ui,
+                "File name",
+                "Of quick saves and high-resolution stills (which add -high-res), in the output folder. {scene}, {date}, {time}, {spp}, {w} and {h} are filled in.",
+                |ui| {
+                    let r = ui.add(
+                        egui::TextEdit::singleline(&mut self.ui.prefs.name_template)
+                            .desired_width(220.),
+                    );
+                    if r.lost_focus() {
+                        self.ui.prefs.save();
+                    }
+                },
+            );
+        });
+        let stem = self
+            .ui
+            .export_stem(&self.settings, g.samples, g.width, g.height);
         ui.horizontal_wrapped(|ui| {
             for format in ImageFormat::ALL {
                 if format.needs_hdr() && !g.hdr_active {
@@ -4631,7 +4666,7 @@ impl App {
                 } else {
                     format.label().to_string()
                 };
-                let file = format.file("caustica");
+                let file = format.file(&stem);
                 if ui
                     .button(label)
                     .on_hover_text(format!("{}: {}", file.display(), format.description()))
@@ -4700,7 +4735,16 @@ impl App {
             );
         });
         let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
-        let name = self.ui.export_format.file("caustica-high-res");
+        let name = {
+            let (w, h) = (
+                (g.width as f32 * factor).round() as u32,
+                (g.height as f32 * factor).round() as u32,
+            );
+            let stem = self
+                .ui
+                .export_stem(&self.settings, self.ui.export_samples, w, h);
+            self.ui.export_format.file(&format!("{stem}-high-res"))
+        };
         if ui.button("Render high-resolution image").clicked() {
             self.actions.high_res = true;
         }

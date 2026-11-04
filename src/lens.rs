@@ -12,8 +12,9 @@
 
 use std::sync::LazyLock;
 
-/// One surface: curvature radius, thickness to the next surface, IOR after it, diameter (mm).
-type Row = [f32; 4];
+/// One surface: curvature radius, thickness to the next surface, IOR (n_d) after it, diameter
+/// (mm), and the glass's Abbe number V_d (0: unknown, guessed from the index by `abbe`).
+type Row = [f32; 5];
 
 pub struct Lens {
     pub name: &'static str,
@@ -23,23 +24,23 @@ pub struct Lens {
 }
 
 /// Pinhole / thin lens is 0 in `Settings::lens_system`; these are 1..=LENSES.len().
-pub const LENSES: [Lens; 4] = [
+pub const LENSES: [Lens; 5] = [
     // US patent 2,673,491 (Tronnier), Modern Lens Design p. 312, scaled to 50 mm.
     Lens {
         name: "Double Gauss 50 mm",
         fisheye: false,
         rows: &[
-            [29.475, 3.76, 1.67, 25.2],
-            [84.83, 0.12, 1., 25.2],
-            [19.275, 4.025, 1.67, 23.],
-            [40.77, 3.275, 1.699, 23.],
-            [12.75, 5.705, 1., 18.],
-            [0., 4.5, 1., 17.1],
-            [-14.495, 1.18, 1.603, 17.],
-            [40.77, 6.065, 1.658, 20.],
-            [-20.385, 0.19, 1., 20.],
-            [437.065, 2.95, 1.717, 20.],
-            [-39.73, 0., 1., 20.],
+            [29.475, 3.76, 1.67, 25.2, 0.],
+            [84.83, 0.12, 1., 25.2, 0.],
+            [19.275, 4.025, 1.67, 23., 0.],
+            [40.77, 3.275, 1.699, 23., 0.],
+            [12.75, 5.705, 1., 18., 0.],
+            [0., 4.5, 1., 17.1, 0.],
+            [-14.495, 1.18, 1.603, 17., 0.],
+            [40.77, 6.065, 1.658, 20., 0.],
+            [-20.385, 0.19, 1., 20., 0.],
+            [437.065, 2.95, 1.717, 20., 0.],
+            [-39.73, 0., 1., 20., 0.],
         ],
     },
     // Nakamura wide angle, Modern Lens Design p. 360, scaled to 22 mm.
@@ -47,19 +48,19 @@ pub const LENSES: [Lens; 4] = [
         name: "Wide angle 22 mm",
         fisheye: false,
         rows: &[
-            [35.98738, 1.21638, 1.54, 23.716],
-            [11.69718, 9.9957, 1., 17.996],
-            [13.08714, 5.12622, 1.772, 12.364],
-            [-22.63294, 1.76924, 1.617, 9.812],
-            [71.05802, 0.8184, 1., 9.152],
-            [0., 2.27766, 1., 8.756],
-            [-9.58584, 2.43254, 1.617, 8.184],
-            [-11.28864, 0.11506, 1., 9.152],
-            [-166.7765, 3.09606, 1.713, 10.648],
-            [-7.5911, 1.32682, 1.805, 11.44],
-            [-16.7662, 3.98068, 1., 12.276],
-            [-7.70286, 1.21638, 1.617, 13.42],
-            [-11.97328, 0., 1., 17.996],
+            [35.98738, 1.21638, 1.54, 23.716, 0.],
+            [11.69718, 9.9957, 1., 17.996, 0.],
+            [13.08714, 5.12622, 1.772, 12.364, 0.],
+            [-22.63294, 1.76924, 1.617, 9.812, 0.],
+            [71.05802, 0.8184, 1., 9.152, 0.],
+            [0., 2.27766, 1., 8.756, 0.],
+            [-9.58584, 2.43254, 1.617, 8.184, 0.],
+            [-11.28864, 0.11506, 1., 9.152, 0.],
+            [-166.7765, 3.09606, 1.713, 10.648, 0.],
+            [-7.5911, 1.32682, 1.805, 11.44, 0.],
+            [-16.7662, 3.98068, 1., 12.276, 0.],
+            [-7.70286, 1.21638, 1.617, 13.42, 0.],
+            [-11.97328, 0., 1., 17.996, 0.],
         ],
     },
     // Muller 16 mm f/4 fisheye (155.9° field), Modern Lens Design p. 164, scaled to 10 mm.
@@ -67,18 +68,18 @@ pub const LENSES: [Lens; 4] = [
         name: "Fisheye 10 mm",
         fisheye: true,
         rows: &[
-            [30.2249, 0.8335, 1.62, 30.34],
-            [11.3931, 7.4136, 1., 20.68],
-            [75.2019, 1.0654, 1.639, 17.8],
-            [8.3349, 11.1549, 1., 13.42],
-            [9.5882, 2.0054, 1.654, 9.02],
-            [43.8677, 5.3895, 1., 8.14],
-            [0., 1.4163, 1., 6.08],
-            [29.4541, 2.1934, 1.517, 5.96],
-            [-5.2265, 0.9714, 1.805, 5.84],
-            [-14.2884, 0.0627, 1., 5.96],
-            [-22.3726, 0.94, 1.673, 5.96],
-            [-15.0404, 0., 1., 6.52],
+            [30.2249, 0.8335, 1.62, 30.34, 0.],
+            [11.3931, 7.4136, 1., 20.68, 0.],
+            [75.2019, 1.0654, 1.639, 17.8, 0.],
+            [8.3349, 11.1549, 1., 13.42, 0.],
+            [9.5882, 2.0054, 1.654, 9.02, 0.],
+            [43.8677, 5.3895, 1., 8.14, 0.],
+            [0., 1.4163, 1., 6.08, 0.],
+            [29.4541, 2.1934, 1.517, 5.96, 0.],
+            [-5.2265, 0.9714, 1.805, 5.84, 0.],
+            [-14.2884, 0.0627, 1., 5.96, 0.],
+            [-22.3726, 0.94, 1.673, 5.96, 0.],
+            [-15.0404, 0., 1., 6.52, 0.],
         ],
     },
     // A single uncorrected biconvex BK7 element behind a stop: strong spherical and chromatic
@@ -87,9 +88,26 @@ pub const LENSES: [Lens; 4] = [
         name: "Singlet 50 mm",
         fisheye: false,
         rows: &[
-            [0., 3., 1., 18.],
-            [51.7, 5., 1.5168, 24.],
-            [-51.7, 0., 1., 24.],
+            [0., 3., 1., 18., 0.],
+            [51.7, 5., 1.5168, 24., 64.17],
+            [-51.7, 0., 1., 24., 0.],
+        ],
+    },
+    // A telephoto designed here (wave 3), not a commercial prescription: a positive cemented
+    // achromat (100 mm) and a negative one (−60 mm) 70 mm apart (thin-lens powers split by the
+    // Abbe numbers, so each group is colour-corrected), with Schott N-BK7 (1.5168 / 64.17) and
+    // F2 (1.62004 / 36.37). Traced: 209 mm, f/5.6 wide open, 130 mm long (telephoto ratio 0.62).
+    Lens {
+        name: "Telephoto 200 mm",
+        fisheye: false,
+        rows: &[
+            [44.78, 6., 1.5168, 40., 64.17],
+            [-44.78, 2.5, 1.62004, 40., 36.37],
+            [-812., 30., 1., 40., 0.],
+            [0., 32., 1., 26.6, 0.],
+            [-26.87, 2., 1.5168, 20., 64.17],
+            [26.87, 4., 1.62004, 20., 36.37],
+            [486.4, 0., 1., 20., 0.],
         ],
     },
 ];
@@ -122,21 +140,24 @@ pub static INFO: LazyLock<Vec<Info>> = LazyLock::new(|| {
         .collect()
 });
 
-/// Abbe number guessed from the index (the prescriptions carry only n_d): crowns near 60,
-/// dense flints near 28.
-fn abbe(n: f32) -> f32 {
+/// The row's Abbe number, else one guessed from the index (most prescriptions here carry only
+/// n_d): crowns near 60, dense flints near 28.
+fn abbe(n: f32, v: f32) -> f32 {
+    if v > 0. {
+        return v;
+    }
     (60. - (n - 1.52) / (1.80 - 1.52) * 32.).clamp(25., 65.)
 }
 
 /// The index at red, green and blue (610, 550, 465 nm) from a Cauchy fit through n_d and the
 /// Abbe number. Green stays put (focus does not depend on the slider); `dispersion` scales red's
 /// and blue's offsets from it (0 = none, 1 = real glass).
-fn indices(n: f32, dispersion: f32) -> [f32; 3] {
+fn indices(n: f32, v: f32, dispersion: f32) -> [f32; 3] {
     if n <= 1. {
         return [1.; 3];
     }
     // n_F - n_C = (n_d - 1) / V = B (1/0.4861² - 1/0.6563²).
-    let b = (n - 1.) / abbe(n) / 1.9107;
+    let b = (n - 1.) / abbe(n, v) / 1.9107;
     let at = |um: f32| n + b * (1. / (um * um) - 1. / (0.5876 * 0.5876));
     let g = at(0.55);
     [
@@ -202,7 +223,7 @@ impl Surfaces {
             if i + 1 < n {
                 z -= r[1];
             }
-            let eta = indices(r[2], dispersion);
+            let eta = indices(r[2], r[4], dispersion);
             s[i] = Surface {
                 radius: r[0],
                 z,
@@ -436,9 +457,9 @@ mod tests {
     #[test]
     fn lenses_match_their_names() {
         // Focal lengths close to the nominal ones, plausible wide-open f-numbers.
-        for (l, (f, n)) in INFO
-            .iter()
-            .zip([(50., 2.), (22., 4.), (10., 4.), (50., 2.8)])
+        for (l, (f, n)) in
+            INFO.iter()
+                .zip([(50., 2.), (22., 4.), (10., 4.), (50., 2.8), (200., 5.6)])
         {
             assert!((l.focal - f).abs() / f < 0.15, "{l:?}");
             assert!(l.f_number > n * 0.6 && l.f_number < n * 1.6, "{l:?}");

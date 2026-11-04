@@ -25,6 +25,8 @@ pub struct Prefs {
     pub ai_profiles: Vec<crate::textscene::AiConfig>,
     /// Laser puzzle (track 17): fewest moves per solved level, by scene name.
     pub puzzle_best: std::collections::BTreeMap<String, u32>,
+    /// File name of quick saves and high-resolution stills (`video::expand_name`).
+    pub name_template: String,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -37,6 +39,7 @@ impl Default for Prefs {
             ai: Default::default(),
             ai_profiles: Vec::new(),
             puzzle_best: Default::default(),
+            name_template: "caustica".into(),
         }
     }
 }

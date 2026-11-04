@@ -522,6 +522,8 @@ pub struct Gpu {
     integrated_valid: bool,
     /// The camera moved since the last traced frame (accumulation restarted, history kept).
     camera_moved: bool,
+    /// What the denoiser did on the last frame, in words (the status bar, Advanced on).
+    pub denoiser_activity: &'static str,
     pub reference_valid: bool,
     query: ID3D12QueryHeap,
     timing: ID3D12Resource,
@@ -1303,6 +1305,7 @@ impl Gpu {
             history_valid: false,
             integrated_valid: false,
             camera_moved: false,
+            denoiser_activity: "",
             reference_valid: false,
             query,
             timing,
@@ -4268,6 +4271,17 @@ impl Gpu {
             if !s.temporal {
                 self.history_valid = false;
             }
+            self.denoiser_activity = if reproject {
+                "reprojecting its history (camera moving)"
+            } else if !traced {
+                "filtering the held result (no new samples)"
+            } else if self.history_valid {
+                "integrating new samples over its history"
+            } else if !s.temporal {
+                "integrating new samples (temporal history off)"
+            } else {
+                "integrating from scratch (no usable history: an edit, a load or a resize)"
+            };
             let first = if reproject {
                 0
             } else if traced || !self.integrated_valid {
@@ -4300,6 +4314,17 @@ impl Gpu {
         } else if n > 0 {
             self.history_valid = false;
             self.integrated_valid = false;
+        }
+        if self.rr_active {
+            self.denoiser_activity = if n == 0 {
+                "holding (no new samples)"
+            } else if reset {
+                "history reset (scene edited or camera cut)"
+            } else {
+                "accumulating over its history"
+            };
+        } else if !s.denoise || s.battle {
+            self.denoiser_activity = "";
         }
         if n > 0 {
             self.camera_moved = false;

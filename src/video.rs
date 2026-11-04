@@ -135,6 +135,53 @@ impl ImageFormat {
         matches!(self, ImageFormat::HdrPng | ImageFormat::Jxr)
     }
 }
+/// Export file names from a template (wave 3; Export → *File name*): `{scene}`, `{date}`
+/// (YYYY-MM-DD) and `{time}` (HH-MM-SS, local), `{spp}` (samples so far), `{w}` and `{h}` (the
+/// image size). Characters Windows forbids in names become `_`; an empty result is "caustica".
+pub fn expand_name(template: &str, scene: &str, samples: u32, w: u32, h: u32) -> String {
+    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+    let out = template
+        .replace("{scene}", scene)
+        .replace(
+            "{date}",
+            &format!("{:04}-{:02}-{:02}", t.wYear, t.wMonth, t.wDay),
+        )
+        .replace(
+            "{time}",
+            &format!("{:02}-{:02}-{:02}", t.wHour, t.wMinute, t.wSecond),
+        )
+        .replace("{spp}", &samples.to_string())
+        .replace("{w}", &w.to_string())
+        .replace("{h}", &h.to_string());
+    let out: String = out
+        .chars()
+        .map(|c| {
+            if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let out = out.trim().trim_end_matches('.').trim();
+    if out.is_empty() {
+        return "caustica".into();
+    }
+    // Windows' device names can't be file names, with any extension.
+    let base = out
+        .split('.')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_uppercase();
+    let device = matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((base.starts_with("COM") || base.starts_with("LPT"))
+            && base.len() == 4
+            && base.as_bytes()[3].is_ascii_digit());
+    // Long scene names stay well inside MAX_PATH.
+    let out: String = out.chars().take(120).collect();
+    if device { format!("_{out}") } else { out }
+}
 /// Reads the texture `format` is written from.
 unsafe fn read_image(g: &mut Gpu, format: ImageFormat) -> Result<Frame> {
     Ok(match format {
@@ -1050,6 +1097,17 @@ pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<Stri
 mod tests {
     use super::*;
 
+    #[test]
+    fn name_templates_expand_and_stay_valid() {
+        let n = expand_name("{scene}-{spp}spp-{w}x{h}", "Cornell: box?", 64, 640, 360);
+        assert_eq!(n, "Cornell_ box_-64spp-640x360");
+        let d = expand_name("{date}_{time}", "", 0, 1, 1);
+        assert_eq!(d.len(), 19, "{d}");
+        assert_eq!(expand_name("  ..", "", 0, 1, 1), "caustica");
+        assert_eq!(expand_name("{scene}", "nul", 0, 1, 1), "_nul");
+        assert_eq!(expand_name("com1.final", "", 0, 1, 1), "_com1.final");
+        assert_eq!(expand_name("{scene}", &"x".repeat(300), 0, 1, 1).len(), 120);
+    }
     #[test]
     fn layered_exr_round_trips() {
         let layers = vec![
