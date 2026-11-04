@@ -68,6 +68,22 @@ function Get-Agility([string]$version, [string]$sha256) {
     Get-ChildItem $target -Filter 'VERSION-*' | Remove-Item
     Set-Content -LiteralPath (Join-Path $target "VERSION-$version") -Value $sha256
 }
+# DirectXShaderCompiler release build (GitHub): the Windows SDK's dxc has no SPIR-V code
+# generation, which the Vulkan backend needs (`dxc -spirv`). Kept apart from the SDK dxc that
+# build.rs uses for DXIL.
+function Get-DxcSpirv([string]$tag, [string]$file, [string]$sha256) {
+    $target = Join-Path $projectRoot 'vendor/dxc-spirv'
+    if ((Test-Path -LiteralPath (Join-Path $target 'bin/x64/dxc.exe')) -and (Test-Path -LiteralPath (Join-Path $target "VERSION-$tag"))) { return }
+    New-Item -ItemType Directory -Force $target | Out-Null
+    $zip = Join-Path ([IO.Path]::GetTempPath()) $file
+    Invoke-WebRequest -Uri "https://github.com/microsoft/DirectXShaderCompiler/releases/download/$tag/$file" -OutFile $zip
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $sha256) { Remove-Item -LiteralPath $zip; throw "DXC $tag checksum mismatch: $actual" }
+    Expand-Archive -LiteralPath $zip -DestinationPath $target -Force
+    Remove-Item -LiteralPath $zip
+    Get-ChildItem $target -Filter 'VERSION-*' | Remove-Item
+    Set-Content -LiteralPath (Join-Path $target "VERSION-$tag") -Value $sha256
+}
 try {
     foreach ($command in @('git','cargo')) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "$command is required. Install Rust (MSVC) and Git first." } }
     # NVIDIA DLSS 310.9.16: Ray Reconstruction and Super Resolution.
@@ -83,6 +99,8 @@ try {
     # ffmpeg 9.0.2 (2026-09-19) for MP4 turntables; the app falls back to PNG frames without it.
     # D3D12 Agility SDK 1.620.1 (retail; must match D3D12SDKVersion in src/main.rs).
     Get-Agility '1.620.1' 'a8a494c3e5f687d9be0a465ec8248da70781ab689d888db8806b600422722be6'
+    # DXC 1.9.2609 with SPIR-V output (Vulkan backend groundwork).
+    Get-DxcSpirv 'v1.9.2609' 'dxc_2026_09_29.zip' 'ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1'
     Get-Ffmpeg '9.0.2' '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
     if (-not $SkipBuild) {
         if ($DebugBuild) { & cargo build --locked } else { & cargo build --release --locked }

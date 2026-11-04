@@ -2,10 +2,10 @@
 where the integrators' mean colours disagree (a quick way to find what BDPT or photon
 mapping get wrong). Usage: python tools/integrator_sweep.py EXE OUTDIR [frames]
 
-Means leave out the path-traced image's brightest 0.5% of pixels: a light or sun seen directly
-and smaller than a few pixels holds most of a raw image's mean, and there the path tracer's
-pixel filter (Blackman-Harris, whose weights don't sum to exactly 1 over the pixel grid) and
-the other integrators' box differ by up to 10%, which isn't light transport."""
+All three render with a 1-pixel box filter (BDPT and photon mapping always use one): the path
+tracer's default Blackman-Harris weights don't sum to exactly 1 over the pixel grid, which moved
+image means at small bright lights and suns by up to 10% (the old dusk "gap"; 2026-11-04,
+tools/oracle.py). Means are over the whole image."""
 import glob, os, subprocess, sys
 import numpy as np
 
@@ -25,18 +25,13 @@ for scene in sorted(glob.glob("scenes/builtin/*.json")):
         path = os.path.join(out, f"{name}_{i}.exr")
         r = subprocess.run([exe, "--headless", "--frames", frames, "--width", "240", "--height", "135",
                             "--scene", scene, "--no-rr", "--raw", "--set", f"integrator={i}",
+                            "--set", "pixel_filter=0", "--set", "filter_width=1",
                             "--capture", path], capture_output=True, text=True)
         if "RENDER_OK" not in r.stdout:
             images.append(None)
             continue
         images.append(exr.read(path)[..., :3])
-    keep = None
-    if images[0] is not None:
-        lum = images[0].mean(axis=-1)
-        keep = lum < np.percentile(lum, 99.5)
-        if not keep.any():
-            keep = np.ones_like(lum, bool)
-    means = [None if (im is None or keep is None) else im[keep].mean(axis=0) for im in images]
+    means = [None if im is None else im.reshape(-1, 3).mean(axis=0) for im in images]
     pt = means[0]
     for i, label in ((1, "bdpt"), (2, "photon")):
         m = means[i]

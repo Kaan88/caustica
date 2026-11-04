@@ -52,13 +52,24 @@ pub fn parse(text: &str) -> anyhow::Result<Vec<f32>> {
     let vertical = (0..nv)
         .map(|_| next())
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let _horizontal = (0..nh)
+    let horizontal = (0..nh)
         .map(|_| next())
         .collect::<anyhow::Result<Vec<_>>>()?;
+    // Each horizontal plane weighs the angular span it stands for (trapezoid rule), so uneven
+    // steps don't over-weight the dense planes. The scale cancels in the normalization below.
+    let weight = |j: usize| -> f64 {
+        if nh == 1 {
+            return 1.;
+        }
+        let lo = horizontal[j.saturating_sub(1)];
+        let hi = horizontal[(j + 1).min(nh - 1)];
+        ((hi - lo) / 2.).max(0.)
+    };
     let mut sum = vec![0.; nv];
-    for _ in 0..nh {
+    for j in 0..nh {
+        let w = weight(j);
         for s in &mut sum {
-            *s += next()? * multiplier;
+            *s += next()? * multiplier * w;
         }
     }
     ensure!(
@@ -135,5 +146,22 @@ mod tests {
         let packed = pack(&p);
         assert_eq!(packed[0] as u32 & 255, 255);
         assert!(parse("no tilt here").is_err());
+    }
+    #[test]
+    fn uneven_horizontal_planes_weigh_their_span() {
+        // Planes at 0°, 10° and 90° span 5°, 45° and 40°: only the last is lit at 45°.
+        let text = "IESNA:LM-63-2002
+TILT=NONE
+1 1000 1 3 3 1 2 0.1 0.1 0
+1 1 50
+0 45 90
+0 10 90
+100 0 0
+100 0 0
+100 100 0
+";
+        let p = parse(text).unwrap();
+        let at = |deg: f32| p[(deg / 90. * (SAMPLES - 1) as f32).round() as usize];
+        assert!((at(45.) - 40. / 90.).abs() < 0.02, "{}", at(45.));
     }
 }
