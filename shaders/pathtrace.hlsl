@@ -520,6 +520,14 @@ float3 env_bilinear(float3 d){
     #undef ENV
     return c;
 }
+// Ground projection (Settings::hdri_ground): below the horizon a camera-seen background is the
+// map from the capture point (0, floor + height, 0) toward where the ray meets the floor's plane.
+bool ground_on(){return env_ground.x>0 && hdri_on();}
+float3 ground_dir(float3 p){return normalize(p-float3(0,env_ground.y+env_ground.x,0));}
+float3 background_dir(float3 o,float3 d){
+    if(!ground_on() || d.y>=0 || o.y<=env_ground.y)return d;
+    return ground_dir(o+d*((env_ground.y-o.y)/d.y));
+}
 float3 environment_radiance(float3 d){
     if(hdri_on())return env_bilinear(d)*environment_map.x+(env_sun_on() && in_env_sun(d)?env_sun_color.rgb:0);
     return background.rgb+environment.x*lerp(float3(0.8,0.87,1.0),float3(0.16,0.35,0.72),saturate(d.y*0.5+0.5));
@@ -1344,7 +1352,7 @@ void trace_main(uint3 tid){
         begin_wavelengths(sequence_index);
         float3 origin,direction;bool lens_valid;camera_ray(float2(p)+0.5+subpixel,true,origin,direction,lens_valid);
         cone_width=pixel_width;cone_spread=pixel_angle;
-        float3 throughput=lens_valid?camera_weight:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
+        float3 throughput=lens_valid?camera_weight:0,radiance=0,direct=0;float4 first_diffuse=0;float3 first_specular=0;uint portal_crossings=0,false_hits=0;uint64_t media=0;bool first_spec=false,previous_delta=true,previous_restir=false,camera_chain=true;float previous_pdf=0;float3 previous_position=origin;float3 absorption=0;float density=0;
         if(environment.w>0){media=camera_media();int top=medium_top(media);absorption=medium_absorption(media,top);density=medium_material(media,top).medium.w;}
         // Recording only (dead code otherwise): why the path ended, and its last bounce.
         uint end_reason=lens_valid?3:5,last_bounce=0;
@@ -1353,6 +1361,8 @@ void trace_main(uint3 tid){
         for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
             last_bounce=bounce;
             bounces_used+=1;
+            // Only delta bounces since the camera: the background it sees is ground-projected.
+            camera_chain=camera_chain && previous_delta;
             uint mis=(scene_info.w>>4)&3;
             // Light selection: the HDRI and the emissive triangles share NEE half and half.
             bool env_nee=hdri_on() && mis!=2,tri_nee=scene_info.x>0 && mis!=2;
@@ -1425,7 +1435,7 @@ void trace_main(uint3 tid){
             if(!found){
                 if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
-                float3 env=up(bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(direction));
+                float3 env=up(bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(camera_chain?background_dir(origin,direction):direction));
                 float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
                 float3 e=throughput*env*weight;lpe_add(8,6,e);
                 // Suns (they lead the emitter table): seen inside their disk, weighted against
@@ -1443,6 +1453,25 @@ void trace_main(uint3 tid){
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
             Material m=material_at(h.material,h.p);
+            // Shadow catcher (Settings::shadow_catcher): seen from the camera, the floor is the
+            // background behind it (ground-projected when that is on) times the share of four
+            // light samples' power the scene leaves unblocked; any other ray sees the projected
+            // ground, unshadowed. The path ends there either way.
+            if(h.material==3 && env_ground.z>0){
+                float3 seen=ground_on()?ground_dir(h.p):direction,bg;
+                if(camera_chain){
+                    bg=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(seen);
+                    bool ce=hdri_on(),ct=scene_info.x>0;float cp=ce?(ct || sdf_nee_on?0.5:1):0,all=0,lit=0;
+                    for(uint k=0;k<4;k++){float3 ld,le;float pl,limit;
+                        if(sample_light(h.p,ce,ct,cp,ld,le,pl,limit) && pl>0){float c=dot(h.n,ld);
+                            if(c>0){float w=luminance(le)*c/pl;all+=w;if(!occluded(h.p+h.ng*0.0003,ld,limit))lit+=w;}}}
+                    bg*=all>0?lit/all:1;
+                }else bg=environment_radiance(seen);
+                // The denoiser's guides: the background as the albedo, no specular.
+                if(bounce==0 && sample_albedo){first_diffuse=float4(saturate(bg),h.material==guide.material?1:0);first_specular=0;}
+                float3 e=throughput*up(bg);radiance+=e;if(bounce<=1)direct+=e;lpe_add(8,6,e);
+                record(10,bounce,h.p,throughput,luminance(e),direction);end_reason=0;break;
+            }
             if(((uint)m.lobes.w&4u)!=0 && portal_crossings<16){
                 portal_crossings++;
                 // The map lands on the far face of the pair; inside a portal object the ray just

@@ -1,0 +1,248 @@
+{
+ "format": 1,
+ "title": "Shadow catcher on grass",
+ "description": "The noon spheres on a photographed lawn: the floor is a shadow catcher over the ground-projected HDRI, so the spheres cast shadows onto the photo, and the sun is split out as a disc.",
+ "tags": [
+  "hdri",
+  "outdoor",
+  "compositing"
+ ],
+ "credits": "Noon Grass: Poly Haven (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.5,
+    0.5,
+    0.5
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 16,
+  "yaw": 0,
+  "pitch": 10,
+  "distance": 8,
+  "target": [
+   0,
+   -0.4,
+   0
+  ],
+  "fov": 36.0,
+  "objects": [
+   {
+    "name": "Diffuse",
+    "shape": "sphere",
+    "position": [
+     -2.4,
+     0
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.8,
+      0.8
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Gold",
+    "shape": "sphere",
+    "position": [
+     -0.8,
+     0
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.77,
+      0.34
+     ],
+     "roughness": 0.2,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glass",
+    "shape": "sphere",
+    "position": [
+     0.8,
+     0
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1,
+      1,
+      1
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rough",
+    "shape": "sphere",
+    "position": [
+     2.4,
+     0
+    ],
+    "size": 1.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.5,
+      0.9
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.3,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "hdri": "hdri/noon_grass_4k.hdr",
+  "hdri_strength": 1.0,
+  "hdri_rotation": 40,
+  "hdri_visible": true,
+  "shadow_catcher": true,
+  "hdri_ground": 1.7,
+  "hdri_sun": true
+ }
+}

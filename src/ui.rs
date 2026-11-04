@@ -5068,12 +5068,28 @@ fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
             row(
                 ui,
                 "Split sun",
-                "Takes a compact sun out of the HDRI as a separate disc light of the same power and colour, so light sampling always finds it: much less noise in sunlit HDRIs. Nothing changes for maps without one.",
+                "Takes a compact sun out of the HDRI as a separate disc light of the same power and colour, so light sampling always finds it: much less noise with low-resolution sunlit HDRIs (about the same at 8k). Nothing changes for maps without one.",
                 |ui| {
                     ui.checkbox(&mut s.hdri_sun, "");
                 },
             );
+            row(
+                ui,
+                "Ground height",
+                "Ground projection: the height the HDRI was shot from, in scene units (0 = off). The camera then sees the HDRI's ground on the floor's plane, at a finite distance, instead of at infinity.",
+                |ui| {
+                    ui.add(crate::slider(&mut s.hdri_ground, 0. ..=20.));
+                },
+            );
         }
+        row(
+            ui,
+            "Shadow catcher",
+            "The floor shows the background behind it, darkened only where objects shadow it: for compositing objects onto an HDRI (with Ground height) or a background colour.",
+            |ui| {
+                ui.checkbox(&mut s.shadow_catcher, "");
+            },
+        );
         row(ui, "Left wall", "Linear RGB.", |ui| {
             ui.color_edit_button_rgb(&mut s.left);
         });

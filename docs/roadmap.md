@@ -253,7 +253,7 @@ Wave 1 done 2026-11-03 (engine-notes "Closing the medium term, wave 1"). Wave 2 
 - [x] Procedural surfaces: exact cylinder and cone, per-object parameters, light sampling of procedural emitters (path tracer; ~8× less error at equal time). Not done: procedural emitter NEE in BDPT and the photon gather's camera side; grounding and colliders use the proxy mesh (a thin torus floats).
 - [ ] Photon mapping: adaptive gather radius, then the kusama-infinity-room gap.
 - [ ] Night sky redesign (track 9, owner).
-- [ ] Shadow catcher / ground projection for HDRIs; ~~a sun split out of an HDRI~~ (done 2026-11-04, opt in: 4× less error on a 1k map, mixed on 8k).
+- [x] Shadow catcher / ground projection for HDRIs; a sun split out of an HDRI (opt in: 4× less error on a 1k map, mixed on 8k). Not done: the catcher in BDPT / photon mapping; catching caustics, reflections and colour bleeding (a with / without-objects pair of estimates); a catcher on objects other than the floor; a finite projection dome radius.
 - [ ] Heterogeneous media (procedural noise density, delta / ratio tracking).
 - Review notes from wave 2 (low): blackbody and measured spectra replace the base colour rather than tint it; emissive maps are sampled at LOD 0 (no ray-cone footprint); imported glTF emission is clamped to 20; the IES horizontal average is unweighted (uneven horizontal angle steps over-weight the dense ones). Measurement note: references rendered with the default `max_samples` (4096) stop there, so set `--set max_samples=1000000` for a long reference.
 

@@ -985,6 +985,15 @@ pub struct Settings {
     /// split_sun`): light sampling finds it every time instead of through the map's CDF.
     #[serde(default)]
     pub hdri_sun: bool,
+    /// Ground projection: the height above the floor the HDRI was shot from (0 = off). Below
+    /// the horizon the camera sees the map from that point toward where its ray meets the
+    /// floor's plane, so the ground lies at a finite distance instead of at infinity.
+    #[serde(default)]
+    pub hdri_ground: f32,
+    /// The floor as a shadow catcher: camera rays see the background behind it (projected when
+    /// `hdri_ground` is on), darkened where objects block the light.
+    #[serde(default)]
+    pub shadow_catcher: bool,
     /// Physical sky and sun (track 9); replaces the HDRI and the sky light while on.
     #[serde(skip_serializing_if = "crate::sky::PhysicalSky::is_default")]
     pub physical_sky: crate::sky::PhysicalSky,
@@ -1122,6 +1131,8 @@ impl Default for Settings {
             hdri_strength: 1.,
             hdri_rotation: 0.,
             hdri_visible: true,
+            hdri_ground: 0.,
+            shadow_catcher: false,
             hdri_sun: false,
             physical_sky: Default::default(),
             fog: Default::default(),
@@ -1479,7 +1490,8 @@ impl Settings {
         anyhow::ensure!(
             self.hdri.len() <= 1024
                 && (0. ..=1000.).contains(&self.hdri_strength)
-                && (-360. ..=360.).contains(&self.hdri_rotation),
+                && (-360. ..=360.).contains(&self.hdri_rotation)
+                && (0. ..=1000.).contains(&self.hdri_ground),
             "Invalid HDRI"
         );
         anyhow::ensure!(

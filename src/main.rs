@@ -198,7 +198,7 @@ struct App {
     audio: Option<audio::Audio>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 297;
+const SCENES_FROM: u32 = 300;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -1361,6 +1361,15 @@ impl App {
                 }
                 295 => self.settings.spectral = false,
                 296 => self.settings.integrator = 0,
+                // Shadow catcher with ground projection on (checked at 298), then off.
+                297 => {
+                    self.settings.shadow_catcher = true;
+                    self.settings.hdri_ground = 1.7;
+                }
+                299 => {
+                    self.settings.shadow_catcher = false;
+                    self.settings.hdri_ground = 0.;
+                }
                 // Physics on while a gizmo arrow holds an object: it must not fall.
                 237 => {
                     self.settings.physics.enabled = true;
@@ -2733,7 +2742,7 @@ impl App {
                     }
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
-                285..=287 | 294 | 295 => {
+                285..=287 | 294 | 295 | 298 => {
                     let image = unsafe { g.read_floats(18)? };
                     let pixels = image.as_chunks::<4>().0;
                     let mean = pixels

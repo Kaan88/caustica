@@ -108,6 +108,8 @@ struct Constants {
     /// (0 = none); radiance times the HDRI strength, the share of environment samples.
     env_sun: [f32; 4],
     env_sun_color: [f32; 4],
+    /// Ground projection height (0 = off), the floor's height, shadow catcher (1 / 0), -.
+    env_ground: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -3869,6 +3871,14 @@ impl Gpu {
                 }
                 None => [0.; 4],
             },
+            // The floor quad sits at y = −1 (geometry::static_geometry).
+            // Ground projection only for a loaded HDRI (the physical sky replaces it).
+            env_ground: [
+                if s.physical_sky.on { 0. } else { s.hdri_ground },
+                -1.,
+                s.shadow_catcher as u32 as f32,
+                0.,
+            ],
             path_record: [0; 4],
             lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
             restir: [

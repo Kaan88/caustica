@@ -44,6 +44,7 @@ cbuffer Frame:register(b0) {
     float4 glare_settings; // strength (0 = off), threshold, aperture diameter in grid texels, -
     float4 env_sun; // the HDRI's split sun (environment.rs Sun): world direction, 1 − cos of the half angle (0 = none)
     float4 env_sun_color; // its radiance times the HDRI strength, the share of environment samples it takes
+    float4 env_ground; // ground projection height above the floor (0 = off), the floor's height, shadow catcher (1/0), -
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
