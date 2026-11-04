@@ -266,7 +266,8 @@ Wave 1 done 2026-11-03 (engine-notes "Closing the medium term, wave 1"). Wave 2 
 - [ ] LPE object and material labels ("light off the red wall"): needs a label per object or material on the GPU and label symbols in the DFA alphabet (7 events × labels).
 - [x] Lens: a telephoto (designed here, 209 mm f/5.6, achromatic groups) and real Abbe numbers per element where the glass is known (the singlet and the telephoto). Not done: a Zeiss Planar prescription (no citable data at hand; the double Gauss is the same type); real glasses for the double Gauss, wide-angle and fisheye (sources give n_d only, so V_d is still guessed from it). (The spectral tracers already evaluate each wavelength on the Cauchy curve, `lens_ior`.)
 - [x] UI: export file name templates (quick saves and stills; video paths stay hand-edited), the denoiser status line (Advanced).
-- [ ] UI: material ball thumbnails (a small offscreen render per material), silhouette outlines from the id buffer (a post pass on texture 19).
+- [x] UI: silhouette outlines from the id buffer (selection and hover; in the GUI pass, so never in captures). Not done: lights keep their rectangles; first hit only (no outline behind glass or in mirrors); z-fighting coplanar faces show as speckle.
+- [x] UI: material ball thumbnails (background headless renders through the script API, cached by material hash; in the material editor and the preset list). Not done: cache pruning, retry after a failed batch, light thumbnails.
 
 **Moved to Future goals or closed:** decided when each wave's review lands. Known now: gamepad (no controller here), CI self-test (needs a GPU runner), signed installer (needs a certificate), BC7 (lossy, against the quality rule), wavefront tracer and SER reordering (already deferred), ReSTIR GI / PT, VDB files, skin-tuned subsurface.
 

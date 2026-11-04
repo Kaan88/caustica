@@ -4738,6 +4738,8 @@ impl Gpu {
         self.list.SetGraphicsRootSignature(&self.root);
         self.list
             .SetGraphicsRootConstantBufferView(0, self.constants.GetGPUVirtualAddress());
+        // The UAVs, for the silhouette outlines' object ids (gui.hlsl).
+        self.list.SetGraphicsRootDescriptorTable(3, self.gpu(0));
         self.list
             .SetPipelineState(if self.hdr_active && self.hdr10 {
                 &self.gui_hdr10

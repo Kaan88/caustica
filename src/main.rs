@@ -3,6 +3,7 @@
 mod anim;
 mod assets;
 mod audio;
+mod balls;
 mod browser;
 mod console;
 mod dirs;
@@ -715,6 +716,8 @@ impl App {
             actions: Actions::default(),
             ui: {
                 interface.fixed_names = hidden || self_test;
+                // Material balls render in other processes: not from headless runs or the self-test.
+                balls::ENABLED.store(!(hidden || self_test), std::sync::atomic::Ordering::Relaxed);
                 interface
             },
             hwnd: None,

@@ -69,16 +69,27 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
     }
 }
 pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool) {
-    egui::ComboBox::from_id_salt((id, "library"))
-        .selected_text("Apply a material…")
-        .width(ui.available_width())
-        .show_ui(ui, |ui| {
-            for (i, name) in crate::presets::MATERIAL_NAMES.iter().enumerate() {
-                if ui.selectable_label(false, *name).clicked() {
-                    *m = crate::presets::material(i);
+    ui.horizontal(|ui| {
+        crate::balls::ball(ui, Some(id), m, 48.)
+            .on_hover_text("This material on a sphere (renders in the background, cached).");
+        egui::ComboBox::from_id_salt((id, "library"))
+            .selected_text("Apply a material…")
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for (i, name) in crate::presets::MATERIAL_NAMES.iter().enumerate() {
+                    let preset = crate::presets::material(i);
+                    let picked = ui
+                        .horizontal(|ui| {
+                            let r = crate::balls::ball(ui, None, &preset, 28.);
+                            r.clicked() | ui.selectable_label(false, *name).clicked()
+                        })
+                        .inner;
+                    if picked {
+                        *m = preset;
+                    }
                 }
-            }
-        });
+            });
+    });
     egui::Grid::new((id, "material"))
         .num_columns(2)
         .spacing([12., 6.])

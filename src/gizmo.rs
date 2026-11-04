@@ -996,6 +996,54 @@ pub fn draw_box_outline(
         ));
     }
 }
+/// A silhouette outline of object `index` from the GPU's object ids (gui.hlsl): a quad over the
+/// object's projected box (the whole viewport while a corner is behind the camera) whose
+/// pixels light up just outside the object's visible pixels. `width` is in pixels.
+pub fn draw_silhouette(
+    painter: &egui::Painter,
+    ppp: f32,
+    view: &View,
+    corners: &[Vec3; 8],
+    index: usize,
+    width: f32,
+    color: egui::Color32,
+) {
+    let clip = painter.clip_rect();
+    let pad = (width + 2.) / ppp;
+    let projected: Vec<_> = corners.iter().filter_map(|c| view.project(*c)).collect();
+    // Wholly behind the camera: nothing to outline.
+    if projected.is_empty() {
+        return;
+    }
+    let rect = if projected.len() < corners.len() {
+        clip
+    } else {
+        egui::Rect::from_points(
+            &projected
+                .iter()
+                .map(|p| egui::pos2(p.x / ppp, p.y / ppp))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let rect = rect.expand(pad).intersect(clip);
+    if !rect.is_positive() {
+        return;
+    }
+    // Object ids are material + 1, and objects are materials 5 onwards.
+    let uv = egui::pos2(-1. - width, (index + 6) as f32);
+    let mut mesh = egui::Mesh::default();
+    for p in [
+        rect.left_top(),
+        rect.right_top(),
+        rect.right_bottom(),
+        rect.left_bottom(),
+    ] {
+        mesh.vertices
+            .push(egui::epaint::Vertex { pos: p, uv, color });
+    }
+    mesh.indices.extend([0, 1, 2, 0, 2, 3]);
+    painter.add(egui::Shape::mesh(mesh));
+}
 /// Andrew's monotone chain; counter-clockwise, no repeated first point.
 fn convex_hull(mut p: Vec<Vec2>) -> Vec<Vec2> {
     p.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));

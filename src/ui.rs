@@ -2276,39 +2276,36 @@ impl App {
                 painter.text(at, egui::Align2::LEFT_TOP, text, font, BATTLE_COLORS[i]);
             }
         }
-        // Selection and hover outlines: the projected box of the object.
-        if self.settings.perspective() {
+        // Selection and hover outlines: silhouettes from the GPU's object ids, or the projected
+        // box for a hidden object (it has no pixels). Not while a video export renders at its
+        // own size (the ids don't match the window then).
+        if self.settings.perspective() && g.swap_size == [g.width, g.height] {
+            let outline = |i: usize, width: f32, color: egui::Color32| {
+                let Some(o) = self.settings.objects.get(i) else {
+                    return;
+                };
+                let corners = crate::geometry::object_corners(o);
+                if o.visible {
+                    gizmo::draw_silhouette(&painter, ppp, &view, &corners, i, width * ppp, color);
+                } else {
+                    let stroke = egui::Stroke::new(width.min(1.5), color);
+                    gizmo::draw_box_outline(&painter, ppp, &view, &corners, stroke);
+                }
+            };
             if let Some(i) = self.ui.hovered
                 && !self.ui.is_selected(Selection::Object(i))
                 && self.ui.transform.is_none()
-                && let Some(o) = self.settings.objects.get(i)
             {
-                let stroke = egui::Stroke::new(1_f32, egui::Color32::from_white_alpha(90));
-                gizmo::draw_box_outline(
-                    &painter,
-                    ppp,
-                    &view,
-                    &crate::geometry::object_corners(o),
-                    stroke,
-                );
+                outline(i, 1., egui::Color32::from_white_alpha(110));
             }
             for t in &targets {
-                if let Selection::Object(i) = *t
-                    && let Some(o) = self.settings.objects.get(i)
-                {
+                if let Selection::Object(i) = *t {
                     // The active item brighter than the rest of the selection.
-                    let stroke = if *t == self.ui.selection {
-                        egui::Stroke::new(1.5_f32, ACCENT)
+                    if *t == self.ui.selection {
+                        outline(i, 2., ACCENT);
                     } else {
-                        egui::Stroke::new(1_f32, ACCENT.gamma_multiply(0.6))
-                    };
-                    gizmo::draw_box_outline(
-                        &painter,
-                        ppp,
-                        &view,
-                        &crate::geometry::object_corners(o),
-                        stroke,
-                    );
+                        outline(i, 1.5, ACCENT.gamma_multiply(0.6));
+                    }
                 }
             }
             // The 3D cursor, while it is the pivot: a red and white ring with a cross.
