@@ -78,14 +78,17 @@ pub enum ImageFormat {
     /// What the HDR screen shows as scRGB half floats in JPEG XR, as Game Bar and the
     /// Snipping Tool save HDR screenshots (texture 26, HDR only).
     Jxr,
+    /// A multi-layer EXR: the linear beauty and every AOV as its own layer (`Gpu::read_layers`).
+    Layers,
 }
 impl ImageFormat {
-    pub const ALL: [ImageFormat; 5] = [
+    pub const ALL: [ImageFormat; 6] = [
         ImageFormat::Png,
         ImageFormat::Jpeg,
         ImageFormat::Exr,
         ImageFormat::HdrPng,
         ImageFormat::Jxr,
+        ImageFormat::Layers,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -94,6 +97,7 @@ impl ImageFormat {
             ImageFormat::Exr => "HDR EXR",
             ImageFormat::HdrPng => "HDR PNG",
             ImageFormat::Jxr => "HDR JPEG XR",
+            ImageFormat::Layers => "EXR with AOVs",
         }
     }
     pub fn description(self) -> &'static str {
@@ -107,6 +111,9 @@ impl ImageFormat {
             ImageFormat::Jxr => {
                 "What the HDR screen shows, scRGB half floats, lossless, as Windows' HDR screenshots (HDR output only)."
             }
+            ImageFormat::Layers => {
+                "Multi-layer EXR: linear light, plus albedo, normal, roughness, depth, motion, direct and specular light, object ids and each light path expression as layers (at render size)."
+            }
         }
     }
     pub fn extension(self) -> &'static str {
@@ -116,6 +123,7 @@ impl ImageFormat {
             ImageFormat::Exr => "exr",
             ImageFormat::HdrPng => "hdr.png",
             ImageFormat::Jxr => "jxr",
+            ImageFormat::Layers => "layers.exr",
         }
     }
     /// `stem` plus this format's extension (`hdr.png` keeps the PQ PNG apart from the plain one),
@@ -132,6 +140,7 @@ unsafe fn read_image(g: &mut Gpu, format: ImageFormat) -> Result<Frame> {
     Ok(match format {
         ImageFormat::Png | ImageFormat::Jpeg => Frame::Rgba8(g.read_rgba8(10)?),
         ImageFormat::Exr => Frame::Linear(g.read_floats(18)?),
+        ImageFormat::Layers => Frame::Layers(g.read_layers()?),
         ImageFormat::HdrPng | ImageFormat::Jxr => {
             anyhow::ensure!(g.hdr_active, "{} needs HDR output", format.label());
             Frame::Scrgb(g.read_floats(26)?)
@@ -256,11 +265,47 @@ fn write_image(
             .save_with_format(path, image::ImageFormat::OpenExr)?,
         (ImageFormat::HdrPng, Frame::Scrgb(f)) => crate::display::write_hdr_png(path, f, w, h)?,
         (ImageFormat::Jxr, Frame::Scrgb(f)) => crate::display::write_jxr(path, f, w, h)?,
+        (ImageFormat::Layers, Frame::Layers(layers)) => write_layers(path, layers)?,
         _ => anyhow::bail!("{format:?} got the wrong pixels"),
     }
     if EQUIRECT.load(Ordering::Relaxed) {
         tag_equirect(path, format, w, h)?;
     }
+    Ok(())
+}
+/// A multi-layer EXR, one part per layer at its own size (32-bit float, ZIP16), the beauty
+/// ("beauty") first, which viewers open by default.
+pub fn write_layers(path: &Path, layers: &[crate::gpu::AovLayer]) -> Result<()> {
+    use exr::prelude::*;
+    let parts: Vec<Layer<AnyChannels<FlatSamples>>> = layers
+        .iter()
+        .map(|l| {
+            let n = l.channels.len();
+            let channels: SmallVec<[AnyChannel<FlatSamples>; 4]> = l
+                .channels
+                .iter()
+                .enumerate()
+                .map(|(c, name)| {
+                    let samples = l.data.iter().skip(c).step_by(n).copied().collect();
+                    AnyChannel::new(*name, FlatSamples::F32(samples))
+                })
+                .collect();
+            // A multi-part file needs every part named.
+            let attributes = LayerAttributes::named(l.name.as_str());
+            Layer::new(
+                (l.width as usize, l.height as usize),
+                attributes,
+                Encoding::SMALL_LOSSLESS,
+                AnyChannels::sort(channels),
+            )
+        })
+        .collect();
+    let first = layers.first().context("no layers")?;
+    let bounds = IntegerBounds::from_dimensions((first.width as usize, first.height as usize));
+    Image::from_layers(ImageAttributes::new(bounds), parts)
+        .write()
+        .to_file(path)
+        .map_err(|e| anyhow::anyhow!("EXR: {e}"))?;
     Ok(())
 }
 /// Saves the image on screen (without the UI) at the output size.
@@ -513,6 +558,8 @@ enum Frame {
     Scrgb(Vec<f32>),
     /// Linear RGBA from texture 18.
     Linear(Vec<f32>),
+    /// Every AOV (`ImageFormat::Layers`).
+    Layers(Vec<crate::gpu::AovLayer>),
 }
 /// The writer thread: ffmpeg's stdin or numbered files. Two frames may queue; it returns the
 /// number of frames written.
@@ -574,7 +621,7 @@ impl Writer {
                                 let pq = crate::display::scrgb_to_pq(&f);
                                 stdin.write_all(bytemuck::cast_slice(&pq))
                             }
-                            Frame::Linear(_) => Ok(()),
+                            Frame::Linear(_) | Frame::Layers(_) => Ok(()),
                         }
                         .map_err(anyhow::Error::from)
                     }
@@ -1002,6 +1049,54 @@ pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn layered_exr_round_trips() {
+        let layers = vec![
+            crate::gpu::AovLayer {
+                name: "beauty".into(),
+                width: 4,
+                height: 2,
+                channels: vec!["R", "G", "B", "A"],
+                data: (0..32).map(|v| v as f32).collect(),
+            },
+            crate::gpu::AovLayer {
+                name: "depth".into(),
+                width: 2,
+                height: 1,
+                channels: vec!["Z"],
+                data: vec![1.5, 2.5],
+            },
+        ];
+        let path = std::env::temp_dir().join("caustica-layers-test.layers.exr");
+        write_layers(&path, &layers).unwrap();
+        let image = exr::prelude::read_all_flat_layers_from_file(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        let names: Vec<String> = image
+            .layer_data
+            .iter()
+            .map(|l| l.attributes.layer_name.as_ref().unwrap().to_string())
+            .collect();
+        assert_eq!(names, ["beauty", "depth"]);
+        let depth = &image.layer_data[1];
+        assert_eq!((depth.size.0, depth.size.1), (2, 1));
+        assert_eq!(
+            depth.channel_data.list[0]
+                .sample_data
+                .values_as_f32()
+                .collect::<Vec<_>>(),
+            [1.5, 2.5]
+        );
+        // Channels come back sorted by name (A, B, G, R): R of the second texel is 4.
+        let beauty = &image.layer_data[0];
+        let r = beauty
+            .channel_data
+            .list
+            .iter()
+            .find(|c| c.name.to_string() == "R")
+            .unwrap();
+        assert_eq!(r.sample_data.values_as_f32().nth(1), Some(4.));
+    }
     fn options(format: Format) -> Options {
         let mut o = Options::turntable(&Settings::default(), [1281, 721], 4, 8, "out.mp4".into());
         o.format = format;

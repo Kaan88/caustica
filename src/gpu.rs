@@ -256,6 +256,15 @@ pub struct Texture {
     pub resource: ID3D12Resource,
     pub format: DXGI_FORMAT,
 }
+/// One layer of a multi-layer EXR (`Gpu::read_layers`): its name, size,
+/// channel names, and interleaved samples.
+pub struct AovLayer {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub channels: Vec<&'static str>,
+    pub data: Vec<f32>,
+}
 /// One reconstruction backend: usable, or why not ("needs an NVIDIA RTX GPU", a missing DLL,
 /// an init error code, a failure while rendering).
 #[derive(Clone, Debug, Default)]
@@ -4814,6 +4823,15 @@ impl Gpu {
         hdr: bool,
         include_ui: bool,
     ) -> Result<()> {
+        // `name.layers.exr`: every AOV as a layer (`--capture`, scripts).
+        if !include_ui
+            && path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().to_lowercase().ends_with(".layers.exr"))
+        {
+            let layers = self.read_layers()?;
+            return crate::video::write_layers(path, &layers);
+        }
         let index = if hdr { 18 } else { 10 };
         let resource = if include_ui {
             self.ui_frame
@@ -4997,6 +5015,121 @@ impl Gpu {
         }
         staging.Unmap(0, None);
         Ok(out)
+    }
+    /// Any float texture at its own size: width, height, channels per texel (R32F 1, RG32F 2,
+    /// RGBA32F or RGBA16F 4) and the samples, rows top first.
+    pub unsafe fn read_texture(&mut self, index: usize) -> Result<(u32, u32, usize, Vec<f32>)> {
+        let resource = self.textures[index].resource.clone();
+        let format = self.textures[index].format;
+        let (channels, bytes_per) = match format {
+            DXGI_FORMAT_R32_FLOAT => (1, 4),
+            DXGI_FORMAT_R32G32_FLOAT => (2, 4),
+            DXGI_FORMAT_R32G32B32A32_FLOAT => (4, 4),
+            DXGI_FORMAT_R16G16B16A16_FLOAT => (4, 2),
+            _ => anyhow::bail!("Texture {index} is not a float texture"),
+        };
+        let desc = resource.GetDesc();
+        let (width, height) = (desc.Width as usize, desc.Height as usize);
+        let (layout, bytes) = footprint(&self.device, &resource);
+        let staging = buffer(
+            &self.device,
+            bytes,
+            D3D12_HEAP_TYPE_READBACK,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+        )?;
+        self.begin()?;
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+        );
+        let mut src = location(&resource);
+        let mut dst = D3D12_TEXTURE_COPY_LOCATION {
+            pResource: ManuallyDrop::new(Some(staging.clone())),
+            Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                PlacedFootprint: layout,
+            },
+        };
+        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        ManuallyDrop::drop(&mut src.pResource);
+        ManuallyDrop::drop(&mut dst.pResource);
+        transition(
+            &self.list,
+            &resource,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        self.submit()?;
+        let mut p = null_mut();
+        staging.Map(0, None, Some(&mut p))?;
+        let mut out = Vec::with_capacity(width * height * channels);
+        for y in 0..height {
+            let row = (p as *const u8).add(y * layout.Footprint.RowPitch as usize);
+            for i in 0..width * channels {
+                out.push(if bytes_per == 2 {
+                    half_to_f32((row.add(i * 2) as *const u16).read_unaligned())
+                } else {
+                    (row.add(i * 4) as *const f32).read_unaligned()
+                });
+            }
+        }
+        staging.Unmap(0, None);
+        Ok((width as u32, height as u32, channels, out))
+    }
+    /// Every AOV for a multi-layer EXR (wave 3): the beauty (linear, output size) and, at render
+    /// size, the denoiser guides (diffuse and specular albedo, normal, roughness, linear depth,
+    /// motion), the direct and specular light AOVs, the object ids, and each light path
+    /// expression in use.
+    pub unsafe fn read_layers(&mut self) -> Result<Vec<AovLayer>> {
+        let mut layers = vec![];
+        let mut add = |name: &str,
+                       (w, h, n, data): (u32, u32, usize, Vec<f32>),
+                       pick: &[(usize, &'static str)]| {
+            let data = data
+                .chunks_exact(n)
+                .flat_map(|t| pick.iter().map(|(c, _)| t[*c]).collect::<Vec<_>>())
+                .collect();
+            layers.push(AovLayer {
+                name: name.into(),
+                width: w,
+                height: h,
+                channels: pick.iter().map(|(_, c)| *c).collect(),
+                data,
+            });
+        };
+        const RGB: [(usize, &str); 3] = [(0, "R"), (1, "G"), (2, "B")];
+        add(
+            "beauty",
+            self.read_texture(18)?,
+            &[(0, "R"), (1, "G"), (2, "B"), (3, "A")],
+        );
+        add("diffuse_albedo", self.read_texture(3)?, &RGB);
+        add("specular_albedo", self.read_texture(4)?, &RGB);
+        let normal = self.read_texture(2)?;
+        add("normal", normal.clone(), &[(0, "X"), (1, "Y"), (2, "Z")]);
+        add("roughness", normal, &[(3, "Y")]);
+        add("depth", self.read_texture(5)?, &[(0, "Z")]);
+        add("motion", self.read_texture(6)?, &[(0, "X"), (1, "Y")]);
+        add("direct", self.read_texture(11)?, &RGB);
+        add("specular", self.read_texture(12)?, &RGB);
+        add("object_id", self.read_texture(19)?, &[(0, "Y")]);
+        let (w, h) = (layers[1].width, layers[1].height);
+        for slot in 0..self.lpe_slots {
+            let rgb = self.read_lpe(slot)?;
+            if rgb.len() == (w * h * 3) as usize {
+                layers.push(AovLayer {
+                    name: format!("lpe{}", slot + 1),
+                    width: w,
+                    height: h,
+                    channels: vec!["R", "G", "B"],
+                    data: rgb,
+                });
+            }
+        }
+        Ok(layers)
     }
     pub unsafe fn read_floats(&mut self, index: usize) -> Result<Vec<f32>> {
         let resource = self.textures[index].resource.clone();
