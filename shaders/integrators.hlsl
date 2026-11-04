@@ -33,7 +33,7 @@ float vcos(BVertex x,float3 w){return (x.info&V_MEDIUM)!=0?1:abs(dot(x.n,w));}
 // Beer colour, else the fog box's part of the segment.
 float3 segment_tr(uint medium,float3 a,float3 w,float len){
     if(medium!=0){Material m=materials[(medium&0x1fffu)-1];return exp(-(extinction_of(m)-log(max(up_material(m,m.color_rough.rgb),0.001)))*len);}
-    float t0,t1;return fog_interval(a,w,len,t0,t1)?exp(-fog_extinction()*(t1-t0)):float3(1,1,1);
+    float t0,t1;return fog_interval(a,w,len,t0,t1)?fog_tr(a,w,t0,t1):float3(1,1,1);
 }
 // A walk's medium state. After a vertex whose sampled direction crosses a dielectric (n faces
 // the arriving walk), enter or leave its medium as trace does (no false-hit test).
@@ -51,7 +51,7 @@ void cross_surface(BVertex x,float3 next,inout Walk k){
 bool free_flight(Walk k,float3 o,float3 d,float tmax,out float ts,out float3 albedo,out float g,out float3 sigma,out float3 fw){
     ts=tmax;albedo=1;g=0;sigma=0;fw=1;if(!(k.density>0 || (fog.x>0 && k.media==0)))return false;
     float t0,t1;if(!medium_params(k.media,o,d,tmax,sigma,albedo,g,t0,t1))return false;
-    ts=flight(sigma,t0,t1,fw);return ts<t1;
+    ts=k.media==0 && fog_hetero()?fog_track(o,d,t0,t1,sigma,fw):flight(sigma,t0,t1,fw);return ts<t1;
 }
 // A nested-dielectric false hit (see trace's medium_top): entering a dielectric ranked below the
 // current medium, or leaving one that is not the current medium. Updates the stack.
@@ -452,7 +452,11 @@ float env_share(){return hdri_on()?(scene_info.x>0?0.5:1):0;}
 // and indirect light from the photons, deposited from their second hit on.
 uint cell_hash(int3 c){return hash((uint)c.x*73856093u^(uint)c.y*19349663u^(uint)c.z*83492791u)&(HASH-1);}
 // Beam splitters (bit 4096) are delta: no photons, no gather; the walk passes them on.
-bool gather_surface(Material m){return m.lobes.z<1 && ((uint)m.lobes.w&4096u)==0 && !(m.color_rough.a<0.2 && m.lobes.x>0.5);}
+// Near mirrors (rough < 0.2: a metal, or a coat reflecting over half the light at normal
+// incidence) are walked past like delta surfaces: through so sharp a lobe the photon estimate's
+// radius bias is large (kusama-infinity-room's mirror floor: −8% at the default radius, −20% at
+// a third of it).
+bool gather_surface(Material m){return m.lobes.z<1 && ((uint)m.lobes.w&4096u)==0 && !(m.color_rough.a<0.2 && (m.lobes.x>0.5 || luminance(f0_of(m))>0.5));}
 // Emitters keep photons too (an emitter's reflected light: lava-lamp's wax blobs light each
 // other). They used to keep none, because the gather sphere took a bright neighbour's photons
 // as their own (birthday-cake's flames, 87% too red); the gather's slab (below) ends that.

@@ -117,6 +117,11 @@ pub struct Fog {
     /// flight: less noise in beams per sample, at about 1.5× the trace time in fog (opt in).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub equiangular: bool,
+    /// Heterogeneous fog: the density varies as 1 + noise × (2 fBm − 1), clamped at 0 (0 =
+    /// uniform). Sampled by delta / spectral tracking and ratio tracking against the majorant.
+    pub noise: f32,
+    /// The noise's feature size in world units.
+    pub noise_size: f32,
 }
 impl Default for Fog {
     fn default() -> Self {
@@ -128,6 +133,8 @@ impl Default for Fog {
             extent: 6.,
             extinction: [1.; 3],
             equiangular: false,
+            noise: 0.,
+            noise_size: 1.,
         }
     }
 }
@@ -1355,7 +1362,9 @@ impl Settings {
                 && (-0.95..=0.95).contains(&f.phase)
                 && (-1. ..=50.).contains(&f.height)
                 && (0.1..=100.).contains(&f.extent)
-                && extinction_ok(f.extinction),
+                && extinction_ok(f.extinction)
+                && (0. ..=4.).contains(&f.noise)
+                && (0.05..=100.).contains(&f.noise_size),
             "Invalid fog"
         );
         for o in &mut self.objects {

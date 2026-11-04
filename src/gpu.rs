@@ -110,6 +110,8 @@ struct Constants {
     env_sun_color: [f32; 4],
     /// Ground projection height (0 = off), the floor's height, shadow catcher (1 / 0), -.
     env_ground: [f32; 4],
+    /// Heterogeneous fog: noise amount (0 = uniform), feature size, -, -.
+    fog_noise: [f32; 4],
 }
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
@@ -3879,6 +3881,7 @@ impl Gpu {
                 s.shadow_catcher as u32 as f32,
                 0.,
             ],
+            fog_noise: [s.fog.noise, s.fog.noise_size, 0., 0.],
             path_record: [0; 4],
             lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
             restir: [

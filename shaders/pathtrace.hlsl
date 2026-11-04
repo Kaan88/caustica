@@ -1146,6 +1146,48 @@ float3 hg_sample(float3 d,float g,out float pdf){
     c=clamp(c,-1,1);float sn=sqrt(max(0,1-c*c)),a=2*PI*random();pdf=hg_pdf(c,g);
     return basis(d,float3(sn*cos(a),sn*sin(a),c));
 }
+static uint side_state=0;
+float side_random(){side_state=hash(side_state+0x9e3779b9);return (side_state>>8)*(1.0/16777216.0);}
+// Heterogeneous fog (Fog::noise): extinction fog_extinction() × k(p), k = max(0, 1 + n (2 fBm − 1))
+// with fBm in [0, 1] (four octaves of value noise), so the majorant is σ (1 + n). Free flight is
+// spectral tracking (Kutz et al. 2017; plain delta tracking when grey), shadow rays ratio
+// tracking. The first tentative collision takes random() as `flight` does; the rest take the
+// side stream (white noise in BDPT and the photon passes), so Sobol's dimensions stay aligned.
+bool fog_hetero(){return fog_noise.x>0;}
+float fog_random(){return white_noise?random():side_random();}
+float lattice(int3 c){return hash((uint)c.x*73856093u^(uint)c.y*19349663u^(uint)c.z*83492791u)*(1.0/4294967296.0);}
+float value_noise(float3 p){
+    int3 i=(int3)floor(p);float3 f=p-floor(p);f=f*f*(3-2*f);
+    float a=lerp(lattice(i),lattice(i+int3(1,0,0)),f.x),b=lerp(lattice(i+int3(0,1,0)),lattice(i+int3(1,1,0)),f.x);
+    float c=lerp(lattice(i+int3(0,0,1)),lattice(i+int3(1,0,1)),f.x),e=lerp(lattice(i+int3(0,1,1)),lattice(i+int3(1,1,1)),f.x);
+    return lerp(lerp(a,b,f.y),lerp(c,e,f.y),f.z);
+}
+float fog_density(float3 p){
+    p/=fog_noise.y;float s=0,a=0.5,n=0;
+    [unroll]for(uint o=0;o<4;o++){s+=a*value_noise(p);n+=a;p=p*2.03+float3(17.1,-3.7,9.3);a*=0.5;}
+    return max(0,1+fog_noise.x*(2*s/n-1));
+}
+// A free flight over [t0, t1) of the heterogeneous fog: ts < t1 a real collision, sigma then
+// the extinction there; w the spectral-tracking weight (1 when grey).
+float fog_track(float3 o,float3 d,float t0,float t1,inout float3 sigma,out float3 w){
+    w=1;if(hero_only)sigma=sigma.xxx;float3 s0=sigma;float mu=max(s0.x,max(s0.y,s0.z))*(1+fog_noise.x);float t=t0;
+    if(mu<=0)return t1;
+    for(uint i=0;i<1024;i++){
+        t-=log(1-(i==0?random():fog_random()))/mu;if(t>=t1)return t;
+        float3 st=s0*fog_density(o+d*t),sn=mu-st;float a=dot(w,st),b=dot(w,sn),pr=a/max(a+b,1e-30);
+        if(fog_random()<pr){w*=st/(mu*pr);sigma=st;return t;}
+        w*=sn/(mu*(1-pr));
+    }
+    return t1;
+}
+// The fog's transmittance over [t0, t1] (exact when uniform, ratio tracking otherwise).
+float3 fog_tr(float3 o,float3 d,float t0,float t1){
+    if(!fog_hetero())return exp(-fog_extinction()*(t1-t0));
+    float3 s0=fog_extinction();if(hero_only)s0=s0.xxx;float mu=max(s0.x,max(s0.y,s0.z))*(1+fog_noise.x);float3 tr=1;float t=t0;
+    if(mu<=0)return 1;
+    for(uint i=0;i<1024;i++){t-=log(1-fog_random())/mu;if(t>=t1)break;tr*=1-s0*fog_density(o+d*t)/mu;if(max(tr.x,max(tr.y,tr.z))<1e-4)return 0;}
+    return tr;
+}
 // Where the fog box (floor to fog.z, ±fog.w on x and z) covers a ray, clipped to [0, tmax].
 bool fog_interval(float3 o,float3 d,float tmax,out float t0,out float t1){
     float3 inv=1/select(abs(d)>1e-9,d,1e-9),a=(float3(-fog.w,-1,-fog.w)-o)*inv,b=(float3(fog.w,fog.z,fog.w)-o)*inv;
@@ -1184,7 +1226,7 @@ float3 medium_transmittance(uint64_t media,float3 o,float3 d,float limit){
         if(m.medium.w>0){start=surface_distance(o,d,limit);tr=exp(-(extinction_of(m)-log(max(up_material(m,m.color_rough.rgb),0.001)))*start);}
         else return 1;
     }
-    float t0,t1;if(fog_interval(o,d,limit,t0,t1)){t0=max(t0,start);if(t1>t0)tr*=exp(-fog_extinction()*(t1-t0));}
+    float t0,t1;if(fog_interval(o,d,limit,t0,t1)){t0=max(t0,start);if(t1>t0)tr*=fog_tr(o,d,t0,t1);}
     return tr;
 }
 // Equiangular sampling (Kulla and Fajardo 2012): a distance on [t0, t1] of the ray o + d t with
@@ -1205,8 +1247,6 @@ float flight_pdf(float3 sigma,float t0,float t){if(hero_only)sigma=sigma.xxx;flo
 // both inside the phase / light MIS), so it adds the part a far scatter misses. 0 for the sky
 // and suns, which free flight keeps whole. A triangle light's distances stay inside the cone it
 // emits into (`cone_interval`), in both weights.
-static uint side_state=0;
-float side_random(){side_state=hash(side_state+0x9e3779b9);return (side_state>>8)*(1.0/16777216.0);}
 float3 equiangular_light_side(uint64_t media,float3 o,float3 d,float t0,float t1,float3 sigma,float3 albedo,float3 absorption,float g,bool env_nee,float p_env,uint mis){
     if(env_nee && side_random()<p_env)return 0;
     if(sdf_nee_on && side_random()<0.5)return 0;
@@ -1323,7 +1363,7 @@ void trace_main(uint3 tid){
     if(recording){if(any(p!=0))return;p=min(path_record.xy,dimensions.xy-1);}
     else{p+=region.xy;if(any(p>=region.zw))return;}
     if(any(p>=dimensions.xy))return;
-    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;
+    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;side_state=hash(rng_state^0x68e31da4u);
     sdf_nee_on=!lean && photon.z>0 && ((scene_info.w>>4)&3)!=2;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
@@ -1406,10 +1446,10 @@ void trace_main(uint3 tid){
             if((density>0 || (fog_on() && media==0)) && medium_params(media,origin,direction,found?h.t:1e4,sigma,albedo,g,t0,t1)){
                 // Equiangular single scattering toward local lights in fog (opt in, flag bit 6:
                 // Fog::equiangular; `equiangular_light`).
-                bool equi=(scene_info.w&64u)!=0 && media==0 && tri_nee && mis!=2;
+                bool equi=(scene_info.w&64u)!=0 && media==0 && tri_nee && mis!=2 && !fog_hetero();
                 if(equi){float3 e=throughput*equiangular_light(media,origin,direction,t0,t1,sigma,albedo,absorption,g,env_nee,p_env,mis);
                     if(all(isfinite(e))){radiance+=e;if(bounce==0)direct+=e;lpe_add(4,5,e);}}
-                float ts=flight(sigma,t0,t1,fw);
+                float ts=media==0 && fog_hetero()?fog_track(origin,direction,t0,t1,sigma,fw):flight(sigma,t0,t1,fw);
                 if(ts>=t1)throughput*=fw;
                 else{
                     // A scatter before the surface: NEE by the phase function, then a new direction.

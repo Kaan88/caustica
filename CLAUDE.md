@@ -33,7 +33,7 @@ cargo fmt; cargo test --locked; cargo clippy --locked -- -D warnings; cargo buil
 - Never build into `target/release` for checks and never kill the user's running app: build.rs copies the DLSS DLLs next to the exe, and a running instance locks them.
 - Release is a GUI-subsystem exe with no console: run it with Start-Process and redirected output (see `tools/verify.ps1`).
 - Headless: `caustica.exe --headless --frames N [--width --height --preset --scene --set key=json --rr|--no-rr --raw] --capture out.png|out.exr`; success prints `RENDER_OK …`. Benchmarks need ≥ 200 frames and `--no-vsync`.
-- `--self-test`: 300 scripted frames, then one per scene file; it fails on any D3D12 warning. Add edits on unused frame numbers (map in testing.md) and assert after `render`.
+- `--self-test`: 303 scripted frames, then one per scene file; it fails on any D3D12 warning. Add edits on unused frame numbers (map in testing.md) and assert after `render`.
 - Python on Windows needs Windows paths (`cygpath -w`). Read EXRs with `tools/exr.py`.
 
 ## Must stay in sync

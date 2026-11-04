@@ -4786,6 +4786,24 @@ fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     );
     row(
         ui,
+        "Fog noise",
+        "Heterogeneous fog: how much the density varies (0 = uniform; above 1 leaves clear gaps). Rendered exactly by delta and ratio tracking; equiangular sampling is off while it is on.",
+        |ui| {
+            ui.add(crate::slider(&mut f.noise, 0. ..=4.));
+        },
+    );
+    if f.noise > 0. {
+        row(
+            ui,
+            "Noise size",
+            "The size of the fog's puffs, in world units.",
+            |ui| {
+                ui.add(crate::slider(&mut f.noise_size, 0.05..=100.).logarithmic(true));
+            },
+        );
+    }
+    row(
+        ui,
         "Equiangular",
         "Also samples scattering along each ray where it passes close to a light (path tracer). Cleaner beams per sample, but about 1.5× the trace time in fog: off by default.",
         |ui| {

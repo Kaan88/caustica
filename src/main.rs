@@ -198,7 +198,7 @@ struct App {
     audio: Option<audio::Audio>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 300;
+const SCENES_FROM: u32 = 303;
 fn transport_key(s: &Settings) -> String {
     let mut j = serde_json::to_value(s).unwrap();
     for k in [
@@ -1370,6 +1370,12 @@ impl App {
                     self.settings.shadow_catcher = false;
                     self.settings.hdri_ground = 0.;
                 }
+                // Heterogeneous fog (checked at 301), then back to none.
+                300 => {
+                    self.settings.fog.density = 0.3;
+                    self.settings.fog.noise = 1.5;
+                }
+                302 => self.settings.fog = Default::default(),
                 // Physics on while a gizmo arrow holds an object: it must not fall.
                 237 => {
                     self.settings.physics.enabled = true;
@@ -2742,7 +2748,7 @@ impl App {
                     }
                 }
                 188 => anyhow::ensure!(!g.hdr_active, "SDR output did not return"),
-                285..=287 | 294 | 295 | 298 => {
+                285..=287 | 294 | 295 | 298 | 301 => {
                     let image = unsafe { g.read_floats(18)? };
                     let pixels = image.as_chunks::<4>().0;
                     let mean = pixels
