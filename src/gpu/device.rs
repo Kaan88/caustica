@@ -872,23 +872,20 @@ impl Gpu {
         self.rw = ((w as f32 * s.scale).round() as u32).max(1);
         self.rh = ((h as f32 * s.scale).round() as u32).max(1);
         for i in 0..TEXTURES {
-            let format = match i {
-                5 | 7 | 17 | 19 | 20 | 25 => DXGI_FORMAT_R32_FLOAT,
-                6 => DXGI_FORMAT_R32G32_FLOAT,
-                10 => DXGI_FORMAT_R8G8B8A8_UNORM,
-                // HDR10 writes PQ code values that copy straight into the backbuffer.
-                26 if self.hdr_active && self.hdr10 => DXGI_FORMAT_R10G10B10A2_UNORM,
-                26 => DXGI_FORMAT_R16G16B16A16_FLOAT,
-                27 => DXGI_FORMAT_R32G32_FLOAT,
-                28 => DXGI_FORMAT_R32_UINT,
-                _ => DXGI_FORMAT_R32G32B32A32_FLOAT,
-            };
-            let (tw, th) = if [10, 13, 14, 18, 26].contains(&i) {
-                (w, h)
-            } else if i == 28 {
-                (SCOPES[0], SCOPES[1])
-            } else {
-                (self.rw, self.rh)
+            let (format, [tw, th]) = crate::render::texture_layout(
+                i,
+                self.hdr_active && self.hdr10,
+                [w, h],
+                [self.rw, self.rh],
+            );
+            let format = match format {
+                TexFormat::Rgba32F => DXGI_FORMAT_R32G32B32A32_FLOAT,
+                TexFormat::R32F => DXGI_FORMAT_R32_FLOAT,
+                TexFormat::Rg32F => DXGI_FORMAT_R32G32_FLOAT,
+                TexFormat::Rgba8 => DXGI_FORMAT_R8G8B8A8_UNORM,
+                TexFormat::Rgb10A2 => DXGI_FORMAT_R10G10B10A2_UNORM,
+                TexFormat::Rgba16F => DXGI_FORMAT_R16G16B16A16_FLOAT,
+                TexFormat::R32U => DXGI_FORMAT_R32_UINT,
             };
             let t = texture(
                 &self.device,

@@ -3,7 +3,7 @@
 //! (`Gpu::resize_output`, independent of the window) one pass per `redraw`, so the window stays
 //! responsive. Finished frames go to a writer thread: ffmpeg (H.264, H.265, HDR10 HEVC, ProRes)
 //! or numbered PNG / EXR files in a folder named after the video.
-use crate::gpu::Gpu;
+use crate::Gpu;
 use crate::scene::Settings;
 use anyhow::{Context, Result};
 use std::io::{Read, Write};

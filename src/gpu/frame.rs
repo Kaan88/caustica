@@ -93,7 +93,6 @@ impl Gpu {
         } else {
             0
         };
-        let lc = s.light_color();
         // The physical sky (track 9) is baked at strength 1 with north at −z.
         let (env_strength, env_rotation, env_visible) = if s.physical_sky.on {
             (1., s.physical_sky.rotation(), s.physical_sky.visible)
@@ -104,167 +103,30 @@ impl Gpu {
                 s.hdri_visible,
             )
         };
-        let mut c = Constants {
-            inverse_vp: vp.inverse().to_cols_array(),
-            current_vp: vp.to_cols_array(),
-            previous_vp: if reset { vp } else { self.previous_vp }.to_cols_array(),
-            world_view: view.to_cols_array(),
-            eye: [eye.x, eye.y, eye.z, 1.],
-            dimensions: [self.rw, self.rh, self.width, self.height],
-            sampling: [self.samples, n, s.bounces, self.frame],
-            lights: [
-                self.sun_count as f32,
-                s.pixel_filter as f32,
-                s.filter_width,
-                s.anisotropy as f32,
-            ],
-            light_color_aspect: [lc[0], lc[1], lc[2], s.light_aspect],
-            background: [s.background[0], s.background[1], s.background[2], 0.],
-            display: [s.exposure, s.gamma, s.direct, s.indirect],
-            modes: [
-                s.view,
-                s.tonemap,
-                (s.denoise && !s.battle) as u32,
-                self.rr_active as u32,
-            ],
-            options: [
-                s.firefly,
-                s.denoise_strength,
-                s.compare as u32 as f32,
-                s.split,
-            ],
-            jitter: [
-                jitter[0],
-                jitter[1],
-                s.sobol as u32 as f32,
-                s.glass_shadow as u32 as f32,
-            ],
-            filter: [
-                0,
-                s.temporal as u32,
-                reset as u32,
-                self.reference_valid as u32,
-            ],
-            scene_info: [
-                self.emitter_count as u32,
-                s.objects.len() as u32,
-                self.sequence_base,
+        let mut c = crate::render::constants(
+            s,
+            &self.st,
+            &crate::render::FrameInputs {
+                view,
+                proj,
+                eye,
+                previous_vp: if reset { vp } else { self.previous_vp },
+                n,
+                reset,
                 flags,
-            ],
-            // View-space ray scale (tan of the half field of view) for the denoiser.
-            // w: the medium the camera is in (underwater), a stack entry or 0.
-            environment: [
-                s.sky,
-                1. / proj.x_axis.x,
-                1. / proj.y_axis.y,
-                crate::geometry::camera_medium(s, eye) as f32,
-            ],
-            hdr: [
-                self.hdr_active as u32 as f32,
-                self.hdr_levels[0],
-                self.hdr_levels[1],
-                (self.hdr_active && self.hdr10) as u32 as f32,
-            ],
-            tools: [
-                self.zebras as u32 as f32,
-                self.scopes_on as u32 as f32,
-                s.bounces.min(8) as f32,
-                256.,
-            ],
-            lens: [
-                s.aperture,
-                s.focus_distance,
-                s.aperture_blades as f32,
-                s.blade_rotation.to_radians(),
-            ],
-            camera_model: [
-                s.projection as f32,
-                s.cat_eye,
-                s.tilt.to_radians(),
-                s.distance * (s.fov.to_radians() * 0.5).tan(),
-            ],
-            look: [s.halation, s.grain, s.vignette, self.lut_size as f32],
-            lift: [
-                s.lift[0],
-                s.lift[1],
-                s.lift[2],
-                [1., 2., 3.][s.grain_size.min(2) as usize],
-            ],
-            grade_gamma: [
-                s.grade_gamma[0],
-                s.grade_gamma[1],
-                s.grade_gamma[2],
-                s.lut_strength,
-            ],
-            gain: [
-                s.gain[0],
-                s.gain[1],
-                s.gain[2],
-                (self.present_count % 4096) as f32,
-            ],
-            environment_map: [
-                env_strength * self.env_scale,
-                env_rotation,
-                if self.env_inv_norm > 0. {
-                    1. + if env_visible { 2. } else { 0. }
-                } else {
-                    0.
-                },
-                self.env_inv_norm * self.env_scale,
-            ],
-            fog: [s.fog.density, s.fog.phase, s.fog.height, s.fog.extent],
-            // w: the extinction tint (`lighting::pack_tint`; 0 = grey).
-            fog_color: [
-                s.fog.color[0],
-                s.fog.color[1],
-                s.fog.color[2],
-                crate::lighting::pack_tint(s.fog.extinction),
-            ],
-            region: [0, 0, self.rw, self.rh],
-            integrator: [0; 4],
-            photon: [0.; 4],
-            bounds: [0.; 4],
-            real_lens: [
-                self.lens_surfaces as f32,
-                s.dispersion,
-                0.001 / s.lens_scale,
-                0.,
-            ],
-            glare: [0, 0, 0, self.glare_grid()],
-            // A smaller aperture in the grid spreads the pattern wider.
-            glare_settings: [s.glare, s.glare_threshold, 256. - 232. * s.glare_size, 0.],
-            env_sun: match self.env_sun.filter(|_| self.env_inv_norm > 0.) {
-                Some((sun, _)) => {
-                    let d = sun.direction(env_rotation);
-                    [d[0], d[1], d[2], sun.om]
-                }
-                None => [0.; 4],
+                jitter,
+                sequence_base: self.sequence_base,
+                lut_size: self.lut_size,
+                present_count: self.present_count,
+                env_scale: self.env_scale,
+                env_inv_norm: self.env_inv_norm,
+                env_sun: self.env_sun,
+                env: (env_strength, env_rotation, env_visible),
+                lens_surfaces: self.lens_surfaces,
+                glare_grid: self.glare_grid(),
+                restir: restir as u32 | (self.restir_history as u32) << 1 | self.restir_layers << 8,
             },
-            env_sun_color: match self.env_sun.filter(|_| self.env_inv_norm > 0.) {
-                Some((sun, share)) => {
-                    let r = sun.radiance.map(|v| v * env_strength);
-                    [r[0], r[1], r[2], share]
-                }
-                None => [0.; 4],
-            },
-            // The floor quad sits at y = −1 (geometry::static_geometry).
-            // Ground projection only for a loaded HDRI (the physical sky replaces it).
-            env_ground: [
-                if s.physical_sky.on { 0. } else { s.hdri_ground },
-                -1.,
-                s.shadow_catcher as u32 as f32,
-                0.,
-            ],
-            fog_noise: [s.fog.noise, s.fog.noise_size, 0., 0.],
-            path_record: [0; 4],
-            lpe: [self.lpe_slots, s.lpe_slot, 0, 0],
-            restir: [
-                restir as u32 | (self.restir_history as u32) << 1 | self.restir_layers << 8,
-                s.restir_candidates.clamp(1, 32),
-                s.restir_neighbors.min(8),
-                s.restir_history.min(64),
-            ],
-        };
+        );
         // Path visualizer: the output pixel maps to a render pixel as the light meter's does.
         let path_request = self.path_request.take();
         if let Some(([x, y], count)) = path_request {

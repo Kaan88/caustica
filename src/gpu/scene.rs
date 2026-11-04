@@ -4,10 +4,6 @@ use super::*;
 impl Gpu {
     pub unsafe fn rebuild_scene(&mut self, s: &Settings) -> Result<()> {
         let packed = crate::lighting::materials(s);
-        let needs_any_hit = |m: u32| {
-            let m = &packed[m as usize];
-            (m.lobes[3] as u32 & 2) != 0 || m.lobes[2] > 0.
-        };
         self.begin()?;
         let mut keep: Vec<ID3D12Resource> = vec![];
         // Static geometry (floor, room, lights) in world space, rebuilt only when it changes.
@@ -16,43 +12,19 @@ impl Gpu {
         // so only triangles under both rules still run the shader per candidate. Each group is
         // its own BLAS and instance; the instance record's vertex_base is the group's first
         // triangle in `static_vertices`.
-        let soup = crate::geometry::static_geometry(s);
         // Measured by photon mapping when it next runs: it walks every object's vertices, which
         // made each frame of a timeline export (a rebuild per frame) 10 ms slower.
         self.bounds_valid = false;
-        type Group<'a> = ((u32, bool), Vec<&'a [Vertex; 3]>);
-        let mut groups: Vec<Group> = vec![];
-        for t in soup.as_chunks::<3>().0 {
-            let key = instance_mask(&packed[t[0].material as usize]);
-            match groups.iter_mut().find(|g| g.0 == key) {
-                Some(g) => g.1.push(t),
-                None => groups.push((key, vec![t])),
-            }
-        }
-        // Opaque 0xff first, so plain scenes keep one static instance at InstanceID 0.
-        groups.sort_by_key(|g| g.0 != (0xff, false));
-        let layout: Vec<StaticGroup> = {
-            let mut first = 0;
-            groups
-                .iter()
-                .map(|g| {
-                    let group = StaticGroup {
-                        mask: g.0.0,
-                        any_hit: g.0.1,
-                        first,
-                        count: g.1.len() as u32,
-                        blas: None,
-                    };
-                    first += group.count;
-                    group
-                })
-                .collect()
-        };
-        let statics: Vec<Vertex> = groups
+        let (layout, statics) = plan::static_layout(s, &packed);
+        let layout: Vec<StaticGroup> = layout
             .into_iter()
-            .flat_map(|g| g.1)
-            .flatten()
-            .copied()
+            .map(|g| StaticGroup {
+                mask: g.mask,
+                any_hit: g.any_hit,
+                first: g.first,
+                count: g.count,
+                blas: None,
+            })
             .collect();
         let same_layout = layout.len() == self.static_groups.len()
             && layout.iter().zip(&self.static_groups).all(|(a, b)| {
@@ -92,38 +64,7 @@ impl Gpu {
         // the set of meshes changes; the shared vertex buffer then holds every mesh in use.
         // Track 20a (a): an alpha-tested object whose material needs no other per-candidate
         // test gets a BLAS with opacity micromaps, keyed by mesh, base map and cutoff.
-        let omm_of = |i: usize, o: &crate::scene::Object, key: &str| {
-            if !omm_on() || !o.material.texture.is_empty() {
-                return None;
-            }
-            let maps = crate::mesh::maps(o)?;
-            let base = maps.base.filter(|_| maps.cutoff > 0.)?;
-            (instance_mask(&packed[5 + i]) == (0xff, false)).then(|| {
-                let omm_key = format!(
-                    "{key}#omm{:x}/{}",
-                    std::sync::Arc::as_ptr(&base) as usize,
-                    maps.cutoff.to_bits()
-                );
-                (omm_key, base, maps.cutoff)
-            })
-        };
-        let visible: Vec<VisibleMesh> = s
-            .objects
-            .iter()
-            .enumerate()
-            .filter(|(_, o)| o.visible && o.sdf.is_none())
-            .map(|(i, o)| {
-                let (key, source) = crate::geometry::object_source(o);
-                let omm = omm_of(i, o, &key);
-                VisibleMesh {
-                    index: i,
-                    blas_key: omm.as_ref().map_or_else(|| key.clone(), |m| m.0.clone()),
-                    key,
-                    source,
-                    omm: omm.map(|m| (m.1, m.2)),
-                }
-            })
-            .collect();
+        let visible = plan::visible_meshes(s, &packed, omm_on());
         let mut wanted: Vec<&str> = visible.iter().map(|v| v.blas_key.as_str()).collect();
         wanted.sort_unstable();
         wanted.dedup();
@@ -176,134 +117,62 @@ impl Gpu {
             self.meshes = meshes;
         }
         self.compact_blases(&mut keep)?;
-        // Instances: the static BLAS (InstanceID 0), then one per visible object. Flags decide
-        // opacity per object: glass runs the any-hit loop so shadow rays may pass it.
-        let cull = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32;
-        let mut descs: Vec<u8> = vec![];
-        let mut table: Vec<InstanceRecord> = vec![];
-        let identity = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.];
-        let mut push =
-            |transform: &[f32; 12], id: u32, flags: u32, blas: &ID3D12Resource, mask: u32| {
-                descs.extend_from_slice(bytemuck::cast_slice(transform));
-                descs.extend_from_slice(&(id | mask << 24).to_le_bytes());
-                descs.extend_from_slice(&(flags << 24).to_le_bytes());
-                descs.extend_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
-            };
-        // Static instances first: emitter_base 0, so emitter_lookup takes the static triangle
-        // index (vertex_base + primitive) directly.
-        for g in &self.static_groups {
-            let opacity = if g.any_hit {
-                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
-            } else {
-                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
-            } as u32;
-            push(
-                &identity,
-                table.len() as u32,
-                cull | opacity,
-                g.blas.as_ref().unwrap(),
-                g.mask,
-            );
-            table.push(InstanceRecord {
-                vertex_base: g.first,
-                material: u32::MAX,
-                emitter_base: 0,
-                object: u32::MAX,
-            });
-        }
-        let mut triangle_count = self.static_cache.len() / 3;
-        for VisibleMesh {
-            index: i,
-            blas_key,
-            omm,
-            ..
-        } in &visible
-        {
-            let mesh = &self.meshes[blas_key];
-            let material = 5 + *i as u32;
-            // Masked maps (alpha cutoff) are tested in the any-hit loop as well.
-            let o = &s.objects[*i];
-            let masked = o.material.texture.is_empty()
-                && crate::mesh::maps(o).is_some_and(|m| m.cutoff != 0.);
-            // Track 20a (a): an object's two skip rules (hidden from camera rays, glass that
-            // shadow rays pass) become instance masks, which the rays leave out (pathtrace.hlsl
-            // MASK_*), so the RT cores commit its hits without running the shader per candidate.
-            // Only alpha-tested objects, and ones under both rules, stay non-opaque.
-            let (mask, any_hit) = instance_mask(&packed[material as usize]);
-            // With micromaps the geometry's own non-opaque flag stands, so the RT cores read
-            // them (a FORCE flag would override them).
-            let opacity = if omm.is_some() {
-                0
-            } else if any_hit || masked {
-                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
-            } else {
-                D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
-            } as u32;
-            push(
-                &crate::geometry::object_transform(&s.objects[*i]),
-                table.len() as u32,
-                cull | opacity,
-                &mesh.blas,
-                if masked { 0xff } else { mask },
-            );
-            table.push(InstanceRecord {
-                vertex_base: mesh.first,
-                material,
-                emitter_base: u32::MAX,
-                object: *i as u32,
-            });
-            triangle_count += mesh.count;
-        }
-        // Procedural objects (track 13): instances of the unit-cube AABB; the shader intersects
-        // the surface (kind in vertex_base). Glass and hidden ones are non-opaque like meshes,
-        // though the shader sees every procedural candidate either way.
-        if s.objects.iter().any(|o| o.visible && !o.sdf.is_none()) {
-            if self.sdf_blas.is_none() {
-                let aabb = self.gpu_buffer(
-                    bytemuck::cast_slice(&[-1f32, -1., -1., 1., 1., 1.]),
-                    &mut keep,
-                )?;
-                let desc = D3D12_RAYTRACING_GEOMETRY_DESC {
-                    Type: D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS,
-                    Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
-                    Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
-                        AABBs: D3D12_RAYTRACING_GEOMETRY_AABBS_DESC {
-                            AABBCount: 1,
-                            AABBs: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
-                                StartAddress: aabb.GetGPUVirtualAddress(),
-                                StrideInBytes: 24,
-                            },
+        // The procedural objects' unit-cube AABB BLAS, built once.
+        if s.objects.iter().any(|o| o.visible && !o.sdf.is_none()) && self.sdf_blas.is_none() {
+            let aabb = self.gpu_buffer(
+                bytemuck::cast_slice(&[-1f32, -1., -1., 1., 1., 1.]),
+                &mut keep,
+            )?;
+            let desc = D3D12_RAYTRACING_GEOMETRY_DESC {
+                Type: D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS,
+                Flags: D3D12_RAYTRACING_GEOMETRY_FLAG_NONE,
+                Anonymous: D3D12_RAYTRACING_GEOMETRY_DESC_0 {
+                    AABBs: D3D12_RAYTRACING_GEOMETRY_AABBS_DESC {
+                        AABBCount: 1,
+                        AABBs: D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE {
+                            StartAddress: aabb.GetGPUVirtualAddress(),
+                            StrideInBytes: 24,
                         },
                     },
-                };
-                self.sdf_blas = Some(self.build_blas(&[desc], &mut keep, false)?);
-                keep.push(aabb);
-            }
-            let blas = self.sdf_blas.clone().unwrap();
-            for (i, o) in s.objects.iter().enumerate() {
-                if !o.visible || o.sdf.is_none() {
-                    continue;
-                }
-                let material = 5 + i as u32;
-                let opacity = if needs_any_hit(material) {
-                    D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0
-                } else {
-                    D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0
-                } as u32;
-                push(
-                    &crate::geometry::object_transform(o),
-                    table.len() as u32,
-                    cull | opacity,
-                    &blas,
-                    0xff,
-                );
-                table.push(InstanceRecord {
-                    vertex_base: o.sdf.id(o.phase, o.detail),
-                    material,
-                    emitter_base: u32::MAX,
-                    object: i as u32,
-                });
-            }
+                },
+            };
+            self.sdf_blas = Some(self.build_blas(&[desc], &mut keep, false)?);
+            keep.push(aabb);
+        }
+        // Instances (render::plan): the static groups, the visible meshes, the procedural
+        // objects; culling off for all.
+        let groups: Vec<plan::GroupKey> = self
+            .static_groups
+            .iter()
+            .map(|g| plan::GroupKey {
+                mask: g.mask,
+                any_hit: g.any_hit,
+                first: g.first,
+                count: g.count,
+            })
+            .collect();
+        let (instances, table, triangle_count) =
+            plan::instances(s, &packed, &groups, &visible, &|k| {
+                let m = &self.meshes[k];
+                (m.first, m.count)
+            });
+        let cull = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE.0 as u32;
+        let mut descs: Vec<u8> = vec![];
+        for (id, inst) in instances.iter().enumerate() {
+            let opacity = match inst.opacity {
+                plan::Opacity::ForceOpaque => D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE.0,
+                plan::Opacity::ForceNonOpaque => D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE.0,
+                plan::Opacity::Geometry => 0,
+            } as u32;
+            let blas = match inst.blas {
+                plan::Blas::Static(i) => self.static_groups[i].blas.as_ref().unwrap(),
+                plan::Blas::Mesh(k) => &self.meshes[k].blas,
+                plan::Blas::Sdf => self.sdf_blas.as_ref().unwrap(),
+            };
+            descs.extend_from_slice(bytemuck::cast_slice(&inst.transform));
+            descs.extend_from_slice(&(id as u32 | inst.mask << 24).to_le_bytes());
+            descs.extend_from_slice(&((cull | opacity) << 24).to_le_bytes());
+            descs.extend_from_slice(&blas.GetGPUVirtualAddress().to_le_bytes());
         }
         // TLAS refit (wave 3): when only instance transforms changed (a drag, an animation or
         // physics step: the same instances with the same ids, masks, flags and BLAS), the TLAS
@@ -827,77 +696,14 @@ impl Gpu {
         let mut materials = crate::lighting::materials(s);
         // Maps first: an emissive map sets the emitted colour the table is built from.
         self.attach_maps(s, &mut materials)?;
-        let mut world = self.static_cache.clone();
-        // Emissive-mapped objects' UVs, by their first triangle in `world`.
-        let mut mapped_uvs = vec![];
-        for record in self.instances.iter_mut().filter(|r| r.material != u32::MAX) {
-            let m = &materials[record.material as usize];
-            let e = crate::lighting::emitted(m);
-            let emission = e.x.max(e.y).max(e.z);
-            // Procedural objects are not light-sampled: their emission is found by BSDF hits.
-            let o = &s.objects[record.object as usize];
-            record.emitter_base = if emission > 0. && o.sdf.is_none() {
-                let base = (world.len() / 3) as u32;
-                world.extend(crate::geometry::object_geometry(o, record.material));
-                if m.lobes[3] as u32 & 64 != 0
-                    && let Some(uv) = crate::mesh::uvs(o)
-                {
-                    mapped_uvs.push((base as usize, uv));
-                }
-                base
-            } else {
-                u32::MAX
-            };
-        }
-        let analytic = crate::lighting::analytic(s);
-        let (emitters, lookup) = crate::lighting::emitter_table(&world, &materials, &analytic);
-        self.sun_count = crate::lighting::sun_count(&emitters);
-        // Only real material records: the portal matrices after them hold a translation in optical.w.
-        self.textured = materials
-            .iter()
-            .take(5 + s.objects.len() + s.lights.len())
-            .any(|m| m.lobes[3] as u32 & 16 != 0 || m.optical[3] < 0.);
-        // The LEAN variants' material gates (pathtrace.hlsl lean_strip), over every record: a
-        // portal matrix can only turn them off.
-        self.lean_scene = !s.objects.iter().any(|o| o.visible && !o.sdf.is_none())
-            && materials.iter().all(|m| {
-                m.layers[0] <= 0.
-                    && m.layers[3] <= 0.
-                    && m.sheen[..3].iter().all(|v| *v <= 0.)
-                    && m.surface_scale[2] <= 0.
-                    && m.medium[3] <= 0.
-                    // IES lights keep their profile in fields LEAN strips.
-                    && (m.lobes[3] as u32 & 16384) == 0
-            });
-        self.emitter_count = emitters.len();
+        let lights = plan::lights(s, &materials, &self.static_cache, &mut self.instances);
+        self.sun_count = lights.sun_count;
+        self.textured = lights.textured;
+        self.lean_scene = lights.lean_scene;
+        self.emitter_count = lights.emitter_count;
+        self.sdf_emitters = lights.sdf_emitters;
         self.material_buffer = upload(&self.device, bytemuck::cast_slice(&materials))?;
-        // The alias table for ReSTIR follows the emitters (`emitter_count` stays the table),
-        // then the CDF's cutpoints for `select_index`.
-        let mut table = emitters.clone();
-        table.extend(crate::lighting::alias_records(&emitters));
-        table.extend(crate::lighting::guide_records(&emitters));
-        // Emissive procedural objects for photon mapping (`sdf_emitter_records`), last.
-        let sdf = sdf_emitter_records(s, &self.instances, &materials);
-        self.sdf_emitters = [(sdf.len() / 2) as u32, table.len() as u32];
-        table.extend(sdf);
-        // With an emissive map anywhere, one UV record per emitter after them (pathtrace.hlsl
-        // `emitted_color`): a, b in position_area, c in edge1_cdf.xy, zero for the rest.
-        if !mapped_uvs.is_empty() {
-            let mut uvs: Vec<crate::lighting::Emitter> =
-                vec![bytemuck::Zeroable::zeroed(); emitters.len()];
-            for (base, uv) in &mapped_uvs {
-                for (k, t) in uv.as_chunks::<3>().0.iter().enumerate() {
-                    if let Some(&e) = lookup.get(base + k)
-                        && e != 0
-                        && let Some(r) = uvs.get_mut(e as usize - 1)
-                    {
-                        r.position_area = [t[0][0], t[0][1], t[1][0], t[1][1]];
-                        r.edge1_cdf = [t[2][0], t[2][1], 0., 0.];
-                    }
-                }
-            }
-            table.extend(uvs);
-        }
+        let (table, lookup) = (lights.table, lights.lookup);
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&table))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
         self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;

@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)]
+use crate::render::plan::{self, InstanceRecord, VisibleMesh, mesh_uvs};
 pub use crate::render::*;
 use crate::scene::{Settings, Upscaler, Vertex};
 use anyhow::{Context, Result, ensure};
@@ -21,7 +22,6 @@ use windows::{
     core::{Interface, PCSTR},
 };
 
-const TEXTURES: usize = 29;
 /// Shader-visible heap: UAVs 0..TEXTURES, then one SRV slot per egui texture from 32.
 const HEAP_SIZE: usize = 512;
 const FIRST_GUI_SLOT: usize = 32;
@@ -36,72 +36,6 @@ struct GuiTexture {
     pixels: Vec<u8>,
     size: [usize; 2],
 }
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Constants {
-    inverse_vp: [f32; 16],
-    current_vp: [f32; 16],
-    previous_vp: [f32; 16],
-    world_view: [f32; 16],
-    eye: [f32; 4],
-    dimensions: [u32; 4],
-    sampling: [u32; 4],
-    /// x: suns at the start of the emitter table (track 7); y: pixel filter (0 box, 1 Gaussian,
-    /// 2 Blackman-Harris), z: its width in pixels; w: texture anisotropy (1–16).
-    lights: [f32; 4],
-    light_color_aspect: [f32; 4],
-    background: [f32; 4],
-    display: [f32; 4],
-    modes: [u32; 4],
-    options: [f32; 4],
-    jitter: [f32; 4],
-    filter: [u32; 4],
-    scene_info: [u32; 4],
-    environment: [f32; 4],
-    hdr: [f32; 4],
-    tools: [f32; 4],
-    lens: [f32; 4],
-    camera_model: [f32; 4],
-    look: [f32; 4],
-    lift: [f32; 4],
-    grade_gamma: [f32; 4],
-    gain: [f32; 4],
-    environment_map: [f32; 4],
-    /// Track 12 fog: density, phase g, top height, half extent on x / z.
-    fog: [f32; 4],
-    /// Fog albedo (rgb).
-    fog_color: [f32; 4],
-    /// Track 14, read only by the path-recording trace: render pixel x, y, paths, capacity.
-    path_record: [u32; 4],
-    /// Track 14: light path expression slots in use (0 = off), the slot the LPE view shows.
-    lpe: [u32; 4],
-    /// Track 15 ReSTIR DI: flags (bit 0 on, bit 1 history valid), candidates, spatial
-    /// neighbours, history cap.
-    restir: [u32; 4],
-    /// Track 15: the render pixels a dispatch covers (x0, y0, x1, y1).
-    region: [u32; 4],
-    /// Track 15 (integrators.hlsl): photons this frame, photon capacity, splat offset in `aux`
-    /// (bytes), flags (bit 0 light tracing).
-    integrator: [u32; 4],
-    /// Gather radius, image-plane area at distance 1 times the region's share.
-    photon: [f32; 4],
-    /// The scene's bounding sphere (centre, radius).
-    bounds: [f32; 4],
-    /// Track 16 lens system: surfaces (0 = off), dispersion, scene units per mm, -.
-    real_lens: [f32; 4],
-    /// Track 16 glare pass: mode, region, flags, image size in the grid (w | h << 16).
-    glare: [u32; 4],
-    /// Glare strength (0 = off), threshold, aperture diameter in grid texels, -.
-    glare_settings: [f32; 4],
-    /// The HDRI's split sun (`environment::Sun`): world direction, cosine of the half angle
-    /// (0 = none); radiance times the HDRI strength, the share of environment samples.
-    env_sun: [f32; 4],
-    env_sun_color: [f32; 4],
-    /// Ground projection height (0 = off), the floor's height, shadow catcher (1 / 0), -.
-    env_ground: [f32; 4],
-    /// Heterogeneous fog: noise amount (0 = uniform), feature size, -, -.
-    fog_noise: [f32; 4],
-}
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
 /// the UI.
 const TIMESTAMPS: u32 = 5 + 8;
@@ -113,10 +47,6 @@ const PHOTON_BASE: u64 = 16 + 4 * PHOTON_HASH;
 /// Deposits the photon buffer holds per photon (integrators.hlsl walks up to 32 bounces; Russian
 /// roulette keeps the mean count of deposits far below this, the rest are dropped).
 const PHOTON_BOUNCES: u32 = 10;
-/// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
-const CB_STRIDE: u64 = 1024;
-/// Constant slots: trace 0, filter 1–7, display 8, battle quadrants 9–12, glare passes from 13.
-const CB_SLOTS: u64 = 13 + 10;
 const GLARE_SLOT: u64 = 13;
 /// The glare grid (post.hlsl GN) and the image's longer side in it (the rest is padding, so the
 /// circular convolution does not wrap highlights around the frame).
@@ -425,29 +355,6 @@ impl std::ops::DerefMut for Gpu {
         &mut self.st
     }
 }
-/// An object instance's mask and whether it still needs the shader per candidate (track 20a
-/// (a)). Rays leave out `MASK_HIDDEN` on camera rays and `MASK_CLEAR_GLASS` on shadow rays
-/// when glass doesn't block (pathtrace.hlsl); every other ray includes all of 0xff. An object
-/// under one rule gets just that bit and goes opaque; under both no single bit says it, so it
-/// stays non-opaque with the shader's tests (as do glass objects below 0.5 transmission,
-/// opaque now: the shader committed every candidate of theirs anyway).
-fn instance_mask(m: &crate::lighting::PackedMaterial) -> (u32, bool) {
-    let hidden = (m.lobes[3] as u32 & 2) != 0;
-    let clear = m.lobes[2] >= 0.5;
-    // A light that casts no shadows (flag 8192) is left out of every shadow ray.
-    let unshadowed = (m.lobes[3] as u32 & 8192) != 0;
-    match (hidden, clear || unshadowed) {
-        (true, true) => (0xff, true),
-        (true, false) => (MASK_HIDDEN, false),
-        (false, true) if unshadowed => (MASK_NO_SHADOW, false),
-        (false, true) => (MASK_CLEAR_GLASS, false),
-        (false, false) => (0xff, false),
-    }
-}
-/// Instance mask bits (pathtrace.hlsl MASK_HIDDEN, MASK_CLEAR_GLASS, MASK_NO_SHADOW).
-const MASK_HIDDEN: u32 = 2;
-const MASK_CLEAR_GLASS: u32 = 4;
-const MASK_NO_SHADOW: u32 = 8;
 /// What the device offers for Shader Execution Reordering (track 20): Shader Model 6.9 (with
 /// the Agility SDK, src/main.rs) and raytracing tier 1.2; `reorders` says whether
 /// `MaybeReorderThread` does anything on this GPU (D3D12_OPTIONS22).
@@ -575,76 +482,6 @@ struct OmmTriangles {
     triangles: *const D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC,
     linkage: *const OmmLinkage,
 }
-/// Track 15: photon records for emissive procedural (SDF) objects, which the emitter table
-/// leaves out (light sampling can't pick points on them). Two records each: the world bounding
-/// sphere of the object's unit cube (centre, radius), then its instance's index and the running
-/// sum of the selection probabilities (by emission times sphere area), then the world-to-object
-/// matrix's three rows. integrators.hlsl `sdf_photon` emits from them by random lines.
-fn sdf_emitter_records(
-    s: &Settings,
-    instances: &[InstanceRecord],
-    materials: &[crate::lighting::PackedMaterial],
-) -> Vec<crate::lighting::Emitter> {
-    let mut found = vec![];
-    for (index, record) in instances.iter().enumerate() {
-        if record.material == u32::MAX {
-            continue;
-        }
-        let o = &s.objects[record.object as usize];
-        let m = &materials[record.material as usize];
-        let emission = m.color_rough[0].max(m.color_rough[1]).max(m.color_rough[2]) * m.optical[1];
-        if o.sdf.is_none() || emission <= 0. {
-            continue;
-        }
-        let t = crate::geometry::object_transform(o);
-        let o2w = Mat4::from_cols_array(&[
-            t[0], t[4], t[8], 0., t[1], t[5], t[9], 0., t[2], t[6], t[10], 0., t[3], t[7], t[11],
-            1.,
-        ]);
-        let centre = o2w.transform_point3(Vec3::ZERO);
-        let radius = (0..8)
-            .map(|k| {
-                let corner = Vec3::new(
-                    if k & 1 == 0 { -1. } else { 1. },
-                    if k & 2 == 0 { -1. } else { 1. },
-                    if k & 4 == 0 { -1. } else { 1. },
-                );
-                (o2w.transform_point3(corner) - centre).length()
-            })
-            .fold(0f32, f32::max);
-        if radius <= 0. || !radius.is_finite() {
-            continue;
-        }
-        found.push((
-            index as u32,
-            centre,
-            radius,
-            emission * radius * radius,
-            o2w.inverse(),
-        ));
-    }
-    let total: f32 = found.iter().map(|f| f.3).sum();
-    let mut sum = 0.;
-    let mut out = vec![];
-    for (i, (index, centre, radius, power, w2o)) in found.iter().enumerate() {
-        sum += power / total;
-        let cdf = if i + 1 == found.len() { 1. } else { sum };
-        let row = |r: usize| w2o.row(r).to_array();
-        out.push(crate::lighting::Emitter {
-            position_area: [centre.x, centre.y, centre.z, *radius],
-            edge1_cdf: [f32::from_bits(*index), cdf, 0., 0.],
-            edge2_probability: row(0),
-            emission_material: row(1),
-        });
-        out.push(crate::lighting::Emitter {
-            position_area: row(2),
-            edge1_cdf: [0.; 4],
-            edge2_probability: [0.; 4],
-            emission_material: [0.; 4],
-        });
-    }
-    out
-}
 /// A visible mesh object in `rebuild_scene`: its mesh key (vertex data), the key of the BLAS it
 /// uses (the mesh key, or a micromap variant), and for that variant the base map and cutoff.
 /// What a TLAS refit reuses (`rebuild_scene`): the scratch buffer (sized for a build or an
@@ -658,19 +495,6 @@ struct TlasCache {
     refits: u32,
 }
 /// An object's per-vertex UVs, or zeros when it has none or they don't match its `n` vertices.
-fn mesh_uvs(o: &crate::scene::Object, n: usize) -> Vec<[f32; 2]> {
-    match crate::mesh::uvs(o).filter(|u| u.len() == n) {
-        Some(u) => u.to_vec(),
-        None => vec![[0.; 2]; n],
-    }
-}
-struct VisibleMesh {
-    index: usize,
-    key: String,
-    blas_key: String,
-    source: crate::geometry::Source,
-    omm: Option<(std::sync::Arc<crate::mesh::Map>, f32)>,
-}
 /// A run of static triangles that share an instance mask and opacity (`instance_mask`).
 struct StaticGroup {
     mask: u32,
@@ -678,16 +502,6 @@ struct StaticGroup {
     first: u32,
     count: u32,
     blas: Option<ID3D12Resource>,
-}
-/// Mirrors `Instance` in common.hlsli. `material` u32::MAX marks a static instance, whose
-/// vertices carry their own material ids; its `vertex_base` is its first static triangle.
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct InstanceRecord {
-    vertex_base: u32,
-    material: u32,
-    emitter_base: u32,
-    object: u32,
 }
 /// A triangle geometry of `count` triangles at `address` (32-byte vertices, position first).
 fn triangles(

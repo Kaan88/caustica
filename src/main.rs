@@ -37,6 +37,8 @@ mod procedural;
 mod reference;
 mod remote;
 mod render;
+#[cfg(windows)]
+mod renderer;
 mod saver;
 mod scene;
 mod scenes;
@@ -59,9 +61,12 @@ mod vulkan;
 use vulkan::gpu;
 mod walk;
 use anyhow::{Context, Result, bail};
+#[cfg(not(windows))]
 use gpu::Gpu;
 use platform::WindowAttributesExtWindows;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+#[cfg(windows)]
+use renderer::Renderer as Gpu;
 use scene::{PRESETS, Settings};
 use std::{
     path::PathBuf,
@@ -135,6 +140,8 @@ struct App {
     hold_frames: u32,
     held: bool,
     debug: bool,
+    /// `--vulkan`: the Vulkan renderer on Windows (Linux has no other).
+    vulkan: bool,
     hidden: bool,
     size: [u32; 2],
     failed: Option<String>,
@@ -388,6 +395,7 @@ impl App {
         let mut drag_test = false;
         let mut require_rr = false;
         let mut debug = false;
+        let mut vulkan = false;
         let mut hidden = false;
         let mut capture_ui = false;
         let mut script_path: Option<PathBuf> = None;
@@ -568,6 +576,7 @@ impl App {
                 }
                 "--raw" => s.denoise = false,
                 "--debug" => debug = true,
+                "--vulkan" => vulkan = true,
                 "--headless" => hidden = true,
                 "--capture-ui" => capture_ui = true,
                 // A Rhai script that drives the app (see src/script.rs).
@@ -741,6 +750,7 @@ impl App {
             hold_frames: 0,
             held: false,
             debug,
+            vulkan,
             hidden,
             size,
             failed: None,
@@ -2151,8 +2161,16 @@ impl ApplicationHandler for App {
                     }
                     _ => bail!("Windows only"),
                 };
-                let gpu =
-                    unsafe { Gpu::new(hwnd, size.width, size.height, &self.settings, self.debug)? };
+                let gpu = unsafe {
+                    Gpu::new(
+                        &window,
+                        size.width,
+                        size.height,
+                        &self.settings,
+                        self.debug,
+                        self.vulkan,
+                    )?
+                };
                 (Some(hwnd), gpu)
             };
             #[cfg(not(windows))]
@@ -2815,7 +2833,7 @@ impl App {
 }
 /// Self-test: the HDR output (texture 26, scRGB or HDR10 decoded back to scRGB) against
 /// `display::hdr_map` of the linear output, with paper white 200 and peak 1000 nits.
-fn check_hdr_output(g: &mut gpu::Gpu, s: &Settings, tolerance: f32) -> Result<()> {
+fn check_hdr_output(g: &mut Gpu, s: &Settings, tolerance: f32) -> Result<()> {
     let (linear, out) = unsafe { (g.read_floats(18)?, g.read_floats(26)?) };
     let (mut worst, mut brightest) = (0f32, 0f32);
     for (l, h) in linear.as_chunks::<4>().0.iter().zip(out.as_chunks::<4>().0) {
@@ -2886,7 +2904,7 @@ fn run() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     // An installed copy keeps its files per user; carry over what older builds left beside it.
     dirs::migrate();
-    if args.iter().any(|a| a == "--vulkan") {
+    if args.iter().any(|a| a == "--vulkan-smoke") {
         return vulkan::run(&args);
     }
     if let saver::Mode::Preview(parent) = saver::mode(&args) {

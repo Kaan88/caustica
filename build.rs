@@ -37,21 +37,6 @@ fn main() {
             .join("shaders")
             .display()
     );
-    // Linux builds the Vulkan backend only (engine-notes "Vulkan backend: design", phase 2b):
-    // no DXIL, no D3D12 upscaler bridges, no Windows resources.
-    if env::var_os("CARGO_CFG_WINDOWS").is_none() {
-        println!("cargo:warning=non-Windows build: Vulkan backend only (port in progress)");
-        return;
-    }
-    assert!(
-        env::var("TARGET").unwrap().contains("windows-msvc"),
-        "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
-    );
-    assert!(
-        PathBuf::from("vendor/dlss/include/nvsdk_ngx.h").exists(),
-        "Run powershell -File tools/setup.ps1 to fetch the pinned NVIDIA SDK"
-    );
-    resources(&version);
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     // CAUSTICA_SHADER_DEBUG=1 embeds debug info (same -O3 code) so Nsight's shader profiler can
     // map stalls to HLSL lines (track 20a). Off by default.
@@ -77,7 +62,7 @@ fn main() {
     // Same list as src/hotreload.rs: (file, entry, profile, output name, defines). The path
     // tracer is built twice: scenes without texture maps use the variant without map code
     // (core track 5; the map code alone cost untextured scenes about 7%).
-    for (file, entry, profile, name, defines) in [
+    let entries: &[(&str, &str, &str, &str, &[&str])] = &[
         ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[][..]),
         (
             "pathtrace.hlsl",
@@ -282,7 +267,72 @@ fn main() {
             "bdpt_spectral",
             &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
         ),
-    ] {
+    ];
+    // SPIR-V for the Vulkan backend from the same entries (not the SER libraries): register
+    // spaces are descriptor sets, and t / b / s registers shift apart from u (u0 binding 0, t0
+    // binding 100, b0 200, s0 300); D3D layout rules keep `Constants` and the structured
+    // buffers byte-identical to D3D12. The DXC release build (tools/setup.ps1 / setup.sh) has
+    // the SPIR-V code generator; the Windows SDK's dxc doesn't. Optional on Windows (no
+    // Vulkan renderer without it), required elsewhere.
+    let windows = env::var_os("CARGO_CFG_WINDOWS").is_some();
+    println!("cargo:rerun-if-env-changed=DXC_SPIRV");
+    println!("cargo::rustc-check-cfg=cfg(spirv)");
+    let dxc_spirv = env::var_os("DXC_SPIRV")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(if windows {
+                "vendor/dxc-spirv/bin/x64/dxc.exe"
+            } else {
+                "vendor/dxc-linux/bin/dxc"
+            })
+        });
+    if dxc_spirv.exists() {
+        println!("cargo:rustc-cfg=spirv");
+        for &(file, entry, profile, name, defines) in entries {
+            if profile.starts_with("lib_") {
+                continue;
+            }
+            let status = Command::new(&dxc_spirv)
+                .args(["-spirv", "-fspv-target-env=vulkan1.3", "-fvk-use-dx-layout"])
+                .args(["-fvk-t-shift", "100", "all", "-fvk-b-shift", "200", "all"])
+                .args(["-fvk-s-shift", "300", "all"])
+                .args([
+                    "-T", profile, "-E", entry, "-HV", "2021", "-O3", "-I", "shaders",
+                ])
+                .args(defines)
+                .arg("-Fo")
+                .arg(out.join(format!("{name}.spv")))
+                .arg(format!("shaders/{file}"))
+                .status()
+                .expect("run the SPIR-V DXC");
+            assert!(status.success(), "DXC (SPIR-V) failed for {name}");
+        }
+    } else {
+        assert!(
+            windows,
+            "{} missing: run sh tools/setup.sh",
+            dxc_spirv.display()
+        );
+        println!(
+            "cargo:warning=no SPIR-V DXC ({}): the Vulkan renderer is left out",
+            dxc_spirv.display()
+        );
+    }
+    // Linux builds the Vulkan backend only (engine-notes "Vulkan backend: design", phase 2b):
+    // no DXIL, no D3D12 upscaler bridges, no Windows resources.
+    if !windows {
+        return;
+    }
+    assert!(
+        env::var("TARGET").unwrap().contains("windows-msvc"),
+        "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
+    );
+    assert!(
+        PathBuf::from("vendor/dlss/include/nvsdk_ngx.h").exists(),
+        "Run powershell -File tools/setup.ps1 to fetch the pinned NVIDIA SDK"
+    );
+    resources(&version);
+    for &(file, entry, profile, name, defines) in entries {
         // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
         let entry_args = if profile.starts_with("lib_") {
             ["-exports", entry, "-Wno-misplaced-attributes"]

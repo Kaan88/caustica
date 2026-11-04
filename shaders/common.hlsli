@@ -80,7 +80,7 @@ RWTexture2D<float2> motion:register(u6);
 RWTexture2D<float> specular_distance:register(u7);
 RWTexture2D<float4> ping:register(u8);
 RWTexture2D<float4> pong:register(u9);
-RWTexture2D<float4> output_image:register(u10);
+[[vk::image_format("unknown")]] RWTexture2D<float4> output_image:register(u10);
 RWTexture2D<float4> direct_light:register(u11);
 RWTexture2D<float4> specular_light:register(u12);
 RWTexture2D<float4> reference_image:register(u13);
@@ -96,10 +96,10 @@ RWTexture2D<float4> moments:register(u22); // demodulated luminance E[l], E[l^2]
 RWTexture2D<float4> history_moments:register(u23);
 RWTexture2D<float4> filter_guide:register(u24); // octahedral normal xy, depth, object id: one read per filter tap
 RWTexture2D<float> device_depth:register(u25); // projected depth 0 (near) to 1 (far), for DLSS SR / FSR / XeSS
-RWTexture2D<float4> hdr_output:register(u26); // scRGB (1.0 = 80 nits) for an HDR swapchain, output resolution
+[[vk::image_format("unknown")]] RWTexture2D<float4> hdr_output:register(u26); // scRGB (1.0 = 80 nits) for an HDR swapchain, output resolution
 RWTexture2D<float2> trace_stats:register(u27); // this frame: mean bounces per sample, BVH steps (Proceed calls) per pixel
 RWTexture3D<float4> lut:register(u29); // film-look .cube LUT (look.w cubed); 2x2x2 when unused
-RWTexture2D<float4> env_map:register(u30); // equirectangular HDRI, RGBA16F, linear RGB / scale (folded into environment_map.x and .w); 1x1 when unused
+[[vk::image_format("rgba16f")]] RWTexture2D<float4> env_map:register(u30); // equirectangular HDRI, RGBA16F, linear RGB / scale (folded into environment_map.x and .w); 1x1 when unused
 RWTexture2D<float> env_cdf:register(u31); // per-row conditional CDFs, then the marginal CDF over rows in an extra last row
 RWTexture2D<uint> scopes:register(u28); // 256 x 260 counters: rows 0-3 histogram R,G,B,L; 4-131 waveform; 132-259 vectorscope (128 wide)
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}

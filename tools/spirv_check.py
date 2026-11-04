@@ -20,8 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def entries():
     src = open(os.path.join(ROOT, 'build.rs'), encoding='utf-8').read()
-    start = src.index('for (file, entry, profile, name, defines) in [')
-    body = src[start:src.index('] {', start)]
+    start = src.index("let entries: &[(&str, &str, &str, &str, &[&str])] = &[")
+    body = src[start:src.index("];", start)]
     out = []
     for m in re.finditer(r'\(\s*"([\w.]+)",\s*"(\w+)",\s*"(\w+)",\s*"(\w+)",\s*&\[(.*?)\]', body, re.S):
         defines = re.findall(r'"([^"]+)"', m.group(5))

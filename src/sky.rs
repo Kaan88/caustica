@@ -553,7 +553,7 @@ pub fn environment_key(s: &crate::scene::Settings) -> String {
 /// # Safety
 /// As `Gpu::set_environment`.
 pub unsafe fn upload_environment(
-    g: &mut crate::gpu::Gpu,
+    g: &mut crate::Gpu,
     s: &crate::scene::Settings,
 ) -> anyhow::Result<()> {
     unsafe {

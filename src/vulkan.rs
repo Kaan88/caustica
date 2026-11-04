@@ -1,8 +1,8 @@
 //! Vulkan backend (port in progress, see engine-notes "Vulkan backend: design").
 //!
 //! Phase 2: instance, a device with ray query and acceleration structures, a swap chain, and a
-//! clear + present loop. `caustica --vulkan [--headless] [--frames N] [--debug] [--no-vsync]`
-//! runs it on its own; the renderer still runs on D3D12 until phase 3. Headless clears an
+//! clear + present loop. `caustica --vulkan-smoke [--headless] [--frames N] [--debug]
+//! [--no-vsync]` runs it on its own (`--vulkan` selects the renderer, `gpu`). Headless clears an
 //! offscreen image and reads it back, so it also runs on a GPU-less machine (lavapipe).
 use anyhow::{Context, Result, anyhow, bail};
 use ash::{ext, khr, vk};
@@ -11,8 +11,9 @@ use std::ffi::{CStr, c_char, c_void};
 use std::sync::Mutex;
 use std::time::Instant;
 
-#[cfg(not(windows))]
 pub mod gpu;
+pub mod layout;
+pub mod res;
 
 static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
@@ -148,6 +149,11 @@ impl Device {
             let mut fas = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default()
                 .acceleration_structure(true);
             let mut frq = vk::PhysicalDeviceRayQueryFeaturesKHR::default().ray_query(true);
+            let core = vk::PhysicalDeviceFeatures::default()
+                .shader_int64(true)
+                .shader_storage_image_extended_formats(true)
+                .shader_storage_image_read_without_format(true)
+                .shader_storage_image_write_without_format(true);
             let priority = [1.0];
             let queues = [vk::DeviceQueueCreateInfo::default()
                 .queue_family_index(family)
@@ -158,6 +164,7 @@ impl Device {
                     &vk::DeviceCreateInfo::default()
                         .queue_create_infos(&queues)
                         .enabled_extension_names(&extensions)
+                        .enabled_features(&core)
                         .push_next(&mut f12)
                         .push_next(&mut f13)
                         .push_next(&mut fas)
@@ -286,7 +293,21 @@ unsafe fn suitable(
                 .push_next(&mut frq);
             instance.get_physical_device_features2(phys, &mut f2);
         }
+        let core = instance.get_physical_device_features(phys);
         let missing: Vec<&str> = [
+            (core.shader_int64, "shaderInt64"),
+            (
+                core.shader_storage_image_extended_formats,
+                "storageImageExtendedFormats",
+            ),
+            (
+                core.shader_storage_image_read_without_format,
+                "storageImageReadWithoutFormat",
+            ),
+            (
+                core.shader_storage_image_write_without_format,
+                "storageImageWriteWithoutFormat",
+            ),
             (f12.buffer_device_address, "bufferDeviceAddress"),
             (f12.descriptor_indexing, "descriptorIndexing"),
             (f12.runtime_descriptor_array, "runtimeDescriptorArray"),
