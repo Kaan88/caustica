@@ -365,10 +365,7 @@ pub fn render_thumbnails(
             command
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null());
-            {
-                use std::os::windows::process::CommandExt;
-                command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: no console for debug builds
-            }
+            crate::platform::no_window(&mut command); // no console for debug builds
             let result = match command.status() {
                 Ok(s) if s.success() && std::fs::rename(&partial, &out).is_ok() => {
                     // Older thumbnails of the same scene (other hashes) are stale.

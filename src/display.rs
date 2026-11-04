@@ -2,12 +2,14 @@
 //! luminance range (from Windows HDR Calibration when the user ran it) and the
 //! "SDR content brightness" slider.
 use anyhow::Result;
+#[cfg(windows)]
 use windows::Win32::{
     Devices::Display::*,
     Foundation::{HWND, RECT},
     Graphics::Dxgi::{Common::*, *},
     UI::WindowsAndMessaging::GetWindowRect,
 };
+#[cfg(windows)]
 use windows::core::Interface;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -36,10 +38,12 @@ impl Default for DisplayInfo {
 
 /// Holds the factory the description came from: once Windows changes the display setup
 /// (HDR toggled, monitor added, calibration rerun) it is no longer current.
+#[cfg(windows)]
 pub struct Monitor {
     factory: IDXGIFactory1,
     pub info: DisplayInfo,
 }
+#[cfg(windows)]
 impl Monitor {
     pub unsafe fn query(hwnd: HWND) -> Result<Self> {
         let factory: IDXGIFactory1 = CreateDXGIFactory1()?;
@@ -88,6 +92,7 @@ impl Monitor {
 
 /// SDR white level and friendly name of the display path whose source is `gdi_name`
 /// (e.g. `\\.\DISPLAY1`).
+#[cfg(windows)]
 unsafe fn white_level(gdi_name: &[u16]) -> Option<(f32, String)> {
     let (mut paths, mut modes) = (0, 0);
     GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut paths, &mut modes)
@@ -251,6 +256,7 @@ pub fn scrgb_to_pq(scrgb: &[f32]) -> Vec<u16> {
 }
 /// Writes scRGB pixels (RGBA, 1.0 = 80 nits) as a lossless JPEG XR of half floats through the
 /// Windows Imaging Component, the format Game Bar and the Snipping Tool use for HDR screenshots.
+#[cfg(windows)]
 pub fn write_jxr(path: &std::path::Path, scrgb: &[f32], width: u32, height: u32) -> Result<()> {
     use windows::Win32::Graphics::Imaging::*;
     use windows::Win32::System::Com::StructuredStorage::{IPropertyBag2, PROPBAG2};
@@ -307,6 +313,26 @@ pub fn write_jxr(path: &std::path::Path, scrgb: &[f32], width: u32, height: u32)
         encoder.Commit()?;
     }
     Ok(())
+}
+/// Off Windows the display counts as SDR until the Vulkan backend reads its HDR state.
+#[cfg(not(windows))]
+pub struct Monitor {
+    pub info: DisplayInfo,
+}
+#[cfg(not(windows))]
+impl Monitor {
+    pub unsafe fn query(_hwnd: crate::platform::HWND) -> Result<Self> {
+        Ok(Self {
+            info: DisplayInfo::default(),
+        })
+    }
+    pub unsafe fn current(&self) -> bool {
+        true
+    }
+}
+#[cfg(not(windows))]
+pub fn write_jxr(_path: &std::path::Path, _scrgb: &[f32], _width: u32, _height: u32) -> Result<()> {
+    anyhow::bail!("JPEG XR needs Windows (WIC)")
 }
 /// One R10G10B10A2 pixel of the HDR10 path (PQ code values in BT.2020) back to scRGB RGBA
 /// (BT.709, 1.0 = 80 nits): readbacks of the HDR10 output and backbuffer go through this.

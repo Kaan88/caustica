@@ -1,5 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Off Windows the D3D12-only paths are compiled out until the Vulkan passes use their helpers
+// (engine-notes "Vulkan backend: design", phase 5 removes this).
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 mod anim;
 mod assets;
 mod audio;
@@ -13,6 +16,7 @@ mod environment;
 mod generators;
 mod geometry;
 mod gizmo;
+#[cfg(windows)]
 mod gpu;
 mod hotreload;
 mod ies;
@@ -26,11 +30,13 @@ mod meshfmt;
 mod omm;
 mod paths;
 mod physics;
+mod platform;
 mod prefs;
 mod presets;
 mod procedural;
 mod reference;
 mod remote;
+mod render;
 mod saver;
 mod scene;
 mod scenes;
@@ -48,9 +54,13 @@ mod timeline_ui;
 mod ui;
 mod video;
 mod video_ui;
+mod vulkan;
+#[cfg(not(windows))]
+use vulkan::gpu;
 mod walk;
 use anyhow::{Context, Result, bail};
 use gpu::Gpu;
+use platform::WindowAttributesExtWindows;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use scene::{PRESETS, Settings};
 use std::{
@@ -63,7 +73,6 @@ use winit::{
     event::*,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
-    platform::windows::WindowAttributesExtWindows,
     window::{Window, WindowId},
 };
 
@@ -141,7 +150,7 @@ struct App {
     /// `scene_name` changes) and a default `UiState`.
     reset_baseline: Settings,
     ui_defaults: Box<ui::UiState>,
-    hwnd: Option<windows::Win32::Foundation::HWND>,
+    hwnd: Option<platform::HWND>,
     /// The monitor under the window, re-read when it moves or Windows changes the display setup.
     monitor: Option<display::Monitor>,
     display_dirty: bool,
@@ -2132,17 +2141,27 @@ impl ApplicationHandler for App {
                 window.set_cursor_visible(false);
                 self.show_ui = false;
             }
-            let hwnd = match window.window_handle()?.as_raw() {
-                RawWindowHandle::Win32(h) => windows::Win32::Foundation::HWND(h.hwnd.get() as _),
-                _ => bail!("Windows only"),
-            };
             let size = window.inner_size();
             startup("window");
-            let mut gpu =
-                unsafe { Gpu::new(hwnd, size.width, size.height, &self.settings, self.debug)? };
+            #[cfg(windows)]
+            let (hwnd, mut gpu) = {
+                let hwnd = match window.window_handle()?.as_raw() {
+                    RawWindowHandle::Win32(h) => {
+                        windows::Win32::Foundation::HWND(h.hwnd.get() as _)
+                    }
+                    _ => bail!("Windows only"),
+                };
+                let gpu =
+                    unsafe { Gpu::new(hwnd, size.width, size.height, &self.settings, self.debug)? };
+                (Some(hwnd), gpu)
+            };
+            #[cfg(not(windows))]
+            let (hwnd, mut gpu) = (None, unsafe {
+                Gpu::new(&window, size.width, size.height, &self.settings, self.debug)?
+            });
             gpu.keep_ui_frame = self.capture_ui;
             startup("gpu");
-            self.hwnd = Some(hwnd);
+            self.hwnd = hwnd;
             if cfg!(debug_assertions) && !self.self_test {
                 self.hot = hotreload::HotReload::new();
             }
@@ -2824,6 +2843,11 @@ fn check_hdr_output(g: &mut gpu::Gpu, s: &Settings, tolerance: f32) -> Result<()
 /// The release version (`v` tag without the v) or the Cargo.toml version with -dev; build.rs.
 pub const VERSION: &str = env!("CAUSTICA_VERSION");
 /// The exe's icon resource at `size` (None: the system's small-icon size).
+#[cfg(not(windows))]
+fn app_icon(_size: Option<u32>) -> Option<winit::window::Icon> {
+    None
+}
+#[cfg(windows)]
 fn app_icon(size: Option<u32>) -> Option<winit::window::Icon> {
     use winit::platform::windows::IconExtWindows;
     winit::window::Icon::from_resource(1, size.map(|s| winit::dpi::PhysicalSize::new(s, s))).ok()
@@ -2862,6 +2886,9 @@ fn run() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     // An installed copy keeps its files per user; carry over what older builds left beside it.
     dirs::migrate();
+    if args.iter().any(|a| a == "--vulkan") {
+        return vulkan::run(&args);
+    }
     if let saver::Mode::Preview(parent) = saver::mode(&args) {
         saver::preview(parent);
         return Ok(());

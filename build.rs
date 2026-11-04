@@ -1,13 +1,5 @@
 use std::{env, path::PathBuf, process::Command};
 fn main() {
-    assert!(
-        env::var("TARGET").unwrap().contains("windows-msvc"),
-        "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
-    );
-    assert!(
-        PathBuf::from("vendor/dlss/include/nvsdk_ngx.h").exists(),
-        "Run powershell -File tools/setup.ps1 to fetch the pinned NVIDIA SDK"
-    );
     println!("cargo:rerun-if-changed=shaders");
     println!("cargo:rerun-if-changed=bridge/ngx.cpp");
     println!("cargo:rerun-if-env-changed=DXC_PATH");
@@ -19,7 +11,6 @@ fn main() {
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| format!("{}-dev", env::var("CARGO_PKG_VERSION").unwrap()));
     println!("cargo:rustc-env=CAUSTICA_VERSION={version}");
-    resources(&version);
     let dxc = env::var_os("DXC_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -46,6 +37,21 @@ fn main() {
             .join("shaders")
             .display()
     );
+    // Linux builds the Vulkan backend only (engine-notes "Vulkan backend: design", phase 2b):
+    // no DXIL, no D3D12 upscaler bridges, no Windows resources.
+    if env::var_os("CARGO_CFG_WINDOWS").is_none() {
+        println!("cargo:warning=non-Windows build: Vulkan backend only (port in progress)");
+        return;
+    }
+    assert!(
+        env::var("TARGET").unwrap().contains("windows-msvc"),
+        "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
+    );
+    assert!(
+        PathBuf::from("vendor/dlss/include/nvsdk_ngx.h").exists(),
+        "Run powershell -File tools/setup.ps1 to fetch the pinned NVIDIA SDK"
+    );
+    resources(&version);
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     // CAUSTICA_SHADER_DEBUG=1 embeds debug info (same -O3 code) so Nsight's shader profiler can
     // map stalls to HLSL lines (track 20a). Off by default.

@@ -81,14 +81,9 @@ Portability: Linux, and AMD / Intel drivers where Vulkan RT is stronger. The ups
   - Ray tracing: `VK_KHR_acceleration_structure` + `VK_KHR_ray_query`, mirroring the inline `RayQuery` design; no pipelines or SBT. `VK_NV_ray_tracing_invocation_reorder` (raygen-only, like D3D12 SER) is the later route to reordering, which measured slower on D3D12.
   - Shaders: the same HLSL to SPIR-V with `dxc -spirv` (`[[vk::binding]]` annotations or `-fvk-*-shift` flags for the register layout). One source of truth for the `Constants` layout.
 - **Shaders, checked 2026-11-04:** `tools/spirv_check.py` compiles all 24 compute / graphics entries of build.rs to SPIR-V (Vulkan 1.3) unchanged with the DXC release build (`vendor/dxc-spirv`, fetched by `tools/setup.ps1` `Get-DxcSpirv`; the Windows SDK's dxc has no SPIR-V codegen); the 7 SER libraries are left for a raygen port. Still to settle with the real descriptor layout: register spaces become descriptor sets one-to-one, and t / u / b registers of the same number in one space share a binding unless shifted (`-fvk-t-shift` etc.); the bindless texture array needs `VK_EXT_descriptor_indexing` (core in 1.2).
-- **Next:** the backend seam under `src/gpu/` (resources, acceleration structures, dispatch, barriers, queries, present, readback, upscaler hooks), D3D12 behind it unchanged (self-test bit-identical), then an `ash` backend that clears and presents, then the trace.
+- **Progress (phases in engine-notes "Vulkan backend: design"):** 1 `GpuState`, 2 device + swap chain + `--vulkan` smoke run, 2b the Linux build (the app runs on lavapipe under Xvfb, clear only; 136 tests pass) are done. Next: 3, resources, descriptor sets, SPIR-V pipelines from build.rs, acceleration structures and the trace + display passes, plus the `Renderer` enum for `--vulkan` on Windows.
 - **Risks and size:** the largest item on the list; budget weeks. Barriers and layouts, descriptor management and the NGX Vulkan device-extension requirements are the hard parts.
-- **Linux port notes:**
-  - ffmpeg: Windows gets a pinned gyan.dev build through `tools/setup.ps1`; on Linux use the distro's `ffmpeg` from PATH (`video::ffmpeg()` already falls back to PATH); drop the `.exe` and the `CREATE_NO_WINDOW` flag (`std::os::windows::process::CommandExt`, also in `hotreload.rs`, `scenes::render_thumbnails`).
-  - Shaders: `hotreload.rs` and build.rs call the Windows SDK's `dxc.exe`; on Linux use the DirectXShaderCompiler release binary (with SPIR-V output).
-  - Windows-only modules: `saver.rs` (screensaver, GDI preview), `display.rs` (DXGI output description, `DisplayConfig` SDR white level; on Linux HDR comes from Wayland colour management or not at all), the stats path (`%APPDATA%`; use `$XDG_DATA_HOME`).
-  - Upscalers: DLSS (NGX) and XeSS have Linux / Vulkan libraries; FSR through the FidelityFX Vulkan backend. The `bridge/` loaders use `LoadLibrary`; use `dlopen`.
-  - Gamepad (gilrs), the std HTTP remote and scene files are portable as they are.
+- **Linux port, open:** ffmpeg from PATH (`video::ffmpeg()` already falls back to it; the `.exe` name stays to drop); `hotreload.rs` runs `CAUSTICA_DXC` (on Linux the DXC release binary, with SPIR-V output); HDR on Linux (Wayland colour management or none; `display::Monitor` reports SDR); upscalers through `dlopen` (phase 6); a Linux CI job once CI is back on.
 
 ## Open tails
 

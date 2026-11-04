@@ -255,10 +255,7 @@ fn render(batch: Vec<(u64, Material)>) -> Receiver<(u64, bool)> {
         command
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: no console for debug builds
-        }
+        crate::platform::no_window(&mut command); // no console for debug builds
         if let Ok(mut child) = command.spawn() {
             let start = std::time::Instant::now();
             while matches!(child.try_wait(), Ok(None)) {

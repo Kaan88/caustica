@@ -1,8 +1,12 @@
 //! Windows screensaver mode (roadmap 5d). Windows starts a `.scr` with `/s` (run full screen),
 //! `/c` or `/c:HWND` (settings), or `/p HWND` (draw a preview into the Screen Saver dialog).
+use crate::platform::HWND;
 use std::time::{Duration, Instant};
-use windows::Win32::Foundation::{HWND, RECT};
+#[cfg(windows)]
+use windows::Win32::Foundation::RECT;
+#[cfg(windows)]
 use windows::Win32::Graphics::Gdi::*;
+#[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, IsWindow};
 
 pub enum Mode {
@@ -31,6 +35,9 @@ pub fn mode(args: &[String]) -> Mode {
     Mode::Normal
 }
 /// Paints a scene thumbnail into the preview window until Windows closes it.
+#[cfg(not(windows))]
+pub fn preview(_parent: HWND) {}
+#[cfg(windows)]
 pub fn preview(parent: HWND) {
     let thumbnail = crate::scenes::list()
         .iter()

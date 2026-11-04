@@ -283,10 +283,7 @@ impl HotReload {
                 .arg("-Fo")
                 .arg(&target)
                 .arg(self.dir.join(file));
-            {
-                use std::os::windows::process::CommandExt;
-                command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-            }
+            crate::platform::no_window(&mut command);
             let result = command.output().map_err(|e| format!("DXC: {e}"))?;
             if !result.status.success() {
                 let text = String::from_utf8_lossy(&result.stderr);

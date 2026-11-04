@@ -139,16 +139,13 @@ impl ImageFormat {
 /// (YYYY-MM-DD) and `{time}` (HH-MM-SS, local), `{spp}` (samples so far), `{w}` and `{h}` (the
 /// image size). Characters Windows forbids in names become `_`; an empty result is "caustica".
 pub fn expand_name(template: &str, scene: &str, samples: u32, w: u32, h: u32) -> String {
-    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+    let [year, month, day, hour, minute, second] = crate::platform::local_time();
     let out = template
         .replace("{scene}", scene)
-        .replace(
-            "{date}",
-            &format!("{:04}-{:02}-{:02}", t.wYear, t.wMonth, t.wDay),
-        )
+        .replace("{date}", &format!("{:04}-{:02}-{:02}", year, month, day))
         .replace(
             "{time}",
-            &format!("{:02}-{:02}-{:02}", t.wHour, t.wMinute, t.wSecond),
+            &format!("{:02}-{:02}-{:02}", hour, minute, second),
         )
         .replace("{spp}", &samples.to_string())
         .replace("{w}", &w.to_string())
@@ -497,10 +494,7 @@ pub fn ffmpeg_available() -> bool {
         c.arg("-version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
-        {
-            use std::os::windows::process::CommandExt;
-            c.creation_flags(0x0800_0000);
-        }
+        crate::platform::no_window(&mut c);
         c.status().is_ok_and(|s| s.success())
     });
     *AVAILABLE
@@ -624,10 +618,7 @@ impl Writer {
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::piped());
-            {
-                use std::os::windows::process::CommandExt;
-                c.creation_flags(0x0800_0000);
-            }
+            crate::platform::no_window(&mut c);
             Some(c.spawn().context("Starting ffmpeg")?)
         } else {
             match o.output().parent() {

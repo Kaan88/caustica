@@ -46,8 +46,22 @@ pub fn mode() -> Mode {
     static MODE: OnceLock<Mode> = OnceLock::new();
     *MODE.get_or_init(|| detect(exe_dir().as_deref()))
 }
+#[cfg(windows)]
 fn known(var: &str) -> Option<PathBuf> {
     std::env::var_os(var).map(|v| PathBuf::from(v).join("Caustica"))
+}
+/// Linux: %APPDATA% is the XDG config folder and %LOCALAPPDATA% the XDG cache folder.
+#[cfg(not(windows))]
+fn known(var: &str) -> Option<PathBuf> {
+    let (xdg, fallback) = match var {
+        "APPDATA" => ("XDG_CONFIG_HOME", ".config"),
+        _ => ("XDG_CACHE_HOME", ".cache"),
+    };
+    std::env::var_os(xdg)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(fallback)))
+        .map(|d| d.join("caustica"))
 }
 /// %APPDATA%\Caustica, or the exe folder when portable. Builds before the rename kept prefs in
 /// %APPDATA%\CornellRTX: that folder is moved over once.
@@ -255,7 +269,12 @@ mod tests {
         assert_eq!(detect(Some(&installed)), Mode::Installed);
         assert_eq!(detect(Some(&portable)), Mode::Portable);
         assert_eq!(
-            detect(Some(Path::new(r"C:\src\caustica\target\release"))),
+            detect(Some(
+                &Path::new("src")
+                    .join("caustica")
+                    .join("target")
+                    .join("release")
+            )),
             Mode::Development
         );
         // Tests run from target/…/deps.
