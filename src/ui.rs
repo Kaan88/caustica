@@ -184,6 +184,7 @@ pub struct UiState {
     pub show_graph: bool,
     pub show_stats: bool,
     pub show_remote: bool,
+    pub console: crate::console::Console,
     remote_qr: Option<egui::TextureHandle>,
     scope_images: Option<(egui::TextureHandle, egui::TextureHandle)>,
     /// Convergence graph: reference image (width, height, RGBA), points (samples, RMSE x1000).
@@ -321,6 +322,7 @@ impl Default for UiState {
             show_graph: false,
             show_stats: false,
             show_remote: false,
+            console: Default::default(),
             remote_qr: None,
             scope_images: None,
             reference: None,
@@ -1711,6 +1713,9 @@ impl App {
         if self.ui.show_remote {
             self.remote_window(ctx);
         }
+        if self.ui.console.open {
+            self.console_window(ctx);
+        }
         if self.ui.paths.open
             && crate::paths::window(ctx, &mut self.ui.paths, self.settings.perspective())
         {
@@ -2569,6 +2574,10 @@ impl App {
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
                     if ui.button("Phone remote…").clicked() {
                         self.ui.show_remote = true;
+                        ui.close_menu();
+                    }
+                    if ui.button("Script console…").clicked() {
+                        self.ui.console.open = true;
                         ui.close_menu();
                     }
                     if ui.button("Statistics and achievements").clicked() {

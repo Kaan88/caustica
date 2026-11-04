@@ -4,6 +4,7 @@ mod anim;
 mod assets;
 mod audio;
 mod browser;
+mod console;
 mod dirs;
 mod display;
 mod editor;
@@ -752,10 +753,30 @@ impl App {
     /// unless the script is waiting for frames (so the frame count is the script's alone).
     fn poll_script(&mut self, event_loop: &ActiveEventLoop) -> bool {
         use script::{Reply, Request};
+        let mut handled = 0;
         loop {
+            // In the window, at most 256 requests a frame, so a generator adding thousands of
+            // objects keeps the UI (and Stop) responsive.
+            if !self.hidden && handled >= 256 {
+                return true;
+            }
             let sc = self.script.as_mut().unwrap();
+            for line in sc.output() {
+                console::log(&mut self.ui.console.log, line);
+            }
             if let Some(result) = sc.finished() {
+                // Lines printed just before the end.
+                for line in sc.output() {
+                    console::log(&mut self.ui.console.log, line);
+                }
                 self.script = None;
+                console::log(
+                    &mut self.ui.console.log,
+                    match &result {
+                        Ok(()) => "Finished".to_string(),
+                        Err(e) => format!("Error: {e}"),
+                    },
+                );
                 match result {
                     Ok(()) => {
                         println!("SCRIPT_OK frames={}", self.rendered);
@@ -780,10 +801,20 @@ impl App {
             let Some((request, tx)) = sc.next(wait) else {
                 return !self.hidden || sc.waiting.is_some();
             };
+            // Stopped: requests already queued are refused, not run.
+            if sc.stopped() {
+                let _ = tx.send(Reply::Done(Err("stopped".into())));
+                continue;
+            }
+            handled += 1;
             let done = |r: Result<()>| Reply::Done(r.map_err(|e| format!("{e:#}")));
             let changes = matches!(
                 request,
-                Request::Load(_) | Request::Set(..) | Request::Reset
+                Request::Load(_)
+                    | Request::Set(..)
+                    | Request::Reset
+                    | Request::Add(_)
+                    | Request::Clear
             );
             if sc.stale && matches!(request, Request::Capture(_) | Request::Samples) {
                 let _ = tx.send(Reply::Done(Err(
@@ -841,6 +872,30 @@ impl App {
                 },
                 Request::Scenes => {
                     Reply::List(scenes::list().into_iter().map(|e| e.title).collect())
+                }
+                // Generators from scripts: objects from their scene-file JSON.
+                Request::Add(json) => done(
+                    serde_json::from_str::<scene::Object>(&json)
+                        .map_err(anyhow::Error::from)
+                        .and_then(|o| {
+                            self.settings.objects.push(o);
+                            let valid = self.settings.validate();
+                            if valid.is_err() {
+                                self.settings.objects.pop();
+                            }
+                            valid
+                        }),
+                ),
+                Request::Clear => {
+                    // Nothing may keep pointing at the removed objects (as `remove_object`).
+                    let s = &mut self.settings;
+                    s.objects.clear();
+                    s.animation
+                        .tracks
+                        .retain(|t| !anim::under(&t.path, "objects"));
+                    s.puzzle.target = -1;
+                    s.puzzle.targets.clear();
+                    done(Ok(()))
                 }
             };
             if changes {

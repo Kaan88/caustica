@@ -157,6 +157,9 @@ pub struct Animation {
     /// instead of yaw, pitch, distance and target each interpolating alone (which swings the
     /// eye around the target).
     pub camera_path: bool,
+    /// A Rhai script run on every frame after the tracks (`script::per_frame`): `set(key,
+    /// value)` and `get(key)` on any setting by its `/` path, with `t`, `frame` and `fps`.
+    pub script: String,
 }
 impl Default for Animation {
     fn default() -> Self {
@@ -166,6 +169,7 @@ impl Default for Animation {
             shutter: 0.,
             tracks: vec![],
             camera_path: false,
+            script: String::new(),
         }
     }
 }
@@ -225,7 +229,7 @@ pub fn animatable(path: &str) -> bool {
 }
 impl Animation {
     pub fn is_empty(&self) -> bool {
-        self.tracks.is_empty()
+        self.tracks.is_empty() && self.script.trim().is_empty()
     }
     /// Scene files leave out an untouched animation.
     pub fn is_default(&self) -> bool {
@@ -239,6 +243,7 @@ impl Animation {
             "Invalid animation length, fps or shutter"
         );
         anyhow::ensure!(self.tracks.len() <= 100_000, "Too many animation tracks");
+        anyhow::ensure!(self.script.len() <= 65536, "Per-frame script too long");
         for t in &self.tracks {
             anyhow::ensure!(
                 !t.keys.is_empty()
@@ -263,7 +268,7 @@ impl Animation {
     /// `s` with every track's value at time `t`. Tracks whose field no longer exists (or is
     /// no longer a float) are skipped; if the result fails `validate()`, `s` comes back as is.
     pub fn apply(&self, s: &Settings, t: f32) -> Settings {
-        if self.tracks.is_empty() {
+        if self.is_empty() {
             return s.clone();
         }
         let Ok(mut v) = serde_json::to_value(s) else {
@@ -303,18 +308,38 @@ impl Animation {
                 _ => {}
             }
         }
-        match serde_json::from_value::<Settings>(v) {
-            Ok(mut out) => {
-                if let Some((eye, target)) = self.camera_on_path(s, t) {
-                    set_orbit(&mut out, eye, target);
-                }
-                match out.validate() {
-                    Ok(()) => out,
-                    Err(_) => s.clone(),
-                }
+        let finish = |v: Value| -> anyhow::Result<Settings> {
+            let mut out: Settings = serde_json::from_value(v)?;
+            if let Some((eye, target)) = self.camera_on_path(s, t) {
+                set_orbit(&mut out, eye, target);
             }
-            Err(_) => s.clone(),
+            out.validate()?;
+            Ok(out)
+        };
+        if self.script.trim().is_empty() {
+            return finish(v).unwrap_or_else(|_| s.clone());
         }
+        // The per-frame script runs on the tracks' result; if it fails, or sets a value of the
+        // wrong type or out of range, the frame keeps the tracks' result and the console shows
+        // why (a failing script must not silently drop the keyframes too).
+        let tracks_only = v.clone();
+        let frame = (t * self.fps as f32).round().max(0.) as u32;
+        let error = match crate::script::per_frame(&self.script, &mut v, t, frame, self.fps) {
+            Err(e) => Some(e),
+            Ok(()) => match finish(v) {
+                Ok(out) => {
+                    *crate::script::FRAME_ERROR
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner()) = None;
+                    return out;
+                }
+                Err(e) => Some(format!("the script set an invalid value: {e:#}")),
+            },
+        };
+        *crate::script::FRAME_ERROR
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = error;
+        finish(tracks_only).unwrap_or_else(|_| s.clone())
     }
     /// The camera's key times (any of its orbit fields), sorted and deduplicated.
     fn camera_times(&self) -> Vec<f32> {
@@ -654,10 +679,10 @@ pub struct Timeline {
     /// The settings as the animation last left them: edits since then are what I and Shift+I
     /// key. None while the scene has no keys (then nothing counts as edited).
     pub rest: Option<Settings>,
-    /// The time, tracks and camera-path switch `rest` was evaluated at; the animation is
-    /// applied again when any changes
-    /// changes (not for length, fps or shutter, which move no key).
-    pub applied: Option<(f32, Vec<Track>, bool)>,
+    /// The time, tracks, camera-path switch and per-frame script `rest` was evaluated at; the
+    /// animation is applied again when any of them changes (not for length, fps or shutter,
+    /// which move no key).
+    pub applied: Option<(f32, Vec<Track>, bool, String)>,
     /// Auto-key: every finished edit at a still playhead is keyed (Shift+I by itself).
     pub auto_key: bool,
     /// The curve editor is open (below the strip).
@@ -703,8 +728,11 @@ impl Timeline {
         if s.animation.is_empty() {
             self.rest = None;
         }
-        let fresh = self.applied.as_ref().is_none_or(|(t, a, path)| {
-            *t != self.time || *a != s.animation.tracks || *path != s.animation.camera_path
+        let fresh = self.applied.as_ref().is_none_or(|(t, a, path, script)| {
+            *t != self.time
+                || *a != s.animation.tracks
+                || *path != s.animation.camera_path
+                || *script != s.animation.script
         });
         if !fresh {
             // Objects or lights added or removed since: their indices no longer match `rest`.
@@ -723,6 +751,7 @@ impl Timeline {
             self.time,
             s.animation.tracks.clone(),
             s.animation.camera_path,
+            s.animation.script.clone(),
         ));
         true
     }
@@ -734,6 +763,7 @@ impl Timeline {
             self.time,
             s.animation.tracks.clone(),
             s.animation.camera_path,
+            s.animation.script.clone(),
         ));
     }
     /// Auto-key: keys what changed since the last applied or keyed state, once no edit is in
