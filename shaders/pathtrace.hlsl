@@ -639,20 +639,26 @@ static float3 lpe_diffuse; // eval_bsdf: the diffuse part of the value it return
 static bool lpe_env_sample; // sample_light: the HDRI or sky was picked (event B, else L)
 static uint lpe_state; // per slot, 8 bits: the DFA state after this path's events so far
 static float3 lpe_weight,lpe_sum[4];
-uint lpe_step(uint k,uint state,uint event){return lpe_table[(k*32+state)*8+event];}
+// Labels (lpe.rs): each symbol is label class * 8 + event, the class of a material id in the
+// table's tail. lpe_label: the current surface's class; lpe_light_label: the class of the light
+// the next light event comes from (sample_light, or an emitter hit). V and B carry class 0.
+static uint lpe_label=0,lpe_light_label=0;
+uint lpe_class(uint material){return material<8192?lpe_table[4*32*64+material]:0;}
+uint lpe_step(uint k,uint state,uint event,uint cls){return lpe_table[(k*32+state)*64+cls*8+event];}
 void lpe_advance(uint event){
-    if(!lpe_on)return;uint s=0;
-    [unroll]for(uint k=0;k<4;k++){uint st=(lpe_state>>(8*k))&255;s|=(k<lpe.x && st!=255?lpe_step(k,st,event)&255:255)<<(8*k);}
+    if(!lpe_on)return;uint s=0;uint cls=event==4?0:lpe_label;
+    [unroll]for(uint k=0;k<4;k++){uint st=(lpe_state>>(8*k))&255;s|=(k<lpe.x && st!=255?lpe_step(k,st,event,cls)&255:255)<<(8*k);}
     lpe_state=s;
 }
 // A contribution e reaching the camera through the path so far, then `event` (8: none), then
 // the light event `light` (5 or 6).
 void lpe_add(uint event,uint light,float3 e){
     if(!lpe_on || !all(isfinite(e)))return;
+    uint cls=event==4?0:lpe_label,lcls=light==6?0:lpe_light_label;
     [unroll]for(uint k=0;k<4;k++){
         uint st=(lpe_state>>(8*k))&255;if(k>=lpe.x || st==255)continue;
-        if(event!=8){st=lpe_step(k,st,event)&255;if(st==255)continue;}
-        if((lpe_step(k,st,light)>>8)!=0)lpe_sum[k]+=e*lpe_weight;
+        if(event!=8){st=lpe_step(k,st,event,cls)&255;if(st==255)continue;}
+        if((lpe_step(k,st,light,lcls)>>8)!=0)lpe_sum[k]+=e*lpe_weight;
     }
 }
 // The glossy event of a material: S below roughness 0.1, else G.
@@ -1022,6 +1028,7 @@ bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,o
     nee_anchor=lp;nee_axis=ln;nee_cos=emission_cos(lm);nee_anchored=true;
     if(lm.optical.w<0.5 || dot(ln,-ld)>0){le=emitted_color(lm,li+1,lp)*lm.optical.y*spot(lm,dot(ln,-ld));pl=(1-p_env)*(1-sdf_share())*emitter_pdf(x,lp,light);limit=nee_limit(len,dot(ln,ld));nee=true;}
     }}
+    if(lpe_on)lpe_light_label=lmat!=0xffffffffu?lpe_class(lmat):0;
     le=lmat!=0xffffffffu?up_emitted(lmat,le):up(le);return nee;
 }
 // ReSTIR DI (track 15; Bitterli et al. 2020, with the generalized RIS weights of Lin et al.
@@ -1133,7 +1140,7 @@ bool restir_nee(uint2 p,uint layer,Hit h,float3 v,out float3 ld,out float3 le,ou
     uint lc=alias_index(random(),random()),qc=pack_uv(float2(random(),random()));float Wc=1/max(light_point(lc,qc).source,1e-30);
     Reservoir r=reservoirs[restir_slot(0,layer)+p.y*dimensions.x+p.x];uint light=lc,q=qc;float W=Wc;
     if(reservoir_valid(r))restir_merge(a,lc,qc,Wc,1,domain_of(r),r.light,r.uv,r.W,reservoir_m(r),light,q,W);
-    LightPoint l=light_point(light,q);float g;le=up_emitted((uint)emitters[light].emission_material.w,light_toward(light,l,h.p,ld,g,limit))*g*W;
+    LightPoint l=light_point(light,q);float g;if(lpe_on)lpe_light_label=lpe_class((uint)emitters[light].emission_material.w);le=up_emitted((uint)emitters[light].emission_material.w,light_toward(light,l,h.p,ld,g,limit))*g*W;
     return W>0 && any(le>0);
 }
 // Volumes (track 12): homogeneous media, sampled by free flight on their extinction (`flight`:
@@ -1250,7 +1257,7 @@ float flight_pdf(float3 sigma,float t0,float t){if(hero_only)sigma=sigma.xxx;flo
 float3 equiangular_light_side(uint64_t media,float3 o,float3 d,float t0,float t1,float3 sigma,float3 albedo,float3 absorption,float g,bool env_nee,float p_env,uint mis){
     if(env_nee && side_random()<p_env)return 0;
     if(sdf_nee_on && side_random()<0.5)return 0;
-    uint li=select_index(side_random());Emitter light=emitters[li];if(light.position_area.w<0 && light.position_area.w!=-1)return 0;
+    uint li=select_index(side_random());Emitter light=emitters[li];if(lpe_on)lpe_light_label=lpe_class((uint)light.emission_material.w);if(light.position_area.w<0 && light.position_area.w!=-1)return 0;
     bool sphere=light.position_area.w==-1;float3 lp=light.position_area.xyz;
     float ea=t0,eb=t1;
     if(!sphere){float su=sqrt(side_random()),v=side_random();lp+=light.edge1_cdf.xyz*(1-su)+light.edge2_probability.xyz*(su*v);
@@ -1486,13 +1493,13 @@ void trace_main(uint3 tid){
                     if(dot(direction,sun.position_area.xyz)<=0 || dot(x,x)>om*(2-om))continue;
                     if(bounce==0 && (((uint)materials[(uint)sun.emission_material.w].lobes.w&2u)!=0))continue;
                     float w=1;if(bounce>0 && !previous_delta)w=mis==1 || previous_restir?0:mis==2?1:previous_pdf/(previous_pdf+(1-p_env)*(1-sdf_share())*sun.edge2_probability.w/(2*PI*sun.edge1_cdf.x));
-                    float3 se=throughput*up_emitted((uint)sun.emission_material.w,sun.emission_material.rgb)*w;e+=se;lpe_add(8,5,se);}
+                    float3 se=throughput*up_emitted((uint)sun.emission_material.w,sun.emission_material.rgb)*w;e+=se;if(lpe_on)lpe_light_label=lpe_class((uint)sun.emission_material.w);lpe_add(8,5,se);}
                 radiance+=e;if(bounce<=1)direct+=e;record(10,bounce,origin,throughput,luminance(e),direction);end_reason=0;break;}
             throughput*=exp(-absorption*h.t);cone_width+=cone_spread*h.t;
             float3 arriving=throughput;
             // Portal: continue from the matching point of the paired object, without a bounce.
             // Light sampling cannot see through portals, so emission found after one has weight 1.
-            Material m=material_at(h.material,h.p);
+            Material m=material_at(h.material,h.p);if(lpe_on)lpe_label=lpe_class(h.material);
             // Shadow catcher (Settings::shadow_catcher): seen from the camera, the floor is the
             // background behind it (ground-projected when that is on) times the share of four
             // light samples' power the scene leaves unblocked; any other ray sees the projected
@@ -1560,7 +1567,7 @@ void trace_main(uint3 tid){
                 if(k!=0xffffffffu)weight=mis==1?0:previous_pdf/(previous_pdf+(1-p_env)*sdf_share()*sdf_record_prob(k)*sdf_dir_pdf(previous_position,k));
             }
             float3 e=throughput*emitted*weight;radiance+=e;if(bounce<=1)direct+=e;
-            float emitted_l=luminance(e);lpe_add(8,5,e);
+            float emitted_l=luminance(e);if(lpe_on)lpe_light_label=lpe_label;lpe_add(8,5,e);
             if(((uint)m.lobes.w&1u)!=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=1;break;}
             // Light sampling (sample_light), then one shared BSDF evaluation: eval_bsdf is inlined
             // once here instead of once per strategy (code size and registers cost even scenes

@@ -336,7 +336,8 @@ pub struct Gpu {
     /// AOV buffer (u1 space 2: render pixels x slots float4s, allocated while any slot is set).
     trace_lpe: ID3D12PipelineState,
     lpe_table: ID3D12Resource,
-    lpe_uploaded: Option<Vec<String>>,
+    /// The expressions and (with a label in use) the material names the table was built from.
+    lpe_uploaded: Option<(Vec<String>, Vec<String>)>,
     pub lpe_slots: u32,
     lpe_aov: Option<ID3D12Resource>,
     lpe_aov_len: u64,
@@ -987,7 +988,8 @@ impl Gpu {
         let trace_lpe = compute(include_bytes!(concat!(env!("OUT_DIR"), "/trace_lpe.dxil")))?;
         let lpe_table = buffer(
             &device,
-            (crate::lpe::SLOTS * crate::lpe::STATES * crate::lpe::SYMBOLS * 4) as u64,
+            ((crate::lpe::SLOTS * crate::lpe::STATES * crate::lpe::SYMBOLS + crate::lpe::MATERIALS)
+                * 4) as u64,
             D3D12_HEAP_TYPE_UPLOAD,
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -3602,11 +3604,31 @@ impl Gpu {
     /// Uploads the light path expressions' table when they change, and sizes the AOV buffer
     /// (a new buffer restarts the accumulation, as its contents are undefined).
     unsafe fn prepare_lpe(&mut self, s: &Settings) -> Result<()> {
-        if self.lpe_uploaded.as_ref() != Some(&s.lpe) {
-            let (table, slots) = crate::lpe::table(&s.lpe);
+        // Labels match names, which the accumulation's transport key leaves out: a rename that
+        // changes a label's surfaces resets here.
+        let names = if s.lpe.iter().any(|e| e.contains('\'')) {
+            crate::lpe::material_names(s)
+        } else {
+            vec![]
+        };
+        if self
+            .lpe_uploaded
+            .as_ref()
+            .is_none_or(|(e, n)| *e != s.lpe || *n != names)
+        {
+            let (table, slots, labels) = crate::lpe::table(&s.lpe);
             write_buffer(&self.lpe_table, 0, bytemuck::cast_slice(&table))?;
+            let classes = crate::lpe::classes(&labels, &names);
+            write_buffer(
+                &self.lpe_table,
+                (table.len() * 4) as u64,
+                bytemuck::cast_slice(&classes),
+            )?;
+            if self.lpe_uploaded.is_some() && slots > 0 {
+                self.reset(false);
+            }
             self.lpe_slots = slots;
-            self.lpe_uploaded = Some(s.lpe.clone());
+            self.lpe_uploaded = Some((s.lpe.clone(), names));
         }
         let len = self.rw as u64 * self.rh as u64 * self.lpe_slots as u64 * 16;
         if len == 0 {

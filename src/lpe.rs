@@ -9,13 +9,25 @@
 //! optional and whitespace is ignored. Each contribution adds to a slot when its whole event
 //! string matches: `C D L` is direct diffuse light, `C D [ST]+ L` caustics.
 //!
+//! **Labels** (wave 3): a quoted name right after an event or a set limits it to the surfaces
+//! of that name: `C D'red wall' L` is light off the red wall, `C .* L'key'` the light of the
+//! light named key, and a bare `'vase'` is any event at the vase. A name is an object's or a
+//! light's (case and surrounding spaces ignored), or `left wall`, `right wall`, `back wall`,
+//! `floor`, `main light` and `sun`. Volume (V) and background (B) events carry no label. Up to
+//! [`CLASSES`] - 1 names over all slots; each symbol is then (label class, event), class 0
+//! meaning no name used in any expression.
+//!
 //! Expressions compile to minimal DFAs of at most [`STATES`] states, uploaded as one table.
 use std::collections::{BTreeSet, HashMap};
 
 pub const SLOTS: usize = 4;
 pub const STATES: usize = 32;
-/// Symbols per state in the table: the 7 events, and one spare.
-pub const SYMBOLS: usize = 8;
+/// Label classes: 0 (no label in use), then one per distinct name.
+pub const CLASSES: usize = 8;
+/// Symbols per state in the table: per class, the 7 events and one spare (class * 8 + event).
+pub const SYMBOLS: usize = CLASSES * 8;
+/// After the transitions, the table holds each material id's label class (`classes`).
+pub const MATERIALS: usize = 8192;
 pub const EVENTS: &str = "DGSTVLB";
 /// The table's "no match possible" state.
 pub const DEAD: u8 = 255;
@@ -39,26 +51,53 @@ pub struct Dfa {
     pub accept: Vec<bool>,
 }
 impl Dfa {
-    /// Whether a whole event string (like "DGL") matches.
+    /// Whether a whole event string (like "DGL", or "D'wall'L" with labels from `labels`)
+    /// matches.
     #[cfg(test)]
-    pub fn matches(&self, events: &str) -> bool {
+    pub fn matches_labelled(&self, events: &str, labels: &[String]) -> bool {
         let mut s = 0u8;
-        for c in events.chars() {
+        let mut chars = events.chars().peekable();
+        while let Some(c) = chars.next() {
             let Some(i) = EVENTS.find(c) else {
                 return false;
             };
-            s = self.next[s as usize][i];
+            let mut class = 0;
+            if chars.peek() == Some(&'\'') {
+                chars.next();
+                let name: String = chars.by_ref().take_while(|c| *c != '\'').collect();
+                class = labels.iter().position(|l| *l == name).map_or(0, |p| p + 1);
+            }
+            s = self.next[s as usize][class * 8 + i];
             if s == DEAD {
                 return false;
             }
         }
         self.accept[s as usize]
     }
+    #[cfg(test)]
+    pub fn matches(&self, events: &str) -> bool {
+        self.matches_labelled(events, &[])
+    }
 }
 
-/// A set of events as a bit mask (bit i = EVENTS[i]).
-type Set = u8;
-const ALL: Set = (1 << 7) - 1;
+/// A set of symbols as a bit mask (bit class * 8 + i = EVENTS[i] at that label class).
+type Set = u64;
+const ALL: Set = 0x7f7f_7f7f_7f7f_7f7f;
+/// Events (bit i = EVENTS[i]) at any label class.
+fn any_class(events: u8) -> Set {
+    events as Set * 0x0101_0101_0101_0101
+}
+fn class_mask(class: usize) -> Set {
+    0x7f << (8 * class)
+}
+/// Whether a symbol is a real event (class * 8 + 7 is the spare).
+fn event_symbol(sym: usize) -> bool {
+    sym % 8 < 7
+}
+/// The label name as matched: lower case, outer spaces trimmed.
+pub fn label_name(name: &str) -> String {
+    name.trim().to_lowercase()
+}
 
 enum Node {
     Set(Set),
@@ -69,10 +108,33 @@ enum Node {
     Maybe(Box<Node>),
 }
 
-struct Parser<'a> {
+struct Parser<'a, 'l> {
     chars: std::iter::Peekable<std::str::Chars<'a>>,
+    labels: &'l mut Vec<String>,
 }
-impl Parser<'_> {
+impl Parser<'_, '_> {
+    /// A quoted name (the opening quote already read) as its label class.
+    fn label(&mut self) -> Result<usize, String> {
+        let mut name = String::new();
+        loop {
+            match self.chars.next().ok_or("missing ' after a label")? {
+                '\'' => break,
+                c => name.push(c),
+            }
+        }
+        let name = label_name(&name);
+        if name.is_empty() {
+            return Err("empty label ''".into());
+        }
+        if let Some(p) = self.labels.iter().position(|l| *l == name) {
+            return Ok(p + 1);
+        }
+        if self.labels.len() + 1 >= CLASSES {
+            return Err(format!("at most {} labels", CLASSES - 1));
+        }
+        self.labels.push(name);
+        Ok(self.labels.len())
+    }
     fn peek(&mut self) -> Option<char> {
         while self.chars.peek().is_some_and(|c| c.is_whitespace()) {
             self.chars.next();
@@ -117,7 +179,22 @@ impl Parser<'_> {
         Ok(Node::Seq(items))
     }
     fn atom(&mut self) -> Result<Node, String> {
+        let node = self.unlabelled()?;
+        // A label after the event or set (spaces between are ignored, as everywhere).
+        if self.peek() == Some('\'') {
+            self.chars.next();
+            let class = self.label()?;
+            return match node {
+                Node::Set(s) => Ok(Node::Set(s & class_mask(class))),
+                _ => Err("a label goes right after an event or a set".into()),
+            };
+        }
+        Ok(node)
+    }
+    fn unlabelled(&mut self) -> Result<Node, String> {
         match self.next().ok_or("unexpected end")? {
+            // A bare label: any event there.
+            '\'' => Ok(Node::Set(ALL & class_mask(self.label()?))),
             '(' => {
                 let inner = self.alt()?;
                 if self.next() != Some(')') {
@@ -130,7 +207,7 @@ impl Parser<'_> {
                 if negate {
                     self.next();
                 }
-                let mut set = 0;
+                let mut set: Set = 0;
                 loop {
                     match self.next().ok_or("missing ]")? {
                         ']' => break,
@@ -150,12 +227,12 @@ fn symbol(c: char) -> Result<Set, String> {
     let c = c.to_ascii_uppercase();
     match c {
         '.' => Ok(ALL),
-        'R' => Ok(0b111),
+        'R' => Ok(any_class(0b111)),
         'C' => Err("C (the camera) may only start the expression".into()),
         '*' | '+' | '?' => Err(format!("nothing to repeat before {c}")),
         _ => EVENTS
             .find(c)
-            .map(|i| 1 << i)
+            .map(|i| any_class(1 << i))
             .ok_or_else(|| format!("unknown event {c:?} (use D G S T V L B . R)")),
     }
 }
@@ -219,9 +296,34 @@ impl Nfa {
     }
 }
 
+#[cfg(test)]
 pub fn compile(expr: &str) -> Result<Dfa, String> {
+    compile_labelled(expr, &mut vec![])
+}
+/// Compiles `expr` as slot `k` of `exprs`: its labels count together with the other slots'
+/// (the table shares one set of [`CLASSES`] - 1 names).
+pub fn check(exprs: &[String], k: usize, expr: &str) -> Result<Dfa, String> {
+    let mut labels = vec![];
+    for (j, e) in exprs.iter().enumerate().take(SLOTS) {
+        if j != k && !e.trim().is_empty() {
+            let _ = compile_labelled(e, &mut labels);
+        }
+    }
+    compile_labelled(expr, &mut labels)
+}
+/// `compile` with the label names shared across expressions (new ones are appended).
+pub fn compile_labelled(expr: &str, labels: &mut Vec<String>) -> Result<Dfa, String> {
+    let before = labels.len();
+    let result = compile_with(expr, labels);
+    if result.is_err() {
+        labels.truncate(before);
+    }
+    result
+}
+fn compile_with(expr: &str, labels: &mut Vec<String>) -> Result<Dfa, String> {
     let mut p = Parser {
         chars: expr.chars().peekable(),
+        labels,
     };
     if p.peek().is_some_and(|c| c.eq_ignore_ascii_case(&'C')) {
         p.next();
@@ -238,11 +340,14 @@ pub fn compile(expr: &str) -> Result<Dfa, String> {
     // Subset construction.
     let mut sets = vec![nfa.closure([start])];
     let mut index: HashMap<BTreeSet<usize>, usize> = HashMap::from([(sets[0].clone(), 0)]);
-    let mut next: Vec<[Option<usize>; 7]> = vec![];
+    let mut next: Vec<[Option<usize>; SYMBOLS]> = vec![];
     let mut i = 0;
     while i < sets.len() {
-        let mut row = [None; 7];
+        let mut row = [None; SYMBOLS];
         for (sym, slot) in row.iter_mut().enumerate() {
+            if !event_symbol(sym) {
+                continue;
+            }
             let targets = sets[i].iter().flat_map(|s| {
                 nfa.moves[*s]
                     .iter()
@@ -270,14 +375,18 @@ pub fn compile(expr: &str) -> Result<Dfa, String> {
     let dfa = minimize(&next, &accept)?;
     // Contributions are matched with their light event last, so nothing else can ever match.
     let light = |n: u8| n != DEAD && dfa.accept[n as usize];
-    if !dfa.next.iter().any(|row| light(row[5]) || light(row[6])) {
+    if !dfa
+        .next
+        .iter()
+        .any(|row| (0..CLASSES).any(|c| light(row[c * 8 + 5]) || light(row[c * 8 + 6])))
+    {
         return Err("never ends in L or B (the light or the background)".into());
     }
     Ok(dfa)
 }
 
 /// Moore partition refinement, then drops states that can never accept (they become DEAD).
-fn minimize(next: &[[Option<usize>; 7]], accept: &[bool]) -> Result<Dfa, String> {
+fn minimize(next: &[[Option<usize>; SYMBOLS]], accept: &[bool]) -> Result<Dfa, String> {
     let n = next.len();
     // Live states: those from which an accepting state is reachable.
     let mut live: Vec<bool> = accept.to_vec();
@@ -299,7 +408,7 @@ fn minimize(next: &[[Option<usize>; 7]], accept: &[bool]) -> Result<Dfa, String>
     let target = |s: usize, sym: usize| next[s][sym].filter(|t| live[*t]);
     let mut class: Vec<usize> = (0..n).map(|s| accept[s] as usize).collect();
     loop {
-        let mut signatures: HashMap<(usize, [Option<usize>; 7]), usize> = HashMap::new();
+        let mut signatures: HashMap<(usize, [Option<usize>; SYMBOLS]), usize> = HashMap::new();
         let mut refined = vec![0; n];
         for s in (0..n).filter(|s| live[*s]) {
             let sig = (
@@ -327,7 +436,7 @@ fn minimize(next: &[[Option<usize>; 7]], accept: &[bool]) -> Result<Dfa, String>
     order.insert(class[0], 0);
     let mut reps = vec![0usize];
     while let Some(s) = queue.pop() {
-        for sym in 0..7 {
+        for sym in 0..SYMBOLS {
             if let Some(t) = target(s, sym)
                 && !order.contains_key(&class[t])
             {
@@ -346,7 +455,7 @@ fn minimize(next: &[[Option<usize>; 7]], accept: &[bool]) -> Result<Dfa, String>
     };
     for (id, s) in reps.iter().enumerate() {
         dfa.accept[id] = accept[*s];
-        for sym in 0..7 {
+        for sym in 0..SYMBOLS {
             if let Some(t) = target(*s, sym) {
                 dfa.next[id][sym] = order[&class[t]];
             }
@@ -356,15 +465,17 @@ fn minimize(next: &[[Option<usize>; 7]], accept: &[bool]) -> Result<Dfa, String>
 }
 
 /// The GPU table: per slot, state and symbol, the next state | its accept flag << 8 (DEAD and
-/// unused slots never accept). Also the number of slots in use (trailing empty ones dropped).
-pub fn table(exprs: &[String]) -> (Vec<u32>, u32) {
+/// unused slots never accept); `classes` follows it in the buffer. Also the number of slots in
+/// use (trailing empty ones dropped) and the label names (class - 1).
+pub fn table(exprs: &[String]) -> (Vec<u32>, u32, Vec<String>) {
     let mut t = vec![DEAD as u32; SLOTS * STATES * SYMBOLS];
     let mut used = 0;
+    let mut labels = vec![];
     for (k, e) in exprs.iter().enumerate().take(SLOTS) {
         if e.trim().is_empty() {
             continue;
         }
-        let Ok(dfa) = compile(e) else {
+        let Ok(dfa) = compile_labelled(e, &mut labels) else {
             continue;
         };
         used = k as u32 + 1;
@@ -375,7 +486,38 @@ pub fn table(exprs: &[String]) -> (Vec<u32>, u32) {
             }
         }
     }
-    (t, used)
+    (t, used, labels)
+}
+
+/// The name of each material id that labels can match (data-layouts.md "Material IDs"): the
+/// room's walls, floor and main light, the objects, the extra lights, and the physical sky's sun.
+pub fn material_names(s: &crate::scene::Settings) -> Vec<String> {
+    let mut names: Vec<String> = [
+        "left wall",
+        "right wall",
+        "back wall",
+        "floor",
+        "main light",
+    ]
+    .map(String::from)
+    .into();
+    names.extend(s.objects.iter().map(|o| label_name(&o.name)));
+    names.extend(s.lights.iter().map(|l| label_name(&l.name)));
+    names.push("sun".into());
+    names
+}
+/// Each material id's label class (0 = none), the table's tail.
+pub fn classes(labels: &[String], names: &[String]) -> Vec<u32> {
+    let mut c = vec![0; MATERIALS];
+    if labels.is_empty() {
+        return c;
+    }
+    for (id, name) in names.iter().enumerate().take(MATERIALS) {
+        if let Some(p) = labels.iter().position(|l| l == name) {
+            c[id] = p as u32 + 1;
+        }
+    }
+    c
 }
 
 #[cfg(test)]
@@ -427,8 +569,68 @@ mod tests {
         }
     }
     #[test]
+    fn labels_split_the_alphabet() {
+        let mut labels = vec![];
+        let red = compile_labelled("C D'Red wall' L", &mut labels).unwrap();
+        assert_eq!(labels, ["red wall"]);
+        assert!(red.matches_labelled("D'red wall'L", &labels));
+        assert!(!red.matches_labelled("DL", &labels));
+        // A second expression shares the names; a bare label is any event there.
+        let any = compile_labelled("C 'vase' .* L'key'", &mut labels).unwrap();
+        assert_eq!(labels, ["red wall", "vase", "key"]);
+        assert!(any.matches_labelled("G'vase'DL'key'", &labels));
+        assert!(any.matches_labelled("T'vase'L'key'", &labels));
+        assert!(!any.matches_labelled("G'vase'L", &labels));
+        assert!(!any.matches_labelled("GL'key'", &labels));
+        // Unlabelled events still match labelled surfaces.
+        assert!(
+            compile("C D L")
+                .unwrap()
+                .matches_labelled("D'vase'L'key'", &labels)
+        );
+        // Sets take labels; groups don't; a failed compile adds no names.
+        assert!(
+            compile("C [DG]'x' L")
+                .unwrap()
+                .matches_labelled("G'x'L", &["x".into()])
+        );
+        assert!(compile("C (D|G)'x' L").is_err());
+        assert!(
+            compile("C D 'x' L")
+                .unwrap()
+                .matches_labelled("D'x'L", &["x".into()])
+        );
+        // Names count over all slots.
+        let four = |a: char| {
+            (0..4)
+                .map(|i| format!("'{a}{i}'"))
+                .collect::<Vec<_>>()
+                .join("|")
+        };
+        let slots = vec![
+            format!("C ({}) L", four('a')),
+            format!("C ({}) L", four('b')),
+        ];
+        assert!(check(&slots, 0, &slots[0]).is_err() && check(&slots[..1], 0, &slots[0]).is_ok());
+        assert!(compile("C D'' L").is_err());
+        assert!(compile("C D'open L").is_err());
+        let mut l = vec![];
+        assert!(compile_labelled("C D'a' X", &mut l).is_err() && l.is_empty());
+        let many = (0..8)
+            .map(|i| format!("'n{i}'"))
+            .collect::<Vec<_>>()
+            .join("|");
+        assert!(compile(&format!("C ({many}) L")).is_err());
+        // The table's tail maps material ids to classes.
+        let (t, used, names) = table(&["C D'floor' L".into()]);
+        assert_eq!((used, names.clone()), (1, vec!["floor".to_string()]));
+        assert_eq!(t.len(), SLOTS * STATES * SYMBOLS);
+        let c = classes(&names, &material_names(&crate::scene::Settings::default()));
+        assert_eq!((c[3], c[0], c.len()), (1, 0, MATERIALS));
+    }
+    #[test]
     fn table_encodes_accepts() {
-        let (t, used) = table(&["".into(), "C D L".into()]);
+        let (t, used, _) = table(&["".into(), "C D L".into()]);
         assert_eq!(used, 2);
         let base = STATES * SYMBOLS;
         // Slot 1: D from the start, then L accepts.

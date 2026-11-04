@@ -1450,8 +1450,10 @@ impl Settings {
             "At most {} light path expressions",
             crate::lpe::SLOTS
         );
+        // Shared labels: the expressions' names count together.
+        let mut labels = vec![];
         for e in self.lpe.iter().filter(|e| !e.trim().is_empty()) {
-            crate::lpe::compile(e)
+            crate::lpe::compile_labelled(e, &mut labels)
                 .map_err(|err| anyhow::anyhow!("Light path expression {e:?}: {err}"))?;
         }
         anyhow::ensure!(

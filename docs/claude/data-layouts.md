@@ -60,7 +60,7 @@ The emitter buffer (t4) holds the `n` emitters, then the alias records (`lightin
 | 10 | Table: SRV t0.. space 1, texture maps (`maps[]`, heap slots 512–4607, `MAX_MAPS` 4096) |
 | 11 | Root UAV u0 space 2, path visualizer records (`trace_paths` only; bound for every dispatch) |
 | 12 | Root UAV u1 space 2, LPE AOVs (`trace_lpe` writes, `display` view 12 reads; the path buffer stands in while none) |
-| 13 | Root SRV t8 LPE DFA table |
+| 13 | Root SRV t8 LPE DFA table: `lpe::SLOTS` × `STATES` × `SYMBOLS` (64: label class × 8 + event) next-state words, then `lpe::MATERIALS` (8192) label classes by material id |
 | 14 | Root UAV u2 space 2, ReSTIR DI reservoirs (bound for every dispatch; the path buffer stands in while ReSTIR is off) |
 | 15 | Root UAV u3 space 2, raw: the photon grid and photons at 0, BDPT's light-tracing splats at `splat_offset` (the path buffer stands in while neither runs) |
 | 16 | Root SRV t9 lens system (`lens::pack`, an upload buffer of `lens::FLOAT4S` float4s; track 16) |

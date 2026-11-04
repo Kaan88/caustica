@@ -770,7 +770,7 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
     use crate::lpe;
     note(
         ui,
-        "Each expression gets its own image (the Light path view, raw samples). Events from the camera: D diffuse, G glossy, S specular, T transmission, V volume, then L light or B background; . any, [DG] [^S] sets, * + ? | ( ).",
+        "Each expression gets its own image (the Light path view, raw samples). Events from the camera: D diffuse, G glossy, S specular, T transmission, V volume, then L light or B background; . any, [DG] [^S] sets, * + ? | ( ). A quoted name after an event limits it to that object or light: C D'red wall' L, C .* L'key' (also left wall, right wall, back wall, floor, main light, sun).",
     );
     edit.resize(lpe::SLOTS, String::new());
     let shown = s.view == 12;
@@ -811,7 +811,7 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
             });
             if let Some(t) = set {
                 *text = t.clone();
-                match lpe::compile(&t) {
+                match lpe::check(&s.lpe, k, &t) {
                     Ok(_) => store(s, k, t),
                     Err(_) if t.trim().is_empty() => store(s, k, String::new()),
                     Err(_) => {}
@@ -820,7 +820,7 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
                 *text = current.clone();
             }
             if !text.trim().is_empty()
-                && let Err(e) = lpe::compile(text)
+                && let Err(e) = lpe::check(&s.lpe, k, text)
             {
                 error = Some(e);
             }
