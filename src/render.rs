@@ -1,6 +1,7 @@
 //! Backend-neutral renderer types: what the app reads from a renderer (`GpuState`) and the
 //! values it exchanges with one, whichever backend draws (D3D12 `gpu`, Vulkan `vulkan::gpu`).
 pub mod plan;
+pub mod progress;
 use crate::scene::Upscaler;
 /// Size of the scopes counter texture (u28).
 pub const SCOPES: [u32; 2] = [256, 260];
@@ -38,6 +39,62 @@ pub struct AovLayer {
     pub channels: Vec<&'static str>,
     pub data: Vec<f32>,
 }
+
+/// The AOV layers both backends write to a multi-layer EXR (before LPE layers), from
+/// `read(index)` = a float texture's (width, height, channels, samples).
+/// The numbers of a `static const` table in shader source (`name[...] = { ... };`), in order;
+/// the CPU reference and the Vulkan table buffers read the shaders' own tables.
+pub fn hlsl_table(src: &str, name: &str) -> Vec<f32> {
+    let start = src
+        .find(&format!(" {name}["))
+        .unwrap_or_else(|| panic!("{name} in the shader source"));
+    let body = &src[start..];
+    let body = &body[body.find('{').unwrap() + 1..body.find("};").unwrap()];
+    let body = body.replace("float4", " ").replace("float3", " ");
+    body.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == 'e'))
+        .filter(|t| !t.is_empty() && t.chars().any(|c| c.is_ascii_digit()))
+        .filter_map(|t| t.trim_end_matches('.').parse().ok())
+        .collect()
+}
+
+pub fn aov_layers(
+    mut read: impl FnMut(usize) -> anyhow::Result<(u32, u32, usize, Vec<f32>)>,
+) -> anyhow::Result<Vec<AovLayer>> {
+    let mut layers = vec![];
+    let mut add = |name: &str,
+                   (w, h, n, data): (u32, u32, usize, Vec<f32>),
+                   pick: &[(usize, &'static str)]| {
+        let data = data
+            .chunks_exact(n)
+            .flat_map(|t| pick.iter().map(|(c, _)| t[*c]).collect::<Vec<_>>())
+            .collect();
+        layers.push(AovLayer {
+            name: name.into(),
+            width: w,
+            height: h,
+            channels: pick.iter().map(|(_, c)| *c).collect(),
+            data,
+        });
+    };
+    const RGB: [(usize, &str); 3] = [(0, "R"), (1, "G"), (2, "B")];
+    add(
+        "beauty",
+        read(18)?,
+        &[(0, "R"), (1, "G"), (2, "B"), (3, "A")],
+    );
+    add("diffuse_albedo", read(3)?, &RGB);
+    add("specular_albedo", read(4)?, &RGB);
+    let normal = read(2)?;
+    add("normal", normal.clone(), &[(0, "X"), (1, "Y"), (2, "Z")]);
+    add("roughness", normal, &[(3, "Y")]);
+    add("depth", read(5)?, &[(0, "Z")]);
+    add("motion", read(6)?, &[(0, "X"), (1, "Y")]);
+    add("direct", read(11)?, &RGB);
+    add("specular", read(12)?, &RGB);
+    add("object_id", read(19)?, &[(0, "Y")]);
+    Ok(layers)
+}
+
 /// One reconstruction backend: usable, or why not ("needs an NVIDIA RTX GPU", a missing DLL,
 /// an init error code, a failure while rendering).
 #[derive(Clone, Debug, Default)]
@@ -439,6 +496,28 @@ pub const TEXTURES: usize = 29;
 pub const CB_STRIDE: u64 = 1024;
 /// Constant slots: trace 0, filter 1–7, display 8, battle quadrants 9–12, glare passes from 13.
 pub const CB_SLOTS: u64 = 13 + 10;
+/// Still frames a temporal upscaler gets fresh jittered samples before they accumulate.
+pub const SR_FRESH_FRAMES: u32 = 32;
+/// Timestamps per frame: start, after the trace, after reconstruction, after display, after
+/// the UI.
+pub const TIMESTAMPS: u32 = 5 + 8;
+/// Battle mode's quadrant timestamps (start and end of each) follow the frame's five.
+pub const BATTLE_QUERY: u32 = 5;
+/// integrators.hlsl: the photon counter and grid heads before the photons.
+pub const PHOTON_HASH: u64 = 1 << 20;
+pub const PHOTON_BASE: u64 = 16 + 4 * PHOTON_HASH;
+/// Deposits the photon buffer holds per photon (integrators.hlsl walks up to 32 bounces; Russian
+/// roulette keeps the mean count of deposits far below this, the rest are dropped).
+pub const PHOTON_BOUNCES: u32 = 10;
+pub const GLARE_SLOT: u64 = 13;
+/// The glare grid (post.hlsl GN) and the image's longer side in it (the rest is padding, so the
+/// circular convolution does not wrap highlights around the frame).
+pub const GLARE_N: u64 = 512;
+pub const GLARE_IMAGE: f32 = 384.;
+/// Path visualizer records per request, the count record included (48 B each).
+pub const PATH_CAPACITY: usize = 16384;
+/// ReSTIR light-tile samples per frame (pathtrace.hlsl: 128 tiles of 1024).
+pub const RESTIR_TILES: u64 = 128 * 1024;
 
 /// Storage texture formats (UAV u0 to u28), per backend mapped to DXGI / Vulkan formats.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -479,4 +558,144 @@ pub fn texture_layout(
         render
     };
     (format, size)
+}
+
+/// Points each visible object's material at its texture maps (core track 5): `slot_of` gives a
+/// map's slot, uploading it when new. Returns the maps in use, by `Arc` address.
+pub fn attach_maps(
+    s: &crate::scene::Settings,
+    instances: &[plan::InstanceRecord],
+    materials: &mut [crate::lighting::PackedMaterial],
+    slot_of: &mut dyn FnMut(&std::sync::Arc<crate::mesh::Map>) -> anyhow::Result<u32>,
+) -> anyhow::Result<std::collections::HashSet<usize>> {
+    let mut used = std::collections::HashSet::new();
+    // (material record, maps): visible objects (a texture set wins over the mesh's own
+    // maps), then the walls (records 0-2) and the floor (3).
+    let set = |m: &crate::scene::Material| {
+        (!m.texture.is_empty())
+            .then(|| crate::texture::load(&m.texture).ok())
+            .flatten()
+    };
+    let mut wanted: Vec<(usize, crate::mesh::Maps)> = vec![];
+    for record in instances.iter().filter(|r| r.material != u32::MAX) {
+        let o = &s.objects[record.object as usize];
+        let maps = if o.material.texture.is_empty() {
+            crate::mesh::maps(o)
+        } else {
+            set(&o.material)
+        };
+        wanted.extend(maps.map(|m| (record.material as usize, m)));
+    }
+    if let Some(maps) = set(&s.walls) {
+        wanted.extend((0..3).map(|i| (i, maps.clone())));
+    }
+    wanted.extend(set(&s.floor).map(|m| (3, m)));
+    for (record, maps) in wanted {
+        let mut slots = [0u32; 3];
+        for (slot, map) in slots
+            .iter_mut()
+            .zip([&maps.base, &maps.normal, &maps.metal_rough])
+        {
+            let Some(map) = map else { continue };
+            used.insert(std::sync::Arc::as_ptr(map) as usize);
+            *slot = slot_of(map)? + 1;
+        }
+        // An emissive map (flag 64, pathtrace.hlsl `emitted_color`) on an opaque, unpatterned
+        // emitter: secondary = (slot + 1, the mean emitted colour over its brightest
+        // channel), medium.xyz = 1 / the map's mean.
+        let emissive = match &maps.emissive {
+            Some(map)
+                if materials[record].lobes[2] <= 0.
+                    && materials[record].optical[2] == 0.
+                    && materials[record].optical[1] > 0. =>
+            {
+                used.insert(std::sync::Arc::as_ptr(map) as usize);
+                let slot = slot_of(map)?;
+                let mean: [f32; 3] =
+                    std::array::from_fn(|k| maps.emissive_factor[k] * map.average[k]);
+                let peak = mean[0].max(mean[1]).max(mean[2]);
+                (peak > 0.).then(|| (slot + 1, mean.map(|v| v / peak), map))
+            }
+            _ => None,
+        };
+        let m = &mut materials[record];
+        if let Some((slot, colour, map)) = emissive {
+            m.secondary = [slot as f32, colour[0], colour[1], colour[2]];
+            for k in 0..3 {
+                m.medium[k] = if map.average[k] > 1e-4 {
+                    1. / map.average[k]
+                } else {
+                    0.
+                };
+            }
+            m.lobes[3] = (m.lobes[3] as u32 | 16 | 64) as f32;
+        }
+        m.maps = [slots[0], slots[1], slots[2], maps.cutoff.to_bits()];
+        // Flag bits the shader tests before any map work: 16 has maps, 8 masked.
+        let masked = slots[0] != 0 && maps.cutoff != 0.;
+        m.lobes[3] = (m.lobes[3] as u32 | 16 | if masked { 8 } else { 0 }) as f32;
+        // Scale by value / average, so the map's mean is the slider value. A channel
+        // that averages black (no metal anywhere) leaves the value unscaled.
+        let ratio = |value: f32, average: f32| {
+            if average > 1e-3 { value / average } else { 0. }
+        };
+        if let Some(b) = &maps.base {
+            for k in 0..3 {
+                m.base_scale[k] = ratio(m.color_rough[k], b.average[k]);
+            }
+        }
+        if let Some(mr) = &maps.metal_rough {
+            // z, w: the thin film (lighting::pack).
+            m.surface_scale[0] = ratio(m.color_rough[3], mr.average[1]);
+            m.surface_scale[1] = ratio(m.lobes[0], mr.average[2]);
+        }
+    }
+    Ok(used)
+}
+/// A UI frame captured in HDR (scRGB RGBA16F, or HDR10 A2B10G10R10 PQ with `hdr10`) back to
+/// sRGB RGBA8: paper white (`paper_nits`) becomes 1.0, then sRGB-encode.
+pub fn hdr_ui_to_srgb8(packed: &[u8], hdr10: bool, paper_nits: f32) -> Vec<u8> {
+    let scale = 80. / paper_nits;
+    let scrgb: Vec<f32> = if hdr10 {
+        packed
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(|b| crate::display::hdr10_to_scrgb(u32::from_le_bytes(*b)))
+            .collect()
+    } else {
+        packed
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| half_to_f32(u16::from_le_bytes(*b)))
+            .collect()
+    };
+    scrgb
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            if i % 4 == 3 {
+                (v.clamp(0., 1.) * 255.).round() as u8
+            } else {
+                let v = (v * scale).clamp(0., 1.);
+                let e = if v <= 0.0031308 {
+                    v * 12.92
+                } else {
+                    1.055 * v.powf(1. / 2.4) - 0.055
+                };
+                (e * 255.).round() as u8
+            }
+        })
+        .collect()
+}
+/// The radical inverse of `index` in `base` (upscaler jitter).
+pub fn halton(mut index: u32, base: u32) -> f32 {
+    let (mut f, mut result) = (1., 0.);
+    while index > 0 {
+        f /= base as f32;
+        result += f * (index % base) as f32;
+        index /= base;
+    }
+    result
 }

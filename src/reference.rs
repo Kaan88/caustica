@@ -107,18 +107,7 @@ fn mesh_has_maps(o: &crate::scene::Object) -> bool {
 fn ggx_table() -> &'static [f32] {
     static TABLE: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        let src = include_str!("../shaders/layers.hlsli");
-        let start = src
-            .find("GGX_ALBEDO[256]")
-            .expect("GGX_ALBEDO in layers.hlsli");
-        let body = &src[start..];
-        let body = &body[body.find('{').unwrap() + 1..body.find("};").unwrap()];
-        let body = body.replace("float4", " ");
-        let v: Vec<f32> = body
-            .split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == 'e'))
-            .filter(|t| !t.is_empty() && t.chars().any(|c| c.is_ascii_digit()))
-            .filter_map(|t| t.trim_end_matches('.').parse().ok())
-            .collect();
+        let v = crate::render::hlsl_table(include_str!("../shaders/layers.hlsli"), "GGX_ALBEDO");
         assert_eq!(v.len(), 1024, "GGX_ALBEDO has 1024 entries");
         v
     })

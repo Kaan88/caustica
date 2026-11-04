@@ -483,7 +483,10 @@ impl Options {
 fn ffmpeg() -> PathBuf {
     std::env::current_exe()
         .ok()
-        .and_then(|e| e.parent().map(|d| d.join("ffmpeg.exe")))
+        .and_then(|e| {
+            e.parent()
+                .map(|d| d.join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)))
+        })
         .filter(|p| p.is_file())
         .unwrap_or_else(|| PathBuf::from("ffmpeg"))
 }

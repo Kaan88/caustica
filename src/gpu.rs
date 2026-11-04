@@ -27,8 +27,6 @@ const HEAP_SIZE: usize = 512;
 const FIRST_GUI_SLOT: usize = 32;
 /// Mesh texture maps (core track 5): SRVs t0.. in space 1, in the heap after `HEAP_SIZE`.
 const MAX_MAPS: usize = 4096;
-/// Still frames a temporal upscaler gets fresh jittered samples before they accumulate.
-const SR_FRESH_FRAMES: u32 = 32;
 struct GuiTexture {
     texture: Texture,
     slot: usize,
@@ -36,27 +34,7 @@ struct GuiTexture {
     pixels: Vec<u8>,
     size: [usize; 2],
 }
-/// Timestamps per frame: start, after the trace, after reconstruction, after display, after
-/// the UI.
-const TIMESTAMPS: u32 = 5 + 8;
-/// Battle mode's quadrant timestamps (start and end of each) follow the frame's five.
-const BATTLE_QUERY: u32 = 5;
-/// integrators.hlsl: the photon counter and grid heads before the photons.
-const PHOTON_HASH: u64 = 1 << 20;
-const PHOTON_BASE: u64 = 16 + 4 * PHOTON_HASH;
-/// Deposits the photon buffer holds per photon (integrators.hlsl walks up to 32 bounces; Russian
-/// roulette keeps the mean count of deposits far below this, the rest are dropped).
-const PHOTON_BOUNCES: u32 = 10;
-const GLARE_SLOT: u64 = 13;
-/// The glare grid (post.hlsl GN) and the image's longer side in it (the rest is padding, so the
-/// circular convolution does not wrap highlights around the frame).
-const GLARE_N: u64 = 512;
-const GLARE_IMAGE: f32 = 384.;
 const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE);
-/// Path visualizer records per request, the count record included (48 B each).
-const PATH_CAPACITY: usize = 16384;
-/// ReSTIR light-tile samples per frame (pathtrace.hlsl: 128 tiles of 1024).
-const RESTIR_TILES: u64 = 128 * 1024;
 unsafe extern "C" {
     fn caustica_ngx_release(ngx: *mut c_void);
     fn caustica_ngx_init(device: *mut c_void, result: *mut *mut c_void) -> u32;

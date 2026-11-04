@@ -542,97 +542,17 @@ impl Gpu {
         s: &Settings,
         materials: &mut [crate::lighting::PackedMaterial],
     ) -> Result<()> {
-        let mut used = std::collections::HashSet::new();
-        // (material record, maps): visible objects (a texture set wins over the mesh's own
-        // maps), then the walls (records 0-2) and the floor (3).
-        let set = |m: &crate::scene::Material| {
-            (!m.texture.is_empty())
-                .then(|| crate::texture::load(&m.texture).ok())
-                .flatten()
-        };
-        let mut wanted: Vec<(usize, crate::mesh::Maps)> = vec![];
-        for record in self.instances.iter().filter(|r| r.material != u32::MAX) {
-            let o = &s.objects[record.object as usize];
-            let maps = if o.material.texture.is_empty() {
-                crate::mesh::maps(o)
-            } else {
-                set(&o.material)
-            };
-            wanted.extend(maps.map(|m| (record.material as usize, m)));
-        }
-        if let Some(maps) = set(&s.walls) {
-            wanted.extend((0..3).map(|i| (i, maps.clone())));
-        }
-        wanted.extend(set(&s.floor).map(|m| (3, m)));
-        for (record, maps) in wanted {
-            let mut slots = [0u32; 3];
-            for (slot, map) in slots
-                .iter_mut()
-                .zip([&maps.base, &maps.normal, &maps.metal_rough])
-            {
-                let Some(map) = map else { continue };
-                let key = std::sync::Arc::as_ptr(map) as usize;
-                used.insert(key);
-                if !self.maps.contains_key(&key) {
-                    let texture = self.upload_map(map)?;
-                    self.maps.insert(key, texture);
-                }
-                *slot = self.maps[&key].slot + 1;
+        let instances = std::mem::take(&mut self.instances);
+        let used = crate::render::attach_maps(s, &instances, materials, &mut |map| {
+            let key = std::sync::Arc::as_ptr(map) as usize;
+            if !self.maps.contains_key(&key) {
+                let texture = self.upload_map(map)?;
+                self.maps.insert(key, texture);
             }
-            // An emissive map (flag 64, pathtrace.hlsl `emitted_color`) on an opaque, unpatterned
-            // emitter: secondary = (slot + 1, the mean emitted colour over its brightest
-            // channel), medium.xyz = 1 / the map's mean.
-            let emissive = match &maps.emissive {
-                Some(map)
-                    if materials[record].lobes[2] <= 0.
-                        && materials[record].optical[2] == 0.
-                        && materials[record].optical[1] > 0. =>
-                {
-                    let key = std::sync::Arc::as_ptr(map) as usize;
-                    used.insert(key);
-                    if !self.maps.contains_key(&key) {
-                        let texture = self.upload_map(map)?;
-                        self.maps.insert(key, texture);
-                    }
-                    let mean: [f32; 3] =
-                        std::array::from_fn(|k| maps.emissive_factor[k] * map.average[k]);
-                    let peak = mean[0].max(mean[1]).max(mean[2]);
-                    (peak > 0.).then(|| (self.maps[&key].slot + 1, mean.map(|v| v / peak), map))
-                }
-                _ => None,
-            };
-            let m = &mut materials[record];
-            if let Some((slot, colour, map)) = emissive {
-                m.secondary = [slot as f32, colour[0], colour[1], colour[2]];
-                for k in 0..3 {
-                    m.medium[k] = if map.average[k] > 1e-4 {
-                        1. / map.average[k]
-                    } else {
-                        0.
-                    };
-                }
-                m.lobes[3] = (m.lobes[3] as u32 | 16 | 64) as f32;
-            }
-            m.maps = [slots[0], slots[1], slots[2], maps.cutoff.to_bits()];
-            // Flag bits the shader tests before any map work: 16 has maps, 8 masked.
-            let masked = slots[0] != 0 && maps.cutoff != 0.;
-            m.lobes[3] = (m.lobes[3] as u32 | 16 | if masked { 8 } else { 0 }) as f32;
-            // Scale by value / average, so the map's mean is the slider value. A channel
-            // that averages black (no metal anywhere) leaves the value unscaled.
-            let ratio = |value: f32, average: f32| {
-                if average > 1e-3 { value / average } else { 0. }
-            };
-            if let Some(b) = &maps.base {
-                for k in 0..3 {
-                    m.base_scale[k] = ratio(m.color_rough[k], b.average[k]);
-                }
-            }
-            if let Some(mr) = &maps.metal_rough {
-                // z, w: the thin film (lighting::pack).
-                m.surface_scale[0] = ratio(m.color_rough[3], mr.average[1]);
-                m.surface_scale[1] = ratio(m.lobes[0], mr.average[2]);
-            }
-        }
+            Ok(self.maps[&key].slot)
+        });
+        self.instances = instances;
+        let used = used?;
         let stale: Vec<usize> = self
             .maps
             .keys()

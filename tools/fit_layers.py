@@ -112,6 +112,12 @@ def aniso_albedo(nv, azimuth, roughness, strength, steps=256):
     return float(w.mean())
 
 
+# Vulkan registers of the tables (src/vulkan/gpu.rs `TABLES`, t10-t13).
+REGISTERS = {"SHEEN_ALBEDO": 10, "GGX_ALBEDO": 11, "COAT_ALBEDO": 12, "ANISO_ALBEDO": 13}
+VULKAN_NOTE = ("// Vulkan: a buffer the backend fills from this file (NVIDIA's SPIR-V compiler expands large "
+               "constant arrays at every use).\n")
+
+
 def table(name, rows):
     """A table packed four values to a float4 (a static const float array takes a 16-byte
     constant slot per element), with an accessor `<name>_at(i)` by flat index."""
@@ -120,7 +126,10 @@ def table(name, rows):
     quads = [flat[i:i + 4] for i in range(0, len(flat), 4)]
     body = ",\n    ".join(", ".join("float4(" + ", ".join(f"{v:.5f}" for v in q) + ")" for q in quads[i:i + 4])
                            for i in range(0, len(quads), 4))
-    return (f"static const float4 {name}[{len(quads)}] = {{\n    {body}\n}};\n"
+    # Vulkan reads the table from a buffer the backend fills from this file (NVIDIA's SPIR-V
+    # compiler expands large constant arrays at every use: 40 s and 10 GB for the trace pass).
+    return (f"#ifdef __spirv__\n{VULKAN_NOTE}StructuredBuffer<float4> {name}:register(t{REGISTERS[name]});\n#else\n"
+            f"static const float4 {name}[{len(quads)}] = {{\n    {body}\n}};\n#endif\n"
             f"float {name}_at(uint i) {{ return {name}[i >> 2][i & 3]; }}\n")
 
 

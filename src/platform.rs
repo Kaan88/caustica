@@ -6,6 +6,7 @@ pub use windows::Win32::Foundation::HWND;
 /// Stand-in so code that carries a window handle compiles off Windows; never constructed there.
 #[cfg(not(windows))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 pub struct HWND(pub *mut std::ffi::c_void);
 
 /// Keeps a console child process from flashing up a window (Windows `CREATE_NO_WINDOW`).

@@ -402,6 +402,13 @@ impl Gpu {
                 include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")),
             ],
+            |n, total| {
+                if let Err(e) =
+                    present_progress(&device, &queue, &swap, &allocator, &list, &rtv, (n, total))
+                {
+                    eprintln!("Progress frame skipped: {e:#}");
+                }
+            },
         )?;
         let ser_pipelines = make_ser(
             &device,

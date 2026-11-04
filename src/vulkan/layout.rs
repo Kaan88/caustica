@@ -2,7 +2,7 @@
 //! "Root signature"; build.rs shifts t to 100+, b to 200+, s to 300+, and spaces are sets).
 //! `tools/spirv_bindings.py` lists what the shaders declare; this must hold their union.
 //!
-//! - set 0: u0-u31 storage images (0-31), t0 the TLAS (100), t1 and t3-t9 storage buffers
+//! - set 0: u0-u31 storage images (0-31), t0 the TLAS (100), t1 and t3-t17 storage buffers
 //!   (101, 103-109), t2 the egui texture (102), b0 the frame constants (200, a dynamic uniform
 //!   buffer: one `CB_STRIDE` slot per pass), s0 / s1 immutable samplers (300, 301).
 //! - set 1: `maps[]`, up to `MAX_MAPS` sampled images (binding 100, variable count).
@@ -14,7 +14,9 @@ use anyhow::Result;
 use ash::vk;
 
 pub const MAX_MAPS: u32 = 4096;
-pub const SET0_BUFFERS: [u32; 8] = [101, 103, 104, 105, 106, 107, 108, 109];
+pub const SET0_BUFFERS: [u32; 16] = [
+    101, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117,
+];
 
 pub struct Layout {
     pub sets: [vk::DescriptorSetLayout; 3],
@@ -105,7 +107,7 @@ impl Layout {
                 },
                 vk::DescriptorPoolSize {
                     ty: vk::DescriptorType::STORAGE_BUFFER,
-                    descriptor_count: 13,
+                    descriptor_count: SET0_BUFFERS.len() as u32 + 5,
                 },
                 vk::DescriptorPoolSize {
                     ty: vk::DescriptorType::SAMPLED_IMAGE,
@@ -150,6 +152,7 @@ impl Layout {
         d: &Device,
         spv: &[u8],
         entry: &std::ffi::CStr,
+        flags: vk::PipelineCreateFlags,
     ) -> Result<vk::Pipeline> {
         unsafe {
             let code = ash::util::read_spv(&mut std::io::Cursor::new(spv))?;
@@ -163,6 +166,7 @@ impl Layout {
             let result = d.device.create_compute_pipelines(
                 vk::PipelineCache::null(),
                 &[vk::ComputePipelineCreateInfo::default()
+                    .flags(flags)
                     .stage(stage)
                     .layout(self.pipeline)],
                 None,
@@ -185,6 +189,20 @@ impl Layout {
             .dst_set(self.descriptors[0])
             .dst_binding(binding)
             .descriptor_type(ty)
+            .image_info(&info);
+        unsafe { d.device.update_descriptor_sets(&[w], &[]) };
+    }
+
+    /// Texture map `slot` (set 1, `maps[slot]`).
+    pub unsafe fn map(&self, d: &Device, slot: u32, view: vk::ImageView) {
+        let info = [vk::DescriptorImageInfo::default()
+            .image_view(view)
+            .image_layout(vk::ImageLayout::GENERAL)];
+        let w = vk::WriteDescriptorSet::default()
+            .dst_set(self.descriptors[1])
+            .dst_binding(100)
+            .dst_array_element(slot)
+            .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
             .image_info(&info);
         unsafe { d.device.update_descriptor_sets(&[w], &[]) };
     }

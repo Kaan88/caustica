@@ -4,7 +4,7 @@
 //! clear + present loop. `caustica --vulkan-smoke [--headless] [--frames N] [--debug]
 //! [--no-vsync]` runs it on its own (`--vulkan` selects the renderer, `gpu`). Headless clears an
 //! offscreen image and reads it back, so it also runs on a GPU-less machine (lavapipe).
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use ash::{ext, khr, vk};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 use std::ffi::{CStr, c_char, c_void};
@@ -12,7 +12,9 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 pub mod gpu;
+mod gui;
 pub mod layout;
+mod progress;
 pub mod res;
 
 static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -83,6 +85,27 @@ impl Device {
                 Some((display, _)) => ash_window::enumerate_required_extensions(display)?.to_vec(),
                 None => vec![khr::surface::NAME.as_ptr()],
             };
+            // HDR swap chains (scRGB, HDR10) need the extra colour spaces, where offered.
+            if window.is_some()
+                && entry
+                    .enumerate_instance_extension_properties(None)?
+                    .iter()
+                    .any(|e| e.extension_name_as_c_str() == Ok(ext::swapchain_colorspace::NAME))
+            {
+                extensions.push(ext::swapchain_colorspace::NAME.as_ptr());
+            }
+            // What NGX and XeSS need, where the loader offers it (they report unavailable otherwise).
+            let offered = entry.enumerate_instance_extension_properties(None)?;
+            for e in gpu::upscale::required_extensions(
+                false,
+                vk::Instance::null(),
+                vk::PhysicalDevice::null(),
+            ) {
+                let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e);
+                if !known && offered.iter().any(|o| o.extension_name_as_c_str() == Ok(e)) {
+                    extensions.push(e.as_ptr());
+                }
+            }
             let validation = c"VK_LAYER_KHRONOS_validation";
             let mut layers = Vec::new();
             if debug {
@@ -133,6 +156,28 @@ impl Device {
             if surface.is_some() {
                 extensions.push(khr::swapchain::NAME.as_ptr());
             }
+            let offered = instance.enumerate_device_extension_properties(phys)?;
+            for e in gpu::upscale::required_extensions(true, instance.handle(), phys) {
+                let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e);
+                if !known && offered.iter().any(|o| o.extension_name_as_c_str() == Ok(e)) {
+                    extensions.push(e.as_ptr());
+                }
+            }
+            // Small types the upscalers' shaders use, where the device has them.
+            let mut has11 = vk::PhysicalDeviceVulkan11Features::default();
+            let mut has12 = vk::PhysicalDeviceVulkan12Features::default();
+            let mut has = vk::PhysicalDeviceFeatures2::default()
+                .push_next(&mut has11)
+                .push_next(&mut has12);
+            instance.get_physical_device_features2(phys, &mut has);
+            let has_int16 = has.features.shader_int16;
+            // The egui pass's fragment shader writes the object-id image (u19).
+            ensure!(
+                has.features.fragment_stores_and_atomics != 0,
+                "the GPU lacks fragmentStoresAndAtomics (the UI pass writes object ids)"
+            );
+            let mut f11 = vk::PhysicalDeviceVulkan11Features::default()
+                .storage_buffer16_bit_access(has11.storage_buffer16_bit_access != 0);
             let mut f12 = vk::PhysicalDeviceVulkan12Features::default()
                 .buffer_device_address(true)
                 .descriptor_indexing(true)
@@ -141,7 +186,10 @@ impl Device {
                 .descriptor_binding_partially_bound(true)
                 .descriptor_binding_variable_descriptor_count(true)
                 .scalar_block_layout(true)
-                .timeline_semaphore(true);
+                .timeline_semaphore(true)
+                .shader_float16(has12.shader_float16 != 0)
+                .shader_int8(has12.shader_int8 != 0)
+                .storage_buffer8_bit_access(has12.storage_buffer8_bit_access != 0);
             let mut f13 = vk::PhysicalDeviceVulkan13Features::default()
                 .synchronization2(true)
                 .dynamic_rendering(true)
@@ -151,6 +199,8 @@ impl Device {
             let mut frq = vk::PhysicalDeviceRayQueryFeaturesKHR::default().ray_query(true);
             let core = vk::PhysicalDeviceFeatures::default()
                 .shader_int64(true)
+                .shader_int16(has_int16 != 0)
+                .fragment_stores_and_atomics(true)
                 .shader_storage_image_extended_formats(true)
                 .shader_storage_image_read_without_format(true)
                 .shader_storage_image_write_without_format(true);
@@ -165,6 +215,7 @@ impl Device {
                         .queue_create_infos(&queues)
                         .enabled_extension_names(&extensions)
                         .enabled_features(&core)
+                        .push_next(&mut f11)
                         .push_next(&mut f12)
                         .push_next(&mut f13)
                         .push_next(&mut fas)
@@ -355,11 +406,17 @@ pub struct Swapchain {
     pub surface: vk::SurfaceKHR,
     pub handle: vk::SwapchainKHR,
     pub images: Vec<vk::Image>,
+    /// One view per image, for the egui pass's colour attachment.
+    pub views: Vec<vk::ImageView>,
     pub extent: vk::Extent2D,
     pub format: vk::Format,
     /// One per image: signalled by the submit that renders it, waited on by its present.
     release: Vec<vk::Semaphore>,
     vsync: bool,
+    /// The wanted output: 0 SDR, 1 scRGB (RGBA16F, extended linear sRGB), 2 HDR10 (PQ).
+    pub hdr: u8,
+    /// Whether the surface offered the wanted mode's format and colour space (else SDR).
+    pub hdr_ok: bool,
 }
 
 impl Swapchain {
@@ -374,10 +431,13 @@ impl Swapchain {
             surface,
             handle: vk::SwapchainKHR::null(),
             images: Vec::new(),
+            views: Vec::new(),
             extent: vk::Extent2D::default(),
             format: vk::Format::UNDEFINED,
             release: Vec::new(),
             vsync,
+            hdr: 0,
+            hdr_ok: true,
         };
         unsafe { s.recreate(d, size)? };
         Ok(s)
@@ -395,9 +455,30 @@ impl Swapchain {
             let modes = d
                 .surface_fn
                 .get_physical_device_surface_present_modes(d.phys, self.surface)?;
-            let format = [vk::Format::B8G8R8A8_UNORM, vk::Format::R8G8B8A8_UNORM]
-                .into_iter()
-                .find_map(|f| formats.iter().find(|s| s.format == f))
+            let wanted = match self.hdr {
+                1 => Some((
+                    vk::Format::R16G16B16A16_SFLOAT,
+                    vk::ColorSpaceKHR::EXTENDED_SRGB_LINEAR_EXT,
+                )),
+                2 => Some((
+                    vk::Format::A2B10G10R10_UNORM_PACK32,
+                    vk::ColorSpaceKHR::HDR10_ST2084_EXT,
+                )),
+                _ => None,
+            };
+            let hdr = wanted
+                .and_then(|(f, c)| formats.iter().find(|s| s.format == f && s.color_space == c));
+            self.hdr_ok = self.hdr == 0 || hdr.is_some();
+            let format = hdr
+                .or_else(|| {
+                    [vk::Format::B8G8R8A8_UNORM, vk::Format::R8G8B8A8_UNORM]
+                        .into_iter()
+                        .find_map(|f| {
+                            formats.iter().find(|s| {
+                                s.format == f && s.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
+                            })
+                        })
+                })
                 .or(formats.first())
                 .copied()
                 .context("surface has no formats")?;
@@ -422,7 +503,9 @@ impl Swapchain {
             if caps.max_image_count > 0 {
                 count = count.min(caps.max_image_count);
             }
-            let usage = vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::COLOR_ATTACHMENT;
+            let usage = vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::COLOR_ATTACHMENT;
             if !caps.supported_usage_flags.contains(usage) {
                 bail!("swap chain images can't be transfer destinations");
             }
@@ -444,10 +527,25 @@ impl Swapchain {
                     .old_swapchain(old),
                 None,
             )?;
+            for v in self.views.drain(..) {
+                d.device.destroy_image_view(v, None);
+            }
             if old != vk::SwapchainKHR::null() {
                 self.fns.destroy_swapchain(old, None);
             }
             self.images = self.fns.get_swapchain_images(self.handle)?;
+            for &image in &self.images {
+                self.views.push(
+                    d.device.create_image_view(
+                        &vk::ImageViewCreateInfo::default()
+                            .image(image)
+                            .view_type(vk::ImageViewType::TYPE_2D)
+                            .format(format.format)
+                            .subresource_range(res::COLOR),
+                        None,
+                    )?,
+                );
+            }
             self.extent = extent;
             self.format = format.format;
             for s in self.release.drain(..) {
@@ -467,6 +565,9 @@ impl Swapchain {
         unsafe {
             for s in self.release.drain(..) {
                 d.device.destroy_semaphore(s, None);
+            }
+            for v in self.views.drain(..) {
+                d.device.destroy_image_view(v, None);
             }
             self.fns.destroy_swapchain(self.handle, None);
             d.surface_fn.destroy_surface(self.surface, None);

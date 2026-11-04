@@ -127,3 +127,25 @@ jobs:
           files: |
             ${{ env.SETUP }}
             ${{ env.ZIP }}
+  # Vulkan phase 6: the Linux build (Vulkan only) with its unit tests. The runner has no GPU
+  # (the VM's lavapipe covers rendering); DXC for SPIR-V comes from tools/setup.sh.
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: vendor/dxc-linux
+          key: dxc-linux-${{ hashFiles('tools/setup.sh') }}
+      - name: Fetch DXC
+        run: sh tools/setup.sh
+      - name: Clippy
+        run: cargo clippy --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
+      - name: Build
+        run: cargo build --release --locked

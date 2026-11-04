@@ -117,40 +117,7 @@ impl Gpu {
         }
         staging.Unmap(0, None);
         if ui_hdr {
-            // Back to SDR: paper white becomes 1.0, then sRGB-encode.
-            let scale = 80. / self.hdr_levels[0];
-            let scrgb: Vec<f32> = if ui_hdr10 {
-                packed
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .flat_map(|b| crate::display::hdr10_to_scrgb(u32::from_le_bytes(*b)))
-                    .collect()
-            } else {
-                packed
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|b| half_to_f32(u16::from_le_bytes(*b)))
-                    .collect()
-            };
-            packed = scrgb
-                .iter()
-                .enumerate()
-                .map(|(i, &v)| {
-                    if i % 4 == 3 {
-                        (v.clamp(0., 1.) * 255.).round() as u8
-                    } else {
-                        let v = (v * scale).clamp(0., 1.);
-                        let e = if v <= 0.0031308 {
-                            v * 12.92
-                        } else {
-                            1.055 * v.powf(1. / 2.4) - 0.055
-                        };
-                        (e * 255.).round() as u8
-                    }
-                })
-                .collect();
+            packed = crate::render::hdr_ui_to_srgb8(&packed, ui_hdr10, self.hdr_levels[0]);
         }
         if hdr {
             let floats: Vec<f32> = packed
@@ -295,38 +262,7 @@ impl Gpu {
     /// motion), the direct and specular light AOVs, the object ids, and each light path
     /// expression in use.
     pub unsafe fn read_layers(&mut self) -> Result<Vec<AovLayer>> {
-        let mut layers = vec![];
-        let mut add = |name: &str,
-                       (w, h, n, data): (u32, u32, usize, Vec<f32>),
-                       pick: &[(usize, &'static str)]| {
-            let data = data
-                .chunks_exact(n)
-                .flat_map(|t| pick.iter().map(|(c, _)| t[*c]).collect::<Vec<_>>())
-                .collect();
-            layers.push(AovLayer {
-                name: name.into(),
-                width: w,
-                height: h,
-                channels: pick.iter().map(|(_, c)| *c).collect(),
-                data,
-            });
-        };
-        const RGB: [(usize, &str); 3] = [(0, "R"), (1, "G"), (2, "B")];
-        add(
-            "beauty",
-            self.read_texture(18)?,
-            &[(0, "R"), (1, "G"), (2, "B"), (3, "A")],
-        );
-        add("diffuse_albedo", self.read_texture(3)?, &RGB);
-        add("specular_albedo", self.read_texture(4)?, &RGB);
-        let normal = self.read_texture(2)?;
-        add("normal", normal.clone(), &[(0, "X"), (1, "Y"), (2, "Z")]);
-        add("roughness", normal, &[(3, "Y")]);
-        add("depth", self.read_texture(5)?, &[(0, "Z")]);
-        add("motion", self.read_texture(6)?, &[(0, "X"), (1, "Y")]);
-        add("direct", self.read_texture(11)?, &RGB);
-        add("specular", self.read_texture(12)?, &RGB);
-        add("object_id", self.read_texture(19)?, &[(0, "Y")]);
+        let mut layers = crate::render::aov_layers(|i| self.read_texture(i))?;
         let (w, h) = (layers[1].width, layers[1].height);
         for slot in 0..self.lpe_slots {
             let rgb = self.read_lpe(slot)?;

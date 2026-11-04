@@ -96,6 +96,9 @@ try {
     # Intel XeSS SDK 3.0.2: headers and the super-resolution DLL.
     Get-Sdk 'Intel XeSS SDK' 'https://github.com/intel/xess.git' 'xess' '8fe81bdbbaf00b3c1b733fd0d830c333dc84e6f0' `
         @('/inc/xess/', '/bin/libxess.dll', '/LICENSE.txt', '/third-party-programs.txt')
+    # Khronos Vulkan headers 1.4.367: the C++ bridges' Vulkan paths (NGX and XeSS on Vulkan).
+    Get-Sdk 'Vulkan headers' 'https://github.com/KhronosGroup/Vulkan-Headers.git' 'vulkan-headers' '9fbc2a782ee3f8a4db64e7d991e23da75e893f44' `
+        @('/include/vulkan/', '/include/vk_video/', '/LICENSE.md')
     # ffmpeg 9.0.2 (2026-09-19) for MP4 turntables; the app falls back to PNG frames without it.
     # D3D12 Agility SDK 1.620.1 (retail; must match D3D12SDKVersion in src/main.rs).
     Get-Agility '1.620.1' 'a8a494c3e5f687d9be0a465ec8248da70781ab689d888db8806b600422722be6'

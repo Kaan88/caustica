@@ -72,6 +72,78 @@ pub(super) unsafe fn create_compute_pipeline(
 }
 /// Clears the current back buffer to the UI's dark grey and presents it, so the window isn't
 /// white while the pipelines, NGX and the scene are made (seconds on a cold shader cache).
+/// One "Compiling shaders N/22" frame (`render::progress`): cleared rects on the back buffer.
+pub(super) unsafe fn present_progress(
+    device: &ID3D12Device5,
+    queue: &ID3D12CommandQueue,
+    swap: &IDXGISwapChain3,
+    allocator: &ID3D12CommandAllocator,
+    list: &ID3D12GraphicsCommandList4,
+    rtv: &ID3D12DescriptorHeap,
+    (done, total): (usize, usize),
+) -> Result<()> {
+    unsafe {
+        let back: ID3D12Resource = swap.GetBuffer(swap.GetCurrentBackBufferIndex())?;
+        let desc = swap.GetDesc1()?;
+        let handle = rtv.GetCPUDescriptorHandleForHeapStart();
+        device.CreateRenderTargetView(&back, None, handle);
+        allocator.Reset()?;
+        list.Reset(allocator, None)?;
+        transition(
+            list,
+            &back,
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+        );
+        let [r, g, b] = crate::render::progress::BACKGROUND;
+        list.ClearRenderTargetView(handle, &[r, g, b, 1.], None);
+        for ([r, g, b], rects) in
+            crate::render::progress::layout(desc.Width, desc.Height, done, total)
+        {
+            let rects: Vec<windows::Win32::Foundation::RECT> = rects
+                .iter()
+                .map(|&[x, y, w, h]| windows::Win32::Foundation::RECT {
+                    left: x as i32,
+                    top: y as i32,
+                    right: (x + w) as i32,
+                    bottom: (y + h) as i32,
+                })
+                .collect();
+            // A few rects per call: one call with the whole text (~170 rects) fails fast in
+            // the D3D12 runtime (0xc0000409).
+            for chunk in rects.chunks(16) {
+                list.ClearRenderTargetView(handle, &[r, g, b, 1.], Some(chunk));
+            }
+        }
+        transition(
+            list,
+            &back,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_PRESENT,
+        );
+        list.Close()?;
+        queue.ExecuteCommandLists(&[Some(list.cast()?)]);
+        swap.Present(0, DXGI_PRESENT(0)).ok()?;
+        wait_queue(device, queue)
+    }
+}
+/// Waits until `queue` has run everything submitted so far (startup only: makes a fence).
+unsafe fn wait_queue(device: &ID3D12Device5, queue: &ID3D12CommandQueue) -> Result<()> {
+    unsafe {
+        let fence: ID3D12Fence = device.CreateFence(0, D3D12_FENCE_FLAG_NONE)?;
+        let event = CreateEventW(None, false, false, None)?;
+        let waited = queue
+            .Signal(&fence, 1)
+            .and_then(|()| fence.SetEventOnCompletion(1, event))
+            .map(|()| WaitForSingleObject(event, 30_000));
+        let _ = windows::Win32::Foundation::CloseHandle(event);
+        ensure!(
+            waited? == windows::Win32::Foundation::WAIT_OBJECT_0,
+            "GPU fence timeout on a startup frame"
+        );
+        Ok(())
+    }
+}
 pub(super) unsafe fn present_blank(
     device: &ID3D12Device5,
     queue: &ID3D12CommandQueue,
@@ -138,16 +210,37 @@ pub(super) fn in_parallel<I: Sync, O>(inputs: &[I], make: impl Fn(&I) -> O + Syn
             .collect()
     })
 }
-/// `create_compute_pipeline` for every shader at once (in order).
+/// `create_compute_pipeline` for every shader at once (in order); the calling thread shows
+/// the "Compiling shaders N/22" screen meanwhile through `progress` (`render::progress`).
 pub(super) unsafe fn create_compute_pipelines<const N: usize>(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
     code: [&[u8]; N],
+    mut progress: impl FnMut(usize, usize),
 ) -> Result<[ID3D12PipelineState; N]> {
     let shared = Threaded((device, root));
-    let made = in_parallel(&code, |c| {
-        let (device, root) = shared.0;
-        unsafe { create_compute_pipeline(device, root, c) }
+    let done = std::sync::atomic::AtomicUsize::new(0);
+    let made: Vec<Result<ID3D12PipelineState>> = std::thread::scope(|scope| {
+        let (shared, done) = (&shared, &done);
+        let handles: Vec<_> = code
+            .iter()
+            .map(|c| {
+                scope.spawn(move || {
+                    let (device, root) = shared.0;
+                    let made = Threaded(unsafe { create_compute_pipeline(device, root, c) });
+                    done.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    made
+                })
+            })
+            .collect();
+        crate::render::progress::watch(done, N, |n| progress(n, N));
+        handles
+            .into_iter()
+            .map(|h| match h.join() {
+                Ok(o) => o.0,
+                Err(e) => std::panic::resume_unwind(e),
+            })
+            .collect()
     });
     let made: Vec<ID3D12PipelineState> = made.into_iter().collect::<Result<_>>()?;
     made.try_into()
@@ -532,15 +625,6 @@ pub(super) unsafe fn footprint(
         Some(&mut bytes),
     );
     (layout, bytes)
-}
-pub(super) fn halton(mut index: u32, base: u32) -> f32 {
-    let (mut f, mut result) = (1., 0.);
-    while index > 0 {
-        f /= base as f32;
-        result += f * (index % base) as f32;
-        index /= base;
-    }
-    result
 }
 
 pub(super) fn root_srv(register: u32) -> D3D12_ROOT_PARAMETER {

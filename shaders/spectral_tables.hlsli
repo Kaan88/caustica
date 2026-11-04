@@ -3,6 +3,10 @@
 // radiance at that wavelength (XYZ->sRGB, CIE 1931 2°, D65; a flat spectrum integrates to 1).
 static const float SPECTRAL_LO=380.0,SPECTRAL_HI=780.0,SPECTRAL_STEP=5.0;
 static const uint SPECTRAL_COUNT=81;
+#ifdef __spirv__
+// Vulkan: a buffer the backend fills from this file (NVIDIA's SPIR-V compiler expands large constant arrays at every use).
+StructuredBuffer<float3> SPECTRAL_BASIS:register(t14);
+#else
 static const float3 SPECTRAL_BASIS[81]={
     float3(0.3274574,0.3318617,0.3406808),
     float3(0.3237506,0.3296882,0.3465612),
@@ -86,6 +90,11 @@ static const float3 SPECTRAL_BASIS[81]={
     float3(0.3336728,0.3332943,0.333026),
     float3(0.3335695,0.3333094,0.3331111)
 };
+#endif
+#ifdef __spirv__
+// Vulkan: a buffer the backend fills from this file (NVIDIA's SPIR-V compiler expands large constant arrays at every use).
+StructuredBuffer<float3> SPECTRAL_OUT:register(t15);
+#else
 static const float3 SPECTRAL_OUT[81]={
     float3(5.473509e-06,-4.655967e-06,3.257438e-05),
     float3(9.344391e-06,-7.962069e-06,5.577067e-05),
@@ -169,8 +178,13 @@ static const float3 SPECTRAL_OUT[81]={
     float3(9.712797e-07,-1.054072e-07,-6.499647e-09),
     float3(6.687132e-07,-7.257143e-08,-4.474921e-09)
 };
+#endif
 // SPECTRAL_MEASURED: the Cornell box's white, green and red reflectances and its light (over
 // D65, RGB peak 1); SPECTRAL_D65: D65 over its 560 nm value (for blackbody emitters).
+#ifdef __spirv__
+// Vulkan: a buffer the backend fills from this file (NVIDIA's SPIR-V compiler expands large constant arrays at every use).
+StructuredBuffer<float4> SPECTRAL_MEASURED:register(t16);
+#else
 static const float4 SPECTRAL_MEASURED[81]={
     float4(0.343,0.092,0.04,0),
     float4(0.343,0.092,0.04,0),
@@ -254,4 +268,10 @@ static const float4 SPECTRAL_MEASURED[81]={
     float4(0.737,0.159,0.642,1.344172),
     float4(0.737,0.159,0.642,1.380464)
 };
+#endif
+#ifdef __spirv__
+// Vulkan: a buffer the backend fills from this file (NVIDIA's SPIR-V compiler expands large constant arrays at every use).
+StructuredBuffer<float> SPECTRAL_D65:register(t17);
+#else
 static const float SPECTRAL_D65[81]={0.499755,0.523118,0.546482,0.687015,0.827549,0.871204,0.91486,0.924589,0.934318,0.90057,0.866823,0.957736,1.04865,1.10936,1.17008,1.1741,1.17812,1.16336,1.14861,1.15392,1.15923,1.12367,1.08811,1.09082,1.09354,1.08578,1.07802,1.06296,1.0479,1.06239,1.07689,1.06047,1.04405,1.04225,1.04046,1.02023,1,0.981671,0.963342,0.960611,0.95788,0.922368,0.886856,0.893459,0.900062,0.898026,0.895991,0.886489,0.876987,0.854936,0.832886,0.834939,0.836992,0.81863,0.800268,0.801207,0.802146,0.812462,0.822778,0.80281,0.782842,0.740027,0.697213,0.706652,0.716091,0.72979,0.74349,0.679765,0.61604,0.657448,0.698856,0.724863,0.75087,0.693398,0.635927,0.550054,0.464182,0.566118,0.668054,0.650941,0.633828};
+#endif
