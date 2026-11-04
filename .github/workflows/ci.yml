@@ -5,7 +5,8 @@
 # Keep Cargo.toml's version in step with the latest tag (untagged builds say <it>-ci.<sha>).
 # A manual run (workflow_dispatch) on any branch builds the installer without releasing.
 name: CI
-# Paused 2026-11-04 (owner: out of runner minutes): manual runs only. To restore, put back
+# Paused 2026-11-04 (owner: out of runner minutes): manual runs only. Releases are built and
+# uploaded locally since 2026-11-05 (tools/release.ps1). To restore, put back
 #   push: {branches: [main], tags: ['v*']} and pull_request: above workflow_dispatch.
 on:
   workflow_dispatch:
