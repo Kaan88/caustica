@@ -29,6 +29,7 @@ mod physics;
 mod prefs;
 mod presets;
 mod procedural;
+mod reference;
 mod remote;
 mod saver;
 mod scene;
@@ -378,6 +379,7 @@ impl App {
         let mut script_path: Option<PathBuf> = None;
         let mut interface = ui::UiState::default();
         let mut self_test = false;
+        let mut reference: Option<u32> = None;
         let mut selected_preset = 0;
         let mut size = [1440, 900];
         // --preset and --settings replace the whole scene, so apply them before every other
@@ -627,6 +629,15 @@ impl App {
                     frames = Some(SCENES_FROM + scenes::list().len() as u32);
                 }
                 "--no-vsync" => s.vsync = false,
+                // The CPU reference renderer (reference.rs): no GPU, an EXR of N samples per pixel.
+                "--reference" => {
+                    reference = Some(
+                        args.next()
+                            .context("--reference needs a sample count")?
+                            .parse()
+                            .context("--reference needs a sample count")?,
+                    )
+                }
                 "--version" => {
                     println!("Caustica {VERSION}");
                     std::process::exit(0);
@@ -634,7 +645,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --reference SPP --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -657,6 +668,12 @@ impl App {
             (64..=8192).contains(&size[0]) && (64..=8192).contains(&size[1]),
             "Dimensions must be 64–8192"
         );
+        if let Some(spp) = reference {
+            let path = capture.context("--reference needs --capture out.exr")?;
+            anyhow::ensure!(spp > 0, "--reference needs at least one sample");
+            reference::run(&s, size, spp, &path)?;
+            std::process::exit(0);
+        }
         anyhow::ensure!(frames != Some(0), "--frames must be positive");
         if turntable_cli.is_some() && frames.is_none() {
             frames = Some(4);
