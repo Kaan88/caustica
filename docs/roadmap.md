@@ -258,7 +258,7 @@ Wave 1 done 2026-11-03 (engine-notes "Closing the medium term, wave 1"). Wave 2 
 - Review notes from wave 2 (low): blackbody and measured spectra replace the base colour rather than tint it; emissive maps are sampled at LOD 0 (no ray-cone footprint); imported glTF emission is clamped to 20; the IES horizontal average is unweighted (uneven horizontal angle steps over-weight the dense ones). Measurement note: references rendered with the default `max_samples` (4096) stop there, so set `--set max_samples=1000000` for a long reference.
 
 **Wave 3 (engine and tools):**
-- [ ] TLAS refit, BLAS compaction, incremental vertex upload.
+- [x] TLAS refit, BLAS compaction, incremental vertex upload (and the drag frame's CPU side: chess 19.8 → 8.1 ms, a 1800-object forest 63.5 → 15.9 ms). Not done: the remaining forest drag cost is the per-object CPU work in `rebuild_scene` (instance table, materials); a light edit still rebuilds the static BLAS (small).
 - [ ] Cloth: two-way coupling with bodies, self-collision.
 - [ ] Curve editor and camera spline paths.
 - [ ] In-app script console, scripts per frame, generators from scripts.
@@ -285,7 +285,7 @@ Order is from scene-research.md section 5, unchanged:
    - Owner request: more HDRIs at 4k / 8k, replace the pixelated-looking ones, bilinear background lookup, and an in-app browser (item 6).
    - Decided 2026-11-03 (wave 1): a per-light *Casts shadows* option, on by default. Was: lights hidden from the camera still block light and cast shadows (their quads stay in the BLAS for shadow rays). The studio stage's hidden rim light shadowed the HDRI sun, so the environment scenes start with no lights. Either keep it (physical) or make hidden lights invisible to shadow rays too.
 4. Multiple BLAS + TLAS instancing past 256 objects. — done 2026-10-30: one object-space BLAS per distinct mesh, a static BLAS for floor / room / lights, a TLAS instance per object, an instance table for vertices, materials and emitters; 4096 objects; `forest` and `crowd` generators. Drags rebuild only the TLAS (chess set 141 → 7 ms per drag frame).
-   - Not done: TLAS refit (`ALLOW_UPDATE`) instead of a full rebuild per edit; BLAS compaction; the mesh vertex buffer is re-uploaded whole when the set of meshes changes (adding one mesh to the chess scene re-sends 19 MB); a light edit still rebuilds the static BLAS (small).
+   - ~~TLAS refit; BLAS compaction; the mesh vertex buffer re-uploaded whole when the set of meshes changes~~: done 2026-11-04 (wave 3). A light edit still rebuilds the static BLAS (small).
    - Cost: simple scenes render up to 7% slower (two-level traversal; Classic RR 3.67 → 3.94 ms). Idea: flatten scenes with few objects into one BLAS, or put the floor and walls in the opaque range of a shared instance.
    - Closed 2026-11-03 (wave 1): the Menger runs stay (fewer objects); the object list draws only the rows in view; framing uses the rotated local box's corners, tight enough.
    - Coplanar faces (a glass object's base on the floor) z-fight differently than before; see docs/engine-notes.md "Instancing".

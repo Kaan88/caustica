@@ -200,7 +200,17 @@ struct App {
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 303;
 fn transport_key(s: &Settings) -> String {
-    let mut j = serde_json::to_value(s).unwrap();
+    // The JSON tree without objects and lights (hashed below); the caller compares fields.
+    let mut j = {
+        let mut top = serde_json::to_value(Settings {
+            objects: vec![],
+            lights: vec![],
+            ..s.clone()
+        })
+        .unwrap();
+        top.as_object_mut().unwrap().remove("objects");
+        top
+    };
     for k in [
         "physics",
         "puzzle",
@@ -244,15 +254,29 @@ fn transport_key(s: &Settings) -> String {
     ] {
         j.as_object_mut().unwrap().remove(k);
     }
-    for key in ["objects", "lights"] {
-        if let Some(items) = j.get_mut(key).and_then(|v| v.as_array_mut()) {
-            for item in items {
-                let item = item.as_object_mut().unwrap();
-                item.remove("name");
-                item.remove("outline");
-            }
-        }
+    // Objects and lights by a hash of their JSON, written straight to bytes: as a JSON tree
+    // they cost a 1800-object forest 14 ms per edit. Names and outlines don't render.
+    let digest = |bytes: &[u8]| {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut h);
+        format!("{:016x}", h.finish())
+    };
+    let mut bytes = vec![];
+    for o in &s.objects {
+        let mut o = o.clone();
+        o.name.clear();
+        serde_json::to_writer(&mut bytes, &o).unwrap();
     }
+    j["objects"] = digest(&bytes).into();
+    bytes.clear();
+    for l in &s.lights {
+        let mut l = l.clone();
+        l.name.clear();
+        l.outline = false;
+        serde_json::to_writer(&mut bytes, &l).unwrap();
+    }
+    j["lights"] = digest(&bytes).into();
     j.to_string()
 }
 /// Squared error of l/(1+l) against the reference and the pixel count, per screen quadrant
@@ -275,30 +299,33 @@ fn error_sums(image: &[f32], reference: &[f32], w: usize, h: usize) -> [(f64, us
     sums
 }
 fn geometry_key(s: &Settings) -> String {
-    serde_json::json!([
+    // Serialized directly (a JSON tree cost a 1800-object forest 3 ms per edit).
+    serde_json::to_string(&(
         s.objects
             .iter()
-            .map(|o| (
-                o.kind(),
-                o.sdf,
-                o.phase,
-                o.detail,
-                &o.mesh,
-                // Glass goes to the non-opaque BLAS range (shadow rays may pass it), and from
-                // 0.5 shadow rays leave its instance out by mask (track 20a (a)).
-                (o.material.transmission > 0., o.material.transmission >= 0.5),
-                // Masked texture maps need the any-hit loop too.
-                o.material.textures,
-                o.visible,
-                o.position,
-                o.size,
-                o.stretch,
-                o.rotation,
-                o.tilt,
-                o.scale_xz,
-                o.elevation,
-                o.grounded
-            ))
+            .map(|o| {
+                (
+                    o.kind(),
+                    o.sdf,
+                    o.phase,
+                    o.detail,
+                    &o.mesh,
+                    // Glass goes to the non-opaque BLAS range (shadow rays may pass it), and from
+                    // 0.5 shadow rays leave its instance out by mask (track 20a (a)).
+                    (o.material.transmission > 0., o.material.transmission >= 0.5),
+                    // Masked texture maps need the any-hit loop too.
+                    o.material.textures,
+                    o.visible,
+                    o.position,
+                    o.size,
+                    o.stretch,
+                    o.rotation,
+                    o.tilt,
+                    o.scale_xz,
+                    o.elevation,
+                    o.grounded,
+                )
+            })
             .collect::<Vec<_>>(),
         s.light_on,
         // Visibility to the camera picks the BLAS range (hidden lights need the any-hit loop).
@@ -316,9 +343,9 @@ fn geometry_key(s: &Settings) -> String {
                     l.enabled, l.visible, l.shadows, l.position, l.rotation, l.size, l.kind,
                 )
             })
-            .collect::<Vec<_>>()
-    ])
-    .to_string()
+            .collect::<Vec<_>>(),
+    ))
+    .unwrap()
 }
 fn material_key(s: &Settings) -> Vec<u8> {
     let mut key = bytemuck::cast_slice(&lighting::materials(s)).to_vec();

@@ -199,6 +199,10 @@ fn split(path: &str) -> (&str, Option<usize>) {
 }
 type Cache = HashMap<PathBuf, Result<Arc<Imported>, String>>;
 static CACHE: LazyLock<Mutex<Cache>> = LazyLock::new(Default::default);
+/// Loaded files by the path as stored (before `resolve`, which checks each scene root on disk):
+/// a rebuild asks for every object's file several times, and the chess set spent 3 ms of a
+/// drag frame in those checks. Only successes are kept, so a file that appears later is found.
+static LOADED: LazyLock<Mutex<HashMap<String, Arc<Imported>>>> = LazyLock::new(Default::default);
 
 /// Relative paths are relative to the scenes folder (where scene files and `meshes/` live).
 pub fn resolve(path: &str) -> PathBuf {
@@ -217,13 +221,23 @@ pub fn store(path: &Path) -> String {
 }
 /// Loads a file (a `#part` suffix is ignored here).
 pub fn load(path: &str) -> Result<Arc<Imported>> {
-    let key = resolve(split(path).0);
+    let file = split(path).0;
+    if let Some(hit) = LOADED.lock().unwrap_or_else(|e| e.into_inner()).get(file) {
+        return Ok(hit.clone());
+    }
+    let key = resolve(file);
     let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(hit) = cache.get(&key) {
         return hit.clone().map_err(anyhow::Error::msg);
     }
     let result = read(&key).map(Arc::new).map_err(|e| format!("{e:#}"));
     cache.insert(key, result.clone());
+    if let Ok(hit) = &result {
+        LOADED
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(file.to_string(), hit.clone());
+    }
     result.map_err(anyhow::Error::msg)
 }
 /// The part an object uses, or None for the whole file, built-in shapes and unreadable files.
