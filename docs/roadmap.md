@@ -182,6 +182,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 
 ### Platform, CI and release
 - [keep] The first tag with the asset-fetch step and the ~870 MB installer exercises them for the first time: check installer size, build time and `LZMANumBlockThreads`, and run the installer on a clean machine.
+- [keep] Owner request (2026-11-05): pre-build the scene and material thumbnails at release time and ship them in the installer, zip and AppImage, so a fresh install doesn't spend minutes rendering them on first open. Seed the thumbnail cache from the bundled set, keyed so an edited scene still re-renders its own.
 - [drop] CI self-test: needs a GPU runner. Signed installer: needs a certificate (SmartScreen warns).
 - [drop] DXC on the runner not pinned; setting to move the data folder; leftover files after uninstall; downloaded assets not in the zip; local folder still called `cornell` (owner's choice).
 
