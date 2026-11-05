@@ -84,7 +84,7 @@
     "name": "Lamp glow",
     "position": [
      0.0,
-     5.5,
+     5.28,
      0.0
     ],
     "rotation": [
@@ -93,8 +93,8 @@
      0.0
     ],
     "size": [
-     0.2,
-     0.2
+     0.08,
+     0.08
     ],
     "color": [
      1.0,
@@ -526,7 +526,7 @@
      0,
      0
     ],
-    "size": 0.3429,
+    "size": 0.2286,
     "stretch": 1.0,
     "rotation": 0.0,
     "tilt": [
@@ -537,7 +537,7 @@
      1.0,
      1.0
     ],
-    "elevation": 5.5,
+    "elevation": 5.28,
     "grounded": false,
     "visible": true,
     "material": {
@@ -1180,9 +1180,9 @@
     "portal": -1
    }
   ],
-  "exposure": 1.6,
+  "exposure": 2.6,
   "fog": {
-   "density": 0.05,
+   "density": 0.07,
    "color": [
     0.9,
     0.93,
@@ -1199,6 +1199,7 @@
     0.7
    ]
   },
+  "glass_shadow": false,
   "animation": {
    "length": 8.0,
    "fps": 24,

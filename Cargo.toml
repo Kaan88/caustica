@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "caustica"
-version = "0.10.0"
+version = "0.10.1"
 edition = "2024"
 build = "build.rs"
 

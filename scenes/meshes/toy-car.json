@@ -87,7 +87,7 @@
   "fov": 36.0,
   "objects": [
    {
-    "name": "ToyCar Â· Glass",
+    "name": "ToyCar · Glass",
     "shape": "box",
     "position": [
      0,
@@ -132,7 +132,7 @@
     "mesh": "models/ToyCar.glb#0"
    },
    {
-    "name": "ToyCar Â· Fabric",
+    "name": "ToyCar · Fabric",
     "shape": "box",
     "position": [
      0,
@@ -177,7 +177,7 @@
     "mesh": "models/ToyCar.glb#1"
    },
    {
-    "name": "ToyCar Â· ToyCar",
+    "name": "ToyCar · ToyCar",
     "shape": "box",
     "position": [
      0,

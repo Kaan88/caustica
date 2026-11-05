@@ -163,7 +163,7 @@
  ],
  "ABeautifulGame.glb": [
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Bishop_White",
+   "name": "ABeautifulGame \u00b7 Bishop_White",
    "triangles": 148896,
    "material": {
     "color": [
@@ -188,7 +188,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Bishop_Black",
+   "name": "ABeautifulGame \u00b7 Bishop_Black",
    "triangles": 148896,
    "material": {
     "color": [
@@ -213,7 +213,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Knight_White",
+   "name": "ABeautifulGame \u00b7 Knight_White",
    "triangles": 22368,
    "material": {
     "color": [
@@ -238,7 +238,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Knight_Black",
+   "name": "ABeautifulGame \u00b7 Knight_Black",
    "triangles": 22368,
    "material": {
     "color": [
@@ -263,7 +263,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Castle_White",
+   "name": "ABeautifulGame \u00b7 Castle_White",
    "triangles": 61056,
    "material": {
     "color": [
@@ -288,7 +288,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Castle_Black",
+   "name": "ABeautifulGame \u00b7 Castle_Black",
    "triangles": 61056,
    "material": {
     "color": [
@@ -313,7 +313,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Body_Black",
+   "name": "ABeautifulGame \u00b7 Pawn_Body_Black",
    "triangles": 377856,
    "material": {
     "color": [
@@ -338,7 +338,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Top_Black",
+   "name": "ABeautifulGame \u00b7 Pawn_Top_Black",
    "triangles": 17664,
    "material": {
     "color": [
@@ -363,7 +363,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Body_White",
+   "name": "ABeautifulGame \u00b7 Pawn_Body_White",
    "triangles": 377856,
    "material": {
     "color": [
@@ -388,7 +388,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Pawn_Top_White",
+   "name": "ABeautifulGame \u00b7 Pawn_Top_White",
    "triangles": 17664,
    "material": {
     "color": [
@@ -413,7 +413,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Chessboard",
+   "name": "ABeautifulGame \u00b7 Chessboard",
    "triangles": 92416,
    "material": {
     "color": [
@@ -438,7 +438,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Queen_White",
+   "name": "ABeautifulGame \u00b7 Queen_White",
    "triangles": 34368,
    "material": {
     "color": [
@@ -463,7 +463,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 Queen_Black",
+   "name": "ABeautifulGame \u00b7 Queen_Black",
    "triangles": 34368,
    "material": {
     "color": [
@@ -488,7 +488,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 King_White",
+   "name": "ABeautifulGame \u00b7 King_White",
    "triangles": 40480,
    "material": {
     "color": [
@@ -513,7 +513,7 @@
    }
   },
   {
-   "name": "ABeautifulGame \u00c2\u00b7 King_Black",
+   "name": "ABeautifulGame \u00b7 King_Black",
    "triangles": 40480,
    "material": {
     "color": [
@@ -540,7 +540,7 @@
  ],
  "DragonAttenuation.glb": [
   {
-   "name": "DragonAttenuation \u00c2\u00b7 Dragon with Attenuation",
+   "name": "DragonAttenuation \u00b7 Dragon with Attenuation",
    "triangles": 91216,
    "material": {
     "color": [
@@ -565,7 +565,7 @@
    }
   },
   {
-   "name": "DragonAttenuation \u00c2\u00b7 Cloth Backdrop",
+   "name": "DragonAttenuation \u00b7 Cloth Backdrop",
    "triangles": 43779,
    "material": {
     "color": [
@@ -646,7 +646,7 @@
  ],
  "ToyCar.glb": [
   {
-   "name": "ToyCar \u00c2\u00b7 Glass",
+   "name": "ToyCar \u00b7 Glass",
    "triangles": 2494,
    "material": {
     "color": [
@@ -671,7 +671,7 @@
    }
   },
   {
-   "name": "ToyCar \u00c2\u00b7 Fabric",
+   "name": "ToyCar \u00b7 Fabric",
    "triangles": 17605,
    "material": {
     "color": [
@@ -696,7 +696,7 @@
    }
   },
   {
-   "name": "ToyCar \u00c2\u00b7 ToyCar",
+   "name": "ToyCar \u00b7 ToyCar",
    "triangles": 88591,
    "material": {
     "color": [

@@ -2816,7 +2816,10 @@ impl ApplicationHandler for App {
         });
         // An idle viewport still shows each new pass of the CPU reference (every 200 ms).
         let cpu = self.cpu_reference.as_ref().is_some_and(|l| l.running());
-        if (active || cpu)
+        // Shader hot reload is polled in redraw: an edit while paused or converged reloads too.
+        // (Only when idle: a rendering loop redraws, and polls, anyway.)
+        let shaders = !active && self.hot.as_ref().is_some_and(|h| h.changed());
+        if (active || cpu || shaders)
             && let Some(w) = &self.window
         {
             w.request_redraw();

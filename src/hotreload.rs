@@ -258,6 +258,11 @@ impl HotReload {
             checked: Instant::now(),
         })
     }
+    /// A shader file is newer than the loaded set: an idle event loop (paused, converged) then
+    /// redraws once so `poll` sees it.
+    pub fn changed(&self) -> bool {
+        newest(&self.dir) > self.stamp
+    }
     /// After a shader file changes: Some(compiled shaders or the DXC error).
     pub fn poll(&mut self) -> Option<Result<Shaders, String>> {
         if self.checked.elapsed() < Duration::from_millis(500) {
@@ -271,55 +276,85 @@ impl HotReload {
         self.stamp = stamp;
         Some(self.compile())
     }
+    fn compile_one(
+        &self,
+        out: &std::path::Path,
+        file: &str,
+        entry: &str,
+        profile: &str,
+        name: &str,
+        defines: &[&str],
+    ) -> Result<Vec<u8>, String> {
+        if self.spirv && profile.starts_with("lib_") {
+            return Ok(vec![]);
+        }
+        let target = out.join(format!(
+            "{name}.{}",
+            if self.spirv { "spv" } else { "dxil" }
+        ));
+        let mut command = std::process::Command::new(&self.dxc);
+        if self.spirv {
+            command
+                .args(["-spirv", "-fspv-target-env=vulkan1.3", "-fvk-use-dx-layout"])
+                .args(["-fvk-t-shift", "100", "all", "-fvk-b-shift", "200", "all"])
+                .args(["-fvk-s-shift", "300", "all"]);
+        }
+        command
+            .args(["-T", profile])
+            .args(if profile.starts_with("lib_") {
+                vec!["-exports", entry, "-Wno-misplaced-attributes"]
+            } else if self.spirv {
+                vec!["-E", entry]
+            } else {
+                vec!["-E", entry, "-Ges"]
+            })
+            .args(["-HV", "2021", "-O3", "-I"])
+            .arg(&self.dir)
+            .args(defines)
+            .arg("-Fo")
+            .arg(&target)
+            .arg(self.dir.join(file));
+        crate::platform::no_window(&mut command);
+        let result = command.output().map_err(|e| format!("DXC: {e}"))?;
+        if !result.status.success() {
+            let text = String::from_utf8_lossy(&result.stderr);
+            // The first error lines are enough for a toast.
+            let short: Vec<&str> = text
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .take(4)
+                .collect();
+            return Err(format!(
+                "{name}: {}",
+                short.join(
+                    "
+"
+                )
+            ));
+        }
+        std::fs::read(&target).map_err(|e| e.to_string())
+    }
     pub fn compile(&self) -> Result<Shaders, String> {
         let out = std::env::temp_dir().join("caustica-shaders");
         std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
-        let mut blobs = vec![];
-        for (file, entry, profile, name, defines) in ENTRIES {
-            if self.spirv && profile.starts_with("lib_") {
-                blobs.push(vec![]);
-                continue;
-            }
-            let target = out.join(format!(
-                "{name}.{}",
-                if self.spirv { "spv" } else { "dxil" }
-            ));
-            let mut command = std::process::Command::new(&self.dxc);
-            if self.spirv {
-                command
-                    .args(["-spirv", "-fspv-target-env=vulkan1.3", "-fvk-use-dx-layout"])
-                    .args(["-fvk-t-shift", "100", "all", "-fvk-b-shift", "200", "all"])
-                    .args(["-fvk-s-shift", "300", "all"]);
-            }
-            command
-                .args(["-T", profile])
-                .args(if profile.starts_with("lib_") {
-                    vec!["-exports", entry, "-Wno-misplaced-attributes"]
-                } else if self.spirv {
-                    vec!["-E", entry]
-                } else {
-                    vec!["-E", entry, "-Ges"]
+        // One DXC process per entry, all at once (a sequential compile froze the window for over
+        // a minute); the results keep ENTRIES' order.
+        let blobs: Vec<Result<Vec<u8>, String>> = std::thread::scope(|scope| {
+            let jobs: Vec<_> = ENTRIES
+                .iter()
+                .map(|&(file, entry, profile, name, defines)| {
+                    let out = &out;
+                    scope.spawn(move || self.compile_one(out, file, entry, profile, name, defines))
                 })
-                .args(["-HV", "2021", "-O3", "-I"])
-                .arg(&self.dir)
-                .args(defines)
-                .arg("-Fo")
-                .arg(&target)
-                .arg(self.dir.join(file));
-            crate::platform::no_window(&mut command);
-            let result = command.output().map_err(|e| format!("DXC: {e}"))?;
-            if !result.status.success() {
-                let text = String::from_utf8_lossy(&result.stderr);
-                // The first error lines are enough for a toast.
-                let short: Vec<&str> = text
-                    .lines()
-                    .filter(|l| !l.trim().is_empty())
-                    .take(4)
-                    .collect();
-                return Err(format!("{name}: {}", short.join("\n")));
-            }
-            blobs.push(std::fs::read(&target).map_err(|e| e.to_string())?);
-        }
+                .collect();
+            jobs.into_iter()
+                .map(|j| {
+                    j.join()
+                        .unwrap_or_else(|_| Err("DXC thread panicked".into()))
+                })
+                .collect()
+        });
+        let blobs = blobs.into_iter().collect::<Result<Vec<_>, String>>()?;
         let mut b = blobs.into_iter();
         Ok(Shaders {
             trace: b.next().unwrap(),

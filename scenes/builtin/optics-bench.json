@@ -297,7 +297,7 @@
    }
   ],
   "integrator": 2,
-  "light_intensity": 3.0,
+  "light_intensity": 1.2,
   "light_position": [
    0.0,
    4.0,
@@ -307,7 +307,7 @@
   "light_visible": false,
   "light_temperature": 6500.0,
   "fog": {
-   "density": 0.035,
+   "density": 0.1,
    "color": [
     1,
     1,
@@ -317,6 +317,6 @@
    "height": 1.5,
    "extent": 6.0
   },
-  "exposure": 1.4
+  "exposure": 2.2
  }
 }

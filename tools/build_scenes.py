@@ -2280,7 +2280,7 @@ scene("sun-greenhouse", "Greenhouse in the sun",
       "shadows have a real penumbra) and a blue sky: the iron frame draws crisp shadows through the panes.",
       ["lights", "sun", "glass", "shadows"],
       studio(light_on=False, sky=0.6, background=[0.45, 0.62, 0.9], base=[0.5, 0.46, 0.38], floor=M((0.45, 0.4, 0.32), 0.9),
-             floor_extent=40.0, objects=greenhouse(), bounces=12,
+             floor_extent=40.0, objects=greenhouse(), bounces=12, exposure=0.45,
              lights=[sun_light("Sun", (-18, 22, 12), kelvin(5600), 4.0)],
              **camera(30, 16, 7.5, (0, 0.0, 0), 42)))
 
@@ -2358,7 +2358,8 @@ def lighthouse():
     o += [cyl("Gallery", 0, 0, 6.0 - 1.0, 5.1, 0.7, M((0.1, 0.1, 0.1), 0.4, metal=1)),
           cyl("Lantern room", 0, 0, 5.1, 5.9, 0.42, M((0.95, 0.97, 1.0), 0.0, trans=1, ior=1.5)),
           obj("Cap", "cone", 0, 0, 1.4, M((0.1, 0.1, 0.1), 0.4, metal=1), stretch=0.7, elevation=6.9),
-          ball("Lamp", 0, 5.5, 0, 0.12, emitter((1.0, 0.9, 0.7), 20))]
+          # Below the spot, not around it: an emitter enclosing the spot would shadow its beam.
+          ball("Lamp", 0, 5.28, 0, 0.08, emitter((1.0, 0.9, 0.7), 20))]
     for i in range(14):
         a = random.uniform(0, math.tau)
         d = random.uniform(1.0, 3.0)
@@ -2373,11 +2374,13 @@ scene("lighthouse-fog", "Lighthouse in fog",
       "near the lamp and the distance turns blue-grey.",
       ["volume", "fog", "noise", "spot", "animation", "night"],
       dark_stage(objects=lighthouse(), base=[0.01, 0.015, 0.025], floor=M((0.01, 0.015, 0.025), 0.05, refl=0.6),
-                 floor_extent=40.0, sky=0.01, background=[0.004, 0.006, 0.012], bounces=8, exposure=1.6,
-                 fog=fog_ex(0.05, (0.9, 0.93, 1.0), 0.7, 14.0, 30.0, noise=0.8, noise_size=3.0,
+                 floor_extent=40.0, sky=0.01, background=[0.004, 0.006, 0.012], bounces=8, exposure=2.6,
+                 fog=fog_ex(0.07, (0.9, 0.93, 1.0), 0.7, 14.0, 30.0, noise=0.8, noise_size=3.0,
                             extinction=(1.0, 0.85, 0.7)),
                  lights=[spot("Beam", (0.0, 5.5, 0.0), (10.0, 5.2, 0.0), (1.0, 0.92, 0.75), 2000.0, spread=9.0, blend=0.4, size=0.2),
-                         sphere_light("Lamp glow", (0.0, 5.5, 0.0), 0.2, (1.0, 0.9, 0.7), 30.0, visible=False)],
+                         sphere_light("Lamp glow", (0.0, 5.28, 0.0), 0.08, (1.0, 0.9, 0.7), 30.0, visible=False)],
+                 # The beam leaves through the lantern-room glass.
+                 glass_shadow=False,
                  animation={"length": 8.0, "fps": 24, "shutter": 0.0,
                             "tracks": [track("lights/0/rotation/1", [(0.0, -90.0, "linear"), (8.0, 270.0, "linear")])]},
                  **camera(-25, 4, 17, (0, 2.6, 0), 45)))
@@ -2688,6 +2691,8 @@ def write_generated():
 # ---------------------------------------------------------------- mesh pack
 # Scenes built on the models of tools/fetch_models.ps1 (scenes/models, gitignored). Part names and
 # file materials come from tools/mesh_parts.json, written by `caustica.exe --mesh-info`.
+# Capture it as raw bytes (cmd /c "caustica.exe --mesh-info ... > tools\mesh_parts.json", or
+# Start-Process -RedirectStandardOutput): PowerShell 5.1's `>` re-decodes it and turns "·" into "Â·".
 PARTS = json.loads((Path(__file__).resolve().parent / "mesh_parts.json").read_text(encoding="utf-8"))
 MESH_SCENES = []
 

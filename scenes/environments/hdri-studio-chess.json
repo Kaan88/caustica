@@ -62,7 +62,7 @@
   "fov": 36.0,
   "objects": [
    {
-    "name": "ABeautifulGame Â· Bishop_White",
+    "name": "ABeautifulGame · Bishop_White",
     "shape": "box",
     "position": [
      0,
@@ -107,7 +107,7 @@
     "mesh": "models/ABeautifulGame.glb#0"
    },
    {
-    "name": "ABeautifulGame Â· Bishop_Black",
+    "name": "ABeautifulGame · Bishop_Black",
     "shape": "box",
     "position": [
      0,
@@ -152,7 +152,7 @@
     "mesh": "models/ABeautifulGame.glb#1"
    },
    {
-    "name": "ABeautifulGame Â· Knight_White",
+    "name": "ABeautifulGame · Knight_White",
     "shape": "box",
     "position": [
      0,
@@ -197,7 +197,7 @@
     "mesh": "models/ABeautifulGame.glb#2"
    },
    {
-    "name": "ABeautifulGame Â· Knight_Black",
+    "name": "ABeautifulGame · Knight_Black",
     "shape": "box",
     "position": [
      0,
@@ -242,7 +242,7 @@
     "mesh": "models/ABeautifulGame.glb#3"
    },
    {
-    "name": "ABeautifulGame Â· Castle_White",
+    "name": "ABeautifulGame · Castle_White",
     "shape": "box",
     "position": [
      0,
@@ -287,7 +287,7 @@
     "mesh": "models/ABeautifulGame.glb#4"
    },
    {
-    "name": "ABeautifulGame Â· Castle_Black",
+    "name": "ABeautifulGame · Castle_Black",
     "shape": "box",
     "position": [
      0,
@@ -332,7 +332,7 @@
     "mesh": "models/ABeautifulGame.glb#5"
    },
    {
-    "name": "ABeautifulGame Â· Pawn_Body_Black",
+    "name": "ABeautifulGame · Pawn_Body_Black",
     "shape": "box",
     "position": [
      0,
@@ -377,7 +377,7 @@
     "mesh": "models/ABeautifulGame.glb#6"
    },
    {
-    "name": "ABeautifulGame Â· Pawn_Top_Black",
+    "name": "ABeautifulGame · Pawn_Top_Black",
     "shape": "box",
     "position": [
      0,
@@ -422,7 +422,7 @@
     "mesh": "models/ABeautifulGame.glb#7"
    },
    {
-    "name": "ABeautifulGame Â· Pawn_Body_White",
+    "name": "ABeautifulGame · Pawn_Body_White",
     "shape": "box",
     "position": [
      0,
@@ -467,7 +467,7 @@
     "mesh": "models/ABeautifulGame.glb#8"
    },
    {
-    "name": "ABeautifulGame Â· Pawn_Top_White",
+    "name": "ABeautifulGame · Pawn_Top_White",
     "shape": "box",
     "position": [
      0,
@@ -512,7 +512,7 @@
     "mesh": "models/ABeautifulGame.glb#9"
    },
    {
-    "name": "ABeautifulGame Â· Chessboard",
+    "name": "ABeautifulGame · Chessboard",
     "shape": "box",
     "position": [
      0,
@@ -557,7 +557,7 @@
     "mesh": "models/ABeautifulGame.glb#10"
    },
    {
-    "name": "ABeautifulGame Â· Queen_White",
+    "name": "ABeautifulGame · Queen_White",
     "shape": "box",
     "position": [
      0,
@@ -602,7 +602,7 @@
     "mesh": "models/ABeautifulGame.glb#11"
    },
    {
-    "name": "ABeautifulGame Â· Queen_Black",
+    "name": "ABeautifulGame · Queen_Black",
     "shape": "box",
     "position": [
      0,
@@ -647,7 +647,7 @@
     "mesh": "models/ABeautifulGame.glb#12"
    },
    {
-    "name": "ABeautifulGame Â· King_White",
+    "name": "ABeautifulGame · King_White",
     "shape": "box",
     "position": [
      0,
@@ -692,7 +692,7 @@
     "mesh": "models/ABeautifulGame.glb#13"
    },
    {
-    "name": "ABeautifulGame Â· King_Black",
+    "name": "ABeautifulGame · King_Black",
     "shape": "box",
     "position": [
      0,
