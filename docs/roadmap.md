@@ -15,7 +15,7 @@ Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-res
 Details are in engine-notes under the section named in quotes.
 
 - DLSS preset selection, 2026-10-30.
-- Scene overhaul: 14 new built-in scenes, 4 HDRI and 1 material scene for unused features, 16 reworked, 6 redundant and 56 generated seeds removed, laser puzzle housings, scene-relative LUT paths, 2026-11-05 (renders not yet checked): "Scene overhaul".
+- Scene overhaul: 14 new built-in scenes, 4 HDRI and 1 material scene for unused features, 16 reworked, 6 redundant and 56 generated seeds removed, laser puzzle housings, scene-relative LUT paths, 2026-11-05 (all 123 renders checked by hand; lighthouse, dark-side, optics-bench and greenhouse retuned in v0.10.1): "Scene overhaul".
 - Native HDR output (scRGB; HDR10 swapchain and HDR JPEG XR added 2026-11-02), 2026-10-30: "Native HDR".
 - UI phases 1-5: regrouping, undo / redo, scene browser with thumbnails, Quality bundles, GPU timing, prefs, async high-res still, capabilities struct, modified-row dots, file pickers, 2026-10-30 to 2026-11-02.
 - Blender-style gizmos, G / R / S, snapping, pivots, multi-select, Alt-drag duplicate, 2026-10-30 / 2026-11-02: "Gizmos", "Multi-select, pivots and snapping".
