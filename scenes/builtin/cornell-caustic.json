@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Cornell caustic",
- "description": "A small, very bright light over a glass sphere: the caustic is found only by BSDF paths.",
+ "description": "A small, very bright light over a glass sphere: the path tracer finds the caustic only by BSDF paths, so it stays noisy; Render → Integrator → Photon mapping traces it from the light and resolves it in seconds.",
  "tags": [
   "cornell",
   "glass",

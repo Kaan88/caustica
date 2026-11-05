@@ -2,8 +2,8 @@
 where the integrators' mean colours disagree (a quick way to find what BDPT or photon
 mapping get wrong). Usage: python tools/integrator_sweep.py EXE OUTDIR [frames]
 
-All three render with a 1-pixel box filter (BDPT and photon mapping always use one): the path
-tracer's default Blackman-Harris weights don't sum to exactly 1 over the pixel grid, which moved
+All three render with a 1-pixel box filter (BDPT and photon mapping used only that until
+2026-11-05; they now take the path tracer's filter too): the path tracer's default Blackman-Harris weights don't sum to exactly 1 over the pixel grid, which moved
 image means at small bright lights and suns by up to 10% (the old dusk "gap"; 2026-11-04,
 tools/oracle.py). Means are over the whole image."""
 import glob, os, subprocess, sys

@@ -164,7 +164,7 @@ impl App {
                             .add_filter("3D LUT", &["cube"])
                             .pick_file()
                     {
-                        s.lut_path = p.to_string_lossy().into();
+                        s.lut_path = crate::mesh::store(&p);
                     }
                     if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
                         s.lut_path.clear();

@@ -148,6 +148,27 @@ impl Gpu {
             xess: sr(Upscaler::Xess, 3),
         }
     }
+    /// Takes NGX up once its start-up thread is done (`wait`: blocks until it is). Called at the
+    /// start of each frame; until then RR and DLSS SR are unavailable ("starting").
+    pub fn poll_ngx(&mut self, wait: bool) {
+        if !self
+            .ngx_pending
+            .as_ref()
+            .is_some_and(|t| wait || t.is_finished())
+        {
+            return;
+        }
+        let (ngx, code) = match self.ngx_pending.take().unwrap().join() {
+            Ok(t) => t.0,
+            Err(e) => std::panic::resume_unwind(e),
+        };
+        self.ngx = ngx;
+        let (status, [rr, sr]) = unsafe { ngx_status(ngx, code, &self.st.adapter_name) };
+        eprintln!("NGX: {status}");
+        self.st.rr_status = status;
+        self.init_reasons[0] = rr;
+        self.init_reasons[1] = sr;
+    }
     /// NGX loaded and reports Ray Reconstruction (caps bit 0).
     pub fn rr_available(&self) -> bool {
         !self.ngx.is_null() && unsafe { caustica_ngx_caps(self.ngx) } & 1 != 0
@@ -275,6 +296,13 @@ impl Gpu {
         if on == self.hdr_active && (!on || hdr10 == self.hdr10) {
             return Ok(true);
         }
+        // The display pass writes the backbuffer as a typed UAV: an adapter without typed stores
+        // to R10G10B10A2 can't run HDR10 (scRGB then, as for a refused colour space).
+        let hdr10 = hdr10 && {
+            let ok = typed_store(&self.device, DXGI_FORMAT_R10G10B10A2_UNORM);
+            self.hdr10_refused |= !ok;
+            ok
+        };
         // Color-space support depends on the buffer format, so switch first, then check.
         self.hdr_active = on;
         self.hdr10 = on && hdr10;
@@ -287,6 +315,7 @@ impl Gpu {
             self.resize(w, h, s)?;
         }
         if on && !self.color_space_ok {
+            self.hdr_refused = true;
             self.hdr_active = false;
             self.hdr10 = false;
             self.resize(w, h, s)?;
@@ -935,5 +964,22 @@ impl Gpu {
                         ) as u64,
             }
         }
+    }
+}
+/// Whether `format` supports typed UAV stores on this adapter (D3D12_FORMAT_SUPPORT2).
+unsafe fn typed_store(device: &ID3D12Device5, format: DXGI_FORMAT) -> bool {
+    let mut f = D3D12_FEATURE_DATA_FORMAT_SUPPORT {
+        Format: format,
+        ..Default::default()
+    };
+    unsafe {
+        device
+            .CheckFeatureSupport(
+                D3D12_FEATURE_FORMAT_SUPPORT,
+                &mut f as *mut _ as _,
+                size_of_val(&f) as u32,
+            )
+            .is_ok()
+            && (f.Support2.0 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE.0) != 0
     }
 }

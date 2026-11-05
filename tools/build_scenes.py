@@ -19,7 +19,7 @@ OUT = Path(__file__).resolve().parent.parent / "scenes" / "builtin"
 # wrote them, so the writers never delete anything. A scene file is written only when it is
 # missing, or when it differs and --overwrite is given (files this script doesn't define are
 # never touched), and the builder's entries are merged into an existing pack.json.
-OVERWRITE = False
+OVERWRITE = False  # True, or a set of file stems
 
 
 def write_pack(out, entries, meta, ensure_ascii=False):
@@ -33,7 +33,7 @@ def write_pack(out, entries, meta, ensure_ascii=False):
             if path.read_text(encoding="utf-8") == text:
                 same += 1
                 continue
-            if not OVERWRITE:
+            if not (OVERWRITE is True or (OVERWRITE and path.stem in OVERWRITE)):
                 kept += 1
                 continue
         path.write_text(text, encoding="utf-8")
@@ -207,7 +207,8 @@ scene("cornell-bunny", "Cornell bunny",
                        obj("Short block", "box", 0.38, -0.38, 0.62, matte((0.72, 0.7, 0.66), 0.55), stretch=0.62, rotation=-14)]))
 
 scene("cornell-caustic", "Cornell caustic",
-      "A small, very bright light over a glass sphere: the caustic is found only by BSDF paths.",
+      "A small, very bright light over a glass sphere: the path tracer finds the caustic only by BSDF paths, "
+      "so it stays noisy; Render → Integrator → Photon mapping traces it from the light and resolves it in seconds.",
       ["cornell", "glass", "caustics", "stress"],
       cornell(light_size=0.18, light_intensity=200.0, bounces=12,
               objects=[obj("Glass sphere", "sphere", 0.0, 0.0, 1.3, GLASS),
@@ -293,14 +294,6 @@ def ajar_room():
     return o
 
 
-scene("veach-ajar", "Veach ajar room",
-      "All light comes through a door left slightly open: almost every path is indirect. Shows the noise floor and what the denoisers do with it.",
-      ["validation", "indirect", "veach", "interior"],
-      studio(light_on=False, sky=0.0, floor_extent=6.0, base=[0.55, 0.5, 0.45], bounces=16, exposure=1.6,
-             lights=[light("Outside", (1.6, 0.6, -5.0), (3.0, 2.5), kelvin(5000), 60, target=(0.9, 0.0, -3.0))],
-             objects=ajar_room(), **camera(20, 6, 3.0, (0.4, 0.1, -1.0), 65)))
-
-
 def penumbra():
     o, l = [], []
     for i, size in enumerate([0.1, 0.3, 0.6, 1.2, 2.0]):
@@ -362,12 +355,6 @@ def tiles():
     return o
 
 
-scene("glossy-floor-tiles", "Glossy floor tiles",
-      "A strip of black tiles from mirror to matte under a glowing bar: reflections blur as roughness rises.",
-      ["material", "roughness"],
-      studio(light_on=False, lights=[], sky=0.02, base=[0.08, 0.08, 0.09], objects=tiles(),
-             **camera(0, 12, 6.5, (0, -0.7, 0), 45)))
-
 # ================================================================ material showcases
 SHAPES = ["box", "sphere", "cylinder", "cone", "torus", "knot", "teapot", "bunny", "octahedron", "pawn", "ring"]
 
@@ -425,13 +412,6 @@ def jewellery():
     return o
 
 
-scene("jewellery-box", "Jewellery box",
-      "Gold, silver and copper rings, pearls and a diamond on velvet: metals reflecting each other at close range.",
-      ["material", "metal"],
-      studio(objects=jewellery(), light_position=[-1.5, 3.0, 1.5], light_size=1.5, light_intensity=20.0, sky=0.03,
-             lights=[light("Warm rim", (2.0, 1.5, -2.0), (1.5, 1.5), kelvin(3200), 14, target=(0, -1, 0))],
-             **camera(25, 42, 3.4, (0, -0.85, 0), 40)))
-
 random.seed(7)
 scene("ice-cubes", "Ice cubes",
       "Frosted glass cubes tumbled on dark slate: rough transmission.",
@@ -479,14 +459,6 @@ def bunny_museum():
         o.append(obj(f"{name} bunny", "bunny", x, z, 1.0, m, elevation=0.35 * 1.1 * 2.4 * 2, rotation=-math.degrees(a) + 20))
         l.append(light(f"Spot {name}", (x * 0.85, 3.6, z * 0.85 + 0.6), (0.7, 0.7), kelvin(4200), 36, target=(x, 1.0, z)))
     return o, l
-
-
-_o, _l = bunny_museum()
-scene("bunny-museum", "Bunny museum",
-      "Six Stanford bunnies on plinths in glass, gold, jade, marble, chrome and rubber, each under its own light in a dark gallery.",
-      ["material", "mesh", "gallery"],
-      dark_stage(lights=_l, objects=_o, base=[0.12, 0.11, 0.1], floor=M((0.12, 0.11, 0.1), 0.25, refl=0.15), bounces=16,
-                 **camera(0, 12, 8.5, (0, 0.6, -0.8), 45)))
 
 
 def tea_set():
@@ -556,15 +528,6 @@ def torii():
     return o
 
 
-scene("torii-corridor", "Torii corridor",
-      "Twelve red gates receding toward a setting sun: repetition, perspective and colour bleeding.",
-      ["architecture", "sunset"],
-      studio(light_on=False, sky=0.2, background=[0.2, 0.1, 0.08], base=[0.35, 0.3, 0.26],
-             floor=M((0.4, 0.35, 0.3), 0.85, refl=0.02), floor_extent=40.0, objects=torii(),
-             lights=[light("Sunset", (0, 1.8, -36), (8, 4), kelvin(2300), 300, target=(0, 0, 0), visible=True)],
-             **camera(0, 3, 6, (0, 0.3, 0), 50)))
-
-
 def staircase():
     o = [obj("Column", "cylinder", 0, 0, 6.0, MARBLE, scale=(0.1, 0.1), stretch=1.0)]
     steps = 48
@@ -628,23 +591,6 @@ def skyline():
     return o
 
 
-scene("night-skyline", "Night skyline",
-      "About 150 towers with glowing window bands under a faint night sky: hundreds of emissive triangles.",
-      ["city", "night", "emissive"],
-      studio(light_on=False, lights=[], sky=0.03, background=[0.01, 0.015, 0.04], base=[0.04, 0.04, 0.05],
-             floor=M((0.05, 0.05, 0.06), 0.4, refl=0.1), floor_extent=40.0, objects=skyline(),
-             **camera(30, 22, 22, (0, 1.0, 0), 45)))
-
-scene("desert-monolith", "Desert monolith",
-      "A black slab on orange sand under a hard sun and a bright sky: minimalism and a sharp shadow.",
-      ["open", "shadows"],
-      studio(light_on=False, sky=1.4, background=[0.45, 0.6, 0.85], base=[0.8, 0.42, 0.18],
-             floor=M((0.8, 0.42, 0.18), 0.95, refl=0.0), floor_extent=40.0,
-             lights=[light("Sun", (25, 30, 20), (2.5, 2.5), kelvin(5600), 2000, target=(0, -1, 0))],
-             objects=[obj("Monolith", "box", 0, 0, 1, matte((0.012, 0.012, 0.014), 0.25), stretch=6.5, scale=(1.3, 0.3), rotation=15)],
-             **camera(-30, 6, 11, (0, 0.8, 0), 40)))
-
-
 def zen():
     random.seed(9)
     rock = M((0.32, 0.31, 0.3), 0.85, refl=0.02)
@@ -653,27 +599,6 @@ def zen():
         o.append(obj(f"Rock {i + 1}", "octahedron", x, z, s, rock, stretch=0.65, rotation=random.uniform(0, 90), tilt=(random.uniform(-15, 15), 0)))
     o.append(obj("Moss", "sphere", -1.3, 0.3, 1.2, matte((0.18, 0.3, 0.08), 1.0), stretch=0.3))
     return o
-
-
-scene("zen-garden", "Zen garden",
-      "Raked sand (a fine stripe pattern) and rough rocks under one low sun: patterns at grazing light.",
-      ["open", "pattern"],
-      studio(light_on=False, sky=0.25, background=[0.3, 0.32, 0.35], base=[0.82, 0.78, 0.7],
-             floor=M((0.82, 0.78, 0.7), 0.9, refl=0.0, pattern="stripes", second=(0.62, 0.58, 0.5), pscale=18.0), floor_extent=6.0,
-             lights=[light("Low sun", (-20, 6, -8), (3, 3), kelvin(3800), 400, target=(0, -1, 0))],
-             objects=zen(), **camera(30, 30, 7, (0, -0.8, 0), 45)))
-
-random.seed(5)
-scene("disco-floor", "Disco floor",
-      "A glowing checkerboard floor lights a mirror ball and dancers from below.",
-      ["emissive", "party"],
-      studio(light_on=False, lights=[], sky=0.0, background=[0.0, 0.0, 0.0], base=[1.0, 0.25, 0.75],
-             floor=M((1.0, 0.25, 0.75), 0.3, refl=0.1, emit=1.6, pattern="checker", second=(0.0, 0.0, 0.0), pscale=1.2), floor_extent=5.0,
-             objects=[float_at("Mirror ball", "sphere", 0, 2.2, 0, 2.2, M((0.9, 0.9, 0.95), 0.05, metal=1))]
-             + [obj(f"Dancer {i + 1}", "pawn", 2.2 * math.cos(i / 7 * math.tau + 0.3), 2.2 * math.sin(i / 7 * math.tau + 0.3), 1.4,
-                    lacquer(random.choice([(0.05, 0.6, 0.9), (0.9, 0.85, 0.1), (0.1, 0.8, 0.3), (0.95, 0.95, 0.95)])), stretch=1.4)
-                for i in range(7)],
-             **camera(15, 12, 8, (0, 0.4, 0), 45)))
 
 
 def mirror_maze():
@@ -689,13 +614,6 @@ def mirror_maze():
                              stretch=3.0, scale=(3.4 if horizontal else 0.06, 0.06 if horizontal else 3.4)))
     o.append(float_at("Glowing sphere", "sphere", 0, 0.0, 0, 1.4, emitter((0.6, 0.85, 1.0), 6)))
     return o
-
-
-scene("mirror-maze", "Mirror maze",
-      "Chrome walls in a grid around one glowing sphere: very long specular paths.",
-      ["mirror", "bounces", "emissive"],
-      dark_stage(objects=mirror_maze(), bounces=24, base=[0.08, 0.08, 0.09], floor=M((0.08, 0.08, 0.09), 0.3, refl=0.1),
-                 **camera(20, 30, 10, (0, -0.2, 0), 45)))
 
 
 def stained_glass():
@@ -798,13 +716,6 @@ def orrery():
     return o
 
 
-scene("orrery", "Orrery",
-      "A glowing sun lights its planets and their brass orbits: one central emitter for the whole scene.",
-      ["still life", "emissive"],
-      dark_stage(objects=orrery(), base=[0.12, 0.1, 0.09], floor=M((0.12, 0.1, 0.09), 0.3, refl=0.1),
-                 **camera(25, 32, 12, (0, -0.2, 0), 45)))
-
-
 def ring_point(radius, angle, pitch, roll, center):
     # Ring rotation is YXZ with yaw 0: Rx(pitch) * Rz(roll) applied to a point of the flat ring.
     x, y, z = radius * math.cos(angle), 0.0, radius * math.sin(angle)
@@ -905,14 +816,6 @@ def pool_table():
     return o
 
 
-scene("pool-table", "Pool table",
-      "Sixteen glossy balls on green felt under a hanging lamp.",
-      ["still life", "glossy"],
-      studio(light_on=False, sky=0.02, base=[0.2, 0.16, 0.13], objects=pool_table(),
-             lights=[light("Lamp", (0, 2.1, 0), (2.0, 0.55), kelvin(3800), 60)],
-             **camera(-20, 32, 6.0, (0.3, -0.2, 0), 45)))
-
-
 def track(path, keys):
     """An animation track (track 8): keys are (time, value, interp), interp one of smooth,
     linear, ease, hold (how the segment from that key runs)."""
@@ -997,14 +900,6 @@ def bowling():
     return o
 
 
-scene("bowling-lane", "Bowling lane",
-      "A long glossy lane with ten pins and a ball: long, stretched reflections.",
-      ["glossy", "interior"],
-      studio(light_on=False, sky=0.0, base=[0.1, 0.1, 0.12], objects=bowling(),
-             lights=[light(f"Lane light {i + 1}", (0, 2.2, 1 - i * 3.0), (2.0, 0.4), kelvin(4500), 18) for i in range(6)],
-             **camera(0, 7, 6.0, (0, -0.6, -6.5), 40)))
-
-
 def forest():
     random.seed(17)
     o = []
@@ -1049,12 +944,6 @@ def abacus():
             x = (-1.35 + b * 0.16) if b < moved else (0.1 + (b - moved) * 0.16 + (9 - moved) * 0.0)
             o.append(float_at(f"Bead {r + 1}.{b + 1}", "torus", x, y, 0, 0.32, lacquer(colors[r], 0.18), stretch=1.6, tilt=(0, 90)))
     return o
-
-
-scene("abacus", "Abacus",
-      "Fifty lacquered beads on five rods: many small curved objects.",
-      ["still life", "many objects"],
-      studio(objects=abacus(), light_size=2.0, light_intensity=14.0, **camera(10, 12, 4.8, (0, -0.1, 0), 40)))
 
 
 def pipe_organ():
@@ -1289,7 +1178,6 @@ scene("sky-garden-dusk", "Sky garden at dusk",
                       obj("Clay cone", "cone", -0.2, 1.4, 0.8, matte((0.85, 0.82, 0.75), 0.8))],
              physical_sky=sky(18.9, day=172.0, latitude=45.0, turbidity=3.0, north=40.0),
              exposure=1.6, **camera(30, 10, 6.5, (0, -0.1, 0), 40)))
-
 
 
 def ranked(m, priority):
@@ -1622,30 +1510,6 @@ scene("cornell-fog", "Cornell fog",
               objects=[obj("Tall block", "box", -0.33, -0.3, 0.85, matte((0.72, 0.7, 0.66), 0.85), stretch=1.98, rotation=17),
                        obj("Short block", "box", 0.33, 0.3, 0.85, matte((0.72, 0.7, 0.66), 0.85), stretch=0.99, rotation=-17)]))
 
-scene("stage-beams", "Stage beams",
-      "Three coloured spotlights cut through a hazy black stage onto a satin metal sphere: visible beams from "
-      "single scattering, lit by next-event estimation from every point of the haze.",
-      ["volume", "fog", "spot", "lights"],
-      dark_stage(fog=fog(0.12, (0.9, 0.9, 0.9), 0.6, 6.0, 10.0), floor=M((0.08, 0.08, 0.08), 0.3, refl=0.06), bounces=8,
-                 lights=[spot("Red", (-2.5, 4.5, -1.0), (-0.4, -1, 0), (1.0, 0.15, 0.08), 120.0),
-                         spot("Green", (0.0, 4.8, -2.2), (0, -1, 0.1), (0.15, 1.0, 0.25), 120.0),
-                         spot("Blue", (2.5, 4.5, -1.0), (0.4, -1, 0), (0.12, 0.3, 1.0), 120.0)],
-                 objects=[obj("Satin metal sphere", "sphere", 0, 0, 1.3, M((0.92, 0.94, 0.97), 0.3, metal=1))],
-                 **camera(0, 4, 9, (0, 1.2, 0), 45)))
-
-scene("scattering-materials", "Scattering materials",
-      "Objects filled with participating media, backlit to show light passing through them: milk, jade, "
-      "smoke in an invisible box (IOR 1), candle wax and a ruby-red syrup.",
-      ["volume", "subsurface", "material"],
-      studio(light_position=[0.0, 3.5, -4.0], light_size=3.0, light_intensity=14.0, sky=0.15,
-             lights=[light("Front fill", (2.0, 2.5, 4.0), (2, 2), (1.0, 0.95, 0.9), 3.0, target=(0, -0.5, 0))],
-             floor=M((0.3, 0.3, 0.3), 0.5, refl=0.05), bounces=32,
-             objects=[obj("Milk", "sphere", -2.4, 0, 1.2, volume(M((1, 1, 1), 0.0, trans=1, ior=1.35), 40.0, (0.999, 0.998, 0.995))),
-                      obj("Jade", "bunny", -1.1, 0, 1.5, volume(M((0.55, 0.85, 0.6), 0.15, trans=1, ior=1.62), 12.0, (0.7, 0.95, 0.75), 0.2), rotation=25),
-                      obj("Smoke", "box", 0.2, 0, 1.2, volume(M((1, 1, 1), 0.0, trans=1, ior=1.0), 3.0, (0.8, 0.8, 0.8), 0.4)),
-                      obj("Wax", "cylinder", 1.35, 0, 1.0, volume(M((1.0, 0.9, 0.75), 0.3, trans=1, ior=1.45), 25.0, (0.98, 0.85, 0.6)), stretch=1.6),
-                      obj("Syrup", "sphere", 2.5, 0, 1.0, volume(M((0.8, 0.12, 0.08), 0.0, trans=1, ior=1.45), 6.0, (0.95, 0.3, 0.2), 0.3))],
-             **camera(0, 10, 7.5, (0, -0.4, 0), 40)))
 
 scene("underwater", "Underwater",
       "The whole stage under blue-green water: a forward-scattering medium that swallows the distance, with sun "
@@ -1664,17 +1528,6 @@ scene("underwater", "Underwater",
 def sdf(o, kind):
     """Render an object as an exact procedural surface (its shape stays the proxy for picking)."""
     return {**o, "sdf": kind}
-
-
-scene("sdf-gallery", "Procedural surfaces",
-      "Shapes intersected in the shader, with no triangles: an exact glass sphere and gold torus (no facets "
-      "in the refraction or the highlights), a Mandelbulb and a level-5 Menger sponge, both sphere traced.",
-      ["procedural", "sdf", "fractal"],
-      studio(objects=[sdf(obj("Exact glass sphere", "sphere", -2.4, 0.3, 1.3, GLASS), "sphere"),
-                      sdf(obj("Exact gold torus", "torus", -0.8, -0.4, 1.4, GOLD, tilt=(70, 0), elevation=0.2), "torus"),
-                      sdf(obj("Mandelbulb", "sphere", 0.9, 0.2, 1.6, M((0.8, 0.45, 0.25), 0.35, refl=0.08), rotation=20), "mandelbulb"),
-                      sdf(obj("Menger sponge", "box", 2.6, -0.3, 1.2, M((0.82, 0.8, 0.76), 0.6), rotation=30), "menger")],
-             bounces=12, **camera(0, 14, 8, (0.1, -0.3, 0), 40)))
 
 
 def lounge():
@@ -1851,6 +1704,846 @@ scene("optical-discs", "Optical discs",
                  objects=optical_discs(), bounces=8, **camera(0, 35, 5.0, (0.1, -0.85, 0.0), 40)))
 
 
+# ================================================================ scene overhaul (2026-11-05)
+# Reworked scenes (their earlier scene() calls are gone; the builder functions above stay in use)
+# and new scenes for what no scene showed before: depth of field and bokeh, a real lens, the
+# camera models (orthographic, 360°, little planet, tilt-shift), sun and sphere lights, the
+# flashlight, fog noise / extinction / equiangular sampling, blackbody emission, dispersion, the
+# film look with a LUT, cloth in wind, a chain, a camera path and a per-frame script.
+def sphere_light(name, pos, diameter, color, intensity, visible=True, temperature=0.0):
+    out = {**light(name, pos, (diameter, diameter), color, intensity, visible=visible), "kind": "sphere"}
+    return out | {"temperature": temperature} if temperature else out
+
+
+def sun_light(name, toward_sun, color, intensity, angle=0.53):
+    """A distant sun in the direction of `toward_sun` from the stage (its light travels back)."""
+    return {**light(name, toward_sun, (1, 1), color, intensity, target=(0, -1, 0)), "kind": "sun", "angle": angle}
+
+
+def disk(name, pos, target, diameter, color, intensity, ies=""):
+    out = {**light(name, pos, (diameter, diameter), color, intensity, target=target), "kind": "disk"}
+    return out | {"ies": ies} if ies else out
+
+
+def hot(m, kelvin_, strength):
+    """Emission as a blackbody (Material::temperature): the colour follows Planck's law."""
+    return {**m, "emission": strength, "temperature": kelvin_}
+
+
+def fog_ex(density, color=(1, 1, 1), phase=0.0, height=3.0, extent=6.0, noise=0.0, noise_size=1.0,
+           extinction=None, equiangular=False):
+    f = {**fog(density, color, phase, height, extent), "noise": noise, "noise_size": noise_size}
+    if extinction:
+        f["extinction"] = [round(c, 4) for c in extinction]
+    return f | {"equiangular": True} if equiangular else f
+
+
+def roof(name, x, z, y, width, depth, pitch, material, rotation=0.0):
+    """A gable roof as two tilted slabs meeting along the ridge (along z before rotation)."""
+    out = []
+    half = width / 2 / math.cos(math.radians(pitch))
+    rise = width / 4 * math.tan(math.radians(pitch))
+    c, s = math.cos(math.radians(rotation)), math.sin(math.radians(rotation))
+    for side in (-1, 1):
+        dx = side * width / 4
+        out.append(float_at(f"{name} {'LR'[side > 0]}", "box", x + dx * c, y + rise, z - dx * s, 1, material,
+                            stretch=0.04 / 0.7, scale=(half * 1.04 / 0.7, depth * 1.08 / 0.7),
+                            tilt=(0, -side * pitch), rotation=rotation))
+    return out
+
+
+# ---------------------------------------------------------------- reworked
+def abacus_desk():
+    wall = matte((0.55, 0.5, 0.44), 0.9)
+    o = abacus()
+    o += [block("Wall", 0, -2.2, -1.0, 3.0, 10.0, 0.1, wall),
+          block("Notebook", 2.15, 0.9, -1.0, -0.955, 0.85, 1.15, matte((0.62, 0.1, 0.08), 0.75), rotation=-14),
+          block("Notebook pages", 2.15, 0.9, -0.995, -0.96, 0.8, 1.1, matte((0.9, 0.88, 0.82), 0.9), rotation=-14),
+          float_at("Pencil", "cylinder", 1.7, -0.935, 1.55, 1, lacquer((0.95, 0.7, 0.08), 0.3), stretch=0.75 / 0.7,
+                   scale=(0.045, 0.045), tilt=(0, 90), rotation=30),
+          ball("Brass weight", -2.1, -0.84, 0.8, 0.16, M((0.9, 0.7, 0.35), 0.25, metal=1))]
+    return o
+
+
+scene("abacus", "Abacus",
+      "Fifty lacquered beads on five rods, on a wooden desk by a window. A thin lens at a wide aperture with "
+      "six blades and cat-eye vignetting: the beads in focus, the notebook and the wall soft, highlights as "
+      "hexagons that turn into cat's eyes toward the edges.",
+      ["still life", "many objects", "depth of field", "bokeh"],
+      studio(objects=abacus_desk(), floor=lacquer((0.3, 0.16, 0.07), 0.3), base=[0.3, 0.16, 0.07], floor_extent=5.0,
+             light_position=[-3.0, 2.5, 1.5], light_size=2.5, light_intensity=12.0, light_temperature=5200.0,
+             lights=[light("Warm lamp", (2.5, 1.2, 2.0), (0.6, 0.6), kelvin(2900), 30, target=(0, -0.5, 0))],
+             sky=0.05, aperture=0.08, focus_distance=4.4, aperture_blades=6, blade_rotation=15.0, cat_eye=0.5,
+             **camera(14, 10, 4.4, (0, -0.15, 0), 38)))
+
+
+def bowling_hall():
+    o = bowling()
+    ball_index = next(i for i, x in enumerate(o) if x["name"] == "Ball")
+    dark = lacquer((0.04, 0.04, 0.06), 0.3)
+    for side in (-1, 1):
+        o.append(block("Kickback", side * 1.75, -12.3, -1.0, 0.2, 0.15, 3.0, dark))
+    o.append(block("Masking unit", 0, -14.0, 0.2, 1.4, 3.6, 0.2, dark))
+    for i, c in enumerate([(1.0, 0.1, 0.5), (0.1, 0.6, 1.0), (1.0, 0.7, 0.05)]):
+        o.append(float_at(f"Neon {i + 1}", "cylinder", 0, 0.45 + i * 0.35, -13.88, 1, emitter(c, 8), stretch=3.2 / 0.7,
+                          scale=(0.05, 0.05), tilt=(0, 90)))
+    for k, side in enumerate((-1, 1)):
+        o.append(obj(f"Approach dot {k + 1}", "sphere", side * 0.3, -1.0, 0.05, emitter((1.0, 0.9, 0.7), 3), stretch=0.3, elevation=0.07))
+    # The roll: K plays it; the export renders it with motion blur.
+    z0 = o[ball_index]["position"][1]
+    tracks = [track(f"objects/{ball_index}/position/1", [(0.0, z0, "linear"), (1.6, -11.75, "ease"), (2.4, -12.45, "hold")]),
+              track(f"objects/{ball_index}/position/0", [(0.0, 0.12, "linear"), (1.6, 0.02, "hold")])]
+    for idx, (dx, dz), tz in [(3, (0.35, -13.1), 80), (4, (-0.55, -12.9), -75), (5, (0.6, -12.7), 70), (7, (-0.2, -13.3), -85)]:
+        x0, zz0 = o[idx]["position"]
+        tracks += [track(f"objects/{idx}/position/0", [(0.0, x0, "hold"), (1.6, x0, "ease"), (2.2, dx, "hold")]),
+                   track(f"objects/{idx}/position/1", [(0.0, zz0, "hold"), (1.6, zz0, "ease"), (2.2, dz, "hold")]),
+                   track(f"objects/{idx}/tilt/1", [(0.0, 0.0, "hold"), (1.6, 0.0, "ease"), (2.2, tz, "hold")])]
+    return o, {"length": 2.4, "fps": 24, "shutter": 0.5, "tracks": tracks}
+
+
+_o, _a = bowling_hall()
+scene("bowling-lane", "Bowling lane",
+      "A long glossy lane under a row of lights, neon on the masking unit: stretched reflections down the "
+      "boards. The timeline (K) rolls the ball into the pins; a timeline export renders the strike with a "
+      "180° motion-blur shutter.",
+      ["glossy", "interior", "animation", "motion blur"],
+      studio(light_on=False, sky=0.0, base=[0.06, 0.06, 0.08], objects=_o, animation=_a, exposure=1.3,
+             lights=[light(f"Lane light {i + 1}", (0, 2.2, 1 - i * 3.0), (2.0, 0.4), kelvin(4500), 18) for i in range(5)]
+             + [light("Pin deck light", (0, 1.2, -11.0), (2.6, 0.3), kelvin(5200), 30, target=(0, -1, -12.4))],
+             **camera(0, 6, 6.0, (0, -0.6, -6.5), 40)))
+
+
+def dunes():
+    random.seed(23)
+    sand = M((0.78, 0.47, 0.24), 0.95, refl=0.0)
+    o = [obj("Monolith", "box", 0, 0, 1, matte((0.012, 0.012, 0.014), 0.25), stretch=6.5, scale=(1.3, 0.3), rotation=15)]
+    for i in range(9):
+        a = random.uniform(0, math.tau)
+        d = random.uniform(9, 30)
+        o.append(obj(f"Dune {i + 1}", "sphere", d * math.cos(a), d * math.sin(a) - 6, random.uniform(10, 20), sand,
+                     stretch=random.uniform(0.08, 0.16), scale=(random.uniform(1.2, 2.0), 1.0), rotation=random.uniform(0, 180),
+                     elevation=-0.3))
+    return o
+
+
+scene("desert-monolith", "Desert monolith",
+      "A black slab among dunes under the physical sky, an hour before sunset: one hard shadow stretching "
+      "across the sand, the sky's blue in the shade and the sun's orange on the lit faces.",
+      ["open", "shadows", "physical sky"],
+      studio(light_on=False, lights=[], sky=0.0, base=[0.78, 0.47, 0.24], floor=M((0.78, 0.47, 0.24), 0.95, refl=0.0),
+             floor_extent=40.0, objects=dunes(), exposure=1.3,
+             physical_sky=sky(18.2, day=200.0, latitude=28.0, turbidity=4.0, north=60.0),
+             **camera(-30, 6, 11, (0, 0.8, 0), 40)))
+
+random.seed(5)
+scene("disco-floor", "Disco floor",
+      "A dark glass dance floor with glowing purple squares, a mirror ball and four coloured spots in a light "
+      "haze: the beams sample the haze toward each spot (equiangular sampling), the ball scatters them.",
+      ["emissive", "party", "fog", "spot"],
+      dark_stage(floor=M((0.55, 0.12, 0.85), 0.2, refl=0.2, emit=0.5, pattern="checker", second=(0.005, 0.005, 0.01), pscale=1.2),
+                 floor_extent=5.0, exposure=1.4, bounces=10,
+                 fog=fog_ex(0.05, (0.95, 0.95, 1.0), 0.5, 4.5, 6.0, equiangular=True),
+                 lights=[spot(f"Spot {i + 1}", (4.0 * math.cos(a), 4.2, 4.0 * math.sin(a)), (0, 2.2, 0), c, 160.0, spread=14.0)
+                         for i, (a, c) in enumerate([(0.4, (1.0, 0.1, 0.4)), (2.0, (0.1, 0.5, 1.0)), (3.6, (1.0, 0.8, 0.1)),
+                                                     (5.1, (0.2, 1.0, 0.4))])],
+                 objects=[float_at("Mirror ball", "sphere", 0, 2.2, 0, 1.6, M((0.9, 0.9, 0.95), 0.02, metal=1))]
+                 + [obj(f"Dancer {i + 1}", "pawn", 2.2 * math.cos(i / 7 * math.tau + 0.3), 2.2 * math.sin(i / 7 * math.tau + 0.3), 1.4,
+                        lacquer(random.choice([(0.05, 0.6, 0.9), (0.9, 0.85, 0.1), (0.1, 0.8, 0.3), (0.95, 0.95, 0.95)])), stretch=1.4)
+                    for i in range(7)],
+                 **camera(15, 10, 8, (0, 0.6, 0), 45)))
+
+
+def jewellery_velvet():
+    o = jewellery()
+    o[0]["material"] = sheen(matte((0.1, 0.008, 0.02), 1.0), (0.9, 0.3, 0.4), 1.0, 0.35)
+    o.append(block("Box", 0.1, -2.1, -1.0, -0.2, 3.4, 1.4, coat(matte((0.06, 0.02, 0.012), 0.6), 1.0, 0.03)))
+    o.append(block("Box lining", 0.1, -1.38, -0.2, 1.0, 3.3, 0.06, sheen(matte((0.1, 0.008, 0.02), 1.0), (0.9, 0.3, 0.4), 1.0, 0.35),
+                   tilt=(-20, 0)))
+    return o
+
+
+scene("jewellery-box", "Jewellery box",
+      "Gold, silver and copper rings, pearls and a diamond on velvet in front of an open lacquered box: "
+      "metals reflecting each other at close range, the velvet's sheen at grazing angles, a shallow depth of field.",
+      ["material", "metal", "sheen", "depth of field"],
+      studio(objects=jewellery_velvet(), light_position=[-1.5, 3.0, 1.5], light_size=1.5, light_intensity=20.0, sky=0.03,
+             base=[0.05, 0.02, 0.02], floor=matte((0.05, 0.02, 0.02), 0.6),
+             lights=[light("Warm rim", (2.0, 1.5, -2.0), (1.5, 1.5), kelvin(3200), 14, target=(0, -1, 0))],
+             aperture=0.04, focus_distance=3.4, **camera(25, 42, 3.4, (0, -0.85, 0), 40)))
+
+
+def zen_garden():
+    stone = M((0.55, 0.53, 0.5), 0.85, refl=0.02)
+    o = zen()
+    o[-1]["material"] = sheen(matte((0.14, 0.26, 0.06), 1.0), (0.6, 0.85, 0.4), 0.8, 0.6)
+    # A stone lantern (tōrō) and the edge of a wooden veranda in the foreground.
+    x, z = 2.4, -2.0
+    o += [cyl("Lantern base", x, z, -1.0, -0.85, 0.28, stone), cyl("Lantern post", x, z, -0.85, -0.25, 0.09, stone),
+          block("Lantern firebox", x, z, -0.25, 0.05, 0.36, 0.36, stone),
+          float_at("Lantern light", "sphere", x, -0.1, z, 0.35, emitter((1.0, 0.6, 0.25), 3, unlit=False)),
+          obj("Lantern cap", "cone", x, z, 1.2, stone, stretch=0.3, elevation=1.05),
+          block("Veranda", -0.5, 3.4, -1.0, -0.6, 8.0, 1.2, M((0.36, 0.22, 0.12), 0.45, refl=0.05))]
+    return o
+
+
+scene("zen-garden", "Zen garden",
+      "Raked sand (a fine stripe pattern), rough rocks, moss and a stone lantern seen from a wooden veranda, "
+      "in early morning light from the physical sky: patterns at grazing light.",
+      ["open", "pattern", "physical sky"],
+      studio(light_on=False, lights=[], sky=0.0, base=[0.82, 0.78, 0.7],
+             floor=M((0.82, 0.78, 0.7), 0.9, refl=0.0, pattern="stripes", second=(0.62, 0.58, 0.5), pscale=18.0), floor_extent=6.0,
+             physical_sky=sky(7.2, day=120.0, latitude=35.0, turbidity=3.0, north=20.0), exposure=1.4,
+             objects=zen_garden(), **camera(20, 24, 7.5, (0, -0.8, 0), 45)))
+
+
+def lit_maze():
+    o = mirror_maze()
+    o[-1]["material"] = emitter((0.6, 0.85, 1.0), 14)
+    random.seed(30)
+    for i, c in enumerate([(1.0, 0.25, 0.5), (1.0, 0.7, 0.1), (0.3, 1.0, 0.5), (0.7, 0.3, 1.0)]):
+        a = i / 4 * math.tau + 0.4
+        o.append(float_at(f"Orb {i + 1}", "sphere", 3.0 * math.cos(a), -0.6, 3.0 * math.sin(a), 0.5, emitter(c, 12)))
+    return o
+
+
+scene("mirror-maze", "Mirror maze",
+      "Chrome walls in a grid around a glowing sphere and four coloured orbs: very long specular paths, "
+      "each light repeated down every corridor.",
+      ["mirror", "bounces", "emissive"],
+      dark_stage(objects=lit_maze(), bounces=24, base=[0.08, 0.08, 0.09], floor=M((0.06, 0.06, 0.07), 0.15, refl=0.3),
+                 exposure=1.6, **camera(20, 30, 10, (0, -0.2, 0), 45)))
+
+
+def lit_tiles():
+    o = tiles()
+    bar = next(x for x in o if x["name"] == "Glow bar")
+    bar["material"] = emitter((1.0, 0.75, 0.45), 16)
+    return o
+
+
+scene("glossy-floor-tiles", "Glossy floor tiles",
+      "A strip of black tiles from mirror to matte under a glowing bar: the reflection blurs and spreads as the "
+      "roughness rises from left to right.",
+      ["material", "roughness"],
+      studio(light_on=False, sky=0.02, base=[0.08, 0.08, 0.09], objects=lit_tiles(), exposure=1.3,
+             lights=[light("Fill", (0, 3.0, 4.0), (4.0, 2.0), (0.8, 0.85, 1.0), 1.2, target=(0, -1, 0))],
+             **camera(0, 12, 6.5, (0, -0.7, 0), 45)))
+
+scene("scattering-materials", "Scattering materials",
+      "Objects filled with participating media against a dark backdrop, backlit to show light passing through "
+      "them: milk, jade, smoke in an invisible box (IOR 1), candle wax, a ruby syrup, and opal glass whose "
+      "extinction removes blue first, so it glows orange where the light comes through and blue where it scatters.",
+      ["volume", "subsurface", "material"],
+      studio(light_position=[0.0, 2.5, -4.0], light_size=3.0, light_intensity=24.0, sky=0.02,
+             lights=[light("Front fill", (2.0, 2.5, 4.0), (2, 2), (1.0, 0.95, 0.9), 2.0, target=(0, -0.5, 0)),
+                     light("Backlight", (0, 0.2, -3.0), (8.0, 1.2), (1.0, 0.97, 0.92), 6.0, target=(0, -0.4, 0))],
+             floor=M((0.06, 0.06, 0.07), 0.4, refl=0.06), base=[0.03, 0.03, 0.035], bounces=32,
+             objects=[obj("Milk", "sphere", -2.9, 0, 1.2, volume(M((1, 1, 1), 0.0, trans=1, ior=1.35), 40.0, (0.999, 0.998, 0.995))),
+                      obj("Jade", "bunny", -1.65, 0, 1.5, volume(M((0.55, 0.85, 0.6), 0.15, trans=1, ior=1.62), 12.0, (0.7, 0.95, 0.75), 0.2), rotation=25),
+                      obj("Smoke", "box", -0.4, 0, 1.2, volume(M((1, 1, 1), 0.0, trans=1, ior=1.0), 3.0, (0.8, 0.8, 0.8), 0.4)),
+                      obj("Wax", "cylinder", 0.75, 0, 1.0, volume(M((1.0, 0.9, 0.75), 0.3, trans=1, ior=1.45), 25.0, (0.98, 0.85, 0.6)), stretch=1.6),
+                      obj("Syrup", "sphere", 1.9, 0, 1.0, volume(M((0.8, 0.12, 0.08), 0.0, trans=1, ior=1.45), 6.0, (0.95, 0.3, 0.2), 0.3)),
+                      obj("Opal glass", "sphere", 3.0, 0, 1.1, volume(M((1, 1, 1), 0.0, trans=1, ior=1.47), 18.0, (0.995, 0.995, 0.995))
+                          | {"extinction": [0.3, 0.55, 1.0]})],
+             **camera(0, 8, 7.8, (0, -0.4, 0), 42)))
+
+
+def skyline_night():
+    o = skyline()
+    tall = sorted(range(len(o)), key=lambda i: -o[i]["stretch"])[:10]
+    for k, i in enumerate(tall):
+        x, z = o[i]["position"]
+        top = -1 + 0.7 * o[i]["stretch"] * o[i]["size"]
+        o.append(float_at(f"Beacon {k + 1}", "sphere", x, top + 0.06, z, 0.25, emitter((1.0, 0.08, 0.05), 20)))
+    o.append(float_at("Moon", "sphere", -30, 16, -30, 8.0, emitter((0.85, 0.9, 1.0), 2.5)))
+    return o
+
+
+scene("night-skyline", "Night skyline",
+      "About 150 towers with glowing window bands, red beacons on the tallest and a low moon, over a wet dark "
+      "plaza: hundreds of emissive triangles, with a touch of lens glare around the brightest lights.",
+      ["city", "night", "emissive", "glare"],
+      studio(light_on=False, lights=[], sky=0.03, background=[0.01, 0.015, 0.04], base=[0.03, 0.03, 0.04],
+             floor=M((0.03, 0.03, 0.04), 0.15, refl=0.35), floor_extent=40.0, objects=skyline_night(), exposure=1.5,
+             glare=0.25, glare_threshold=3.0, **camera(30, 22, 22, (0, 1.0, 0), 45)))
+
+# A slow walk down the gates: the eye and the look-at point follow a spline through the keys.
+scene("torii-corridor", "Torii corridor",
+      "Twelve red gates receding toward a setting sun: repetition, perspective and colour bleeding. The "
+      "timeline (K) walks through the gates on a camera path (a spline through the keyed views).",
+      ["architecture", "sunset", "animation", "camera path"],
+      studio(light_on=False, sky=0.2, background=[0.2, 0.1, 0.08], base=[0.35, 0.3, 0.26],
+             floor=M((0.4, 0.35, 0.3), 0.85, refl=0.02), floor_extent=40.0, objects=torii(),
+             lights=[light("Sunset", (0, 1.8, -36), (8, 4), kelvin(2300), 300, target=(0, 0, 0), visible=True)],
+             animation={"length": 12.0, "fps": 24, "shutter": 0.0, "camera_path": True,
+                        "tracks": [track("target/2", [(0, 0.0, "smooth"), (4, -6.0, "smooth"), (8, -12.0, "smooth"), (12, -18.0, "smooth")]),
+                                   track("target/0", [(0, 0.0, "smooth"), (4, 0.35, "smooth"), (8, -0.35, "smooth"), (12, 0.0, "smooth")]),
+                                   track("yaw", [(0, 0.0, "smooth"), (4, 6.0, "smooth"), (8, -6.0, "smooth"), (12, 0.0, "smooth")])]},
+             **camera(0, 3, 6, (0, 0.3, 0), 50)))
+
+
+def orrery_script():
+    """Rhai run every frame (Animation::script): each planet circles the sun at Kepler's rate."""
+    o = orrery()
+    rows = []
+    for i, x in enumerate(o):
+        if x["name"].startswith("Planet "):
+            px, pz = x["position"]
+            dist, a0 = math.hypot(px, pz), math.atan2(pz, px)
+            rows.append(f"[{i}, {dist:.4f}, {a0:.4f}, {1.6 / dist ** 1.5:.4f}]")
+            if x["name"] == "Planet 6":
+                ring = next(j for j, y in enumerate(o) if y["name"] == "Saturn's rings")
+                rows.append(f"[{ring}, {dist:.4f}, {a0:.4f}, {1.6 / dist ** 1.5:.4f}]")
+    script = ("let planets = [" + ", ".join(rows) + "];\n"
+              "for p in planets {\n"
+              "    let a = p[2] + p[3] * t;\n"
+              "    set(`objects/${p[0]}/position/0`, p[1] * a.cos());\n"
+              "    set(`objects/${p[0]}/position/1`, p[1] * a.sin());\n"
+              "}\n")
+    return o, {"length": 30.0, "fps": 24, "shutter": 0.0, "tracks": [], "script": script}
+
+
+_o, _a = orrery_script()
+scene("orrery", "Orrery",
+      "A glowing sun lights its planets and their brass orbits: one central emitter for the whole scene. The "
+      "timeline (K) runs a per-frame script that moves each planet round its orbit at Kepler's rate.",
+      ["still life", "emissive", "animation", "script"],
+      dark_stage(objects=_o, animation=_a, base=[0.12, 0.1, 0.09], floor=M((0.12, 0.1, 0.09), 0.3, refl=0.1),
+                 **camera(25, 32, 12, (0, -0.2, 0), 45)))
+
+
+def museum_ies():
+    o, l = bunny_museum()
+    # The gallery's track spots as IES-shaped disks (a narrow beam with a soft field).
+    l = [disk(x["name"], x["position"], None, 0.16, kelvin(4200), 400, ies="ies/narrow-spot.ies") | {"rotation": x["rotation"]}
+         for x in l]
+    return o, l
+
+
+_o, _l = museum_ies()
+scene("bunny-museum", "Bunny museum",
+      "Six Stanford bunnies on plinths in glass, gold, jade, marble, chrome and rubber, each under its own "
+      "IES-profiled track spot in a dark gallery: measured beam shapes on the plinths and the floor.",
+      ["material", "mesh", "gallery", "ies"],
+      dark_stage(lights=_l, objects=_o, base=[0.12, 0.11, 0.1], floor=M((0.12, 0.11, 0.1), 0.25, refl=0.15), bounces=16,
+                 **camera(0, 12, 8.5, (0, 0.6, -0.8), 45)))
+
+scene("sdf-gallery", "Procedural surfaces",
+      "Shapes intersected in the shader, with no triangles: an exact glass sphere, gold torus, copper cylinder "
+      "and jade cone (no facets in the refraction or the highlights), a Mandelbulb and a level-5 Menger sponge, "
+      "both sphere traced.",
+      ["procedural", "sdf", "fractal"],
+      studio(objects=[sdf(obj("Exact glass sphere", "sphere", -2.4, 0.3, 1.3, GLASS), "sphere"),
+                      sdf(obj("Exact gold torus", "torus", -0.8, -0.4, 1.4, GOLD, tilt=(70, 0), elevation=0.2), "torus"),
+                      sdf(obj("Mandelbulb", "sphere", 0.9, 0.2, 1.6, M((0.8, 0.45, 0.25), 0.35, refl=0.08), rotation=20), "mandelbulb"),
+                      sdf(obj("Menger sponge", "box", 2.6, -0.3, 1.2, M((0.82, 0.8, 0.76), 0.6), rotation=30), "menger"),
+                      sdf(obj("Exact copper cylinder", "cylinder", -1.6, 1.4, 0.9, COPPER, stretch=1.4), "cylinder"),
+                      sdf(obj("Exact jade cone", "cone", 1.7, 1.3, 1.0, M((0.2, 0.6, 0.35), 0.0, trans=1, ior=1.6)), "cone")],
+             bounces=12, **camera(0, 18, 8.6, (0.1, -0.3, 0.4), 40)))
+
+scene("stage-beams", "Stage beams",
+      "Three coloured spotlights cut through drifting smoke on a black stage onto a satin metal sphere and a "
+      "microphone: the smoke's density varies (fBm noise, sampled by delta tracking), so the beams break up "
+      "into drifting wisps. Set Fog → Noise to 0 for a clean haze.",
+      ["volume", "fog", "spot", "lights", "noise"],
+      dark_stage(fog=fog_ex(0.14, (0.9, 0.9, 0.9), 0.6, 6.0, 10.0, noise=0.75, noise_size=0.9),
+                 floor=M((0.08, 0.08, 0.08), 0.3, refl=0.06), bounces=8, exposure=2.0,
+                 lights=[spot("Red", (-2.5, 4.5, -1.0), (-0.4, -1, 0), (1.0, 0.15, 0.08), 220.0),
+                         spot("Green", (0.0, 4.8, -2.2), (0, -1, 0.1), (0.15, 1.0, 0.25), 220.0),
+                         spot("Blue", (2.5, 4.5, -1.0), (0.4, -1, 0), (0.12, 0.3, 1.0), 220.0)],
+                 objects=[obj("Satin metal sphere", "sphere", 0, 0, 1.3, M((0.92, 0.94, 0.97), 0.3, metal=1)),
+                          cyl("Mic stand", 1.1, 0.6, -1.0, 0.4, 0.015, M((0.1, 0.1, 0.1), 0.3, metal=1)),
+                          cyl("Mic stand foot", 1.1, 0.6, -1.0, -0.97, 0.2, M((0.1, 0.1, 0.1), 0.3, metal=1)),
+                          ball("Microphone", 1.1, 0.48, 0.6, 0.07, M((0.6, 0.6, 0.62), 0.35, metal=1), stretch=1.4)],
+                 **camera(0, 4, 9, (0, 1.2, 0), 45)))
+
+scene("veach-ajar", "Veach ajar room",
+      "All light comes through a door left slightly open: almost every path is indirect. Bidirectional path "
+      "tracing connects light paths through the gap and converges quickly; switch Render → Integrator to path "
+      "tracing to see the noise it removes, and what the denoisers do with it.",
+      ["validation", "indirect", "veach", "interior", "bdpt"],
+      studio(light_on=False, sky=0.0, floor_extent=6.0, base=[0.55, 0.5, 0.45], bounces=16, exposure=1.6, integrator=1,
+             lights=[light("Outside", (1.6, 0.6, -5.0), (3.0, 2.5), kelvin(5000), 60, target=(0.9, 0.0, -3.0))],
+             objects=ajar_room(), **camera(20, 6, 3.0, (0.4, 0.1, -1.0), 65)))
+
+
+# ---------------------------------------------------------------- new: lenses and camera models
+def street_bokeh():
+    random.seed(77)
+    stone = coat(M((0.12, 0.12, 0.13), 0.5, refl=0.05), 1.0, 0.05)
+    brass = M((0.9, 0.68, 0.35), 0.25, metal=1)
+    o = [cyl("Table top", 0, 0, -0.3, -0.26, 0.5, stone), cyl("Table stem", 0, 0, -1.0, -0.3, 0.04, brass),
+         cyl("Table foot", 0, 0, -1.0, -0.97, 0.28, brass),
+         cyl("Wine glass bowl", -0.12, 0.05, -0.12, 0.06, 0.08, CRYSTAL), cyl("Wine glass stem", -0.12, 0.05, -0.26, -0.12, 0.012, CRYSTAL),
+         cyl("Wine", -0.12, 0.05, -0.1, -0.02, 0.07, clear((0.55, 0.03, 0.08), 1.34, 2)),
+         cyl("Candle jar", 0.16, -0.08, -0.26, -0.12, 0.06, CRYSTAL),
+         ball("Candle flame", 0.16, -0.15, -0.08, 0.018, emitter((1.0, 0.55, 0.2), 20), stretch=1.8)]
+    colors = [(1.0, 0.75, 0.4), (1.0, 0.55, 0.25), (0.4, 0.7, 1.0), (1.0, 0.3, 0.55), (0.5, 1.0, 0.7)]
+    for i in range(40):
+        z = -random.uniform(5, 32)
+        x = random.uniform(-0.5, 0.5) * (4 - z * 0.5)
+        o.append(ball(f"City light {i + 1}", x, random.uniform(-0.2, 3.5), z, random.uniform(0.06, 0.16),
+                      emitter(random.choice(colors), random.uniform(10, 20))))
+    for i in range(6):
+        o.append(float_at(f"Street lamp {i + 1}", "sphere", -3.0 + (i % 2) * 6.0, 2.6, -4 - i * 4.5, 0.5,
+                          emitter((1.0, 0.7, 0.35), 18)))
+    return o
+
+
+scene("street-bokeh", "Street bokeh",
+      "A café table at night in front of a street of lights, through a real Double Gauss 50 mm wide open: "
+      "the lights far behind melt into discs whose edges carry the glass's dispersion, and glare blooms around "
+      "the brightest. Lens systems trace the actual elements (Look → Lens).",
+      ["lens", "bokeh", "depth of field", "night", "glare"],
+      dark_stage(objects=street_bokeh(), floor=M((0.02, 0.02, 0.025), 0.1, refl=0.5), base=[0.02, 0.02, 0.025],
+                 floor_extent=40.0, bounces=12, exposure=1.6, lens_system=1, f_number=1.4, lens_scale=1.0, dispersion=1.0,
+                 focus_distance=1.9, glare=0.35, glare_threshold=2.0,
+                 lights=[light("Café window", (2.5, 0.8, 1.5), (1.2, 1.5), kelvin(3000), 4.0, target=(0, -0.3, 0))],
+                 **camera(-8, 6, 1.9, (0, -0.2, 0), 40)))
+
+
+def village():
+    random.seed(31)
+    walls = [(0.92, 0.88, 0.8), (0.95, 0.8, 0.65), (0.85, 0.9, 0.95), (0.98, 0.93, 0.7), (0.9, 0.75, 0.7)]
+    roofs = [(0.55, 0.18, 0.1), (0.25, 0.27, 0.3), (0.45, 0.25, 0.12)]
+    o = [block("River", 0.9, 0, -1.0, -0.955, 1.1, 15.0, clear((0.55, 0.75, 0.8), 1.33, 0), rotation=8),
+         block("Bridge", 0.9, 0.4, -0.95, -0.85, 1.6, 0.5, M((0.5, 0.45, 0.4), 0.8), rotation=8)]
+    for gx in range(-4, 5):
+        for gz in range(-3, 4):
+            x, z = gx * 1.3 + random.uniform(-0.2, 0.2), gz * 1.4 + random.uniform(-0.2, 0.2)
+            if abs(x - 0.9 - z * 0.14) < 1.0 or random.random() < 0.15:
+                continue
+            if random.random() < 0.3:
+                h = random.uniform(0.5, 0.9)
+                o.append(cyl("Trunk", x, z, -1.0, -1.0 + h * 0.4, 0.04, matte((0.3, 0.2, 0.1))))
+                o.append(obj("Crown", "cone", x, z, h * 0.9, matte((0.12, 0.35 + random.uniform(0, 0.15), 0.1), 0.8), stretch=1.6,
+                             elevation=h * 0.3))
+                continue
+            w, d, h = random.uniform(0.5, 0.75), random.uniform(0.6, 0.9), random.uniform(0.4, 0.7)
+            rot = random.choice([0, 90]) + random.uniform(-6, 6)
+            o.append(block("House", x, z, -1.0, -1.0 + h, w, d, matte(random.choice(walls), 0.8), rotation=rot))
+            o += roof("Roof", x, z, -1.0 + h, w, d, 38, matte(random.choice(roofs), 0.7), rotation=rot)
+    o.append(cyl("Church tower", -2.6, -1.4, -1.0, 0.6, 0.22, matte((0.9, 0.88, 0.82), 0.8)))
+    o.append(obj("Spire", "cone", -2.6, -1.4, 0.8, matte((0.3, 0.3, 0.33), 0.6), stretch=1.8, elevation=1.6))
+    return o
+
+
+scene("tilt-shift-village", "Tilt-shift village",
+      "A village by a river seen from high above through a tilt-shift lens: the focal plane is tilted, so only "
+      "a band across the middle is sharp and the town reads as a miniature (Look → Camera → Tilt-shift).",
+      ["camera", "tilt-shift", "depth of field", "physical sky"],
+      studio(light_on=False, lights=[], sky=0.0, base=[0.3, 0.42, 0.18], floor=matte((0.3, 0.42, 0.18), 0.95), floor_extent=40.0,
+             objects=village(), physical_sky=sky(16.0, day=150.0, latitude=47.0, turbidity=3.0, north=30.0), exposure=1.3,
+             projection=4, tilt=14.0, aperture=0.35, focus_distance=13.0, **camera(20, 40, 13, (0, -0.8, 0), 32)))
+
+
+def clearing():
+    random.seed(52)
+    o = []
+    for i in range(70):
+        a = random.uniform(0, math.tau)
+        d = random.uniform(3.0, 9.0)
+        x, z = d * math.cos(a), d * math.sin(a)
+        h = random.uniform(0.8, 1.6)
+        o.append(obj(f"Trunk {i + 1}", "cylinder", x, z, 0.9 * h, matte((0.28, 0.17, 0.09), 0.9), scale=(0.15, 0.15), stretch=0.9))
+        o.append(obj(f"Crown {i + 1}", "cone", x, z, 1.4 * h, matte((0.05, 0.26 + random.uniform(0, 0.12), 0.07), 0.8), stretch=1.9,
+                     elevation=0.35 * 0.9 * h * 0.9 * 1.6))
+    o += [block("Cabin", 0.0, -1.9, -1.0, -0.2, 1.4, 1.0, matte((0.45, 0.28, 0.15), 0.8))]
+    o += roof("Cabin roof", 0.0, -1.9, -0.2, 1.4, 1.0, 35, matte((0.3, 0.1, 0.06), 0.7))
+    o += [obj("Pond", "cylinder", 1.6, 1.0, 3.0, clear((0.6, 0.8, 0.85), 1.33, 0), stretch=0.006, elevation=0.0),
+          ball("Camp fire", -1.4, -0.92, 1.2, 0.1, emitter((1.0, 0.45, 0.12), 14))]
+    return o
+
+
+scene("little-planet", "Little planet",
+      "A forest clearing with a cabin, a pond and a camp fire, rendered as a little planet: a stereographic "
+      "view straight down from just above the ground, so the ground curls into a globe with the sky around it "
+      "(Look → Camera → Little planet).",
+      ["camera", "projection", "nature", "physical sky"],
+      studio(light_on=False, lights=[], sky=0.0, base=[0.25, 0.32, 0.12], floor=matte((0.25, 0.32, 0.12), 0.95), floor_extent=40.0,
+             objects=clearing(), physical_sky=sky(9.0, day=160.0, latitude=50.0, turbidity=2.5), exposure=1.3, projection=3,
+             **camera(0, 0, 0.5, (0, 0.6, 0), 90)))
+
+
+def gallery():
+    wall = matte((0.9, 0.89, 0.86), 0.9)
+    frame = M((0.85, 0.65, 0.3), 0.3, metal=1)
+    o = room_shell(10.0, 8.0, 4.0, wall)
+    paintings = [(-5.0, 0, 90, (0.7, 0.2, 0.1)), (5.0, 0, -90, (0.1, 0.3, 0.6)), (0, -4.0, 0, (0.85, 0.7, 0.1)),
+                 (-2.5, -4.0, 0, (0.1, 0.45, 0.25)), (2.5, -4.0, 0, (0.55, 0.1, 0.4)), (0, 4.0, 180, (0.15, 0.15, 0.2))]
+    for i, (x, z, rot, c) in enumerate(paintings):
+        nx, nz = -math.sin(math.radians(rot)), -math.cos(math.radians(rot))
+        o.append(float_at(f"Frame {i + 1}", "box", x - nx * 0.03, 0.9, z - nz * 0.03, 1, frame, stretch=1.4 / 0.7,
+                          scale=(1.9 / 0.7, 0.04 / 0.7), rotation=rot))
+        o.append(float_at(f"Painting {i + 1}", "box", x - nx * 0.06, 0.9, z - nz * 0.06, 1,
+                          M(c, 0.6, refl=0.02, pattern="marble", second=tuple(min(1, v + 0.35) for v in c), pscale=2.0),
+                          stretch=1.2 / 0.7, scale=(1.7 / 0.7, 0.03 / 0.7), rotation=rot))
+    for i, (x, z, shape, m) in enumerate([(-2.0, -1.2, "knot", GOLD), (2.0, -1.2, "bunny", JADE),
+                                          (-2.0, 1.6, "teapot", PORCELAIN), (2.0, 1.6, "torus", GLASS)]):
+        o.append(block(f"Plinth {i + 1}", x, z, -1.0, 0.0, 0.7, 0.7, matte((0.95, 0.95, 0.94), 0.7)))
+        o.append(obj(f"Sculpture {i + 1}", shape, x, z, 1.0, m, elevation=1.0 + (0.15 if shape in ("knot", "torus") else 0),
+                     tilt=(70, 0) if shape == "torus" else (0, 0)))
+    return o
+
+
+scene("panorama-gallery", "360° gallery",
+      "A white gallery with paintings and four sculptures on plinths, under two skylights, rendered as a 360° "
+      "equirectangular panorama from the middle of the room (Look → Camera → 360°): the whole room in one frame, "
+      "ready for a VR viewer.",
+      ["camera", "projection", "interior", "360"],
+      studio(light_on=False, sky=0.0, base=[0.6, 0.58, 0.55], floor=M((0.6, 0.58, 0.55), 0.3, refl=0.08), floor_extent=5.0,
+             objects=gallery(), bounces=10, exposure=0.35, projection=2,
+             lights=[light(f"Skylight {i + 1}", (x, 2.85, 0), (2.5, 2.5), kelvin(5800), 9, visible=True) for i, x in enumerate((-2.5, 2.5))],
+             **camera(0, 0, 0.5, (0, 0.5, 0), 90)))
+
+
+def workshop():
+    wall = matte((0.82, 0.78, 0.7), 0.9)
+    wood = M((0.45, 0.28, 0.15), 0.5, refl=0.05)
+    o = [block("Back wall", 0, -2.05, -1.0, 2.0, 4.2, 0.1, wall), block("Left wall", -2.05, 0, -1.0, 2.0, 0.1, 4.2, wall),
+         block("Rug", 0.3, 0.4, -1.0, -0.99, 2.0, 1.4, matte((0.6, 0.25, 0.15), 0.95)),
+         block("Desk top", -0.6, -1.5, -0.25, -0.2, 1.8, 0.8, wood)]
+    for dx in (-0.85, 0.85):
+        for dz in (-0.35, 0.35):
+            o.append(block("Desk leg", -0.6 + dx, -1.5 + dz, -1.0, -0.25, 0.06, 0.06, wood))
+    o += [block("Monitor", -0.6, -1.75, -0.2, 0.3, 0.7, 0.05, M((0.03, 0.03, 0.03), 0.3)),
+          block("Screen", -0.6, -1.72, -0.15, 0.25, 0.62, 0.01, emitter((0.4, 0.65, 1.0), 2.5)),
+          block("Chair seat", -0.5, -0.7, -0.55, -0.5, 0.5, 0.5, lacquer((0.1, 0.3, 0.55), 0.4)),
+          block("Chair back", -0.5, -0.47, -0.5, 0.0, 0.5, 0.05, lacquer((0.1, 0.3, 0.55), 0.4)),
+          cyl("Chair post", -0.5, -0.7, -1.0, -0.55, 0.03, M((0.2, 0.2, 0.2), 0.3, metal=1)),
+          block("Shelf", -1.85, 0.5, 0.6, 0.65, 0.35, 2.0, wood)]
+    random.seed(4)
+    z = -0.4
+    while z < 1.4:
+        w = random.uniform(0.05, 0.1)
+        h = random.uniform(0.22, 0.32)
+        o.append(block("Book", -1.85, z, 0.65, 0.65 + h, 0.25, w, lacquer(random.choice([(0.6, 0.1, 0.1), (0.1, 0.3, 0.6), (0.1, 0.45, 0.2),
+                                                                                          (0.8, 0.6, 0.1), (0.2, 0.2, 0.22)]), 0.5)))
+        z += w + 0.01
+    o += [cyl("Plant pot", 1.4, -1.6, -1.0, -0.65, 0.18, matte((0.7, 0.35, 0.2), 0.8)),
+          ball("Plant", 1.4, -0.4, -1.6, 0.35, matte((0.15, 0.45, 0.12), 0.85), stretch=1.3),
+          cyl("Lamp stand", 0.1, -1.6, -0.2, 0.25, 0.012, M((0.2, 0.2, 0.2), 0.3, metal=1))]
+    return o
+
+
+scene("isometric-workshop", "Isometric workshop",
+      "A cut-away room (desk, chair, bookshelf, plant, rug, a glowing monitor and a desk lamp) seen through an "
+      "orthographic camera from the classic isometric angle: no perspective, parallel edges stay parallel "
+      "(Look → Camera → Orthographic).",
+      ["camera", "orthographic", "interior", "sphere light"],
+      studio(light_on=False, sky=0.25, background=[0.85, 0.82, 0.78], base=[0.7, 0.66, 0.6], floor=M((0.5, 0.36, 0.22), 0.45, refl=0.06),
+             floor_extent=2.1, objects=workshop(), bounces=10, projection=1,
+             lights=[sphere_light("Desk lamp", (0.1, 0.32, -1.6), 0.12, (1, 1, 1), 6.0, temperature=2900.0),
+                     light("Window", (2.5, 1.5, 0.5), (2.0, 2.0), kelvin(6500), 6.0, target=(-1, -0.5, -1))],
+             **camera(45, 35, 9, (0, -0.2, 0), 30)))
+
+
+# ---------------------------------------------------------------- new: lights
+def greenhouse():
+    glass = M((0.95, 0.98, 0.96), 0.0, trans=1, ior=1.5)
+    iron = M((0.08, 0.2, 0.12), 0.4, metal=0.6, refl=0.1)
+    w, d, h = 4.0, 3.0, 2.2
+    o = []
+    for i in range(5):
+        x = -w / 2 + i * w / 4
+        for side in (-1, 1):
+            o.append(block("Post", x, side * d / 2, -1.0, -1.0 + h, 0.05, 0.05, iron))
+        o.append(block("Rafter", x, 0, -1.0 + h, -1.0 + h + 0.05, 0.05, d, iron))
+        if i < 4:
+            for side in (-1, 1):
+                o.append(block("Side pane", x + w / 8, side * d / 2, -1.0, -1.0 + h, w / 4 - 0.06, 0.01, glass))
+            o.append(block("Roof pane", x + w / 8, 0, -1.0 + h + 0.05, -1.0 + h + 0.06, w / 4 - 0.06, d, glass))
+    for side in (-1, 1):
+        for j in range(3):
+            z = -d / 2 + (j + 0.5) * d / 3
+            o.append(block("End pane", side * w / 2, z, -1.0, -1.0 + h, 0.01, d / 3 - 0.06, glass))
+    wood = M((0.5, 0.36, 0.22), 0.7, refl=0.03)
+    o.append(block("Bench", 0, -0.9, -0.3, -0.25, 3.4, 0.7, wood))
+    for dx in (-1.6, 1.6):
+        o.append(block("Bench leg", dx, -0.9, -1.0, -0.3, 0.06, 0.6, wood))
+    random.seed(8)
+    for i in range(7):
+        x = -1.4 + i * 0.47
+        o.append(cyl(f"Pot {i + 1}", x, -0.9, -0.25, -0.05, 0.12, matte((0.72, 0.36, 0.2), 0.85)))
+        if i % 2:
+            o.append(obj(f"Plant {i + 1}", "cone", x, -0.9, random.uniform(0.6, 0.9), matte((0.1, 0.4, 0.12), 0.8), stretch=1.6, elevation=0.95))
+        else:
+            o.append(ball(f"Plant {i + 1}", x, 0.15, -0.9, random.uniform(0.17, 0.24), matte((0.12, 0.42 + random.uniform(0, 0.1), 0.1), 0.8)))
+    o += [cyl("Watering can", 0.9, 0.6, -1.0, -0.7, 0.14, M((0.6, 0.62, 0.6), 0.3, metal=1)),
+          float_at("Spout", "cylinder", 1.12, -0.78, 0.6, 1, M((0.6, 0.62, 0.6), 0.3, metal=1), stretch=0.4 / 0.7,
+                   scale=(0.05, 0.05), tilt=(0, -55))]
+    return o
+
+
+scene("sun-greenhouse", "Greenhouse in the sun",
+      "A glass greenhouse with a potting bench, lit by an analytic sun light (a distant disc 0.53° across, so "
+      "shadows have a real penumbra) and a blue sky: the iron frame draws crisp shadows through the panes.",
+      ["lights", "sun", "glass", "shadows"],
+      studio(light_on=False, sky=0.6, background=[0.45, 0.62, 0.9], base=[0.5, 0.46, 0.38], floor=M((0.45, 0.4, 0.32), 0.9),
+             floor_extent=40.0, objects=greenhouse(), bounces=12,
+             lights=[sun_light("Sun", (-18, 22, 12), kelvin(5600), 4.0)],
+             **camera(30, 16, 7.5, (0, 0.0, 0), 42)))
+
+
+def bulbs():
+    brick = M((0.42, 0.18, 0.12), 0.9, pattern="checker", second=(0.35, 0.15, 0.1), pscale=8.0)
+    wood = M((0.42, 0.28, 0.16), 0.6, refl=0.04)
+    steel = M((0.7, 0.7, 0.72), 0.25, metal=1)
+    o = [block("Back wall", 0, -1.6, -1.0, 2.6, 6.0, 0.1, brick),
+         block("Bench top", 0, -0.9, -0.15, -0.08, 3.6, 1.0, wood)]
+    for dx in (-1.6, 1.6):
+        o.append(block("Bench leg", dx, -0.9, -1.0, -0.15, 0.08, 0.9, wood))
+    o += [block("Crate", -1.2, -1.0, -0.08, 0.3, 0.6, 0.5, M((0.55, 0.4, 0.22), 0.8)),
+          cyl("Hammer handle", 0.3, -0.75, -0.06, -0.02, 0.02, wood, tilt=(0, 90)),
+          block("Hammer head", 0.6, -0.75, -0.08, 0.0, 0.08, 0.2, steel),
+          float_at("Wrench", "box", -0.3, -0.07, -0.6, 1, steel, stretch=0.02 / 0.7, scale=(0.5 / 0.7, 0.06 / 0.7), rotation=25),
+          obj("Spool", "torus", 1.0, -1.0, 0.5, lacquer((0.7, 0.1, 0.05), 0.4), elevation=0.95),
+          cyl("Oil can", 1.4, -0.7, -0.08, 0.15, 0.08, lacquer((0.8, 0.55, 0.05), 0.35))]
+    for i in range(5):
+        x = -1.6 + i * 0.8
+        y = 1.0 + 0.25 * math.cos(i * 1.3)
+        o.append(cyl(f"Cord {i + 1}", x, -0.6, y + 0.1, 2.6, 0.006, matte((0.05, 0.05, 0.05))))
+        o.append(cyl(f"Socket {i + 1}", x, -0.6, y + 0.04, y + 0.12, 0.025, M((0.6, 0.5, 0.3), 0.3, metal=1)))
+    return o
+
+
+scene("bulb-workshop", "Bulb workshop",
+      "A workbench under five bare bulbs on cords, each a sphere light at its own blackbody temperature from "
+      "2200 K to 3200 K: small round sources, soft-edged shadows of the tools, and the warm pools overlapping on "
+      "the brick.",
+      ["lights", "sphere light", "kelvin", "interior"],
+      dark_stage(objects=bulbs(), base=[0.12, 0.1, 0.08], floor=M((0.12, 0.1, 0.08), 0.6, refl=0.04), bounces=10, exposure=1.3,
+                 lights=[sphere_light(f"Bulb {i + 1}", (-1.6 + i * 0.8, 1.0 + 0.25 * math.cos(i * 1.3), -0.6), 0.11, (1, 1, 1), 2.5,
+                                      temperature=2200.0 + i * 250.0) for i in range(5)],
+                 **camera(10, 8, 4.2, (0, 0.2, -0.6), 45)))
+
+
+def crypt():
+    stone = M((0.42, 0.4, 0.37), 0.85, refl=0.02)
+    o = room_shell(6.0, 14.0, 4.0, stone)
+    for i in range(6):
+        z = -5.5 + i * 2.2
+        for side in (-1, 1):
+            o.append(cyl(f"Column {i + 1}{'LR'[side > 0]}", side * 1.6, z, -1.0, 3.0, 0.22, stone))
+        if i % 2 == 0:
+            o.append(block(f"Sarcophagus {i // 2 + 1}", -2.3, z + 1.1, -1.0, -0.2, 0.9, 1.9, MARBLE))
+            o.append(block(f"Lid {i // 2 + 1}", -2.3, z + 1.1, -0.2, -0.05, 1.0, 2.0, MARBLE))
+        else:
+            o.append(obj(f"Urn {i // 2 + 1}", "pawn", 2.3, z + 1.1, 1.0, M((0.6, 0.35, 0.2), 0.4, metal=1), stretch=1.4))
+    o += [block("Altar", 0, -6.4, -1.0, 0.0, 2.0, 0.8, MARBLE),
+          obj("Chalice", "pawn", 0, -6.4, 0.6, GOLD, elevation=1.0),
+          block("Moon slit", 0, -6.95, 1.8, 2.8, 0.25, 0.12, emitter((0.6, 0.7, 1.0), 4))]
+    return o
+
+
+scene("flashlight-crypt", "Flashlight crypt",
+      "A vaulted crypt in the dark: columns, marble sarcophagi, copper urns and an altar under a thin slit of "
+      "moonlight. The flashlight is on (Render → Lights): a spot rides with the camera, so orbiting sweeps its "
+      "beam across the stone.",
+      ["lights", "flashlight", "interior", "night"],
+      studio(light_on=False, lights=[], sky=0.0, background=[0.0, 0.0, 0.0], base=[0.35, 0.33, 0.3],
+             floor=M((0.35, 0.33, 0.3), 0.75, refl=0.03), floor_extent=7.0, objects=crypt(), bounces=8, flashlight=True,
+             exposure=1.4, **camera(0, 4, 3.0, (0, 0.2, 2.0), 55)))
+
+
+# ---------------------------------------------------------------- new: volumes and emission
+def lighthouse():
+    random.seed(19)
+    red, white = lacquer((0.7, 0.06, 0.04), 0.45), lacquer((0.92, 0.9, 0.86), 0.45)
+    rock = M((0.2, 0.2, 0.22), 0.8, refl=0.03)
+    o = []
+    for i in range(6):
+        r = 0.75 - i * 0.06
+        o.append(cyl(f"Tower {i + 1}", 0, 0, -1.0 + i, i, r, red if i % 2 else white))
+    o += [cyl("Gallery", 0, 0, 6.0 - 1.0, 5.1, 0.7, M((0.1, 0.1, 0.1), 0.4, metal=1)),
+          cyl("Lantern room", 0, 0, 5.1, 5.9, 0.42, M((0.95, 0.97, 1.0), 0.0, trans=1, ior=1.5)),
+          obj("Cap", "cone", 0, 0, 1.4, M((0.1, 0.1, 0.1), 0.4, metal=1), stretch=0.7, elevation=6.9),
+          ball("Lamp", 0, 5.5, 0, 0.12, emitter((1.0, 0.9, 0.7), 20))]
+    for i in range(14):
+        a = random.uniform(0, math.tau)
+        d = random.uniform(1.0, 3.0)
+        o.append(obj(f"Rock {i + 1}", "octahedron", d * math.cos(a), d * math.sin(a), random.uniform(0.8, 2.2), rock,
+                     stretch=random.uniform(0.4, 0.8), rotation=random.uniform(0, 90), tilt=(random.uniform(-20, 20), random.uniform(-20, 20))))
+    return o
+
+
+scene("lighthouse-fog", "Lighthouse in fog",
+      "A lighthouse on its rocks on a foggy night, its beam turning (play the timeline, K): the fog is "
+      "heterogeneous (fBm noise, delta tracked) and removes red faster than blue, so the beam glows warm "
+      "near the lamp and the distance turns blue-grey.",
+      ["volume", "fog", "noise", "spot", "animation", "night"],
+      dark_stage(objects=lighthouse(), base=[0.01, 0.015, 0.025], floor=M((0.01, 0.015, 0.025), 0.05, refl=0.6),
+                 floor_extent=40.0, sky=0.01, background=[0.004, 0.006, 0.012], bounces=8, exposure=1.6,
+                 fog=fog_ex(0.05, (0.9, 0.93, 1.0), 0.7, 14.0, 30.0, noise=0.8, noise_size=3.0,
+                            extinction=(1.0, 0.85, 0.7)),
+                 lights=[spot("Beam", (0.0, 5.5, 0.0), (10.0, 5.2, 0.0), (1.0, 0.92, 0.75), 2000.0, spread=9.0, blend=0.4, size=0.2),
+                         sphere_light("Lamp glow", (0.0, 5.5, 0.0), 0.2, (1.0, 0.9, 0.7), 30.0, visible=False)],
+                 animation={"length": 8.0, "fps": 24, "shutter": 0.0,
+                            "tracks": [track("lights/0/rotation/1", [(0.0, -90.0, "linear"), (8.0, 270.0, "linear")])]},
+                 **camera(-25, 4, 17, (0, 2.6, 0), 45)))
+
+
+def forge():
+    random.seed(41)
+    iron = M((0.08, 0.08, 0.09), 0.45, metal=1)
+    brick = M((0.3, 0.12, 0.08), 0.9)
+    o = [block("Hearth", -1.6, -0.8, -1.0, -0.2, 1.4, 1.0, brick),
+         block("Hood", -1.6, -1.0, 1.1, 1.7, 1.4, 0.8, iron),
+         block("Back wall", 0, -1.6, -1.0, 2.5, 6.0, 0.1, matte((0.16, 0.13, 0.11), 0.9))]
+    for i in range(40):
+        x, z = -1.6 + random.uniform(-0.5, 0.5), -0.8 + random.uniform(-0.35, 0.35)
+        k = random.uniform(1000, 1350)
+        o.append(ball(f"Coal {i + 1}", x, -0.16, z, random.uniform(0.05, 0.09), hot(matte((0.05, 0.05, 0.05), 0.9), k, (k - 950) / 60)))
+    # The anvil: a block on a stump, a bar at forging heat on it.
+    o += [cyl("Stump", 0.4, 0.0, -1.0, -0.4, 0.3, M((0.35, 0.22, 0.12), 0.8)),
+          block("Anvil waist", 0.4, 0.0, -0.4, -0.15, 0.25, 0.2, iron),
+          block("Anvil face", 0.4, 0.0, -0.15, 0.0, 0.7, 0.26, iron),
+          obj("Anvil horn", "cone", 0.92, 0.0, 0.4, iron, stretch=1.0, tilt=(0, -90), elevation=0.92),
+          block("Hot bar", 0.4, 0.02, 0.0, 0.04, 0.6, 0.05, hot(iron, 1500, 14), rotation=10),
+          cyl("Tongs", 0.95, 0.15, -0.02, 0.0, 0.012, iron, tilt=(0, 80), rotation=20)]
+    # A rack of bars cooling from yellow heat to a dull red.
+    for i, (k, e) in enumerate([(1800, 20), (1500, 12), (1250, 6), (1100, 2.5), (1000, 0.9)]):
+        o.append(block(f"Bar {k} K", 1.8, -0.9 + i * 0.22, -0.4, -0.36, 0.7, 0.05, hot(iron, k, e)))
+    o.append(block("Rack", 1.8, -0.45, -1.0, -0.4, 0.8, 1.1, iron))
+    for i in range(18):
+        o.append(ball(f"Spark {i + 1}", 0.4 + random.uniform(-0.6, 0.6), random.uniform(0.05, 0.9), random.uniform(-0.4, 0.4),
+                      0.006, hot(matte((0, 0, 0)), random.uniform(1700, 2100), 20)))
+    return o
+
+
+scene("blackbody-forge", "Blackbody forge",
+      "A smithy lit by what is hot: coals, a bar on the anvil and a rack of bars cooling from 1800 K to 1000 K, "
+      "each emitting as a blackbody at its temperature (Planck's law; the spectral tracer, on here, emits the "
+      "exact spectrum), from yellow-white to a dull red.",
+      ["emissive", "blackbody", "spectral", "interior"],
+      dark_stage(objects=forge(), base=[0.1, 0.09, 0.08], floor=M((0.1, 0.09, 0.08), 0.7, refl=0.03), bounces=10, spectral=True,
+                 exposure=1.2, lights=[light("Window", (3.0, 2.0, 1.0), (1.0, 1.5), kelvin(9000), 0.8, target=(0, -0.5, 0))],
+                 **camera(15, 12, 4.6, (0.2, -0.2, -0.3), 45)))
+
+
+def diamonds():
+    velvet = sheen(matte((0.01, 0.01, 0.012), 1.0), (0.35, 0.35, 0.45), 1.0, 0.3)
+    diamond = {**M((1, 1, 1), 0.0, trans=1, ior=2.42), "dispersion": 55.0}
+    flint = {**M((0.98, 0.99, 1.0), 0.0, trans=1, ior=1.62), "dispersion": 36.0}
+    o = [block("Velvet", 0, 0, -1.0, -0.97, 4.0, 3.0, velvet)]
+    for i, (x, z, s, rot) in enumerate([(-0.5, 0.1, 0.9, 20), (0.35, -0.2, 0.6, 50), (0.75, 0.45, 0.45, 5), (-0.1, 0.65, 0.35, 70)]):
+        o.append(float_at(f"Diamond {i + 1}", "octahedron", x, -0.97 + 0.35 * s * 1.2, z, s, diamond, stretch=1.2, rotation=rot))
+    o.append(obj("Flint prism", "prism", -1.2, -0.6, 0.8, flint, rotation=30, elevation=0.03))
+    return o
+
+
+scene("diamond-fire", "Diamond fire",
+      "Diamonds (IOR 2.42, Abbe number 55) and a flint-glass prism on black velvet under tiny hard spots, "
+      "rendered spectrally: each wavelength bends by its own index, so the facets throw coloured fire that RGB "
+      "rendering cannot show.",
+      ["glass", "dispersion", "spectral", "caustics"],
+      dark_stage(objects=diamonds(), base=[0.01, 0.01, 0.012], floor=M((0.01, 0.01, 0.012), 0.6), bounces=24, spectral=True,
+                 exposure=1.3,
+                 lights=[disk(f"Spot {i + 1}", p, (0, -0.8, 0), 0.06, kelvin(6500), 900.0) for i, p in
+                         enumerate([(-1.5, 2.5, 1.5), (1.8, 2.2, 0.8), (0.2, 2.8, -1.8)])],
+                 **camera(10, 32, 3.0, (0, -0.8, 0.1), 32)))
+
+
+# ---------------------------------------------------------------- new: film look
+def diner():
+    chrome = M((0.92, 0.94, 0.97), 0.05, metal=1)
+    red = coat(lacquer((0.65, 0.04, 0.05), 0.4), 1.0, 0.05)
+    o = [block("Back wall", 0, -2.0, -1.0, 2.2, 7.0, 0.1, matte((0.75, 0.7, 0.6), 0.85)),
+         block("Counter", 0, -0.6, -1.0, -0.05, 4.4, 0.6, red),
+         block("Counter top", 0, -0.6, -0.05, 0.0, 4.6, 0.75, coat(matte((0.9, 0.9, 0.88), 0.4), 1.0, 0.02)),
+         block("Counter trim", 0, -0.29, -0.15, -0.08, 4.4, 0.02, chrome),
+         block("Back counter", 0, -1.75, -1.0, -0.1, 6.0, 0.4, M((0.5, 0.5, 0.52), 0.25, metal=1))]
+    for i in range(5):
+        x = -1.8 + i * 0.9
+        o += [cyl(f"Stool post {i + 1}", x, 0.2, -1.0, -0.42, 0.03, chrome),
+              cyl(f"Stool seat {i + 1}", x, 0.2, -0.42, -0.34, 0.19, red),
+              cyl(f"Stool ring {i + 1}", x, 0.2, -0.36, -0.34, 0.2, chrome)]
+    o += [cyl("Milkshake glass", -0.6, -0.6, 0.0, 0.3, 0.07, CRYSTAL),
+          cyl("Milkshake", -0.6, -0.6, 0.02, 0.24, 0.06, volume(M((1.0, 0.75, 0.8), 0.3, trans=1, ior=1.35), 30.0, (1.0, 0.85, 0.9))),
+          ball("Cherry", -0.6, 0.27, -0.6, 0.03, lacquer((0.7, 0.02, 0.03), 0.15)),
+          cyl("Napkin box", 0.6, -0.6, 0.0, 0.14, 0.08, chrome)]
+    for i, (y, c) in enumerate([(1.7, (1.0, 0.15, 0.5)), (1.5, (0.1, 0.9, 1.0))]):
+        o.append(float_at(f"Neon bar {i + 1}", "cylinder", 0, y, -1.93, 1, emitter(c, 10), stretch=4.0 / 0.7, scale=(0.05, 0.05), tilt=(0, 90)))
+    o.append(float_at("Neon ring", "ring", 2.2, 1.1, -1.93, 1.2, emitter((1.0, 0.55, 0.1), 10), tilt=(90, 0)))
+    return o
+
+
+scene("neon-diner", "Neon diner",
+      "A late-night diner counter with chrome stools, a milkshake and neon on the wall, finished like a film "
+      "print: halation (red glow around the neon), grain, a vignette, a warm grade and a .cube LUT "
+      "(scenes/luts/warm-film.cube) at 70% (Look → Film).",
+      ["interior", "night", "emissive", "film look", "lut"],
+      dark_stage(objects=diner(), base=[0.8, 0.8, 0.78],
+                 floor=M((0.85, 0.84, 0.8), 0.2, refl=0.15, pattern="checker", second=(0.03, 0.03, 0.03), pscale=2.5), floor_extent=3.5,
+                 bounces=10, exposure=1.2, halation=0.5, grain=0.3, grain_size=1, vignette=0.35,
+                 lift=[0.01, 0.006, 0.0], gain=[1.04, 1.0, 0.93], lut_path="luts/warm-film.cube", lut_strength=0.7,
+                 lights=[sphere_light(f"Pendant {i + 1}", (-1.5 + i * 1.5, 1.4, -0.6), 0.14, (1, 1, 1), 5.0, temperature=2700.0)
+                         for i in range(3)],
+                 **camera(-18, 8, 4.6, (0, 0.0, -0.6), 45)))
+
+
+# ---------------------------------------------------------------- new: physics
+def banners():
+    o = []
+    wood = M((0.4, 0.27, 0.15), 0.7)
+    for side in (-1, 1):
+        o.append(cyl(f"Pole {'LR'[side > 0]}", side * 3.2, 0, -1.0, 2.2, 0.06, wood) | {"body": "fixed"})
+    o.append(float_at("Rope", "cylinder", 0, 2.0, 0, 1, matte((0.85, 0.8, 0.7)), stretch=6.4 / 0.7, scale=(0.02, 0.02), tilt=(0, 90))
+             | {"body": "none"})
+    colors = [(0.85, 0.1, 0.08), (0.95, 0.65, 0.05), (0.1, 0.55, 0.2), (0.1, 0.3, 0.8), (0.6, 0.1, 0.6), (0.95, 0.95, 0.92)]
+    for i, c in enumerate(colors):
+        x = -2.5 + i * 1.0
+        banner = float_at(f"Banner {i + 1}", "box", x, 1.6, 0, 1.15, sheen(matte(c, 0.9), (1, 1, 1), 0.4, 0.5), tilt=(90, 0))
+        banner["cloth"] = {"resolution": 20, "pin": "edge", "stiffness": 0.15, "mass": 0.3, "self_collision": False}
+        o.append(banner)
+    return o
+
+
+scene("festival-banners", "Festival banners",
+      "Six cloth banners pinned along a rope between two poles, blowing in a gusting wind: cloth simulation "
+      "(each a particle grid with bending stiffness) under the physical sky. Pause physics to freeze a gust.",
+      ["physics", "cloth", "wind", "physical sky"],
+      studio(light_on=False, lights=[], sky=0.0, base=[0.3, 0.42, 0.18], floor=matte((0.3, 0.42, 0.18), 0.95), floor_extent=40.0,
+             objects=banners(), physical_sky=sky(14.0, day=172.0, latitude=45.0, turbidity=2.5, north=-30.0), exposure=1.3,
+             physics={"enabled": True, "wind": [1.6, 0.0, 0.7], "gusts": 0.7},
+             **camera(-15, 8, 7.5, (0, 0.9, 0), 45)))
+
+
+def lantern_chain():
+    dark = M((0.42, 0.36, 0.3), 0.85)
+    iron = M((0.12, 0.12, 0.13), 0.4, metal=1)
+    o = [block("Left wall", -1.4, 0, -1.0, 3.5, 0.3, 8.0, dark) | {"body": "fixed"},
+         block("Right wall", 1.6, 0, -1.0, 3.5, 0.3, 8.0, dark) | {"body": "fixed"},
+         block("Bracket", -1.0, 0, 2.55, 2.65, 0.5, 0.06, iron) | {"body": "fixed"}]
+    anchor = (-0.8, 2.55)
+    n, length, angle = 8, 0.12, math.radians(40)
+    d = (math.sin(angle), -math.cos(angle))
+    for i in range(n):
+        cx, cy = anchor[0] + d[0] * (i + 0.5) * length, anchor[1] + d[1] * (i + 0.5) * length
+        link = float_at(f"Link {i + 1}", "cylinder", cx, cy, 0, 1, iron, stretch=length * 0.9 / 0.7, scale=(0.05, 0.05),
+                        tilt=(0, math.degrees(angle)))
+        link["mass"] = 20.0
+        link["links"] = [{"object": len(o) - 1,
+                          "at": [round(anchor[0] + d[0] * i * length, 4), round(anchor[1] + d[1] * i * length, 4), 0.0]}]
+        o.append(link)
+    end = (anchor[0] + d[0] * n * length, anchor[1] + d[1] * n * length)
+    lantern = cyl("Paper lantern", end[0], 0, end[1] - 0.4, end[1], 0.15,
+                  sheen(emitter((1.0, 0.55, 0.2), 20, unlit=False), (1.0, 0.8, 0.6), 0.5, 0.6))
+    lantern["mass"] = 2.0
+    lantern["links"] = [{"object": len(o) - 1, "at": [round(end[0], 4), round(end[1], 4), 0.0]}]
+    o.append(lantern)
+    return o
+
+
+scene("swinging-lantern", "Swinging lantern",
+      "A paper lantern on an iron chain, released sideways in a narrow alley: the chain is eight ball-jointed "
+      "links, and the lantern is the only light, so the shadows of the chain and the walls swing with it.",
+      ["physics", "chain", "emissive", "night"],
+      dark_stage(objects=lantern_chain(), base=[0.25, 0.22, 0.19], floor=M((0.25, 0.22, 0.19), 0.5, refl=0.08), bounces=10,
+                 exposure=1.8, physics={"enabled": True, "bounce": 0.05, "friction": 0.8},
+                 **camera(-10, 6, 5.5, (0, 1.0, 0), 50)))
+
+
 # ---------------------------------------------------------------- checks
 def textured(folder, scale=0.5, **kw):
     """A material with a texture set from scenes/textures/<folder> (core track 5). Colour,
@@ -1959,23 +2652,23 @@ def check(slug, s):
 # ---------------------------------------------------------------- generated pack
 # Curated seeds of the Rust generators (src/generators.rs); each file is just family + seed.
 GENERATED = {
-    "still-life": ("Studio still life", [3, 11, 17, 24, 42, 77]),
-    "material-grid": ("Material grid", [1, 2, 3, 5, 8, 13]),
-    "city": ("City blocks", [4, 7, 12, 21, 33, 58]),
-    "temple": ("Temple", [2, 6, 9, 15, 27, 40]),
-    "stairs": ("Stairs", [1, 4, 6, 10, 19, 31]),
-    "stacking": ("Stacking", [3, 5, 8, 14, 22, 35]),
-    "menger": ("Menger sponge", [1, 2, 6, 9, 16, 25]),
-    "sierpinski": ("Sierpinski tetrahedron", [2, 3, 7, 11, 18, 29]),
-    "sphereflake": ("Sphereflake", [1, 5, 9, 12, 20, 44]),
-    "kaleidoscope": ("Kaleidoscope", [4, 8, 15, 23, 38, 61]),
-    "truchet": ("Truchet maze", [2, 10, 14, 26, 39, 52]),
-    "mandelbulb": ("Mandelbulb", [1, 2, 4, 5, 6, 8]),
-    "terrain": ("Terrain island", [1, 2, 3, 4, 6, 8]),
-    "deep-menger": ("Deep Menger sponge", [1, 3, 4, 6, 7, 8]),
-    "tree": ("Trees", [1, 3, 4, 6, 7, 8]),
-    "forest": ("Forest", [1, 2, 3]),
-    "crowd": ("Crowd", [1, 2, 3]),
+    "still-life": ("Studio still life", [3, 24, 77]),
+    "material-grid": ("Material grid", [1, 3, 5]),
+    "city": ("City blocks", [4, 12, 21]),
+    "temple": ("Temple", [9, 40]),
+    "stairs": ("Stairs", [1, 6, 10]),
+    "stacking": ("Stacking", [3, 5, 22]),
+    "menger": ("Menger sponge", [16, 25]),
+    "sierpinski": ("Sierpinski tetrahedron", [11, 18]),
+    "sphereflake": ("Sphereflake", [1, 44]),
+    "kaleidoscope": ("Kaleidoscope", [15, 61]),
+    "truchet": ("Truchet maze", [14, 26]),
+    "mandelbulb": ("Mandelbulb", [2, 5]),
+    "terrain": ("Terrain island", [1, 3, 4]),
+    "deep-menger": ("Deep Menger sponge", [3, 7]),
+    "tree": ("Trees", [3, 4, 7]),
+    "forest": ("Forest", [1, 2]),
+    "crowd": ("Crowd", [2]),
 }
 
 
@@ -2063,24 +2756,6 @@ mesh_scene("toy-car", "Toy car",
            "The Khronos toy car on its cloth: clearcoat paint, fabric and green glass.",
            ["vehicle", "gltf"], "Toy Car: " + KHRONOS,
            studio(bounces=16, objects=whole("ToyCar.glb", 0, 0, 4), **camera(-30, 16, 4.2, (0, -0.4, 0))))
-mesh_scene("duck-and-lantern", "Duck and lantern",
-           "The glTF duck under a lamp post at dusk.",
-           ["dusk", "gltf"], "Duck and Lantern: " + KHRONOS,
-           studio(light_position=[0.7, 2.4, 0.4], light_size=0.5, light_intensity=40.0, light_temperature=2700.0,
-                  sky=0.12, base=[0.18, 0.2, 0.32], lights=[],
-                  objects=[mesh("Lantern.glb", 0, 0, 4.0, rotation=90), mesh("Duck.glb", 1.2, 0.6, 0.9, rotation=-40)],
-                  **camera(15, 10, 7.5, (0.3, 0.4, 0))))
-# Crytek Sponza (track 20a's heavy benchmark): 262k triangles in 25 parts, 69 textures, alpha-tested
-# plants and chains. The engine has no floor toggle, so its floor shrinks to the minimum and the
-# atrium sits 1 cm above it. Size 30 makes the long axis about 21 units.
-mesh_scene("sponza", "Sponza",
-           "Crytek's Sponza atrium under a summer midday sun through the open roof: textured stone, cloth "
-           "banners and alpha-tested plants, lit mostly by bounce light.",
-           ["interior", "architecture", "gltf", "physical sky", "benchmark"], "Sponza: Crytek, " + KHRONOS,
-           studio(light_on=False, lights=[], sky=0.0, floor_extent=0.5, base=[0.5, 0.48, 0.45], bounces=12,
-                  physical_sky=sky(12.5, day=172.0, latitude=40.0),
-                  objects=whole("Sponza/Sponza.gltf", 0, 0, 30, elevation=0.01),
-                  exposure=2.5, **camera(90, 8, 4.5, (0, 1.6, 0), 65)))
 
 
 # ---------------------------------------------------------------- environments pack
@@ -2157,6 +2832,70 @@ env_scene("hdri-fire-sky-dragon", "Gold dragon at dusk",
                  floor=M((0.05, 0.05, 0.06), 0.05, refl=0.7), bounces=16, **camera(160, 6, 5, (0, -0.4, 0))))
 
 
+def fireside():
+    wood = coat(M((0.3, 0.16, 0.08), 0.45, refl=0.05), 1.0, 0.04)
+    brandy = clear((0.85, 0.45, 0.12), 1.36, 2)
+    o = [block("Side table", 0, 0, -1.0, -0.3, 1.6, 1.0, wood),
+         cyl("Decanter body", -0.35, -0.1, -0.3, 0.05, 0.2, CRYSTAL), ball("Decanter shoulder", -0.35, 0.05, -0.1, 0.2, CRYSTAL, stretch=0.6),
+         cyl("Decanter neck", -0.35, -0.1, 0.05, 0.3, 0.045, CRYSTAL), ball("Stopper", -0.35, 0.34, -0.1, 0.07, CRYSTAL),
+         cyl("Decanter brandy", -0.35, -0.1, -0.29, -0.05, 0.19, brandy)]
+    for i, (x, z) in enumerate([(0.2, 0.15), (0.48, -0.15)]):
+        o += [ball(f"Snifter {i + 1}", x, -0.14, z, 0.12, CRYSTAL, stretch=1.1),
+              cyl(f"Snifter {i + 1} stem", x, z, -0.3, -0.25, 0.012, CRYSTAL),
+              ball(f"Snifter {i + 1} brandy", x, -0.2, z, 0.08, brandy, stretch=0.45)]
+    o.append(block("Book", 0.45, 0.3, -0.3, -0.25, 0.42, 0.3, lacquer((0.35, 0.05, 0.05), 0.5), rotation=-12))
+    return o
+
+
+env_scene("hdri-fireside-glassware", "Fireside glassware",
+          "A crystal decanter and two snifters of brandy on a lacquered side table, lit only by the room's fireplace "
+          "and lamps: warm caustics through the glass and the brandy's colour deepening with its depth.",
+          ["interior", "glass", "caustics"], "Fireplace: " + POLYHAVEN, "fireplace_4k",
+          studio(objects=fireside(), floor=M((0.3, 0.2, 0.14), 0.6), floor_extent=3.0, bounces=24, exposure=1.2,
+                 aperture=0.02, focus_distance=2.6, **camera(-20, 12, 2.6, (0.05, -0.15, 0), 40)), rotation=200)
+
+
+def loft_ceramics():
+    glazes = [coat(M((0.08, 0.3, 0.35), 0.4), 1.0, 0.03), sheen(matte((0.85, 0.8, 0.72), 0.8), (1, 1, 1), 0.3, 0.6),
+              coat(M((0.6, 0.15, 0.06), 0.3), 1.0, 0.08), M((0.1, 0.1, 0.1), 0.05, refl=0.5),
+              brushed(M((0.8, 0.6, 0.35), 0.3, metal=1), 0.6, spun=True)]
+    o = [block("Plinth", 0, 0, -1.0, -0.4, 3.2, 1.0, matte((0.92, 0.91, 0.88), 0.7))]
+    for i, (shape, x, size, stretch, m) in enumerate([("pawn", -1.2, 0.8, 1.6, glazes[0]), ("cylinder", -0.55, 0.55, 1.9, glazes[1]),
+                                                       ("sphere", 0.1, 0.75, 0.9, glazes[2]), ("cone", 0.7, 0.6, 1.4, glazes[3]),
+                                                       ("torus", 1.25, 0.6, 1.6, glazes[4])]):
+        o.append(obj(f"Vessel {i + 1}", shape, x, 0, size, m, stretch=stretch, elevation=0.6, rotation=i * 25))
+    return o
+
+
+env_scene("hdri-loft-ceramics", "Loft ceramics",
+          "Five glazed vessels on a white plinth in a daylit loft photo studio: a glossy celadon glaze, a matte "
+          "stoneware with sheen, a red coat over a rough body, black gloss and spun brass. One soft window light.",
+          ["studio", "material", "coat", "sheen"], "Photo studio loft hall: " + POLYHAVEN, "photo_studio_loft_hall_4k",
+          studio(objects=loft_ceramics(), floor=M((0.6, 0.58, 0.55), 0.5, refl=0.05), floor_extent=6.0, bounces=12,
+                 **camera(10, 8, 4.6, (0, -0.1, 0), 40)), rotation=70)
+
+env_scene("hdri-potsdamer-chrome", "Chrome in the city",
+          "A chrome trefoil knot and a mirror sphere on a granite plinth in a city square: nothing but the city "
+          "reflected, curved through the knot's turns.",
+          ["urban", "mirror", "metal"], "Potsdamer Platz: " + POLYHAVEN, "potsdamer_platz_4k",
+          studio(objects=[block("Plinth", 0, 0, -1.0, -0.2, 1.6, 1.6, M((0.3, 0.3, 0.32), 0.35, refl=0.1, pattern="marble",
+                                                                         second=(0.15, 0.15, 0.16), pscale=4.0)),
+                          obj("Chrome knot", "knot", 0, 0, 1.4, CHROME, elevation=0.8 + 0.05),
+                          ball("Mirror sphere", 1.6, -0.65, 0.6, 0.35, CHROME)],
+                 floor=M((0.25, 0.25, 0.26), 0.6), floor_extent=40.0, bounces=16, **camera(25, 10, 5.0, (0.3, 0.0, 0), 45)),
+          rotation=-30)
+
+env_scene("hdri-sunrise-glass", "Glass at sunrise",
+          "Frosted and clear glass bunnies and a jade sphere on a mirror-dark floor, backlit by a low sunrise: "
+          "the sun shines through the glass toward the camera, and the frosted glass glows.",
+          ["glass", "outdoor", "sunrise", "backlight"], "Spruit sunrise: " + POLYHAVEN, "spruit_sunrise_4k",
+          studio(objects=[obj("Clear bunny", "bunny", -0.9, 0, 1.5, GLASS, rotation=30),
+                          obj("Frosted bunny", "bunny", 0.8, 0.2, 1.5, FROSTED, rotation=-20),
+                          obj("Jade sphere", "sphere", 0, -1.0, 0.9, volume(M((0.55, 0.85, 0.6), 0.1, trans=1, ior=1.62), 12.0, (0.7, 0.95, 0.75)))],
+                 floor=M((0.04, 0.04, 0.045), 0.1, refl=0.5), floor_extent=40.0, bounces=24, exposure=0.9,
+                 **camera(180, 5, 5.0, (0, -0.4, 0), 40)), rotation=0)
+
+
 # ---------------------------------------------------------------- materials pack
 # Texture sets (core track 5) from tools/fetch_assets.ps1 (scenes/textures): ambientCG and
 # Poly Haven, all CC0.
@@ -2201,6 +2940,31 @@ def material_scenes():
                              floor=wood, bounces=12, **camera(15, 12, 4.5, (0, -0.4, 0))),
                     "hdri": "hdri/studio_small_09_4k.hdr", "hdri_visible": False, "hdri_strength": 1.0,
                     "light_on": False, "lights": [], "sky": 0.0})
+    sofa = fabric
+    plaster = M((0.78, 0.76, 0.72), 0.85, refl=0.0, pattern="marble", second=(0.7, 0.68, 0.64), pscale=1.2)
+    o = [block("Brick wall", 0, -2.0, -1.0, 2.0, 6.0, 0.15, bricks), block("Plaster wall", -2.9, 0.5, -1.0, 2.0, 0.15, 5.0, plaster),
+         block("Rug", 0.3, 0.6, -1.0, -0.99, 3.0, 2.0, tiles),
+         block("Sofa base", -0.2, -1.35, -1.0, -0.55, 2.6, 0.9, sofa), block("Sofa back", -0.2, -1.72, -0.55, 0.05, 2.6, 0.2, sofa)]
+    for side in (-1, 1):
+        o.append(block("Sofa arm", -0.2 + side * 1.2, -1.35, -0.55, -0.3, 0.2, 0.9, sofa))
+    for i, x in enumerate((-0.85, 0.45)):
+        o.append(block(f"Cushion {i + 1}", x, -1.3, -0.55, -0.4, 1.25, 0.75, sofa))
+    o += [block("Coffee table", 0.3, 0.5, -0.62, -0.56, 1.4, 0.7, marble), block("Table base", 0.3, 0.5, -1.0, -0.62, 1.0, 0.3, metal),
+          cyl("Mug", 0.6, 0.45, -0.56, -0.44, 0.05, PORCELAIN), obj("Bowl", "sphere", 0.0, 0.55, 0.45, rock, stretch=0.5, elevation=0.38),
+          cyl("Lamp pole", 2.0, -1.4, -1.0, 0.9, 0.02, metal), obj("Lamp shade", "cone", 2.0, -1.4, 0.5, sheen(matte((0.95, 0.9, 0.8), 0.8), (1, 1, 1), 0.3),
+                                                                  stretch=0.9, elevation=1.75),
+          cyl("Planter", -2.4, -1.5, -1.0, -0.5, 0.25, rock), ball("Plant", -2.4, -0.15, -1.5, 0.4, matte((0.12, 0.4, 0.1), 0.85), stretch=1.4)]
+    material_scene("texture-loft-corner", "Loft corner",
+                   "The texture sets in one room: a sofa in woven fabric against a brick wall, a marble table on a metal base "
+                   "on a tiled floor patch, a stone bowl and planter, on a wood floor in window light and a warm lamp. Normal "
+                   "maps carry the detail at grazing light.",
+                   ["interior", "material", "texture"],
+                   "Bricks097, Fabric062, Marble016, Metal032, Tiles074, WoodFloor041: " + AMBIENTCG + ". Rock wall 08: Poly Haven (CC0)",
+                   studio(objects=o, floor=wood, floor_extent=3.0, base=[0.5, 0.4, 0.3], light_on=False, sky=0.15,
+                          background=[0.7, 0.75, 0.8], bounces=12, exposure=1.2,
+                          lights=[light("Window", (3.2, 1.3, 1.0), (1.6, 2.2), kelvin(6200), 14, target=(0, -0.7, -0.8)),
+                                  {**light("Lamp", (2.0, 0.65, -1.4), (0.18, 0.18), (1, 1, 1), 6.0), "kind": "sphere", "temperature": 2800.0}],
+                          **camera(25, 14, 5.2, (0, -0.3, -0.5), 48)))
 
 
 def write_materials():
@@ -2251,5 +3015,10 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    OVERWRITE = "--overwrite" in sys.argv[1:]
+    # --overwrite rewrites every file that differs; --overwrite=a,b only those scenes (by file stem).
+    for arg in sys.argv[1:]:
+        if arg == "--overwrite":
+            OVERWRITE = True
+        elif arg.startswith("--overwrite="):
+            OVERWRITE = set(arg.split("=", 1)[1].split(","))
     main()

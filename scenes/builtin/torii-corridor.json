@@ -1,10 +1,12 @@
 {
  "format": 1,
  "title": "Torii corridor",
- "description": "Twelve red gates receding toward a setting sun: repetition, perspective and colour bleeding.",
+ "description": "Twelve red gates receding toward a setting sun: repetition, perspective and colour bleeding. The timeline (K) walks through the gates on a camera path (a spline through the keyed views).",
  "tags": [
   "architecture",
-  "sunset"
+  "sunset",
+  "animation",
+  "camera path"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -2202,6 +2204,89 @@
     },
     "portal": -1
    }
-  ]
+  ],
+  "animation": {
+   "length": 12.0,
+   "fps": 24,
+   "shutter": 0.0,
+   "camera_path": true,
+   "tracks": [
+    {
+     "path": "target/2",
+     "keys": [
+      {
+       "time": 0,
+       "value": 0.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 4,
+       "value": -6.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 8,
+       "value": -12.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 12,
+       "value": -18.0,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "target/0",
+     "keys": [
+      {
+       "time": 0,
+       "value": 0.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 4,
+       "value": 0.35,
+       "interp": "smooth"
+      },
+      {
+       "time": 8,
+       "value": -0.35,
+       "interp": "smooth"
+      },
+      {
+       "time": 12,
+       "value": 0.0,
+       "interp": "smooth"
+      }
+     ]
+    },
+    {
+     "path": "yaw",
+     "keys": [
+      {
+       "time": 0,
+       "value": 0.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 4,
+       "value": 6.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 8,
+       "value": -6.0,
+       "interp": "smooth"
+      },
+      {
+       "time": 12,
+       "value": 0.0,
+       "interp": "smooth"
+      }
+     ]
+    }
+   ]
+  }
  }
 }

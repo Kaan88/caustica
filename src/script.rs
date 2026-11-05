@@ -215,6 +215,32 @@ thread_local! {
     /// script with its source.
     static FRAME: std::cell::RefCell<Option<(rhai::Engine, Shared, String, rhai::AST)>> =
         const { std::cell::RefCell::new(None) };
+    /// While `set_paths` runs: every path the script's `set` writes.
+    static SET_PATHS: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+/// The setting paths a per-frame script writes at t = 0 on `s` (normalized without a leading
+/// `/`): physics makes the objects a script moves kinematic, as keyframed ones. Cached by the
+/// source and the object count; a script that only moves something later, or under a
+/// condition, isn't seen.
+pub fn set_paths(source: &str, s: &crate::scene::Settings) -> Vec<String> {
+    static CACHE: Mutex<Option<(String, usize, Vec<String>)>> = Mutex::new(None);
+    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((src, n, paths)) = cache.as_ref()
+        && src == source
+        && *n == s.objects.len()
+    {
+        return paths.clone();
+    }
+    let Ok(mut v) = serde_json::to_value(s) else {
+        return vec![];
+    };
+    SET_PATHS.with(|p| *p.borrow_mut() = Some(vec![]));
+    let _ = per_frame(source, &mut v, 0., 0, s.animation.fps);
+    let paths = SET_PATHS
+        .with(|p| p.borrow_mut().take())
+        .unwrap_or_default();
+    *cache = Some((source.to_string(), s.objects.len(), paths.clone()));
+    paths
 }
 fn frame_engine(state: &Shared) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
@@ -227,6 +253,11 @@ fn frame_engine(state: &Shared) -> rhai::Engine {
             .pointer_mut(&format!("/{}", key.trim_start_matches('/')))
             .ok_or_else(|| format!("unknown setting {key}"))?;
         *slot = value;
+        SET_PATHS.with(|p| {
+            if let Some(paths) = p.borrow_mut().as_mut() {
+                paths.push(key.trim_start_matches('/').to_string());
+            }
+        });
         Ok(())
     }
     let s = state.clone();

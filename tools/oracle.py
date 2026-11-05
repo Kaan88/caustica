@@ -83,9 +83,9 @@ def main():
     size = ['--width', w, '--height', h]
     if a.rgb:
         size += ['--set', 'spectral=false']
-    # BDPT and photon mapping always use a box pixel filter; a wider filter on the other side
-    # moves the image mean at sharp bright edges (filter shifts don't sum to 1), so compare
-    # them with a 1-pixel box on both sides.
+    # BDPT and photon mapping used a box pixel filter until 2026-11-05 (they now take the path
+    # tracer's); a wider filter moves the image mean at sharp bright edges (its shifts don't sum
+    # to 1 over the grid), so they are still compared with a 1-pixel box on both sides.
     if a.integrator != 0:
         size += ['--set', 'pixel_filter=0', '--set', 'filter_width=1']
     for kv in a.set:

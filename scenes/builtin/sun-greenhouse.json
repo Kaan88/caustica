@@ -1,0 +1,2387 @@
+{
+ "format": 1,
+ "title": "Greenhouse in the sun",
+ "description": "A glass greenhouse with a potting bench, lit by an analytic sun light (a distant disc 0.53° across, so shadows have a real penumbra) and a blue sky: the iron frame draws crisp shadows through the panes.",
+ "tags": [
+  "lights",
+  "sun",
+  "glass",
+  "shadows"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.6,
+  "base": [
+   0.5,
+   0.46,
+   0.38
+  ],
+  "floor": {
+   "color": [
+    0.45,
+    0.4,
+    0.32
+   ],
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Sun",
+    "position": [
+     -18,
+     22,
+     12
+    ],
+    "rotation": [
+     43.246,
+     -56.31,
+     0.0
+    ],
+    "size": [
+     1,
+     1
+    ],
+    "color": [
+     1.0,
+     0.8694,
+     0.7615
+    ],
+    "intensity": 4.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "sun",
+    "angle": 0.53
+   }
+  ],
+  "bounces": 12,
+  "yaw": 30,
+  "pitch": 16,
+  "distance": 7.5,
+  "target": [
+   0,
+   0.0,
+   0
+  ],
+  "fov": 42,
+  "background": [
+   0.45,
+   0.62,
+   0.9
+  ],
+  "objects": [
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     -2.0,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     -2.0,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rafter",
+    "shape": "box",
+    "position": [
+     -2.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     4.2857
+    ],
+    "elevation": 1.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     -1.5,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     -1.5,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof pane",
+    "shape": "box",
+    "position": [
+     -1.5,
+     0
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.7,
+     15.0
+    ],
+    "elevation": 1.255,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     -1.0,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rafter",
+    "shape": "box",
+    "position": [
+     -1.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     4.2857
+    ],
+    "elevation": 1.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     -0.5,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     -0.5,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof pane",
+    "shape": "box",
+    "position": [
+     -0.5,
+     0
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.7,
+     15.0
+    ],
+    "elevation": 1.255,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     0.0,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     0.0,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rafter",
+    "shape": "box",
+    "position": [
+     0.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     4.2857
+    ],
+    "elevation": 1.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     0.5,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     0.5,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof pane",
+    "shape": "box",
+    "position": [
+     0.5,
+     0
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.7,
+     15.0
+    ],
+    "elevation": 1.255,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     1.0,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     1.0,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rafter",
+    "shape": "box",
+    "position": [
+     1.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     4.2857
+    ],
+    "elevation": 1.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     1.5,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side pane",
+    "shape": "box",
+    "position": [
+     1.5,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3429,
+     0.0143
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof pane",
+    "shape": "box",
+    "position": [
+     1.5,
+     0
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.7,
+     15.0
+    ],
+    "elevation": 1.255,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     2.0,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Post",
+    "shape": "box",
+    "position": [
+     2.0,
+     1.5
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rafter",
+    "shape": "box",
+    "position": [
+     2.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     4.2857
+    ],
+    "elevation": 1.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.2,
+      0.12
+     ],
+     "roughness": 0.4,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "End pane",
+    "shape": "box",
+    "position": [
+     -2.0,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0143,
+     1.3429
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "End pane",
+    "shape": "box",
+    "position": [
+     -2.0,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0143,
+     1.3429
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "End pane",
+    "shape": "box",
+    "position": [
+     -2.0,
+     1.0
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0143,
+     1.3429
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "End pane",
+    "shape": "box",
+    "position": [
+     2.0,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0143,
+     1.3429
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "End pane",
+    "shape": "box",
+    "position": [
+     2.0,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0143,
+     1.3429
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "End pane",
+    "shape": "box",
+    "position": [
+     2.0,
+     1.0
+    ],
+    "size": 1.0,
+    "stretch": 3.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0143,
+     1.3429
+    ],
+    "elevation": 0.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.98,
+      0.96
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bench",
+    "shape": "box",
+    "position": [
+     0,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.8571,
+     1.0
+    ],
+    "elevation": -0.275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.36,
+      0.22
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.03,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bench leg",
+    "shape": "box",
+    "position": [
+     -1.6,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.8571
+    ],
+    "elevation": -0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.36,
+      0.22
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.03,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bench leg",
+    "shape": "box",
+    "position": [
+     1.6,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.8571
+    ],
+    "elevation": -0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.36,
+      0.22
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.03,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 1",
+    "shape": "cylinder",
+    "position": [
+     -1.4,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 1",
+    "shape": "sphere",
+    "position": [
+     -1.4,
+     -0.9
+    ],
+    "size": 0.5311,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.5162,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 2",
+    "shape": "cylinder",
+    "position": [
+     -0.93,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 2",
+    "shape": "cone",
+    "position": [
+     -0.93,
+     -0.9
+    ],
+    "size": 0.6379,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.95,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.4,
+      0.12
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 3",
+    "shape": "cylinder",
+    "position": [
+     -0.46,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 3",
+    "shape": "sphere",
+    "position": [
+     -0.46,
+     -0.9
+    ],
+    "size": 0.6267,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4285,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 4",
+    "shape": "cylinder",
+    "position": [
+     0.01,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 4",
+    "shape": "cone",
+    "position": [
+     0.01,
+     -0.9
+    ],
+    "size": 0.6742,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.95,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.4,
+      0.12
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 5",
+    "shape": "cylinder",
+    "position": [
+     0.48,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 5",
+    "shape": "sphere",
+    "position": [
+     0.48,
+     -0.9
+    ],
+    "size": 0.6855,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4409,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 6",
+    "shape": "cylinder",
+    "position": [
+     0.95,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 6",
+    "shape": "cone",
+    "position": [
+     0.95,
+     -0.9
+    ],
+    "size": 0.7926,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.95,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.4,
+      0.12
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Pot 7",
+    "shape": "cylinder",
+    "position": [
+     1.42,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3429,
+     0.3429
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.36,
+      0.2
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant 7",
+    "shape": "sphere",
+    "position": [
+     1.42,
+     -0.9
+    ],
+    "size": 0.5775,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4653,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Watering can",
+    "shape": "cylinder",
+    "position": [
+     0.9,
+     0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4,
+     0.4
+    ],
+    "elevation": -0.85,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.62,
+      0.6
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spout",
+    "shape": "cylinder",
+    "position": [
+     1.12,
+     0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     -55
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": -0.78,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.62,
+      0.6
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ]
+ }
+}

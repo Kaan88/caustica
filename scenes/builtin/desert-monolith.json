@@ -1,26 +1,27 @@
 {
  "format": 1,
  "title": "Desert monolith",
- "description": "A black slab on orange sand under a hard sun and a bright sky: minimalism and a sharp shadow.",
+ "description": "A black slab among dunes under the physical sky, an hour before sunset: one hard shadow stretching across the sand, the sky's blue in the shade and the sun's orange on the lit faces.",
  "tags": [
   "open",
-  "shadows"
+  "shadows",
+  "physical sky"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
   "cornell_room": false,
   "floor_extent": 40.0,
-  "sky": 1.4,
+  "sky": 0.0,
   "base": [
-   0.8,
-   0.42,
-   0.18
+   0.78,
+   0.47,
+   0.24
   ],
   "floor": {
    "color": [
-    0.8,
-    0.42,
-    0.18
+    0.78,
+    0.47,
+    0.24
    ],
    "roughness": 0.95,
    "metallic": 0.0,
@@ -47,33 +48,7 @@
   "light_intensity": 12.0,
   "light_visible": false,
   "light_temperature": 5600.0,
-  "lights": [
-   {
-    "name": "Sun",
-    "position": [
-     25,
-     30,
-     20
-    ],
-    "rotation": [
-     45.923,
-     51.34,
-     0.0
-    ],
-    "size": [
-     2.5,
-     2.5
-    ],
-    "color": [
-     1.0,
-     0.8694,
-     0.7615
-    ],
-    "intensity": 2000,
-    "enabled": true,
-    "visible": false
-   }
-  ],
+  "lights": [],
   "bounces": 10,
   "yaw": -30,
   "pitch": 6,
@@ -84,11 +59,6 @@
    0
   ],
   "fov": 40,
-  "background": [
-   0.45,
-   0.6,
-   0.85
-  ],
   "objects": [
    {
     "name": "Monolith",
@@ -133,7 +103,412 @@
      "unlit": false
     },
     "portal": -1
+   },
+   {
+    "name": "Dune 1",
+    "shape": "sphere",
+    "position": [
+     25.7574,
+     -19.1515
+    ],
+    "size": 18.9243,
+    "stretch": 0.0867,
+    "rotation": 76.275,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6736,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 2",
+    "shape": "sphere",
+    "position": [
+     -11.5273,
+     -8.2055
+    ],
+    "size": 11.92,
+    "stretch": 0.1156,
+    "rotation": 81.906,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3768,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 3",
+    "shape": "sphere",
+    "position": [
+     10.6707,
+     -4.3259
+    ],
+    "size": 17.1001,
+    "stretch": 0.1137,
+    "rotation": 132.158,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6101,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 4",
+    "shape": "sphere",
+    "position": [
+     -6.4575,
+     1.9068
+    ],
+    "size": 17.831,
+    "stretch": 0.1271,
+    "rotation": 111.778,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.7263,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 5",
+    "shape": "sphere",
+    "position": [
+     16.3385,
+     -9.0386
+    ],
+    "size": 17.5979,
+    "stretch": 0.1095,
+    "rotation": 118.896,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6576,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 6",
+    "shape": "sphere",
+    "position": [
+     -4.2514,
+     3.9285
+    ],
+    "size": 14.7407,
+    "stretch": 0.1374,
+    "rotation": 80.541,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6725,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 7",
+    "shape": "sphere",
+    "position": [
+     -8.0249,
+     -16.001
+    ],
+    "size": 11.7854,
+    "stretch": 0.1059,
+    "rotation": 35.209,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.8527,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 8",
+    "shape": "sphere",
+    "position": [
+     8.3363,
+     1.2846
+    ],
+    "size": 10.3893,
+    "stretch": 0.102,
+    "rotation": 147.719,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6583,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 9",
+    "shape": "sphere",
+    "position": [
+     -8.1497,
+     8.6483
+    ],
+    "size": 12.8848,
+    "stretch": 0.1044,
+    "rotation": 98.819,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.8221,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
    }
-  ]
+  ],
+  "exposure": 1.3,
+  "physical_sky": {
+   "on": true,
+   "time": 18.2,
+   "day": 200.0,
+   "latitude": 28.0,
+   "turbidity": 4.0,
+   "north": 60.0
+  }
  }
 }

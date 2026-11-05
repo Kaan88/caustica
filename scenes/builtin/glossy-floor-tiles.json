@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Glossy floor tiles",
- "description": "A strip of black tiles from mirror to matte under a glowing bar: reflections blur as roughness rises.",
+ "description": "A strip of black tiles from mirror to matte under a glowing bar: the reflection blurs and spreads as the roughness rises from left to right.",
  "tags": [
   "material",
   "roughness"
@@ -47,7 +47,33 @@
   "light_intensity": 12.0,
   "light_visible": false,
   "light_temperature": 5600.0,
-  "lights": [],
+  "lights": [
+   {
+    "name": "Fill",
+    "position": [
+     0,
+     3.0,
+     4.0
+    ],
+    "rotation": [
+     45.0,
+     -0.0,
+     0.0
+    ],
+    "size": [
+     4.0,
+     2.0
+    ],
+    "color": [
+     0.8,
+     0.85,
+     1.0
+    ],
+    "intensity": 1.2,
+    "enabled": true,
+    "visible": false
+   }
+  ],
   "bounces": 10,
   "yaw": 0,
   "pitch": 12,
@@ -487,7 +513,7 @@
      "reflectivity": 0.05,
      "transmission": 0.0,
      "ior": 1.5,
-     "emission": 6,
+     "emission": 16,
      "pattern": "solid",
      "secondary_color": [
       0.04,
@@ -631,6 +657,7 @@
     },
     "portal": -1
    }
-  ]
+  ],
+  "exposure": 1.3
  }
 }

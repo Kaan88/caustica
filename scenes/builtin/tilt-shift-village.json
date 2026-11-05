@@ -1,0 +1,5712 @@
+{
+ "format": 1,
+ "title": "Tilt-shift village",
+ "description": "A village by a river seen from high above through a tilt-shift lens: the focal plane is tilted, so only a band across the middle is sharp and the town reads as a miniature (Look → Camera → Tilt-shift).",
+ "tags": [
+  "camera",
+  "tilt-shift",
+  "depth of field",
+  "physical sky"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.0,
+  "base": [
+   0.3,
+   0.42,
+   0.18
+  ],
+  "floor": {
+   "color": [
+    0.3,
+    0.42,
+    0.18
+   ],
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": 20,
+  "pitch": 40,
+  "distance": 13,
+  "target": [
+   0,
+   -0.8,
+   0
+  ],
+  "fov": 32,
+  "objects": [
+   {
+    "name": "River",
+    "shape": "box",
+    "position": [
+     0.9,
+     0
+    ],
+    "size": 1.0714,
+    "stretch": 0.06,
+    "rotation": 8,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4667,
+     20.0
+    ],
+    "elevation": -0.9775,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.75,
+      0.8
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.33,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bridge",
+    "shape": "box",
+    "position": [
+     0.9,
+     0.4
+    ],
+    "size": 1.0,
+    "stretch": 0.1429,
+    "rotation": 8,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.2857,
+     0.7143
+    ],
+    "elevation": -0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.45,
+      0.4
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -5.3951,
+     -4.355
+    ],
+    "size": 1.0,
+    "stretch": 0.6708,
+    "rotation": -4.231,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7638,
+     0.9053
+    ],
+    "elevation": -0.7652,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.8
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -5.5284,
+     -4.3649
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -4.231,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.504,
+     0.9778
+    ],
+    "elevation": -0.426,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -5.2618,
+     -4.3452
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -4.231,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.504,
+     0.9778
+    ],
+    "elevation": -0.426,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -5.3758,
+     -2.9075
+    ],
+    "size": 1.0,
+    "stretch": 0.6221,
+    "rotation": 88.098,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7875,
+     1.1113
+    ],
+    "elevation": -0.7823,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -5.3803,
+     -2.7698
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 88.098,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5196,
+     1.2002
+    ],
+    "elevation": -0.4569,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -5.3712,
+     -3.0453
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 88.098,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5196,
+     1.2002
+    ],
+    "elevation": -0.4569,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -5.2432,
+     -1.3613
+    ],
+    "size": 1.0,
+    "stretch": 0.5972,
+    "rotation": 4.064,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.863,
+     1.1412
+    ],
+    "elevation": -0.791,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      0.95
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -5.3939,
+     -1.3506
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 4.064,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5695,
+     1.2325
+    ],
+    "elevation": -0.464,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -5.0926,
+     -1.372
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 4.064,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5695,
+     1.2325
+    ],
+    "elevation": -0.464,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -5.3185,
+     0.1346
+    ],
+    "size": 1.0,
+    "stretch": 0.4537,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8412,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -5.3185,
+     0.1346
+    ],
+    "size": 0.7146,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.2382,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4803,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -5.1395,
+     1.2873
+    ],
+    "size": 1.0,
+    "stretch": 0.6654,
+    "rotation": -2.839,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7835,
+     1.1318
+    ],
+    "elevation": -0.7671,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      0.95
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -5.2765,
+     1.2806
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -2.839,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.517,
+     1.2224
+    ],
+    "elevation": -0.4271,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -5.0026,
+     1.2941
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -2.839,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.517,
+     1.2224
+    ],
+    "elevation": -0.4271,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -5.1712,
+     2.7927
+    ],
+    "size": 1.0,
+    "stretch": 0.6123,
+    "rotation": 94.757,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7904,
+     1.1783
+    ],
+    "elevation": -0.7857,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -5.1598,
+     2.9306
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 94.757,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5216,
+     1.2725
+    ],
+    "elevation": -0.4633,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -5.1827,
+     2.6549
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 94.757,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5216,
+     1.2725
+    ],
+    "elevation": -0.4633,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -5.0256,
+     4.3353
+    ],
+    "size": 1.0,
+    "stretch": 0.2923,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8977,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -5.0256,
+     4.3353
+    ],
+    "size": 0.4604,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1535,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4691,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -3.9501,
+     -4.0172
+    ],
+    "size": 1.0,
+    "stretch": 0.3556,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8756,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -3.9501,
+     -4.0172
+    ],
+    "size": 0.56,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1867,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4759,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -3.746,
+     -2.9544
+    ],
+    "size": 1.0,
+    "stretch": 0.8774,
+    "rotation": 85.186,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8582,
+     0.8779
+    ],
+    "elevation": -0.6929,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.8
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -3.7587,
+     -2.8047
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 85.186,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5663,
+     0.9482
+    ],
+    "elevation": -0.2685,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -3.7334,
+     -3.1041
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 85.186,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5663,
+     0.9482
+    ],
+    "elevation": -0.2685,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -4.0196,
+     -1.5351
+    ],
+    "size": 1.0,
+    "stretch": 0.299,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8954,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -4.0196,
+     -1.5351
+    ],
+    "size": 0.4709,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.157,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4417,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -3.8952,
+     0.1442
+    ],
+    "size": 1.0,
+    "stretch": 0.7795,
+    "rotation": 95.678,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9252,
+     1.2234
+    ],
+    "elevation": -0.7272,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.8
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -3.8792,
+     0.3053
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 95.678,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6106,
+     1.3212
+    ],
+    "elevation": -0.3279,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -3.9112,
+     -0.017
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 95.678,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6106,
+     1.3212
+    ],
+    "elevation": -0.3279,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -3.9041,
+     1.5127
+    ],
+    "size": 1.0,
+    "stretch": 0.3078,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8923,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -3.9041,
+     1.5127
+    ],
+    "size": 0.4848,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1616,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4374,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -3.8731,
+     4.2455
+    ],
+    "size": 1.0,
+    "stretch": 0.9428,
+    "rotation": 0.654,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.996,
+     1.2629
+    ],
+    "elevation": -0.67,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -4.0474,
+     4.2475
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.654,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6573,
+     1.3639
+    ],
+    "elevation": -0.2039,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -3.6988,
+     4.2435
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.654,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6573,
+     1.3639
+    ],
+    "elevation": -0.2039,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -2.5946,
+     -4.1162
+    ],
+    "size": 1.0,
+    "stretch": 0.3302,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8844,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -2.5946,
+     -4.1162
+    ],
+    "size": 0.5201,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1734,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4422,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -2.6766,
+     -2.6723
+    ],
+    "size": 1.0,
+    "stretch": 0.6535,
+    "rotation": 92.282,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9009,
+     1.0058
+    ],
+    "elevation": -0.7713,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -2.6703,
+     -2.5148
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 92.282,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5945,
+     1.0863
+    ],
+    "elevation": -0.4194,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -2.6829,
+     -2.8298
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 92.282,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5945,
+     1.0863
+    ],
+    "elevation": -0.4194,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -2.7832,
+     -1.3328
+    ],
+    "size": 1.0,
+    "stretch": 0.3418,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8804,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -2.7832,
+     -1.3328
+    ],
+    "size": 0.5384,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1795,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4824,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -2.7181,
+     0.1561
+    ],
+    "size": 1.0,
+    "stretch": 0.974,
+    "rotation": -5.604,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0426,
+     0.9726
+    ],
+    "elevation": -0.6591,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -2.8997,
+     0.1383
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -5.604,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.688,
+     1.0504
+    ],
+    "elevation": -0.1757,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -2.5365,
+     0.1739
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -5.604,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.688,
+     1.0504
+    ],
+    "elevation": -0.1757,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -2.6965,
+     1.2809
+    ],
+    "size": 1.0,
+    "stretch": 0.7361,
+    "rotation": -3.12,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8576,
+     1.2076
+    ],
+    "elevation": -0.7424,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      0.95
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -2.8463,
+     1.2727
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -3.12,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5659,
+     1.3042
+    ],
+    "elevation": -0.3675,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -2.5466,
+     1.289
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -3.12,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5659,
+     1.3042
+    ],
+    "elevation": -0.3675,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -2.7136,
+     4.3876
+    ],
+    "size": 1.0,
+    "stretch": 0.8509,
+    "rotation": -0.987,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0315,
+     1.0508
+    ],
+    "elevation": -0.7022,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.8
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -2.8941,
+     4.3845
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -0.987,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6807,
+     1.1349
+    ],
+    "elevation": -0.2633,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -2.5331,
+     4.3908
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -0.987,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6807,
+     1.1349
+    ],
+    "elevation": -0.2633,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -1.4384,
+     -4.0767
+    ],
+    "size": 1.0,
+    "stretch": 0.6933,
+    "rotation": 0.953,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8133,
+     0.9739
+    ],
+    "elevation": -0.7574,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.93,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -1.5807,
+     -4.0744
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.953,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5367,
+     1.0518
+    ],
+    "elevation": -0.4035,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -1.2961,
+     -4.0791
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.953,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5367,
+     1.0518
+    ],
+    "elevation": -0.4035,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -1.4044,
+     -2.943
+    ],
+    "size": 1.0,
+    "stretch": 0.8748,
+    "rotation": -1.522,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0178,
+     1.1444
+    ],
+    "elevation": -0.6938,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -1.5824,
+     -2.9477
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -1.522,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6716,
+     1.236
+    ],
+    "elevation": -0.2485,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -1.2263,
+     -2.9383
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -1.522,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6716,
+     1.236
+    ],
+    "elevation": -0.2485,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -1.1236,
+     -1.3307
+    ],
+    "size": 1.0,
+    "stretch": 0.8617,
+    "rotation": 3.208,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8245,
+     1.0233
+    ],
+    "elevation": -0.6984,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.88,
+      0.8
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -1.2676,
+     -1.3226
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 3.208,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5441,
+     1.1051
+    ],
+    "elevation": -0.2841,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -0.9795,
+     -1.3387
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 3.208,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5441,
+     1.1051
+    ],
+    "elevation": -0.2841,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -1.1181,
+     1.4736
+    ],
+    "size": 1.0,
+    "stretch": 0.6778,
+    "rotation": 93.123,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9988,
+     0.8836
+    ],
+    "elevation": -0.7628,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.93,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -1.1086,
+     1.6482
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 93.123,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6591,
+     0.9543
+    ],
+    "elevation": -0.389,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -1.1277,
+     1.2991
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 93.123,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6591,
+     0.9543
+    ],
+    "elevation": -0.389,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     -1.1936,
+     2.7236
+    ],
+    "size": 1.0,
+    "stretch": 0.8054,
+    "rotation": -5.722,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7948,
+     1.2263
+    ],
+    "elevation": -0.7181,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.93,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     -1.332,
+     2.7097
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -5.722,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5245,
+     1.3244
+    ],
+    "elevation": -0.3275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     -1.0552,
+     2.7375
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -5.722,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5245,
+     1.3244
+    ],
+    "elevation": -0.3275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     -1.3913,
+     4.3035
+    ],
+    "size": 1.0,
+    "stretch": 0.4409,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8457,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     -1.3913,
+     4.3035
+    ],
+    "size": 0.6944,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.2315,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4967,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     0.0476,
+     1.2809
+    ],
+    "size": 1.0,
+    "stretch": 0.4845,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8304,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     0.0476,
+     1.2809
+    ],
+    "size": 0.763,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.2543,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4169,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     0.1532,
+     2.7649
+    ],
+    "size": 1.0,
+    "stretch": 0.5063,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8228,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     0.1532,
+     2.7649
+    ],
+    "size": 0.7974,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.2658,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.468,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     0.1823,
+     4.2066
+    ],
+    "size": 1.0,
+    "stretch": 0.3446,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8794,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     0.1823,
+     4.2066
+    ],
+    "size": 0.5427,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1809,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.3636,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     2.5681,
+     -4.3723
+    ],
+    "size": 1.0,
+    "stretch": 0.6213,
+    "rotation": 2.5,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0046,
+     1.2708
+    ],
+    "elevation": -0.7825,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      0.95
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     2.3924,
+     -4.3647
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 2.5,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6629,
+     1.3725
+    ],
+    "elevation": -0.4277,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     2.7437,
+     -4.38
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 2.5,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6629,
+     1.3725
+    ],
+    "elevation": -0.4277,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     2.6658,
+     -2.8198
+    ],
+    "size": 1.0,
+    "stretch": 0.9444,
+    "rotation": 88.226,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8335,
+     1.243
+    ],
+    "elevation": -0.6695,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.93,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     2.6613,
+     -2.674
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 88.226,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.55,
+     1.3424
+    ],
+    "elevation": -0.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     2.6704,
+     -2.9656
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 88.226,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.55,
+     1.3424
+    ],
+    "elevation": -0.225,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     2.4623,
+     -1.4978
+    ],
+    "size": 1.0,
+    "stretch": 0.7106,
+    "rotation": 0.617,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8243,
+     0.8825
+    ],
+    "elevation": -0.7513,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     2.3181,
+     -1.4962
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.617,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5439,
+     0.9531
+    ],
+    "elevation": -0.3899,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     2.6065,
+     -1.4993
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.617,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5439,
+     0.9531
+    ],
+    "elevation": -0.3899,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     2.7068,
+     -0.0945
+    ],
+    "size": 1.0,
+    "stretch": 0.9382,
+    "rotation": 92.981,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.9266,
+     1.0896
+    ],
+    "elevation": -0.6716,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     2.7153,
+     0.0674
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 92.981,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6114,
+     1.1768
+    ],
+    "elevation": -0.2166,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     2.6984,
+     -0.2564
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 92.981,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6114,
+     1.1768
+    ],
+    "elevation": -0.2166,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     2.4594,
+     1.5879
+    ],
+    "size": 1.0,
+    "stretch": 0.6324,
+    "rotation": 95.599,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0062,
+     1.2299
+    ],
+    "elevation": -0.7787,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     2.4766,
+     1.7631
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 95.599,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.664,
+     1.3283
+    ],
+    "elevation": -0.4197,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     2.4422,
+     1.4126
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 95.599,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.664,
+     1.3283
+    ],
+    "elevation": -0.4197,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     2.6049,
+     2.8729
+    ],
+    "size": 1.0,
+    "stretch": 0.778,
+    "rotation": -0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8886,
+     0.9427
+    ],
+    "elevation": -0.7277,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     2.4494,
+     2.8729
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -0.0,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5863,
+     1.0181
+    ],
+    "elevation": -0.3339,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     2.7604,
+     2.8729
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -0.0,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5863,
+     1.0181
+    ],
+    "elevation": -0.3339,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     3.7648,
+     -4.1169
+    ],
+    "size": 1.0,
+    "stretch": 0.9085,
+    "rotation": 3.044,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8378,
+     1.2247
+    ],
+    "elevation": -0.682,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     3.6184,
+     -4.1091
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 3.044,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5529,
+     1.3227
+    ],
+    "elevation": -0.2495,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     3.9112,
+     -4.1247
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 3.044,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5529,
+     1.3227
+    ],
+    "elevation": -0.2495,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     3.7206,
+     -1.2077
+    ],
+    "size": 1.0,
+    "stretch": 0.3704,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8704,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     3.7206,
+     -1.2077
+    ],
+    "size": 0.5834,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1945,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4123,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     3.9063,
+     0.1852
+    ],
+    "size": 1.0,
+    "stretch": 0.3078,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8923,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     3.9063,
+     0.1852
+    ],
+    "size": 0.4848,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1616,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.3745,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     3.8177,
+     1.4598
+    ],
+    "size": 1.0,
+    "stretch": 0.9003,
+    "rotation": -2.095,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8555,
+     0.9804
+    ],
+    "elevation": -0.6849,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     3.6681,
+     1.4544
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -2.095,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5645,
+     1.0588
+    ],
+    "elevation": -0.2528,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     3.9673,
+     1.4653
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -2.095,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5645,
+     1.0588
+    ],
+    "elevation": -0.2528,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     3.889,
+     2.9103
+    ],
+    "size": 1.0,
+    "stretch": 0.9901,
+    "rotation": 1.581,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0688,
+     1.1348
+    ],
+    "elevation": -0.6535,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     3.702,
+     2.9154
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 1.581,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.7053,
+     1.2256
+    ],
+    "elevation": -0.1608,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     4.0759,
+     2.9051
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 1.581,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.7053,
+     1.2256
+    ],
+    "elevation": -0.1608,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     3.9271,
+     4.0594
+    ],
+    "size": 1.0,
+    "stretch": 0.8543,
+    "rotation": 86.718,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7519,
+     1.249
+    ],
+    "elevation": -0.701,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.93,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     3.9196,
+     4.1908
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 86.718,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.4961,
+     1.3489
+    ],
+    "elevation": -0.2992,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     3.9347,
+     3.9281
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 86.718,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.4961,
+     1.3489
+    ],
+    "elevation": -0.2992,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Trunk",
+    "shape": "cylinder",
+    "position": [
+     5.1153,
+     -4.1204
+    ],
+    "size": 1.0,
+    "stretch": 0.3673,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.8714,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crown",
+    "shape": "cone",
+    "position": [
+     5.1153,
+     -4.1204
+    ],
+    "size": 0.5785,
+    "stretch": 1.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.1928,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4936,
+      0.1
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     5.1065,
+     -2.6454
+    ],
+    "size": 1.0,
+    "stretch": 0.8025,
+    "rotation": -5.803,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7858,
+     1.035
+    ],
+    "elevation": -0.7191,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     4.9697,
+     -2.6593
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -5.803,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5186,
+     1.1178
+    ],
+    "elevation": -0.3308,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     5.2433,
+     -2.6315
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": -5.803,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5186,
+     1.1178
+    ],
+    "elevation": -0.3308,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     5.212,
+     -1.3626
+    ],
+    "size": 1.0,
+    "stretch": 0.9781,
+    "rotation": 89.894,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8967,
+     1.1577
+    ],
+    "elevation": -0.6577,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.75,
+      0.7
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     5.2117,
+     -1.2057
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 89.894,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5917,
+     1.2503
+    ],
+    "elevation": -0.1927,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     5.2123,
+     -1.5196
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 89.894,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5917,
+     1.2503
+    ],
+    "elevation": -0.1927,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.45,
+      0.25,
+      0.12
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     5.011,
+     -0.104
+    ],
+    "size": 1.0,
+    "stretch": 0.9881,
+    "rotation": 85.049,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0512,
+     0.9779
+    ],
+    "elevation": -0.6542,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     4.9951,
+     0.0793
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 85.049,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.6937,
+     1.0561
+    ],
+    "elevation": -0.1646,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     5.0268,
+     -0.2873
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 85.049,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.6937,
+     1.0561
+    ],
+    "elevation": -0.1646,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     5.1782,
+     1.2977
+    ],
+    "size": 1.0,
+    "stretch": 0.8888,
+    "rotation": 88.107,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7965,
+     1.1133
+    ],
+    "elevation": -0.6889,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      0.95
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     5.1736,
+     1.437
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 88.107,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5256,
+     1.2024
+    ],
+    "elevation": -0.269,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     5.1828,
+     1.1584
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 88.107,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5256,
+     1.2024
+    ],
+    "elevation": -0.269,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.25,
+      0.27,
+      0.3
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "House",
+    "shape": "box",
+    "position": [
+     5.36,
+     4.1596
+    ],
+    "size": 1.0,
+    "stretch": 0.7717,
+    "rotation": 93.274,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8736,
+     1.2658
+    ],
+    "elevation": -0.7299,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.8,
+      0.65
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof L",
+    "shape": "box",
+    "position": [
+     5.3687,
+     4.3122
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 93.274,
+    "tilt": [
+     0,
+     38
+    ],
+    "scale_xz": [
+     0.5765,
+     1.3671
+    ],
+    "elevation": -0.3403,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Roof R",
+    "shape": "box",
+    "position": [
+     5.3512,
+     4.007
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 93.274,
+    "tilt": [
+     0,
+     -38
+    ],
+    "scale_xz": [
+     0.5765,
+     1.3671
+    ],
+    "elevation": -0.3403,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.18,
+      0.1
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Church tower",
+    "shape": "cylinder",
+    "position": [
+     -2.6,
+     -1.4
+    ],
+    "size": 1.0,
+    "stretch": 2.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": -0.2,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.88,
+      0.82
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spire",
+    "shape": "cone",
+    "position": [
+     -2.6,
+     -1.4
+    ],
+    "size": 0.8,
+    "stretch": 1.8,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.6,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.3,
+      0.33
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "physical_sky": {
+   "on": true,
+   "time": 16.0,
+   "day": 150.0,
+   "latitude": 47.0,
+   "turbidity": 3.0,
+   "north": 30.0
+  },
+  "exposure": 1.3,
+  "projection": 4,
+  "tilt": 14.0,
+  "aperture": 0.35,
+  "focus_distance": 13.0
+ }
+}

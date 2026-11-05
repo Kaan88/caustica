@@ -1,0 +1,349 @@
+{
+ "format": 1,
+ "title": "Loft ceramics",
+ "description": "Five glazed vessels on a white plinth in a daylit loft photo studio: a glossy celadon glaze, a matte stoneware with sheen, a red coat over a rough body, black gloss and spun brass. One soft window light.",
+ "tags": [
+  "hdri",
+  "studio",
+  "material",
+  "coat",
+  "sheen"
+ ],
+ "credits": "Photo studio loft hall: Poly Haven (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 6.0,
+  "sky": 0.0,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.6,
+    0.58,
+    0.55
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 12,
+  "yaw": 10,
+  "pitch": 8,
+  "distance": 4.6,
+  "target": [
+   0,
+   -0.1,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Plinth",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     4.5714,
+     1.4286
+    ],
+    "elevation": -0.7,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.91,
+      0.88
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vessel 1",
+    "shape": "pawn",
+    "position": [
+     -1.2,
+     0
+    ],
+    "size": 0.8,
+    "stretch": 1.6,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.3,
+      0.35
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.03
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vessel 2",
+    "shape": "cylinder",
+    "position": [
+     -0.55,
+     0
+    ],
+    "size": 0.55,
+    "stretch": 1.9,
+    "rotation": 25,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.8,
+      0.72
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.3,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.6
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vessel 3",
+    "shape": "sphere",
+    "position": [
+     0.1,
+     0
+    ],
+    "size": 0.75,
+    "stretch": 0.9,
+    "rotation": 50,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.15,
+      0.06
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.08
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vessel 4",
+    "shape": "cone",
+    "position": [
+     0.7,
+     0
+    ],
+    "size": 0.6,
+    "stretch": 1.4,
+    "rotation": 75,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.1,
+      0.1
+     ],
+     "roughness": 0.05,
+     "metallic": 0.0,
+     "reflectivity": 0.5,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Vessel 5",
+    "shape": "torus",
+    "position": [
+     1.25,
+     0
+    ],
+    "size": 0.6,
+    "stretch": 1.6,
+    "rotation": 100,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.6,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.6,
+      0.35
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "anisotropy": 0.6,
+     "anisotropy_rotation": 0.0,
+     "anisotropy_spun": true
+    },
+    "portal": -1
+   }
+  ],
+  "hdri": "hdri/photo_studio_loft_hall_4k.hdr",
+  "hdri_strength": 1.0,
+  "hdri_rotation": 70,
+  "hdri_visible": true
+ }
+}

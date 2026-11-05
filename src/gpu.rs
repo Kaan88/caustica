@@ -134,6 +134,49 @@ unsafe extern "C" {
 fn ngx_ok(code: u32) -> bool {
     code & 0xfff00000 != 0xbad00000
 }
+/// The NGX code while its thread still runs (not an NGX result; fails `ngx_ok`).
+const NGX_STARTING: u32 = 0xbad0_0057;
+/// The status line and the RR / DLSS SR reasons (empty = available) for an NGX result.
+unsafe fn ngx_status(ngx: *mut c_void, code: u32, adapter_name: &str) -> (String, [String; 2]) {
+    if code == NGX_STARTING {
+        let why = "DLSS is starting (a second or two after launch)".to_string();
+        return (
+            "DLSS starting; native denoiser meanwhile".into(),
+            [why.clone(), why],
+        );
+    }
+    let status = if ngx_ok(code) {
+        "DLSS Ray Reconstruction available".into()
+    } else {
+        format!("NGX unavailable (0x{code:08x}); using native denoiser")
+    };
+    let nvidia = adapter_name.to_ascii_lowercase().contains("nvidia");
+    let caps = if ngx.is_null() {
+        0
+    } else {
+        unsafe { caustica_ngx_caps(ngx) }
+    };
+    let reason = |bit: u32, what: &str| {
+        if !ngx_ok(code) && !nvidia {
+            format!("needs an NVIDIA RTX GPU (this GPU: {adapter_name})")
+        } else if !ngx_ok(code) {
+            format!(
+                "NGX did not start (0x{code:08x}); update the driver, and check that nvngx_dlss*.dll is next to the exe"
+            )
+        } else if caps & bit == 0 {
+            format!("this GPU or driver does not offer {what}")
+        } else {
+            String::new()
+        }
+    };
+    (
+        status,
+        [
+            reason(1, "Ray Reconstruction"),
+            reason(2, "DLSS Super Resolution"),
+        ],
+    )
+}
 pub struct Texture {
     pub resource: ID3D12Resource,
     pub format: DXGI_FORMAT,
@@ -294,6 +337,8 @@ pub struct Gpu {
     free_maps: Vec<u32>,
     ui_frame: Option<ID3D12Resource>,
     ngx: *mut c_void,
+    /// NGX's start-up thread until `poll_ngx` takes its result.
+    ngx_pending: Option<std::thread::JoinHandle<Threaded<(*mut c_void, u32)>>>,
     fsr: *mut c_void,
     xess: *mut c_void,
     /// Temporal upscaler for the native path (RR off, render scale below 1).
@@ -393,6 +438,8 @@ mod util;
 use util::*;
 impl Drop for Gpu {
     fn drop(&mut self) {
+        // NGX may still be starting: its handle is destroyed with the rest.
+        self.poll_ngx(true);
         unsafe {
             let _ = self.wait_idle();
             caustica_ngx_destroy(self.ngx);

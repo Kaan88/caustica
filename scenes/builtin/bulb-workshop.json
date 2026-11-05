@@ -1,0 +1,1088 @@
+{
+ "format": 1,
+ "title": "Bulb workshop",
+ "description": "A workbench under five bare bulbs on cords, each a sphere light at its own blackbody temperature from 2200 K to 3200 K: small round sources, soft-edged shadows of the tools, and the warm pools overlapping on the brick.",
+ "tags": [
+  "lights",
+  "sphere light",
+  "kelvin",
+  "interior"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.12,
+   0.1,
+   0.08
+  ],
+  "floor": {
+   "color": [
+    0.12,
+    0.1,
+    0.08
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.04,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Bulb 1",
+    "position": [
+     -1.6,
+     1.25,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.11,
+     0.11
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2200.0
+   },
+   {
+    "name": "Bulb 2",
+    "position": [
+     -0.8,
+     1.0669,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.11,
+     0.11
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2450.0
+   },
+   {
+    "name": "Bulb 3",
+    "position": [
+     0.0,
+     0.7858,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.11,
+     0.11
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2700.0
+   },
+   {
+    "name": "Bulb 4",
+    "position": [
+     0.8,
+     0.8185,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.11,
+     0.11
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2950.0
+   },
+   {
+    "name": "Bulb 5",
+    "position": [
+     1.6,
+     1.1171,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.11,
+     0.11
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 2.5,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 3200.0
+   }
+  ],
+  "bounces": 10,
+  "yaw": 10,
+  "pitch": 8,
+  "distance": 4.2,
+  "target": [
+   0,
+   0.2,
+   -0.6
+  ],
+  "fov": 45,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -1.6
+    ],
+    "size": 1.0,
+    "stretch": 5.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     8.5714,
+     0.1429
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.18,
+      0.12
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "checker",
+     "secondary_color": [
+      0.35,
+      0.15,
+      0.1
+     ],
+     "pattern_scale": 8.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bench top",
+    "shape": "box",
+    "position": [
+     0,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.1,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     5.1429,
+     1.4286
+    ],
+    "elevation": -0.115,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.28,
+      0.16
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bench leg",
+    "shape": "box",
+    "position": [
+     -1.6,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 1.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     1.2857
+    ],
+    "elevation": -0.575,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.28,
+      0.16
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bench leg",
+    "shape": "box",
+    "position": [
+     1.6,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 1.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     1.2857
+    ],
+    "elevation": -0.575,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.28,
+      0.16
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Crate",
+    "shape": "box",
+    "position": [
+     -1.2,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 0.5429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8571,
+     0.7143
+    ],
+    "elevation": 0.11,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.4,
+      0.22
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Hammer handle",
+    "shape": "cylinder",
+    "position": [
+     0.3,
+     -0.75
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.0571,
+     0.0571
+    ],
+    "elevation": -0.04,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.28,
+      0.16
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.04,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Hammer head",
+    "shape": "box",
+    "position": [
+     0.6,
+     -0.75
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.2857
+    ],
+    "elevation": -0.04,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.7,
+      0.72
+     ],
+     "roughness": 0.25,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Wrench",
+    "shape": "box",
+    "position": [
+     -0.3,
+     -0.6
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 25,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.25,
+     0.15
+    ],
+    "elevation": -0.07,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.7,
+      0.72
+     ],
+     "roughness": 0.25,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spool",
+    "shape": "torus",
+    "position": [
+     1.0,
+     -1.0
+    ],
+    "size": 0.5,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.95,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.1,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Oil can",
+    "shape": "cylinder",
+    "position": [
+     1.4,
+     -0.7
+    ],
+    "size": 1.0,
+    "stretch": 0.3286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2286,
+     0.2286
+    ],
+    "elevation": 0.035,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.8,
+      0.55,
+      0.05
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cord 1",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 1.7857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0171,
+     0.0171
+    ],
+    "elevation": 1.975,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Socket 1",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 1.33,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.5,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cord 2",
+    "shape": "cylinder",
+    "position": [
+     -0.8,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 2.0473,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0171,
+     0.0171
+    ],
+    "elevation": 1.8834,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Socket 2",
+    "shape": "cylinder",
+    "position": [
+     -0.8,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 1.1469,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.5,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cord 3",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 2.4489,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0171,
+     0.0171
+    ],
+    "elevation": 1.7429,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Socket 3",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.8658,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.5,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cord 4",
+    "shape": "cylinder",
+    "position": [
+     0.8,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 2.4021,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0171,
+     0.0171
+    ],
+    "elevation": 1.7593,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Socket 4",
+    "shape": "cylinder",
+    "position": [
+     0.8,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 0.8985,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.5,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cord 5",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 1.9755,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0171,
+     0.0171
+    ],
+    "elevation": 1.9086,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Socket 5",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0714,
+     0.0714
+    ],
+    "elevation": 1.1971,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.5,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.3
+ }
+}

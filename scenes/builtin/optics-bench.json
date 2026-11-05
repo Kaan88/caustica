@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Optics bench",
- "description": "A narrow beam grazing the floor through a convex lens, a 50/50 beam splitter, a concave lens and a prism (track 17). Photon mapping draws the light on the floor; move the pieces with the gizmo.",
+ "description": "A narrow beam grazing the floor through a convex lens, a 50/50 beam splitter, a concave lens and a prism (track 17), in a thin haze that shows the beam's path. Photon mapping draws the light on the floor and the screens; move the pieces with the gizmo.",
  "tags": [
   "optics",
   "caustics",
@@ -297,7 +297,7 @@
    }
   ],
   "integrator": 2,
-  "light_intensity": 1.5,
+  "light_intensity": 3.0,
   "light_position": [
    0.0,
    4.0,
@@ -305,6 +305,18 @@
   ],
   "light_size": 3.0,
   "light_visible": false,
-  "light_temperature": 6500.0
+  "light_temperature": 6500.0,
+  "fog": {
+   "density": 0.035,
+   "color": [
+    1,
+    1,
+    1
+   ],
+   "phase": 0.4,
+   "height": 1.5,
+   "extent": 6.0
+  },
+  "exposure": 1.4
  }
 }

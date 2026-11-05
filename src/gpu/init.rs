@@ -504,42 +504,28 @@ impl Gpu {
             D3D12_RESOURCE_FLAG_NONE,
             D3D12_RESOURCE_STATE_COPY_DEST,
         )?;
-        let (ngx, code) = match ngx_thread.join() {
-            Ok(t) => t.0,
-            Err(e) => std::panic::resume_unwind(e),
-        };
-        let rr_status = if ngx_ok(code) {
-            "DLSS Ray Reconstruction available".into()
+        // NGX usually finishes after the pipelines: rather than wait (about a second on a warm
+        // shader cache), the first frames use the native denoiser and `poll_ngx` takes NGX up
+        // when the thread is done. Headless runs and the self-test wait for it (`wait_ngx`).
+        let (ngx, ngx_pending) = if ngx_thread.is_finished() {
+            let (ngx, code) = match ngx_thread.join() {
+                Ok(t) => t.0,
+                Err(e) => std::panic::resume_unwind(e),
+            };
+            ((ngx, code), None)
         } else {
-            format!("NGX unavailable (0x{code:08x}); using native denoiser")
+            ((null_mut(), NGX_STARTING), Some(ngx_thread))
         };
+        let (ngx, code) = ngx;
+        let (rr_status, [rr_reason, sr_reason]) = ngx_status(ngx, code, &adapter_name);
         let mut fsr = null_mut();
         let fsr_code = caustica_fsr_init(device.as_raw(), &mut fsr);
         let mut xess = null_mut();
         let xess_code = caustica_xess_init(device.as_raw(), &mut xess);
         let init_reasons = {
-            let nvidia = adapter_name.to_ascii_lowercase().contains("nvidia");
-            let caps = if ngx.is_null() {
-                0
-            } else {
-                caustica_ngx_caps(ngx)
-            };
-            let ngx_reason = |bit: u32, what: &str| {
-                if !ngx_ok(code) && !nvidia {
-                    format!("needs an NVIDIA RTX GPU (this GPU: {adapter_name})")
-                } else if !ngx_ok(code) {
-                    format!(
-                        "NGX did not start (0x{code:08x}); update the driver, and check that nvngx_dlss*.dll is next to the exe"
-                    )
-                } else if caps & bit == 0 {
-                    format!("this GPU or driver does not offer {what}")
-                } else {
-                    String::new()
-                }
-            };
             [
-                ngx_reason(1, "Ray Reconstruction"),
-                ngx_reason(2, "DLSS Super Resolution"),
+                rr_reason,
+                sr_reason,
                 match fsr_code {
                     _ if !fsr.is_null() => String::new(),
                     1 => "amd_fidelityfx_loader_dx12.dll is missing next to the exe".into(),
@@ -555,7 +541,9 @@ impl Gpu {
         };
         eprintln!(
             "GPU: {adapter_name}; {rr_status}; DLSS SR {}; FSR {}; XeSS {}",
-            if !ngx.is_null() && caustica_ngx_caps(ngx) & 2 != 0 {
+            if ngx_pending.is_some() {
+                "starting".to_string()
+            } else if !ngx.is_null() && caustica_ngx_caps(ngx) & 2 != 0 {
                 "available".to_string()
             } else {
                 "unavailable".into()
@@ -672,6 +660,7 @@ impl Gpu {
             free_maps: (0..MAX_MAPS as u32).rev().collect(),
             ui_frame: None,
             ngx,
+            ngx_pending,
             fsr,
             xess,
             sr_created: None,
@@ -698,6 +687,7 @@ impl Gpu {
                 hdr_active: false,
                 hdr10: false,
                 hdr10_refused: false,
+                hdr_refused: false,
                 hdr_levels: [200., 1000.],
                 painting: false,
                 zebras: false,

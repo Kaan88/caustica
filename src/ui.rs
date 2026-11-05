@@ -218,6 +218,8 @@ pub struct UiState {
     /// Preferences (prefs.rs); written back only when `prefs_live` (interactive runs).
     pub prefs: crate::prefs::Prefs,
     pub prefs_live: bool,
+    /// Menu → Renderer → Restart now: the app starts itself again and exits.
+    pub restart: bool,
     /// The scene file last loaded or saved and the scene name it had: Ctrl+S overwrites it
     /// while the name is unchanged (never by title alone).
     pub loaded_file: Option<(std::path::PathBuf, String)>,
@@ -354,6 +356,7 @@ impl Default for UiState {
             scene_list: 0,
             prefs: Default::default(),
             prefs_live: false,
+            restart: false,
             loaded_file: None,
             scene_selected: None,
             gen_family: 0,

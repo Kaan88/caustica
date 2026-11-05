@@ -66,6 +66,14 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
                 ui.add(crate::slider(&mut m.texture_scale, 0.01..=100.).logarithmic(true));
             },
         );
+        row(
+            ui,
+            "Mesh UVs",
+            "Map the set by the mesh's own UVs (texture scale = repeats per UV unit) instead of projecting it along the axes. For imported meshes; built-in shapes have no UVs.",
+            |ui| {
+                ui.checkbox(&mut m.texture_uv, "");
+            },
+        );
     }
 }
 pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool) {

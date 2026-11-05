@@ -202,7 +202,11 @@ static CACHE: LazyLock<Mutex<Cache>> = LazyLock::new(Default::default);
 /// Loaded files by the path as stored (before `resolve`, which checks each scene root on disk):
 /// a rebuild asks for every object's file several times, and the chess set spent 3 ms of a
 /// drag frame in those checks. Only successes are kept, so a file that appears later is found.
-static LOADED: LazyLock<Mutex<HashMap<String, Arc<Imported>>>> = LazyLock::new(Default::default);
+/// Path as stored → the file it resolved to, when, and its contents. A hit older than two
+/// seconds re-resolves, so a same-named file that appears in the user scenes folder (which
+/// `resolve` prefers) takes over without paying the checks on every drag frame.
+type Loaded = HashMap<String, (PathBuf, std::time::Instant, Arc<Imported>)>;
+static LOADED: LazyLock<Mutex<Loaded>> = LazyLock::new(Default::default);
 
 /// Relative paths are relative to the scenes folder (where scene files and `meshes/` live).
 pub fn resolve(path: &str) -> PathBuf {
@@ -222,8 +226,18 @@ pub fn store(path: &Path) -> String {
 /// Loads a file (a `#part` suffix is ignored here).
 pub fn load(path: &str) -> Result<Arc<Imported>> {
     let file = split(path).0;
-    if let Some(hit) = LOADED.lock().unwrap_or_else(|e| e.into_inner()).get(file) {
-        return Ok(hit.clone());
+    if let Some((at, when, hit)) = LOADED
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get_mut(file)
+    {
+        if when.elapsed().as_secs_f32() < 2. {
+            return Ok(hit.clone());
+        }
+        if resolve(file) == *at {
+            *when = std::time::Instant::now();
+            return Ok(hit.clone());
+        }
     }
     let key = resolve(file);
     let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -231,12 +245,12 @@ pub fn load(path: &str) -> Result<Arc<Imported>> {
         return hit.clone().map_err(anyhow::Error::msg);
     }
     let result = read(&key).map(Arc::new).map_err(|e| format!("{e:#}"));
-    cache.insert(key, result.clone());
+    cache.insert(key.clone(), result.clone());
     if let Ok(hit) = &result {
-        LOADED
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .insert(file.to_string(), hit.clone());
+        LOADED.lock().unwrap_or_else(|e| e.into_inner()).insert(
+            file.to_string(),
+            (key, std::time::Instant::now(), hit.clone()),
+        );
     }
     result.map_err(anyhow::Error::msg)
 }

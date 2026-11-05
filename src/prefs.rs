@@ -27,6 +27,8 @@ pub struct Prefs {
     pub puzzle_best: std::collections::BTreeMap<String, u32>,
     /// File name of quick saves and high-resolution stills (`video::expand_name`).
     pub name_template: String,
+    /// Windows: render with Vulkan instead of D3D12 (Menu → Renderer; from the next start).
+    pub vulkan: bool,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -40,6 +42,7 @@ impl Default for Prefs {
             ai_profiles: Vec::new(),
             puzzle_best: Default::default(),
             name_template: "caustica".into(),
+            vulkan: false,
         }
     }
 }

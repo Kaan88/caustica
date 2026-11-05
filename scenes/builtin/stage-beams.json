@@ -1,12 +1,13 @@
 {
  "format": 1,
  "title": "Stage beams",
- "description": "Three coloured spotlights cut through a hazy black stage onto a satin metal sphere: visible beams from single scattering, lit by next-event estimation from every point of the haze.",
+ "description": "Three coloured spotlights cut through drifting smoke on a black stage onto a satin metal sphere and a microphone: the smoke's density varies (fBm noise, sampled by delta tracking), so the beams break up into drifting wisps. Set Fog → Noise to 0 for a clean haze.",
  "tags": [
   "volume",
   "fog",
   "spot",
-  "lights"
+  "lights",
+  "noise"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -71,7 +72,7 @@
      0.15,
      0.08
     ],
-    "intensity": 120.0,
+    "intensity": 220.0,
     "enabled": true,
     "visible": false,
     "kind": "spot",
@@ -99,7 +100,7 @@
      1.0,
      0.25
     ],
-    "intensity": 120.0,
+    "intensity": 220.0,
     "enabled": true,
     "visible": false,
     "kind": "spot",
@@ -127,7 +128,7 @@
      0.3,
      1.0
     ],
-    "intensity": 120.0,
+    "intensity": 220.0,
     "enabled": true,
     "visible": false,
     "kind": "spot",
@@ -151,7 +152,7 @@
    0.0
   ],
   "fog": {
-   "density": 0.12,
+   "density": 0.14,
    "color": [
     0.9,
     0.9,
@@ -159,8 +160,11 @@
    ],
    "phase": 0.6,
    "height": 6.0,
-   "extent": 10.0
+   "extent": 10.0,
+   "noise": 0.75,
+   "noise_size": 0.9
   },
+  "exposure": 2.0,
   "objects": [
    {
     "name": "Satin metal sphere",
@@ -190,6 +194,138 @@
       0.97
      ],
      "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Mic stand",
+    "shape": "cylinder",
+    "position": [
+     1.1,
+     0.6
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0429,
+     0.0429
+    ],
+    "elevation": -0.3,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.1,
+      0.1
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Mic stand foot",
+    "shape": "cylinder",
+    "position": [
+     1.1,
+     0.6
+    ],
+    "size": 0.8571,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6667,
+     0.6667
+    ],
+    "elevation": -0.985,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.1,
+      0.1
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Microphone",
+    "shape": "sphere",
+    "position": [
+     1.1,
+     0.6
+    ],
+    "size": 0.2,
+    "stretch": 1.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.48,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.6,
+      0.62
+     ],
+     "roughness": 0.35,
      "metallic": 1,
      "reflectivity": 0.05,
      "transmission": 0.0,

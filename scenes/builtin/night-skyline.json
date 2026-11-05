@@ -1,11 +1,12 @@
 {
  "format": 1,
  "title": "Night skyline",
- "description": "About 150 towers with glowing window bands under a faint night sky: hundreds of emissive triangles.",
+ "description": "About 150 towers with glowing window bands, red beacons on the tallest and a low moon, over a wet dark plaza: hundreds of emissive triangles, with a touch of lens glare around the brightest lights.",
  "tags": [
   "city",
   "night",
-  "emissive"
+  "emissive",
+  "glare"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -13,19 +14,19 @@
   "floor_extent": 40.0,
   "sky": 0.03,
   "base": [
-   0.04,
-   0.04,
-   0.05
+   0.03,
+   0.03,
+   0.04
   ],
   "floor": {
    "color": [
-    0.05,
-    0.05,
-    0.06
+    0.03,
+    0.03,
+    0.04
    ],
-   "roughness": 0.4,
+   "roughness": 0.15,
    "metallic": 0.0,
-   "reflectivity": 0.1,
+   "reflectivity": 0.35,
    "transmission": 0.0,
    "ior": 1.5,
    "emission": 0.0,
@@ -6488,7 +6489,494 @@
      "unlit": false
     },
     "portal": -1
+   },
+   {
+    "name": "Beacon 1",
+    "shape": "sphere",
+    "position": [
+     -1.2031,
+     -2.44
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 6.0677,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 2",
+    "shape": "sphere",
+    "position": [
+     -0.0814,
+     2.4443
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 6.1027,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 3",
+    "shape": "sphere",
+    "position": [
+     1.2095,
+     -2.4823
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 6.3421,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 4",
+    "shape": "sphere",
+    "position": [
+     2.596,
+     -0.0513
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 7.3851,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 5",
+    "shape": "sphere",
+    "position": [
+     -1.3396,
+     2.5904
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 6.0573,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 6",
+    "shape": "sphere",
+    "position": [
+     1.268,
+     1.3108
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 5.697,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 7",
+    "shape": "sphere",
+    "position": [
+     1.2538,
+     6.2384
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 5.3578,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 8",
+    "shape": "sphere",
+    "position": [
+     3.8485,
+     3.709
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 5.3567,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 9",
+    "shape": "sphere",
+    "position": [
+     2.4696,
+     -7.5333
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 5.344,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Beacon 10",
+    "shape": "sphere",
+    "position": [
+     -6.2139,
+     -5.0771
+    ],
+    "size": 0.25,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 5.3396,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.08,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Moon",
+    "shape": "sphere",
+    "position": [
+     -30,
+     -30
+    ],
+    "size": 8.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.9,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
    }
-  ]
+  ],
+  "exposure": 1.5,
+  "glare": 0.25,
+  "glare_threshold": 3.0
  }
 }

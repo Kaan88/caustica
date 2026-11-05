@@ -54,18 +54,18 @@
   "light_temperature": 5600.0,
   "lights": [],
   "bounces": 12,
-  "yaw": 90,
-  "pitch": 8,
-  "distance": 4.5,
+  "yaw": 65,
+  "pitch": 4,
+  "distance": 4.2,
   "target": [
-   0,
-   1.6,
-   0
+   1.2,
+   0.9,
+   -0.7
   ],
-  "fov": 65,
+  "fov": 60,
   "physical_sky": {
    "on": true,
-   "time": 12.5,
+   "time": 14.0,
    "day": 172.0,
    "latitude": 40.0
   },
@@ -2466,7 +2466,7 @@
     "maps_from": "models/Sponza/Sponza.gltf#16"
    }
   ],
-  "exposure": 2.5,
+  "exposure": 3.2,
   "physics": {
    "enabled": true,
    "wind": [

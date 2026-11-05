@@ -176,6 +176,141 @@
     },
     "portal": -1,
     "locked": true
+   },
+   {
+    "name": "Laser housing",
+    "shape": "box",
+    "position": [
+     -2.78,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.3429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7143,
+     0.3143
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.14
+     ],
+     "roughness": 0.35,
+     "metallic": 0.6,
+     "reflectivity": 0.1,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "locked": true
+   },
+   {
+    "name": "Laser aperture",
+    "shape": "cylinder",
+    "position": [
+     -2.57,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.1429,
+     0.1429
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1,
+    "locked": true
+   },
+   {
+    "name": "Laser post",
+    "shape": "cylinder",
+    "position": [
+     -2.78,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1143,
+     0.1143
+    ],
+    "elevation": -0.86,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.3,
+      0.32
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "locked": true
    }
   ],
   "puzzle": {

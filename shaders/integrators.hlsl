@@ -1,7 +1,8 @@
 // Track 15 part 2: bidirectional path tracing (BDPT) and progressive photon mapping beside the
 // path tracer, built from its pieces (intersect, eval_bsdf, the light table). See engine-notes
 // "BDPT and photon mapping". Both use white noise, see glass as solid in shadow rays, ignore
-// portals, nested-dielectric false hits and the light-sampling mode, and use a box pixel filter.
+// portals, nested-dielectric false hits and the light-sampling mode. Both use the path tracer's
+// pixel filter: camera rays by filter_offset, light-tracing splats weighted by filter_density.
 // Media (track 12's homogeneous media in transmissive objects and the fog box) are walked by
 // free-flight sampling as trace walks them: BDPT gets scatter vertices with HG phase functions,
 // photon mapping volume photons (see engine-notes "Media in BDPT and photon mapping").
@@ -210,11 +211,10 @@ float3 camera_forward(){return -world_view[2].xyz;}
 // The pinhole's directional density (whole image, times the region's share: photon.y) and the
 // render pixel a point projects to inside this dispatch's region.
 float camera_pdf_w(float3 w){float c=dot(w,camera_forward());return c>0?1/(photon.y*c*c*c):0;}
-bool project(float3 q,out uint2 pix){
-    pix=0;float4 c=mul(current_vp,float4(q,1));if(c.w<=0)return false;
-    float2 f=float2(c.x/c.w*0.5+0.5,0.5-c.y/c.w*0.5)*float2(dimensions.xy);
-    if(any(f<float2(region.xy)) || any(f>=float2(min(dimensions.xy,region.zw))))return false;
-    pix=uint2(f);return true;
+bool project(float3 q,out float2 f){
+    float4 c=mul(current_vp,float4(q,1));f=0;if(c.w<=0)return false;
+    f=float2(c.x/c.w*0.5+0.5,0.5-c.y/c.w*0.5)*float2(dimensions.xy);
+    return all(f>=float2(region.xy)) && all(f<float2(min(dimensions.xy,region.zw)));
 }
 // Visibility between two surface points, each moved off its surface toward the other. A shadow
 // ray that stopped a fixed 0.6 mm short of the far point (as next-event estimation's do) still
@@ -272,9 +272,29 @@ void splat(uint2 q,float3 c){
     if(!all(isfinite(c)) || !any(c>0))return;uint a=integrator.z+(q.y*dimensions.x+q.x)*12;
     atomic_add_float(a,c.r);atomic_add_float(a+4,c.g);atomic_add_float(a+8,c.b);
 }
+// A light-tracing sample at film point f, filtered as the camera rays are: pixel p's expected
+// share is filter_density of f − (p + 0.5) per axis, within this dispatch's region. Splatting
+// into every pixel of the support (up to 5×5, 3 compare-exchange loops each) hung the GPU where
+// light tracing concentrates (self-test frame 295), so one pixel per axis is chosen with
+// probability w / W and gets c · Wx · Wy: unbiased, at the one-pixel splat's cost. The choice
+// hashes the film point (the random stream is untouched). A box of width 1 is the old splat.
+float pick_filtered(float f,int r0,int r1,float h,uint key,out int at){
+    int lo=max((int)ceil(f-0.5-h),r0),hi=min((int)floor(f-0.5+h),r1);float W=0;at=lo;
+    for(int x=lo;x<=hi && x<lo+5;x++)W+=filter_density(f-(x+0.5));
+    float u=(hash(key)>>8)*(1.0/16777216.0)*W;
+    for(int x=lo;x<=hi && x<lo+5;x++){float w=filter_density(f-(x+0.5));at=x;if(w>0 && u<w)break;u-=w;}
+    return W;
+}
+void splat_filtered(float2 f,float3 c){
+    if(!all(isfinite(c)) || !any(c>0))return;
+    float h=0.5*lights.z;int2 r0=int2(region.xy),r1=int2(min(dimensions.xy,region.zw))-1;
+    uint key=hash(asuint(f.x)^hash(asuint(f.y)^sampling.w));int x,y;
+    float W=pick_filtered(f.x,r0.x,r1.x,h,key,x)*pick_filtered(f.y,r0.y,r1.y,h,hash(key),y);
+    if(W>0)splat(uint2(x,y),c*W);
+}
 float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pixel_width){
     float3 L=0;bool tri=scene_info.x>0;
-    float2 sub=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
+    float2 sub=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
     float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)return 0;
     // Camera subpath.
     BVertex x0=(BVertex)0;x0.p=o;x0.beta=camera_weight;x0.info=V_CAMERA|(lt?0:V_DELTA);cam[0]=x0;
@@ -358,7 +378,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 // Light tracing: the light subpath's last vertex seen by the camera.
                 if(!lt || s>S)continue;
                 BVertex qs=lig[s-1];if((qs.info&(V_DELTA|V_NO_BSDF))!=0)continue;
-                uint2 pix;if(!project(qs.p,pix))continue;
+                float2 film;if(!project(qs.p,film))continue;
                 float3 w=eye.xyz-qs.p;float d2=dot(w,w),dist=sqrt(d2);w/=dist;
                 float c=vcos(qs,w),ct=dot(-w,camera_forward());if(ct<=0)continue;
                 float3 f;float qsm_rev=0;
@@ -368,7 +388,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 if(!any(C>0))continue;
                 float3 q=qs.p+qs.n*(dot(qs.n,w)>0?0.0003:-0.0003)-eye.xyz;float lq=length(q);
                 Hit hb;if(intersect(eye.xyz,q/lq,lq,hb,false,true))continue;
-                splat(pix,hero_rgb(C*mis_weight(s,1,0,0,camera_pdf_w(-w)*c/d2,qsm_rev,0)));
+                splat_filtered(film,hero_rgb(C*mis_weight(s,1,0,0,camera_pdf_w(-w)*c/d2,qsm_rev,0)));
             }else if(s==1){
                 // Next-event estimation: one light choice per camera vertex, as trace makes it.
                 BVertex pt=cam[t-1];if((pt.info&(V_DELTA|V_NO_BSDF))!=0)continue;
@@ -566,21 +586,30 @@ bool sdf_photon(float p,out float3 o,out float3 w,out float3 b){
         o=h.p+h.ng*(dot(next,h.ng)>0?0.0003:-0.0003);w=next;
     }
 }
+// A cell's chain is newest first, and deposit order is not independent of power (a photon's
+// later bounces land later), so when a chain is longer than the 4096 a gather walks, its first
+// 4096 would be biased. restart_chain counts the chain (up to 2^20) and restarts the walk taking
+// every stride-th photon from a random start, scaled by stride: systematic sampling, unbiased.
+// n becomes -1 (wrapping), so the loop's n++ restarts at 0 from the head.
+void restart_chain(uint head,inout uint j,uint guard,inout uint stride,inout uint start,inout uint n){
+    uint total=guard;for(;j!=0xffffffffu && total<(1u<<20);total++)j=aux.Load(PHOTON_BASE+j*32+28);
+    stride=(total+4095)/4096;start=min((uint)(random()*stride),stride-1);j=head;n=0xffffffffu;
+}
 // The photons within the radius, through the BSDF toward v (flux over the gather disk).
 float3 gather(BVertex x,Material m,float3 v){
     float r=photon.x;float3 sum=0;int3 c0=(int3)floor(x.p/r);
     for(int k=0;k<27;k++){
-        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
-        for(;j!=0xffffffffu && guard<4096;guard++){
-            uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x.p;
-            if((B.z&1u)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r && abs(dot(dq,x.n))<GATHER_SLAB*r){float3 wi=unpack_normal(A.w);float pdf;
-                if(dot(x.n,wi)>0)cell+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*up(asfloat(B.xyz));}
-            j=B.w;
+        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint head=aux.Load(16+4*cell_hash(c)),j=head;float3 cell=0;uint guard=0,stride=1,start=0;
+        for(uint n=0;j!=0xffffffffu && n<(1u<<20);n++){
+            uint a=PHOTON_BASE+j*32;
+            if(n%stride==start){uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x.p;
+                if((B.z&1u)==0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r && abs(dot(dq,x.n))<GATHER_SLAB*r){float3 wi=unpack_normal(A.w);float pdf;
+                    if(dot(x.n,wi)>0)cell+=eval_bsdf(m,x.n,x.tangent,v,wi,pdf)*up(asfloat(B.xyz));}
+                j=B.w;}
+            else j=aux.Load(a+28);
+            if(stride==1 && ++guard==4096 && j!=0xffffffffu){restart_chain(head,j,guard,stride,start,n);cell=0;}
         }
-        // A chain longer than the walk: count the rest and scale up the walked part (the chain's
-        // order is random, so the first 4096 stand for the whole cell) instead of going dark.
-        uint total=guard;for(;j!=0xffffffffu && total<(1u<<20);total++)j=aux.Load(PHOTON_BASE+j*32+28);
-        sum+=cell*(float(total)/max(guard,1u));
+        sum+=cell*stride;
     }
     return sum/(max(integrator.x,1u)*PI*r*r);
 }
@@ -590,15 +619,17 @@ float3 gather(BVertex x,Material m,float3 v){
 float3 gather_volume(float3 x,float3 d,float g,float3 sigma){
     float r=photon.x;float3 sum=0;int3 c0=(int3)floor(x/r);
     for(int k=0;k<27;k++){
-        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint j=aux.Load(16+4*cell_hash(c));float3 cell=0;uint guard=0;
-        for(;j!=0xffffffffu && guard<4096;guard++){
-            uint a=PHOTON_BASE+j*32;uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x;
-            if((B.z&1u)!=0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r)
-                cell+=hg_pdf(dot(unpack_normal(A.w),d),g)*asfloat(B.xyz);
-            j=B.w;
+        int3 c=c0+int3(k%3,(k/3)%3,k/9)-1;uint head=aux.Load(16+4*cell_hash(c)),j=head;float3 cell=0;uint guard=0,stride=1,start=0;
+        for(uint n=0;j!=0xffffffffu && n<(1u<<20);n++){
+            uint a=PHOTON_BASE+j*32;
+            if(n%stride==start){uint4 A=aux.Load4(a),B=aux.Load4(a+16);float3 q=asfloat(A.xyz),dq=q-x;
+                if((B.z&1u)!=0 && all((int3)floor(q/r)==c) && dot(dq,dq)<r*r)
+                    cell+=hg_pdf(dot(unpack_normal(A.w),d),g)*asfloat(B.xyz);
+                j=B.w;}
+            else j=aux.Load(a+28);
+            if(stride==1 && ++guard==4096 && j!=0xffffffffu){restart_chain(head,j,guard,stride,start,n);cell=0;}
         }
-        uint total=guard;for(;j!=0xffffffffu && total<(1u<<20);total++)j=aux.Load(PHOTON_BASE+j*32+28);
-        sum+=cell*(float(total)/max(guard,1u));
+        sum+=cell*stride;
     }
     return up(sum)/(max(integrator.x,1u)*(4.0/3.0)*PI*r*r*r*max(sigma,1e-8));
 }
@@ -640,7 +671,7 @@ float3 direct_light_at(BVertex x,Material m,float3 v,float p_env){
     Hit guide;write_guides(p,guide);
     float p_env=env_share();float3 sum=0;
     for(uint k=0;k<sampling.y;k++){
-        float2 sub=(scene_info.w&1)!=0?jitter.xy:float2(random(),random())-0.5;
+        float2 sub=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
         float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)continue;
         cone_width=pixel_width_now();cone_spread=pixel_angle_now();begin_hero(k*0x9e3779b9u^hash(sampling.w+0x2545f491u));
         float3 beta=camera_weight,ab=0,L=0;Walk wk=camera_walk();

@@ -97,15 +97,22 @@ fn same_bodies(a: &[Object], b: &[Object]) -> bool {
 fn jointed(o: &Object) -> bool {
     o.tether.is_some() || !o.links.is_empty()
 }
-/// Which objects have keyframes on a transform field (they become kinematic bodies). None
-/// while recording: the recorded keys are the simulation's own output.
+/// Which objects have keyframes on a transform field, or have one set by the per-frame script
+/// (they become kinematic bodies). None while recording: the recorded keys are the
+/// simulation's own output.
 fn animated(s: &Settings, recording: bool) -> Vec<bool> {
     let mut out = vec![false; s.objects.len()];
     if recording {
         return out;
     }
-    for t in &s.animation.tracks {
-        let Some(rest) = t.path.strip_prefix("objects/") else {
+    let scripted = if s.animation.script.trim().is_empty() {
+        vec![]
+    } else {
+        crate::script::set_paths(&s.animation.script, s)
+    };
+    let paths = s.animation.tracks.iter().map(|t| t.path.as_str());
+    for path in paths.chain(scripted.iter().map(String::as_str)) {
+        let Some(rest) = path.strip_prefix("objects/") else {
             continue;
         };
         let (i, field) = rest.split_once('/').unwrap_or((rest, ""));
@@ -1479,8 +1486,13 @@ impl crate::App {
         let recording = self.ui.physics_record;
         let rebuild = match &mut self.physics {
             None => {
-                // Undo goes back to the poses from before the simulation started.
-                self.ui.checkpoint(&self.settings);
+                // Undo goes back to the poses from before the simulation started. A transform
+                // already running has moved its targets: the step is from before it (the one
+                // finish_transform records too, so undo takes one step, not two).
+                match self.ui.transform.as_ref().map(|t| t.original.clone()) {
+                    Some(original) => self.ui.checkpoint(&original),
+                    None => self.ui.checkpoint(&self.settings),
+                }
                 true
             }
             Some(sim) => {

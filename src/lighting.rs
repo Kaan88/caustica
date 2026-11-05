@@ -108,13 +108,16 @@ fn pack(m: &Material) -> PackedMaterial {
             m.pattern_scale,
         ],
         maps: [0; 4],
-        // w: box-mapping repeats per unit for a texture set (0 = the mesh's own UVs).
+        // w: box-mapping repeats per unit for a texture set (0 = the mesh's own maps; negative:
+        // the set mapped by the mesh's UVs, |w| repeats per UV unit).
         base_scale: [
             0.,
             0.,
             0.,
             if m.texture.is_empty() {
                 0.
+            } else if m.texture_uv {
+                -m.texture_scale
             } else {
                 m.texture_scale
             },
@@ -310,6 +313,31 @@ pub struct Analytic {
     /// Sphere: radius; sun: 1 − cosine of its angular radius (as 2·sin² of half of it, which
     /// keeps its precision for small suns).
     pub extent: f32,
+    /// Sun: the scene's area as the sun sees it (`sun_area`), which turns its irradiance into
+    /// the power that weights it in the light CDF. Spheres: unused.
+    pub area: f32,
+}
+/// The scene's bounds (the floor, the Cornell box, the objects) projected along the sun's
+/// direction `d`: the area its light falls on. Suns have no finite power, and a fixed nominal
+/// area under-sampled a sun beside very bright small lights in a large scene.
+fn sun_area(s: &Settings, d: Vec3) -> f32 {
+    let (mut x, mut z, mut top) = if s.cornell_room {
+        (1f32, 1f32, 1f32)
+    } else {
+        (s.floor_extent, s.floor_extent, -1f32)
+    };
+    for o in s.objects.iter().filter(|o| o.visible) {
+        let r = 0.35 * o.size * o.scale_xz[0].max(o.scale_xz[1]).max(o.stretch);
+        x = x.max(o.position[0].abs() + r);
+        z = z.max(o.position[1].abs() + r);
+        top = top.max(if o.grounded {
+            -1. + 2. * r + o.elevation
+        } else {
+            o.elevation + r
+        });
+    }
+    let h = (top + 1.).max(1.);
+    (d.y.abs() * 4. * x * z + d.x.abs() * 2. * z * h + d.z.abs() * 2. * x * h).max(1.)
 }
 /// Suns first (the trace tests the first `suns` entries on every miss), then spheres.
 pub fn analytic(s: &Settings) -> Vec<Analytic> {
@@ -330,6 +358,10 @@ pub fn analytic(s: &Settings) -> Vec<Analytic> {
                     LightKind::Sun => 2. * (l.angle * 0.25).to_radians().sin().powi(2),
                     _ => l.size[0] * 0.5,
                 },
+                area: match kind {
+                    LightKind::Sun => sun_area(s, -l.direction()),
+                    _ => 0.,
+                },
             })
     };
     let sky = &s.physical_sky;
@@ -342,6 +374,7 @@ pub fn analytic(s: &Settings) -> Vec<Analytic> {
             kind: LightKind::Sun,
             at: direction,
             extent: sky.sun_extent(),
+            area: sun_area(s, direction),
         });
     sky_sun
         .into_iter()
@@ -386,8 +419,8 @@ pub fn emitter_table(
         let power = match a.kind {
             // Total output of the sphere's surface, as a triangle's area × radiance.
             LightKind::Sphere => 4. * std::f32::consts::PI * a.extent * a.extent * luminance(l),
-            // Irradiance (L·π·sin²) over a nominal 50-unit area: suns have no finite power.
-            _ => luminance(l) * std::f32::consts::PI * a.extent * (2. - a.extent) * 50.,
+            // Irradiance (L·π·sin²) over the area the sun lights.
+            _ => luminance(l) * std::f32::consts::PI * a.extent * (2. - a.extent) * a.area,
         } as f64;
         // Black or zero-intensity lights are not sampled (their triangles are not emitters).
         if power <= 0. {

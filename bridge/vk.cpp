@@ -1,8 +1,26 @@
 // The upscalers on Vulkan: NVIDIA NGX (Ray Reconstruction, DLSS Super Resolution) and Intel XeSS
 // behind a small C ABI, as ngx.cpp and xess.cpp do for D3D12. Rendering stays in Rust/HLSL;
 // images are passed as (image, view, format, width, height) and must be in GENERAL layout.
-#include <windows.h>
 #include <initializer_list>
+#ifdef _WIN32
+#include <windows.h>
+typedef HMODULE Module;
+static void* sym(Module m, const char* name) { return (void*)GetProcAddress(m, name); }
+#else
+// Linux (engine-notes "Linux DLSS"): the same ABI; NGX links statically, XeSS is dlopen'd.
+#include <dlfcn.h>
+#include <string.h>
+#include <unistd.h>
+#define MAX_PATH 4096
+typedef void* Module;
+static void* sym(Module m, const char* name) { return dlsym(m, name); }
+// The executable's folder (/proc/self/exe; in the AppImage, the mount's usr/bin).
+static void exe_dir_utf8(char* path) {
+    ssize_t n = readlink("/proc/self/exe", path, MAX_PATH - 1);
+    path[n > 0 ? n : 0] = 0;
+    char* end = strrchr(path, '/'); if (end) *end = 0;
+}
+#endif
 #include <vulkan/vulkan.h>
 #include "nvsdk_ngx_vk.h"
 #include "nvsdk_ngx_helpers_vk.h"
@@ -21,9 +39,23 @@ static NVSDK_NGX_PerfQuality_Value quality_for(unsigned w, unsigned ow) {
          : ratio >= 0.54f ? NVSDK_NGX_PerfQuality_Value_Balanced : ratio >= 0.42f ? NVSDK_NGX_PerfQuality_Value_MaxPerf
          : NVSDK_NGX_PerfQuality_Value_UltraPerformance;
 }
+// The executable's folder, wide: NGX takes wchar_t paths on both platforms.
 static void exe_dir(wchar_t* path) {
+#ifdef _WIN32
     GetModuleFileNameW(nullptr, path, MAX_PATH);
     wchar_t* end = wcsrchr(path, L'\\'); if (end) *end = 0;
+#else
+    // UTF-8 decoded by hand: mbstowcs would depend on the C locale.
+    char u[MAX_PATH]; exe_dir_utf8(u);
+    size_t o = 0;
+    for (const unsigned char* c = (const unsigned char*)u; *c && o < MAX_PATH - 1; o++) {
+        unsigned v = *c++, extra = v >= 0xf0 ? 3 : v >= 0xe0 ? 2 : v >= 0xc0 ? 1 : 0;
+        if (extra) v &= 0x3f >> extra;
+        for (; extra && (*c & 0xc0) == 0x80; extra--) v = v << 6 | (*c++ & 0x3f);
+        path[o] = (wchar_t)v;
+    }
+    path[o] = 0;
+#endif
 }
 
 struct NgxVk { NVSDK_NGX_Parameter* params=nullptr; NVSDK_NGX_Parameter* sr_params=nullptr; NVSDK_NGX_Handle* handle=nullptr; NVSDK_NGX_Handle* sr=nullptr; VkDevice device=VK_NULL_HANDLE; bool initialized=false; unsigned caps=0; };
@@ -37,11 +69,17 @@ typedef xess_result_t (*XInstanceExt)(uint32_t*, const char* const**, uint32_t*)
 typedef xess_result_t (*XDeviceExt)(VkInstance, VkPhysicalDevice, uint32_t*, const char* const**);
 struct XessVk { XCreate create=nullptr; XInit init=nullptr; XExecute execute=nullptr; XDestroy destroy=nullptr; XScale velocity=nullptr; xess_context_handle_t ctx=nullptr; };
 
-// libxess.dll from the executable's folder, loaded once (null when missing).
-static HMODULE xess_module() {
-    static HMODULE m = [] {
+// libxess from the executable's folder, loaded once (null when missing). Intel ships no Linux
+// libxess.so (SDK 3.0.2): on Linux this stays null unless a later SDK's is placed there.
+static Module xess_module() {
+    static Module m = [] {
+#ifdef _WIN32
         wchar_t path[MAX_PATH]; exe_dir(path); wcscat_s(path, L"\\libxess.dll");
         return LoadLibraryW(path);
+#else
+        char path[MAX_PATH + 16]; exe_dir_utf8(path); strcat(path, "/libxess.so");
+        return dlopen(path, RTLD_NOW | RTLD_LOCAL);
+#endif
     }();
     return m;
 }
@@ -56,13 +94,13 @@ unsigned caustica_vk_upscaler_extensions(int device, VkInstance instance, VkPhys
     if (NVSDK_NGX_SUCCEED(NVSDK_NGX_VULKAN_RequiredExtensions(&ic, &ie, &dc, &de))) {
         if (device) { for (unsigned i = 0; i < dc; i++) add(de[i]); } else { for (unsigned i = 0; i < ic; i++) add(ie[i]); }
     }
-    if (HMODULE m = xess_module()) {
+    if (Module m = xess_module()) {
         uint32_t count = 0; const char* const* names = nullptr;
         if (device) {
-            auto f = (XDeviceExt)GetProcAddress(m, "xessVKGetRequiredDeviceExtensions");
+            auto f = (XDeviceExt)sym(m, "xessVKGetRequiredDeviceExtensions");
             if (f && f(instance, phys, &count, &names) == XESS_RESULT_SUCCESS) for (uint32_t i = 0; i < count; i++) add(names[i]);
         } else {
-            auto f = (XInstanceExt)GetProcAddress(m, "xessVKGetRequiredInstanceExtensions");
+            auto f = (XInstanceExt)sym(m, "xessVKGetRequiredInstanceExtensions");
             uint32_t api = 0;
             if (f && f(&count, &names, &api) == XESS_RESULT_SUCCESS) for (uint32_t i = 0; i < count; i++) add(names[i]);
         }
@@ -146,11 +184,11 @@ unsigned caustica_ngxvk_eval_sr(NgxVk* n, VkCommandBuffer cmd, const VkImageRef*
 // XeSS, as xess.cpp.
 unsigned caustica_xessvk_init(VkInstance instance, VkPhysicalDevice phys, VkDevice device, XessVk** out) {
     *out = nullptr;
-    HMODULE m = xess_module(); if (!m) return 1;
+    Module m = xess_module(); if (!m) return 1;
     XessVk* x = new XessVk;
-    x->create = (XCreate)GetProcAddress(m, "xessVKCreateContext"); x->init = (XInit)GetProcAddress(m, "xessVKInit");
-    x->execute = (XExecute)GetProcAddress(m, "xessVKExecute"); x->destroy = (XDestroy)GetProcAddress(m, "xessDestroyContext");
-    x->velocity = (XScale)GetProcAddress(m, "xessSetVelocityScale");
+    x->create = (XCreate)sym(m, "xessVKCreateContext"); x->init = (XInit)sym(m, "xessVKInit");
+    x->execute = (XExecute)sym(m, "xessVKExecute"); x->destroy = (XDestroy)sym(m, "xessDestroyContext");
+    x->velocity = (XScale)sym(m, "xessSetVelocityScale");
     if (!x->create || !x->init || !x->execute || !x->destroy || !x->velocity) { delete x; return 2; }
     xess_result_t r = x->create(instance, phys, device, &x->ctx);
     if (r != XESS_RESULT_SUCCESS) { delete x; return 0x100u | (unsigned)(r & 0xff); }

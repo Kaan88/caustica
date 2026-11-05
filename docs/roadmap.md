@@ -15,6 +15,7 @@ Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-res
 Details are in engine-notes under the section named in quotes.
 
 - DLSS preset selection, 2026-10-30.
+- Scene overhaul: 14 new built-in scenes, 4 HDRI and 1 material scene for unused features, 16 reworked, 6 redundant and 56 generated seeds removed, laser puzzle housings, scene-relative LUT paths, 2026-11-05 (renders not yet checked): "Scene overhaul".
 - Native HDR output (scRGB; HDR10 swapchain and HDR JPEG XR added 2026-11-02), 2026-10-30: "Native HDR".
 - UI phases 1-5: regrouping, undo / redo, scene browser with thumbnails, Quality bundles, GPU timing, prefs, async high-res still, capabilities struct, modified-row dots, file pickers, 2026-10-30 to 2026-11-02.
 - Blender-style gizmos, G / R / S, snapping, pivots, multi-select, Alt-drag duplicate, 2026-10-30 / 2026-11-02: "Gizmos", "Multi-select, pivots and snapping".
@@ -61,7 +62,7 @@ Still open:
 - [keep] optics-bench (beam splitters) and lava-lamp (SDF emitters) can't be judged by the CPU reference; bigger-on-the-inside is a known gap (no portals in BDPT / photon mapping).
 - [keep] Photon mapping on the white furnace: 0.9945 (z −22) with box filters, a gather-radius bias (expected of progressive photon mapping at 1024 spp; check that it falls with more passes).
 - [keep] Extend the reference to HDRIs, sphere and sun lights, the physical sky only if a new question needs them.
-- Optional: give BDPT and photon mapping the path tracer's pixel filter, so all integrators render the same image by default.
+- [done 2026-11-05, measured] give BDPT and photon mapping the path tracer's pixel filter, so all integrators render the same image by default. BDPT and photon camera rays take `filter_offset`; a light-tracing splat goes to one pixel of the filter's support picked with probability w / W, weighted by W (`splat_filtered`: unbiased, one atomic splat per sample; splatting the whole support hung the GPU on self-test frame 295). Box 1 px renders as before. At 1024 spp with the scenes' filters, BDPT / PT 0.998–1.001 and photon / PT 0.995–1.001 (cornell-caustic, veach-ajar, measured-cornell).
 
 ### b. Code health — done 2026-11-04
 
@@ -81,9 +82,12 @@ Portability: Linux, and AMD / Intel drivers where Vulkan RT is stronger. The ups
   - Ray tracing: `VK_KHR_acceleration_structure` + `VK_KHR_ray_query`, mirroring the inline `RayQuery` design; no pipelines or SBT. `VK_NV_ray_tracing_invocation_reorder` (raygen-only, like D3D12 SER) is the later route to reordering, which measured slower on D3D12.
   - Shaders: the same HLSL to SPIR-V with `dxc -spirv` (`[[vk::binding]]` annotations or `-fvk-*-shift` flags for the register layout). One source of truth for the `Constants` layout.
 - **Shaders, checked 2026-11-04:** `tools/spirv_check.py` compiles all 24 compute / graphics entries of build.rs to SPIR-V (Vulkan 1.3) unchanged with the DXC release build (`vendor/dxc-spirv`, fetched by `tools/setup.ps1` `Get-DxcSpirv`; the Windows SDK's dxc has no SPIR-V codegen); the 7 SER libraries are left for a raygen port. Still to settle with the real descriptor layout: register spaces become descriptor sets one-to-one, and t / u / b registers of the same number in one space share a binding unless shifted (`-fvk-t-shift` etc.); the bindless texture array needs `VK_EXT_descriptor_indexing` (core in 1.2).
-- **Progress (phases in engine-notes "Vulkan backend: design"):** phases 1–6 are done on Windows (2026-11-05): the whole renderer runs on `--vulkan` (denoiser, every integrator, ReSTIR, glare, lens, LPE, maps, environment, LUT, HDR, readbacks, scopes, timestamps, DLSS RR / SR and XeSS), matching D3D12 within noise; BLAS reuse, compaction and TLAS refit as on D3D12; the "Compiling shaders N/22" screen on both backends. Open: FSR on Vulkan (the vendored FidelityFX SDK has only the DX12 loader: blocked until a Vulkan build of the SDK is vendored); the upscalers on Linux (`dlopen` of the Linux NGX / XeSS libraries, not vendored: blocked); shader hot reload on Vulkan (`reload_shaders` is a no-op; rebuild the pipelines from `CAUSTICA_DXC` output); the self-test under the validation layer (`--vulkan --self-test` passes on the RTX, which has no layer installed; the VM covers headless runs only); pumping window messages during a cold shader compile (Windows may mark the window as not responding past 5 s).
+- **Progress (phases in engine-notes "Vulkan backend: design"):** phases 1–6 are done on Windows (2026-11-05): the whole renderer runs on `--vulkan` (denoiser, every integrator, ReSTIR, glare, lens, LPE, maps, environment, LUT, HDR, readbacks, scopes, timestamps, DLSS RR / SR and XeSS), matching D3D12 within noise; BLAS reuse, compaction and TLAS refit as on D3D12; the "Compiling shaders N/22" screen on both backends. Open: FSR on Vulkan (the vendored FidelityFX SDK has only the DX12 loader: blocked until a Vulkan build of the SDK is vendored); XeSS on Linux (Intel ships no `libxess.so` up to SDK 3.0.2: blocked; `bridge/vk.cpp` would `dlopen` one placed beside the binary); DLSS RR / SR on Linux is built and bundled (2026-11-05) but not yet run on NVIDIA hardware (the VM is lavapipe, where NGX declines as expected); shader hot reload on Vulkan (done 2026-11-05, untested: `hotreload` compiles SPIR-V with the SPIR-V DXC and build.rs flags, `reload_shaders` rebuilds the compute pipelines; the UI pipelines stay); the self-test under the validation layer (`--vulkan --self-test` passes on the RTX, which has no layer installed; with Windows HDR on, the RTX's Vulkan surface offers no HDR format, so its HDR checks are skipped with a note: HDR output on Vulkan is untested until a surface offers scRGB or HDR10; the VM covers headless runs only); pumping window messages during a cold shader compile (done 2026-11-05, untested: `progress::watch` peeks the queue with PM_NOREMOVE every 16 ms, which keeps Windows from marking the window as not responding).
+- **Owner reports, open (2026-11-05):**
+  - [done 2026-11-05, untested] Anisotropic texture filtering had no effect on Vulkan: the map sampler (`vulkan/layout.rs`) was plain linear. It now has 16x anisotropy, as D3D12's, with `samplerAnisotropy` enabled where the device offers it.
+  - [done 2026-11-05, untested] Pausing froze the UI on Vulkan: `present` skipped the swap chain on frames that trace nothing (paused, and also converged). It now presents every frame unless the window is minimized, as D3D12 does.
 - **Risks and size:** the largest item on the list; budget weeks. Barriers and layouts, descriptor management and the NGX Vulkan device-extension requirements are the hard parts.
-- **Linux port, open:** `hotreload.rs` runs `CAUSTICA_DXC` (on Linux the DXC release binary, with SPIR-V output); HDR on Linux under Wayland (owner: works, and KDE's HDR calibration is readable as on Windows): an HDR10 / scRGB swap chain through `VK_EXT_swapchain_colorspace` + `VK_EXT_hdr_metadata` (KWin and Mesa expose the Wayland colour-management protocol to it), and `display::Monitor` reading the panel range and SDR brightness from KWin's output config (`~/.config/kwinoutputconfig.json`; key names to check on a real KDE box) instead of reporting SDR; upscalers through `dlopen` (needs the Linux SDK libraries); the `linux` CI job runs once CI is back on.
+- **Linux port, open:** `hotreload.rs` runs `CAUSTICA_DXC` (on Linux the DXC release binary, with SPIR-V output); HDR on Linux under Wayland (owner: works, and KDE's HDR calibration is readable as on Windows): an HDR10 / scRGB swap chain through `VK_EXT_swapchain_colorspace` + `VK_EXT_hdr_metadata` (KWin and Mesa expose the Wayland colour-management protocol to it), and `display::Monitor` reading the panel range and SDR brightness from KWin's output config (`~/.config/kwinoutputconfig.json`; key names to check on a real KDE box) instead of reporting SDR; a first run of DLSS RR / SR on a Linux NVIDIA machine; the `linux` CI job runs once CI is back on.
 
 ## Open tails
 
@@ -91,11 +95,11 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 
 ### Rendering and integrators
 - [keep] Integrator disagreements (dusk, measured-cornell, optics-bench, lava-lamp, bigger-on-the-inside, sweep 55/86, 0.93 blocks): see Now a.
-- [keep] `photon_gather` walks the newest 4096 deposits of a long chain, so its estimate is unbiased only if deposit order is uncorrelated with power; check or bound.
+- [done 2026-11-05, self-tests pass, not tried by hand] `photon_gather` walks the newest 4096 deposits of a long chain, so its estimate is unbiased only if deposit order is uncorrelated with power; check or bound. A chain past 4096 is counted and walked again taking every k-th photon from a random start (systematic sampling, unbiased; `restart_chain`).
 - [done 2026-11-04] ReSTIR reservoirs only for path tracing or battle mode (was already gated: `prepare_restir`).
 - [keep] Stained glass with the physical sky: not reproduced 2026-11-02 (PT and BDPT agree within 0.2%); waits on a viewer repro (camera, time, integrator, denoiser) from the owner.
-- [keep] Nested dielectrics: entering vs leaving is decided from the shading normal, so a misclassified grazing hit can leave a wrong medium; use the geometric normal.
-- [keep] Sun's weight in the light-selection CDF uses a nominal 50-unit receiving area; a sun beside very bright small lights can be under-sampled.
+- [done 2026-11-05, self-tests pass, not tried by hand] Nested dielectrics: entering vs leaving is decided from the shading normal, so a misclassified grazing hit can leave a wrong medium; use the geometric normal. The side is the triangle face normal turned toward the shading normal; `Hit::ng` is now that face normal (offsets too).
+- [done 2026-11-05, self-tests pass, not tried by hand] Sun's weight in the light-selection CDF uses a nominal 50-unit receiving area; a sun beside very bright small lights can be under-sampled. The receiving area is the scene bounds (floor, box, objects) projected along the sun (`sun_area`).
 - [drop] BDPT / photon: portals, MIS free-flight bias in dense media, chromatic extinction, hybrid caustics mode, adaptive radius, DoF light tracing: research-grade, one integrator (PT) is the product.
 - [drop] BDPT / photon: procedural and emissive-map emitters, equiangular sampling, catcher, labels: same.
 - [drop] ReSTIR visibility reuse, ReSTIR GI / PT, target ignoring coat and transmission: research-grade.
@@ -108,7 +112,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 
 ### Materials and textures
 - [done 2026-11-04] IES horizontal planes weigh their angular span (trapezoid rule; test `uneven_horizontal_planes_weigh_their_span`).
-- [keep] A texture set on a mesh is box-mapped; add an option to use the mesh's UVs.
+- [done 2026-11-05, self-tests pass, not tried by hand] A texture set on a mesh is box-mapped; add an option to use the mesh's UVs. `Material::texture_uv` ("Mesh UVs" in the material editor): the set by the mesh UVs at texture-scale repeats per UV unit (packed as a negative `base_scale.w`).
 - [drop] Per-map `KHR_texture_transform` and UV sets, BLEND without a base map, TEXCOORD_1, stored tangents, glTF clearcoat / sheen / anisotropy maps: rare in the files used.
 - [drop] BC7 textures: lossy, against the quality rule.
 - [drop] Box-mapping seams on curved shapes (triplanar), AO / opacity / displacement maps: polish.
@@ -122,22 +126,23 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 
 ### Lights and sky
 - [keep] **Night sky redesign (owner):** stars and moon are physically scaled so they need Exposure 10 plus Sun intensity 1000 to show; Exposure tops out at 10x; no moon-position readout; the owner does not like the current look. Revisit with the owner (engine-notes "Physical sky: night, clock time, altitude").
-- [keep] HDR10: a refusal is now retried after a display change (done 2026-11-04); still open: the R10G10B10A2 typed UAV store is not checked with `CheckFeatureSupport`.
+- [done 2026-11-05, self-tests pass, not tried by hand] HDR10: a refusal is now retried after a display change (done 2026-11-04); still open: the R10G10B10A2 typed UAV store is not checked with `CheckFeatureSupport`. `set_hdr` checks D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE for R10G10B10A2 and falls back to scRGB as for a refused colour space.
 - [drop] HDR10: egui blends on PQ code values (text edges slightly off), `SetHDRMetaData` mastering metadata.
 - [drop] Sky: clouds, aerial perspective on geometry, moon declination and texture, fixed ozone / aerosol profiles, blocky stars when zoomed, first-look bake wait.
 - [drop] HDRIs: more interiors and night maps, EXR downloads; shadow catcher on objects / caustics / finite dome.
 - [drop] Suns tested per miss in a loop (fine for a few), per-shape gizmos for spheres and suns.
 
 ### Volumes
-- [keep] Laser as a physical beam visible only in fog or dust (owner note; the *Beam in image* rods glow by themselves): beams need volumes in the beam.
+- [keep] Laser as a physical beam visible only in fog or dust (owner note; the *Beam in image* rods glow by themselves): beams need volumes in the beam. Sized 2026-11-05: needs beam single scattering (a laser as a line light whose in-scatter is integrated along camera rays in fog, plus photon beams for BDPT / photon mapping): a feature, not a tail.
 - [drop] Heterogeneous object media, VDB grids, animated noise fog, equiangular in noisy fog.
 - [drop] True subsurface (skin-tuned), native denoiser leaving haze noisy (RR is fine), fog inside glass and through glass shadows, medium-aware guides.
 
 ### UI and editor
+- [done 2026-11-05, untested] Owner, 2026-11-05: silhouette outlines should appear only for the clicked selection, not on hover while the mouse moves. The hover probe and its outline are removed (`ui.hovered` is set only by the self-test now). In Sponza an object is under the pointer almost everywhere, so the hover outline never goes away, and moving the pointer out of the viewport doesn't clear it. Drop the hover outline (`ui.hovered` from the GPU probe, gui.hlsl), or put it behind an option that is off by default.
 - [done 2026-11-04] The status bar shows a failed or unavailable upscaler as "Bicubic (X unavailable)" in amber, like RR's fallback.
-- [keep] Gizmo with physics: a mouse grab active when G starts stays pending; the first transform after enabling physics adds an extra undo step.
+- [done 2026-11-05, self-tests pass, not tried by hand] Gizmo with physics: a mouse grab active when G starts stays pending; the first transform after enabling physics adds an extra undo step. G / R / S drop a pending grab; the simulation start inside a transform checkpoints the transform's original, so undo is one step.
 - [done 2026-11-04] The self-test steps physics at a fixed 1/60 s (frames 237–238 no longer depend on frame time).
-- [keep] A per-frame script's moves don't make the object kinematic, so with physics on the simulation's pose wins.
+- [done 2026-11-05, self-tests pass, not tried by hand] A per-frame script's moves don't make the object kinematic, so with physics on the simulation's pose wins. `script::set_paths` records what the script sets at t = 0; those objects are kinematic like keyframed ones (a script that moves something only later is not seen).
 - [done 2026-11-04] LPE EXR layers are named after their expressions (`lpe1_C_D_red_wall_L`).
 - [drop] Modified-row dots on checkboxes and combos, preset registry refactor, lens shift in the free viewport, light thumbnails.
 - [drop] Snapping: rotation to surface normal, rotate / scale snapping, edge-centre targets, lights as targets, "cursor to selected"; box select by outline; inspector and timeline keys for the whole selection; light hover outlines.
@@ -147,14 +152,16 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 - [drop] Console highlighting and completion, generators listed in the Generate section, `add` for lights.
 - [drop] Silhouette outlines on lights, behind glass, coplanar speckle; thumbnail cache pruning and retry.
 - [drop] Startup: cold-cache re-measure, "Loading..." text, detached NGX thread on a failed start (harmless).
-- [keep] Startup: NGX init (~1.5 s) still bounds the start; finish it behind the first frames with the native denoiser until ready.
+- [done 2026-11-05, self-tests pass, not tried by hand] Startup: NGX init (~1.5 s) still bounds the start; finish it behind the first frames with the native denoiser until ready. The join moved off the startup path: frames start with the native denoiser and `poll_ngx` takes NGX up when its thread finishes; headless runs, the self-test and --require-rr wait (`wait_ngx`).
 
 ### Materials / scenes content
+- [keep] Check the overhauled scenes by eye (contact sheet of fresh thumbnails) and tune exposure / light levels where they read too dark or blown; the new physics scenes (festival-banners, swinging-lantern) need a run to confirm the cloth and the chain settle as intended.
+- [keep] starry-observatory scene, after the night-sky redesign (stars and moon at a usable exposure).
 - [drop] Nighthawks figures and curved glass, hourglass with flowing sand, metaball blob count / colour, a phase change rebuilding the whole scene, no scene files using the new light kinds.
 
 ### Animation, physics and cloth
-- [keep] The mesh `LOADED` cache keeps a shipped file after a same-named one appears in the user folder (until restart).
-- [keep] A D3D12 error mid-rebuild can leave `compact_queue` / `tlas_cache` stale.
+- [done 2026-11-05, self-tests pass, not tried by hand] The mesh `LOADED` cache keeps a shipped file after a same-named one appears in the user folder (until restart). Hits re-resolve the path and are used only when it resolves to the same file.
+- [done 2026-11-05, self-tests pass, not tried by hand] A D3D12 error mid-rebuild can leave `compact_queue` / `tlas_cache` stale. `rebuild_scene` clears the compaction queue and the TLAS cache on an error.
 - [drop] Cloth: extreme mass ratios jitter, friction reaction on the body, continuous self-collision, cloth against cloth, thin rails between particles, per-step vertex-buffer append, `Record` of cloth shapes.
 - [drop] Physics: joint tool in the viewport, edits that restart the simulation, motion blur with physics, kinematic jump strength, card-house settling, single-joint wrecking ball, V-HACD first-use second.
 - [drop] Walking: moving platforms, a true capsule, collision cost on 20M-triangle files.

@@ -61,6 +61,8 @@ pub struct Device {
     pub queue: vk::Queue,
     pub name: String,
     pub memory: vk::PhysicalDeviceMemoryProperties,
+    /// samplerAnisotropy is on (the texture-map sampler filters anisotropically).
+    pub anisotropy: bool,
 }
 
 const DEVICE_EXTENSIONS: [&CStr; 3] = [
@@ -149,80 +151,100 @@ impl Device {
                 )?),
                 None => None,
             };
-            let (phys, family, name) = pick(&instance, &surface_fn, surface)?;
+            // On failure the surface, messenger and instance go too: Menu → Renderer falls back
+            // to D3D12 on the same window, which a live surface would keep bound.
+            let made = (|| -> Result<_> {
+                let (phys, family, name) = pick(&instance, &surface_fn, surface)?;
 
-            let mut extensions: Vec<*const c_char> =
-                DEVICE_EXTENSIONS.iter().map(|e| e.as_ptr()).collect();
-            if surface.is_some() {
-                extensions.push(khr::swapchain::NAME.as_ptr());
-            }
-            let offered = instance.enumerate_device_extension_properties(phys)?;
-            for e in gpu::upscale::required_extensions(true, instance.handle(), phys) {
-                let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e);
-                if !known && offered.iter().any(|o| o.extension_name_as_c_str() == Ok(e)) {
-                    extensions.push(e.as_ptr());
+                let mut extensions: Vec<*const c_char> =
+                    DEVICE_EXTENSIONS.iter().map(|e| e.as_ptr()).collect();
+                if surface.is_some() {
+                    extensions.push(khr::swapchain::NAME.as_ptr());
                 }
-            }
-            // Small types the upscalers' shaders use, where the device has them.
-            let mut has11 = vk::PhysicalDeviceVulkan11Features::default();
-            let mut has12 = vk::PhysicalDeviceVulkan12Features::default();
-            let mut has = vk::PhysicalDeviceFeatures2::default()
-                .push_next(&mut has11)
-                .push_next(&mut has12);
-            instance.get_physical_device_features2(phys, &mut has);
-            let has_int16 = has.features.shader_int16;
-            // The egui pass's fragment shader writes the object-id image (u19).
-            ensure!(
-                has.features.fragment_stores_and_atomics != 0,
-                "the GPU lacks fragmentStoresAndAtomics (the UI pass writes object ids)"
-            );
-            let mut f11 = vk::PhysicalDeviceVulkan11Features::default()
-                .storage_buffer16_bit_access(has11.storage_buffer16_bit_access != 0);
-            let mut f12 = vk::PhysicalDeviceVulkan12Features::default()
-                .buffer_device_address(true)
-                .descriptor_indexing(true)
-                .runtime_descriptor_array(true)
-                .shader_sampled_image_array_non_uniform_indexing(true)
-                .descriptor_binding_partially_bound(true)
-                .descriptor_binding_variable_descriptor_count(true)
-                .scalar_block_layout(true)
-                .timeline_semaphore(true)
-                .shader_float16(has12.shader_float16 != 0)
-                .shader_int8(has12.shader_int8 != 0)
-                .storage_buffer8_bit_access(has12.storage_buffer8_bit_access != 0);
-            let mut f13 = vk::PhysicalDeviceVulkan13Features::default()
-                .synchronization2(true)
-                .dynamic_rendering(true)
-                .maintenance4(true);
-            let mut fas = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default()
-                .acceleration_structure(true);
-            let mut frq = vk::PhysicalDeviceRayQueryFeaturesKHR::default().ray_query(true);
-            let core = vk::PhysicalDeviceFeatures::default()
-                .shader_int64(true)
-                .shader_int16(has_int16 != 0)
-                .fragment_stores_and_atomics(true)
-                .shader_storage_image_extended_formats(true)
-                .shader_storage_image_read_without_format(true)
-                .shader_storage_image_write_without_format(true);
-            let priority = [1.0];
-            let queues = [vk::DeviceQueueCreateInfo::default()
-                .queue_family_index(family)
-                .queue_priorities(&priority)];
-            let device = instance
-                .create_device(
-                    phys,
-                    &vk::DeviceCreateInfo::default()
-                        .queue_create_infos(&queues)
-                        .enabled_extension_names(&extensions)
-                        .enabled_features(&core)
-                        .push_next(&mut f11)
-                        .push_next(&mut f12)
-                        .push_next(&mut f13)
-                        .push_next(&mut fas)
-                        .push_next(&mut frq),
-                    None,
-                )
-                .context("vkCreateDevice")?;
+                let offered = instance.enumerate_device_extension_properties(phys)?;
+                for e in gpu::upscale::required_extensions(true, instance.handle(), phys) {
+                    let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e);
+                    if !known && offered.iter().any(|o| o.extension_name_as_c_str() == Ok(e)) {
+                        extensions.push(e.as_ptr());
+                    }
+                }
+                // Small types the upscalers' shaders use, where the device has them.
+                let mut has11 = vk::PhysicalDeviceVulkan11Features::default();
+                let mut has12 = vk::PhysicalDeviceVulkan12Features::default();
+                let mut has = vk::PhysicalDeviceFeatures2::default()
+                    .push_next(&mut has11)
+                    .push_next(&mut has12);
+                instance.get_physical_device_features2(phys, &mut has);
+                let has_int16 = has.features.shader_int16;
+                let anisotropy = has.features.sampler_anisotropy != 0;
+                // The egui pass's fragment shader writes the object-id image (u19).
+                ensure!(
+                    has.features.fragment_stores_and_atomics != 0,
+                    "the GPU lacks fragmentStoresAndAtomics (the UI pass writes object ids)"
+                );
+                let mut f11 = vk::PhysicalDeviceVulkan11Features::default()
+                    .storage_buffer16_bit_access(has11.storage_buffer16_bit_access != 0);
+                let mut f12 = vk::PhysicalDeviceVulkan12Features::default()
+                    .buffer_device_address(true)
+                    .descriptor_indexing(true)
+                    .runtime_descriptor_array(true)
+                    .shader_sampled_image_array_non_uniform_indexing(true)
+                    .descriptor_binding_partially_bound(true)
+                    .descriptor_binding_variable_descriptor_count(true)
+                    .scalar_block_layout(true)
+                    .timeline_semaphore(true)
+                    .shader_float16(has12.shader_float16 != 0)
+                    .shader_int8(has12.shader_int8 != 0)
+                    .storage_buffer8_bit_access(has12.storage_buffer8_bit_access != 0);
+                let mut f13 = vk::PhysicalDeviceVulkan13Features::default()
+                    .synchronization2(true)
+                    .dynamic_rendering(true)
+                    .maintenance4(true);
+                let mut fas = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default()
+                    .acceleration_structure(true);
+                let mut frq = vk::PhysicalDeviceRayQueryFeaturesKHR::default().ray_query(true);
+                let core = vk::PhysicalDeviceFeatures::default()
+                    .shader_int64(true)
+                    .shader_int16(has_int16 != 0)
+                    .sampler_anisotropy(anisotropy)
+                    .fragment_stores_and_atomics(true)
+                    .shader_storage_image_extended_formats(true)
+                    .shader_storage_image_read_without_format(true)
+                    .shader_storage_image_write_without_format(true);
+                let priority = [1.0];
+                let queues = [vk::DeviceQueueCreateInfo::default()
+                    .queue_family_index(family)
+                    .queue_priorities(&priority)];
+                let device = instance
+                    .create_device(
+                        phys,
+                        &vk::DeviceCreateInfo::default()
+                            .queue_create_infos(&queues)
+                            .enabled_extension_names(&extensions)
+                            .enabled_features(&core)
+                            .push_next(&mut f11)
+                            .push_next(&mut f12)
+                            .push_next(&mut f13)
+                            .push_next(&mut fas)
+                            .push_next(&mut frq),
+                        None,
+                    )
+                    .context("vkCreateDevice")?;
+                Ok((phys, family, name, device, anisotropy))
+            })();
+            let (phys, family, name, device, anisotropy) = match made {
+                Ok(m) => m,
+                Err(e) => {
+                    if let Some(s) = surface {
+                        surface_fn.destroy_surface(s, None);
+                    }
+                    if let Some((fns, messenger)) = &debug {
+                        fns.destroy_debug_utils_messenger(*messenger, None);
+                    }
+                    instance.destroy_instance(None);
+                    return Err(e);
+                }
+            };
             let queue = device.get_device_queue(family, 0);
             let memory = instance.get_physical_device_memory_properties(phys);
             Ok((
@@ -237,6 +259,7 @@ impl Device {
                     queue,
                     name,
                     memory,
+                    anisotropy,
                 },
                 surface,
             ))

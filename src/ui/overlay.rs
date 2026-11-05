@@ -299,6 +299,11 @@ impl App {
         {
             return false;
         }
+        // A body held by the mouse (physics) is let go (release also drops its grab mass): the
+        // transform owns the pointer now, and a pending grab would pull toward a stale ray.
+        if let Some(sim) = &mut self.physics {
+            sim.release();
+        }
         let mouse = glam::Vec2::new(self.cursor[0] as f32, self.cursor[1] as f32);
         let mut t = match handle {
             Some(h) => gizmo::Transform::from_handle(

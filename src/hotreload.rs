@@ -1,10 +1,11 @@
 //! Shader hot reload (roadmap 5a, debug builds): watches `shaders/` and recompiles every entry
-//! with the same DXC and flags as build.rs. On an error the old pipelines stay and the DXC
-//! message is shown.
+//! with the same DXC and flags as build.rs: DXIL for D3D12, SPIR-V for Vulkan (the SER
+//! libraries are left empty there, as build.rs leaves them out). On an error the old pipelines
+//! stay and the DXC message is shown.
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
-/// Compiled DXIL for every pipeline.
+/// Compiled DXIL (or SPIR-V) for every pipeline.
 pub struct Shaders {
     pub trace: Vec<u8>,
     pub trace_maps: Vec<u8>,
@@ -235,18 +236,25 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 31] = [
 pub struct HotReload {
     dir: PathBuf,
     dxc: PathBuf,
+    spirv: bool,
     stamp: SystemTime,
     checked: Instant,
 }
 impl HotReload {
     /// Watches the source tree's `shaders/` (baked in at build time), if it still exists.
-    pub fn new() -> Option<Self> {
+    /// `spirv`: compile for the Vulkan backend (needs the SPIR-V DXC build.rs used).
+    pub fn new(spirv: bool) -> Option<Self> {
         let dir = PathBuf::from(env!("CAUSTICA_SHADERS"));
-        let dxc = PathBuf::from(env!("CAUSTICA_DXC"));
+        let dxc = PathBuf::from(if spirv {
+            option_env!("CAUSTICA_DXC_SPIRV")?
+        } else {
+            env!("CAUSTICA_DXC")
+        });
         (dir.is_dir() && dxc.is_file()).then(|| Self {
             stamp: newest(&dir),
             dir,
             dxc,
+            spirv,
             checked: Instant::now(),
         })
     }
@@ -268,14 +276,29 @@ impl HotReload {
         std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
         let mut blobs = vec![];
         for (file, entry, profile, name, defines) in ENTRIES {
-            let target = out.join(format!("{name}.dxil"));
+            if self.spirv && profile.starts_with("lib_") {
+                blobs.push(vec![]);
+                continue;
+            }
+            let target = out.join(format!(
+                "{name}.{}",
+                if self.spirv { "spv" } else { "dxil" }
+            ));
             let mut command = std::process::Command::new(&self.dxc);
+            if self.spirv {
+                command
+                    .args(["-spirv", "-fspv-target-env=vulkan1.3", "-fvk-use-dx-layout"])
+                    .args(["-fvk-t-shift", "100", "all", "-fvk-b-shift", "200", "all"])
+                    .args(["-fvk-s-shift", "300", "all"]);
+            }
             command
                 .args(["-T", profile])
                 .args(if profile.starts_with("lib_") {
-                    ["-exports", entry, "-Wno-misplaced-attributes"]
+                    vec!["-exports", entry, "-Wno-misplaced-attributes"]
+                } else if self.spirv {
+                    vec!["-E", entry]
                 } else {
-                    ["-E", entry, "-Ges"]
+                    vec!["-E", entry, "-Ges"]
                 })
                 .args(["-HV", "2021", "-O3", "-I"])
                 .arg(&self.dir)

@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Mirror maze",
- "description": "Chrome walls in a grid around one glowing sphere: very long specular paths.",
+ "description": "Chrome walls in a grid around a glowing sphere and four coloured orbs: very long specular paths, each light repeated down every corridor.",
  "tags": [
   "mirror",
   "bounces",
@@ -19,13 +19,13 @@
   ],
   "floor": {
    "color": [
-    0.08,
-    0.08,
-    0.09
+    0.06,
+    0.06,
+    0.07
    ],
-   "roughness": 0.3,
+   "roughness": 0.15,
    "metallic": 0.0,
-   "reflectivity": 0.1,
+   "reflectivity": 0.3,
    "transmission": 0.0,
    "ior": 1.5,
    "emission": 0.0,
@@ -1857,7 +1857,183 @@
      "reflectivity": 0.05,
      "transmission": 0.0,
      "ior": 1.5,
-     "emission": 6,
+     "emission": 14,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Orb 1",
+    "shape": "sphere",
+    "position": [
+     2.7632,
+     1.1683
+    ],
+    "size": 0.5,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.25,
+      0.5
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 12,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Orb 2",
+    "shape": "sphere",
+    "position": [
+     -1.1683,
+     2.7632
+    ],
+    "size": 0.5,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.7,
+      0.1
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 12,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Orb 3",
+    "shape": "sphere",
+    "position": [
+     -2.7632,
+     -1.1683
+    ],
+    "size": 0.5,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      1.0,
+      0.5
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 12,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Orb 4",
+    "shape": "sphere",
+    "position": [
+     1.1683,
+     -2.7632
+    ],
+    "size": 0.5,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.3,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 12,
      "pattern": "solid",
      "secondary_color": [
       0.04,
@@ -1869,6 +2045,7 @@
     },
     "portal": -1
    }
-  ]
+  ],
+  "exposure": 1.6
  }
 }

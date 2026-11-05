@@ -41,7 +41,8 @@ if ($AppImage) {
     # The tagged commit (or HEAD) as a clean tree on the VM, built there, copied back.
     $ref = if ($Upload) { $tag } else { 'HEAD' }
     $remote = "caustica-release"
-    ssh $Vm "rm -rf ~/$remote && mkdir -p ~/$remote"
+    # vendor/ (the SDKs, DXC, appimagetool) is kept between releases.
+    ssh $Vm "mkdir -p ~/$remote && find ~/$remote -mindepth 1 -maxdepth 1 ! -name vendor -exec rm -rf {} +"
     if ($LASTEXITCODE) { throw "ssh $Vm failed" }
     cmd /c "git archive --format=tar $ref | ssh $Vm tar -x -C ~/$remote"
     if ($LASTEXITCODE) { throw "copying the tree to $Vm failed" }

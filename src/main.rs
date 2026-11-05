@@ -140,8 +140,12 @@ struct App {
     hold_frames: u32,
     held: bool,
     debug: bool,
-    /// `--vulkan`: the Vulkan renderer on Windows (Linux has no other).
+    /// The Vulkan renderer on Windows (`--vulkan` or Menu → Renderer; Linux has no other).
     vulkan: bool,
+    /// `--d3d12`: D3D12 whatever Menu → Renderer says.
+    d3d12: bool,
+    /// Why the Vulkan renderer picked in the menu didn't start (D3D12 runs instead).
+    vulkan_failed: Option<String>,
     hidden: bool,
     size: [u32; 2],
     failed: Option<String>,
@@ -396,6 +400,7 @@ impl App {
         let mut require_rr = false;
         let mut debug = false;
         let mut vulkan = false;
+        let mut d3d12 = false;
         let mut hidden = false;
         let mut capture_ui = false;
         let mut script_path: Option<PathBuf> = None;
@@ -577,6 +582,8 @@ impl App {
                 "--raw" => s.denoise = false,
                 "--debug" => debug = true,
                 "--vulkan" => vulkan = true,
+                // Overrides Menu → Renderer for one run.
+                "--d3d12" => d3d12 = true,
                 "--headless" => hidden = true,
                 "--capture-ui" => capture_ui = true,
                 // A Rhai script that drives the app (see src/script.rs).
@@ -751,6 +758,8 @@ impl App {
             held: false,
             debug,
             vulkan,
+            d3d12,
+            vulkan_failed: None,
             hidden,
             size,
             failed: None,
@@ -1206,6 +1215,7 @@ impl App {
                 println!("DISPLAY {:?}", m.info);
                 // Another monitor or display setup may take HDR10: ask again.
                 g.hdr10_refused = false;
+                g.hdr_refused = false;
             }
         }
         let info = self
@@ -1220,11 +1230,15 @@ impl App {
         };
         self.hdr_note.clear();
         let hdr10 = s.hdr10 && !g.hdr10_refused;
-        let switch = want != g.hdr_active || (want && hdr10 != g.hdr10);
-        if switch && self.export.is_none() && !unsafe { g.set_hdr(want, hdr10, s)? } {
+        let switch =
+            (want != g.hdr_active || (want && hdr10 != g.hdr10)) && !(want && g.hdr_refused);
+        if switch && self.export.is_none() {
+            unsafe { g.set_hdr(want, hdr10, s)? };
+        }
+        if want && g.hdr_refused {
             self.hdr_note = "The swapchain can't present scRGB; staying SDR.".into();
         }
-        if want && s.hdr10 && g.hdr10_refused {
+        if want && s.hdr10 && g.hdr10_refused && !g.hdr_refused {
             self.hdr_note = "The swapchain can't present HDR10; using scRGB.".into();
         }
         g.hdr_levels = [
@@ -1316,25 +1330,27 @@ impl App {
         g.scopes_on = self.ui.show_scopes && self.export.is_none();
         video::set_equirect(s.projection == 2);
         let probe_at = self.pick_point.or(self.cursor_pick).unwrap_or(self.cursor);
-        // Hovering the viewport reads the object id under the pointer for its outline.
-        let hovering = self.drag.is_none()
-            && self.ui.transform.is_none()
-            && self.ui.context_menu.is_none()
-            && self.show_ui
-            && s.perspective()
-            && !self.egui.is_pointer_over_area();
+        // No hover outline (owner, 2026-11-05: outlines only for the clicked selection; in
+        // Sponza something is under the pointer everywhere), so no probe while hovering.
         g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area())
             || self.focus_pending
             || self.pick_point.is_some()
-            || self.cursor_pick.is_some()
-            || hovering)
-            .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
+            || self.cursor_pick.is_some())
+        .then_some([probe_at[0].max(0.) as u32, probe_at[1].max(0.) as u32]);
         if s.lut_path != self.lut_loaded && self.export.is_none() {
             self.lut_loaded = s.lut_path.clone();
             let result = if s.lut_path.is_empty() {
                 unsafe { g.set_lut(None) }
             } else {
-                std::fs::read_to_string(&s.lut_path)
+                // Relative paths resolve under the scene folders like mesh and IES paths (a
+                // shipped scene's `luts/…`), then against the working directory.
+                let path = crate::mesh::resolve(&s.lut_path);
+                let path = if path.exists() {
+                    path
+                } else {
+                    s.lut_path.clone().into()
+                };
+                std::fs::read_to_string(path)
                     .map_err(anyhow::Error::from)
                     .and_then(|text| look::read_cube(&text))
                     .and_then(|(n, data)| unsafe { g.set_lut(Some((n, &data))) })
@@ -1482,15 +1498,6 @@ impl App {
             }
         }
         self.ui.hovered = None;
-        if hovering
-            && self.export.is_none()
-            && let Some(p) = g.probe_result
-        {
-            // Object ids are material + 1, and objects are materials 5 onwards.
-            self.ui.hovered = (p.id as usize)
-                .checked_sub(6)
-                .filter(|i| *i < self.settings.objects.len());
-        }
         let point = self.pick_point.take();
         let frame_pick = std::mem::take(&mut self.frame_pick);
         if let (Some(point), Some(p)) = (point, g.probe_result) {
@@ -2161,7 +2168,15 @@ impl ApplicationHandler for App {
                     }
                     _ => bail!("Windows only"),
                 };
-                let gpu = unsafe {
+                // Menu → Renderer, for windowed runs (headless runs and the self-test take only
+                // the flags, so they stay reproducible).
+                let from_prefs = !self.vulkan
+                    && !self.d3d12
+                    && !self.hidden
+                    && !self.self_test
+                    && prefs::Prefs::load().vulkan;
+                self.vulkan |= from_prefs;
+                let made = unsafe {
                     Gpu::new(
                         &window,
                         size.width,
@@ -2169,7 +2184,26 @@ impl ApplicationHandler for App {
                         &self.settings,
                         self.debug,
                         self.vulkan,
-                    )?
+                    )
+                };
+                let gpu = match made {
+                    // A Vulkan picked in the menu that can't start falls back to D3D12.
+                    Err(e) if from_prefs => {
+                        eprintln!("Vulkan did not start ({e:#}); using D3D12");
+                        self.vulkan = false;
+                        self.vulkan_failed = Some(format!("{e:#}"));
+                        unsafe {
+                            Gpu::new(
+                                &window,
+                                size.width,
+                                size.height,
+                                &self.settings,
+                                self.debug,
+                                false,
+                            )?
+                        }
+                    }
+                    made => made?,
                 };
                 (Some(hwnd), gpu)
             };
@@ -2178,10 +2212,19 @@ impl ApplicationHandler for App {
                 Gpu::new(&window, size.width, size.height, &self.settings, self.debug)?
             });
             gpu.keep_ui_frame = self.capture_ui;
+            // Windowed runs start drawing while DLSS starts; headless runs, the self-test and
+            // --require-rr need it from the first frame.
+            if self.hidden || self.self_test || self.require_rr {
+                gpu.wait_ngx();
+            }
             startup("gpu");
             self.hwnd = hwnd;
             if cfg!(debug_assertions) && !self.self_test {
-                self.hot = hotreload::HotReload::new();
+                #[cfg(windows)]
+                let spirv = gpu.is_vulkan();
+                #[cfg(not(windows))]
+                let spirv = true;
+                self.hot = hotreload::HotReload::new(spirv);
             }
             if !self.hidden {
                 self.stats = Some(stats::Stats::load());
@@ -2209,6 +2252,24 @@ impl ApplicationHandler for App {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        if std::mem::take(&mut self.ui.restart) {
+            // Menu → Renderer → Restart now: the same command line, started fresh.
+            // The same cleanup as closing the window (stats, a running export), then the child.
+            self.shut_down(event_loop);
+            let started = std::env::current_exe().and_then(|exe| {
+                std::process::Command::new(exe)
+                    .args(
+                        std::env::args_os()
+                            .skip(1)
+                            .filter(|a| a != "--vulkan" && a != "--d3d12"),
+                    )
+                    .spawn()
+            });
+            if let Err(e) = started {
+                eprintln!("Restart: {e}");
+            }
+            return;
+        }
         let is_redraw = matches!(event, WindowEvent::RedrawRequested);
         let consumed = if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
             input.on_window_event(window, &event).consumed
@@ -2264,16 +2325,7 @@ impl ApplicationHandler for App {
             return;
         }
         match event {
-            WindowEvent::CloseRequested => {
-                if let Some(st) = &self.stats {
-                    st.save();
-                }
-                // Stops ffmpeg and deletes the unfinished video.
-                if let (Some(job), Some(g)) = (self.export.take(), &mut self.gpu) {
-                    let _ = unsafe { job.finish(g, &self.settings, true) };
-                }
-                event_loop.exit();
-            }
+            WindowEvent::CloseRequested => self.shut_down(event_loop),
             WindowEvent::Resized(size) => {
                 if size.width > 0
                     && size.height > 0
@@ -2772,6 +2824,18 @@ impl ApplicationHandler for App {
     }
 }
 impl App {
+    /// Closing the window, or Menu → Renderer → Restart now: saves the stats, stops a running
+    /// export (ffmpeg, and deletes the unfinished video) and ends the event loop.
+    fn shut_down(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(st) = &self.stats {
+            st.save();
+        }
+        if let (Some(job), Some(g)) = (self.export.take(), &mut self.gpu) {
+            let _ = unsafe { job.finish(g, &self.settings, true) };
+        }
+        event_loop.exit();
+    }
+
     /// Box select (3b): the objects and lights whose origin projects inside the box from `a`
     /// (points) to the pointer. Shift adds to the selection.
     fn box_select(&mut self, a: egui::Pos2) {

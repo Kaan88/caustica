@@ -138,6 +138,10 @@ pub struct GpuState {
     pub hdr10: bool,
     /// The swapchain refused HDR10 once this session; HDR then stays scRGB.
     pub hdr10_refused: bool,
+    /// The swapchain offered no HDR format (a Vulkan surface without scRGB, or a DXGI colour
+    /// space refused): HDR stays off and is not asked for again until the display changes. Each
+    /// try resizes the output, so asking every frame reset accumulation every frame.
+    pub hdr_refused: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
     /// Light painting (roadmap 5d): progressive path only, and scene edits keep the accumulation.

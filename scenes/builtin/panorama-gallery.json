@@ -1,0 +1,1219 @@
+{
+ "format": 1,
+ "title": "360° gallery",
+ "description": "A white gallery with paintings and four sculptures on plinths, under two skylights, rendered as a 360° equirectangular panorama from the middle of the room (Look → Camera → 360°): the whole room in one frame, ready for a VR viewer.",
+ "tags": [
+  "camera",
+  "projection",
+  "interior",
+  "360"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 5.0,
+  "sky": 0.0,
+  "base": [
+   0.6,
+   0.58,
+   0.55
+  ],
+  "floor": {
+   "color": [
+    0.6,
+    0.58,
+    0.55
+   ],
+   "roughness": 0.3,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Skylight 1",
+    "position": [
+     -2.5,
+     2.85,
+     0
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2.5,
+     2.5
+    ],
+    "color": [
+     1.0,
+     0.8976,
+     0.806
+    ],
+    "intensity": 9,
+    "enabled": true,
+    "visible": true
+   },
+   {
+    "name": "Skylight 2",
+    "position": [
+     2.5,
+     2.85,
+     0
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     2.5,
+     2.5
+    ],
+    "color": [
+     1.0,
+     0.8976,
+     0.806
+    ],
+    "intensity": 9,
+    "enabled": true,
+    "visible": true
+   }
+  ],
+  "bounces": 10,
+  "yaw": 0,
+  "pitch": 0,
+  "distance": 0.5,
+  "target": [
+   0,
+   0.5,
+   0
+  ],
+  "fov": 90,
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -4.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     14.8571,
+     0.2857
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.89,
+      0.86
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Front wall",
+    "shape": "box",
+    "position": [
+     0,
+     4.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     14.8571,
+     0.2857
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.89,
+      0.86
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     -5.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     11.4286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.89,
+      0.86
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     5.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     11.4286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.89,
+      0.86
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     14.8571,
+     12.0
+    ],
+    "elevation": 3.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.89,
+      0.86
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frame 1",
+    "shape": "box",
+    "position": [
+     -4.97,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": 90,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.7143,
+     0.0571
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.65,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Painting 1",
+    "shape": "box",
+    "position": [
+     -4.94,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 90,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.4286,
+     0.0429
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.2,
+      0.1
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      1,
+      0.55,
+      0.45
+     ],
+     "pattern_scale": 2.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frame 2",
+    "shape": "box",
+    "position": [
+     4.97,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": -90,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.7143,
+     0.0571
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.65,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Painting 2",
+    "shape": "box",
+    "position": [
+     4.94,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": -90,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.4286,
+     0.0429
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.3,
+      0.6
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.45,
+      0.65,
+      0.95
+     ],
+     "pattern_scale": 2.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frame 3",
+    "shape": "box",
+    "position": [
+     0.0,
+     -3.97
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.7143,
+     0.0571
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.65,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Painting 3",
+    "shape": "box",
+    "position": [
+     0.0,
+     -3.94
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.4286,
+     0.0429
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.7,
+      0.1
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      1,
+      1,
+      0.45
+     ],
+     "pattern_scale": 2.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frame 4",
+    "shape": "box",
+    "position": [
+     -2.5,
+     -3.97
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.7143,
+     0.0571
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.65,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Painting 4",
+    "shape": "box",
+    "position": [
+     -2.5,
+     -3.94
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.4286,
+     0.0429
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.45,
+      0.25
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.45,
+      0.8,
+      0.6
+     ],
+     "pattern_scale": 2.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frame 5",
+    "shape": "box",
+    "position": [
+     2.5,
+     -3.97
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.7143,
+     0.0571
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.65,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Painting 5",
+    "shape": "box",
+    "position": [
+     2.5,
+     -3.94
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.4286,
+     0.0429
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.1,
+      0.4
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.9,
+      0.45,
+      0.75
+     ],
+     "pattern_scale": 2.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frame 6",
+    "shape": "box",
+    "position": [
+     0.0,
+     3.97
+    ],
+    "size": 1.0,
+    "stretch": 2.0,
+    "rotation": -180,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.7143,
+     0.0571
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.65,
+      0.3
+     ],
+     "roughness": 0.3,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Painting 6",
+    "shape": "box",
+    "position": [
+     0.0,
+     3.94
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": -180,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.4286,
+     0.0429
+    ],
+    "elevation": 0.9,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.15,
+      0.15,
+      0.2
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.5,
+      0.5,
+      0.55
+     ],
+     "pattern_scale": 2.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plinth 1",
+    "shape": "box",
+    "position": [
+     -2.0,
+     -1.2
+    ],
+    "size": 1.0,
+    "stretch": 1.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.94
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sculpture 1",
+    "shape": "knot",
+    "position": [
+     -2.0,
+     -1.2
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.15,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plinth 2",
+    "shape": "box",
+    "position": [
+     2.0,
+     -1.2
+    ],
+    "size": 1.0,
+    "stretch": 1.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.94
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sculpture 2",
+    "shape": "bunny",
+    "position": [
+     2.0,
+     -1.2
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.09,
+      0.46,
+      0.25
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.15,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plinth 3",
+    "shape": "box",
+    "position": [
+     -2.0,
+     1.6
+    ],
+    "size": 1.0,
+    "stretch": 1.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.94
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sculpture 3",
+    "shape": "teapot",
+    "position": [
+     -2.0,
+     1.6
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plinth 4",
+    "shape": "box",
+    "position": [
+     2.0,
+     1.6
+    ],
+    "size": 1.0,
+    "stretch": 1.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.95,
+      0.94
+     ],
+     "roughness": 0.7,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sculpture 4",
+    "shape": "torus",
+    "position": [
+     2.0,
+     1.6
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     70,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.15,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 0.35,
+  "projection": 2
+ }
+}

@@ -39,7 +39,11 @@ impl Layout {
                         .address_mode_u(mode)
                         .address_mode_v(mode)
                         .address_mode_w(mode)
-                        .max_lod(if mips { vk::LOD_CLAMP_NONE } else { 0. }),
+                        .max_lod(if mips { vk::LOD_CLAMP_NONE } else { 0. })
+                        // Texture maps filter anisotropically, as D3D12's map sampler
+                        // (16x); the shader limits the ratio to Settings::anisotropy.
+                        .anisotropy_enable(mips && d.anisotropy)
+                        .max_anisotropy(if mips && d.anisotropy { 16. } else { 1. }),
                     None,
                 )
             };

@@ -1,0 +1,1381 @@
+{
+ "format": 1,
+ "title": "Neon diner",
+ "description": "A late-night diner counter with chrome stools, a milkshake and neon on the wall, finished like a film print: halation (red glow around the neon), grain, a vignette, a warm grade and a .cube LUT (scenes/luts/warm-film.cube) at 70% (Look → Film).",
+ "tags": [
+  "interior",
+  "night",
+  "emissive",
+  "film look",
+  "lut"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 3.5,
+  "sky": 0.0,
+  "base": [
+   0.8,
+   0.8,
+   0.78
+  ],
+  "floor": {
+   "color": [
+    0.85,
+    0.84,
+    0.8
+   ],
+   "roughness": 0.2,
+   "metallic": 0.0,
+   "reflectivity": 0.15,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "checker",
+   "secondary_color": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "pattern_scale": 2.5,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Pendant 1",
+    "position": [
+     -1.5,
+     1.4,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 5.0,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2700.0
+   },
+   {
+    "name": "Pendant 2",
+    "position": [
+     0.0,
+     1.4,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 5.0,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2700.0
+   },
+   {
+    "name": "Pendant 3",
+    "position": [
+     1.5,
+     1.4,
+     -0.6
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.14,
+     0.14
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 5.0,
+    "enabled": true,
+    "visible": true,
+    "kind": "sphere",
+    "temperature": 2700.0
+   }
+  ],
+  "bounces": 10,
+  "yaw": -18,
+  "pitch": 8,
+  "distance": 4.6,
+  "target": [
+   0,
+   0.0,
+   -0.6
+  ],
+  "fov": 45,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -2.0
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     10.0,
+     0.1429
+    ],
+    "elevation": 0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.75,
+      0.7,
+      0.6
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Counter",
+    "shape": "box",
+    "position": [
+     0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 1.3571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     6.2857,
+     0.8571
+    ],
+    "elevation": -0.525,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.65,
+      0.04,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Counter top",
+    "shape": "box",
+    "position": [
+     0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     6.5714,
+     1.0714
+    ],
+    "elevation": -0.025,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.9,
+      0.9,
+      0.88
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.02
+    },
+    "portal": -1
+   },
+   {
+    "name": "Counter trim",
+    "shape": "box",
+    "position": [
+     0,
+     -0.29
+    ],
+    "size": 1.0,
+    "stretch": 0.1,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     6.2857,
+     0.0286
+    ],
+    "elevation": -0.115,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Back counter",
+    "shape": "box",
+    "position": [
+     0,
+     -1.75
+    ],
+    "size": 1.0,
+    "stretch": 1.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     8.5714,
+     0.5714
+    ],
+    "elevation": -0.55,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5,
+      0.5,
+      0.52
+     ],
+     "roughness": 0.25,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool post 1",
+    "shape": "cylinder",
+    "position": [
+     -1.8,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.8286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool seat 1",
+    "shape": "cylinder",
+    "position": [
+     -1.8,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5429,
+     0.5429
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.65,
+      0.04,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool ring 1",
+    "shape": "cylinder",
+    "position": [
+     -1.8,
+     0.2
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool post 2",
+    "shape": "cylinder",
+    "position": [
+     -0.9,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.8286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool seat 2",
+    "shape": "cylinder",
+    "position": [
+     -0.9,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5429,
+     0.5429
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.65,
+      0.04,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool ring 2",
+    "shape": "cylinder",
+    "position": [
+     -0.9,
+     0.2
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool post 3",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.8286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool seat 3",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5429,
+     0.5429
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.65,
+      0.04,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool ring 3",
+    "shape": "cylinder",
+    "position": [
+     0.0,
+     0.2
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool post 4",
+    "shape": "cylinder",
+    "position": [
+     0.9,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.8286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool seat 4",
+    "shape": "cylinder",
+    "position": [
+     0.9,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5429,
+     0.5429
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.65,
+      0.04,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool ring 4",
+    "shape": "cylinder",
+    "position": [
+     0.9,
+     0.2
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool post 5",
+    "shape": "cylinder",
+    "position": [
+     1.8,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.8286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     0.0857
+    ],
+    "elevation": -0.71,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool seat 5",
+    "shape": "cylinder",
+    "position": [
+     1.8,
+     0.2
+    ],
+    "size": 1.0,
+    "stretch": 0.1143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5429,
+     0.5429
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.65,
+      0.04,
+      0.05
+     ],
+     "roughness": 0.4,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.05
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stool ring 5",
+    "shape": "cylinder",
+    "position": [
+     1.8,
+     0.2
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.35,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Milkshake glass",
+    "shape": "cylinder",
+    "position": [
+     -0.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2,
+     0.2
+    ],
+    "elevation": 0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Milkshake",
+    "shape": "cylinder",
+    "position": [
+     -0.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.3143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.13,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.75,
+      0.8
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.35,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "density": 30.0,
+     "scatter_color": [
+      1.0,
+      0.85,
+      0.9
+     ],
+     "phase": 0.0
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cherry",
+    "shape": "sphere",
+    "position": [
+     -0.6,
+     -0.6
+    ],
+    "size": 0.1,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8571,
+     0.8571
+    ],
+    "elevation": 0.27,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.7,
+      0.02,
+      0.03
+     ],
+     "roughness": 0.15,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Napkin box",
+    "shape": "cylinder",
+    "position": [
+     0.6,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.2,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2286,
+     0.2286
+    ],
+    "elevation": 0.07,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.94,
+      0.97
+     ],
+     "roughness": 0.05,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Neon bar 1",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -1.93
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 1.7,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.15,
+      0.5
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 10,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Neon bar 2",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -1.93
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 1.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.9,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 10,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Neon ring",
+    "shape": "ring",
+    "position": [
+     2.2,
+     -1.93
+    ],
+    "size": 1.2,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     90,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.1
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 10,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.2,
+  "halation": 0.5,
+  "grain": 0.3,
+  "grain_size": 1,
+  "vignette": 0.35,
+  "lift": [
+   0.01,
+   0.006,
+   0.0
+  ],
+  "gain": [
+   1.04,
+   1.0,
+   0.93
+  ],
+  "lut_path": "luts/warm-film.cube",
+  "lut_strength": 0.7
+ }
+}

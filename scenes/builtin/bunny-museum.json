@@ -1,11 +1,12 @@
 {
  "format": 1,
  "title": "Bunny museum",
- "description": "Six Stanford bunnies on plinths in glass, gold, jade, marble, chrome and rubber, each under its own light in a dark gallery.",
+ "description": "Six Stanford bunnies on plinths in glass, gold, jade, marble, chrome and rubber, each under its own IES-profiled track spot in a dark gallery: measured beam shapes on the plinths and the floor.",
  "tags": [
   "material",
   "mesh",
-  "gallery"
+  "gallery",
+  "ies"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -62,17 +63,19 @@
      0.0
     ],
     "size": [
-     0.7,
-     0.7
+     0.16,
+     0.16
     ],
     "color": [
      1.0,
      0.657,
      0.4369
     ],
-    "intensity": 36,
+    "intensity": 400,
     "enabled": true,
-    "visible": false
+    "visible": false,
+    "kind": "disk",
+    "ies": "ies/narrow-spot.ies"
    },
    {
     "name": "Spot Gold",
@@ -87,17 +90,19 @@
      0.0
     ],
     "size": [
-     0.7,
-     0.7
+     0.16,
+     0.16
     ],
     "color": [
      1.0,
      0.657,
      0.4369
     ],
-    "intensity": 36,
+    "intensity": 400,
     "enabled": true,
-    "visible": false
+    "visible": false,
+    "kind": "disk",
+    "ies": "ies/narrow-spot.ies"
    },
    {
     "name": "Spot Jade",
@@ -112,17 +117,19 @@
      0.0
     ],
     "size": [
-     0.7,
-     0.7
+     0.16,
+     0.16
     ],
     "color": [
      1.0,
      0.657,
      0.4369
     ],
-    "intensity": 36,
+    "intensity": 400,
     "enabled": true,
-    "visible": false
+    "visible": false,
+    "kind": "disk",
+    "ies": "ies/narrow-spot.ies"
    },
    {
     "name": "Spot Marble",
@@ -137,17 +144,19 @@
      0.0
     ],
     "size": [
-     0.7,
-     0.7
+     0.16,
+     0.16
     ],
     "color": [
      1.0,
      0.657,
      0.4369
     ],
-    "intensity": 36,
+    "intensity": 400,
     "enabled": true,
-    "visible": false
+    "visible": false,
+    "kind": "disk",
+    "ies": "ies/narrow-spot.ies"
    },
    {
     "name": "Spot Chrome",
@@ -162,17 +171,19 @@
      0.0
     ],
     "size": [
-     0.7,
-     0.7
+     0.16,
+     0.16
     ],
     "color": [
      1.0,
      0.657,
      0.4369
     ],
-    "intensity": 36,
+    "intensity": 400,
     "enabled": true,
-    "visible": false
+    "visible": false,
+    "kind": "disk",
+    "ies": "ies/narrow-spot.ies"
    },
    {
     "name": "Spot Red rubber",
@@ -187,17 +198,19 @@
      0.0
     ],
     "size": [
-     0.7,
-     0.7
+     0.16,
+     0.16
     ],
     "color": [
      1.0,
      0.657,
      0.4369
     ],
-    "intensity": 36,
+    "intensity": 400,
     "enabled": true,
-    "visible": false
+    "visible": false,
+    "kind": "disk",
+    "ies": "ies/narrow-spot.ies"
    }
   ],
   "bounces": 16,

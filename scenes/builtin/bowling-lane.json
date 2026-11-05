@@ -1,10 +1,12 @@
 {
  "format": 1,
  "title": "Bowling lane",
- "description": "A long glossy lane with ten pins and a ball: long, stretched reflections.",
+ "description": "A long glossy lane under a row of lights, neon on the masking unit: stretched reflections down the boards. The timeline (K) rolls the ball into the pins; a timeline export renders the strike with a 180° motion-blur shutter.",
  "tags": [
   "glossy",
-  "interior"
+  "interior",
+  "animation",
+  "motion blur"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -12,9 +14,9 @@
   "floor_extent": 15.0,
   "sky": 0.0,
   "base": [
-   0.1,
-   0.1,
-   0.12
+   0.06,
+   0.06,
+   0.08
   ],
   "floor": {
    "color": [
@@ -174,34 +176,34 @@
     "visible": false
    },
    {
-    "name": "Lane light 6",
+    "name": "Pin deck light",
     "position": [
      0,
-     2.2,
-     -14.0
+     1.2,
+     -11.0
     ],
     "rotation": [
-     0.0,
-     0.0,
+     32.471,
+     -0.0,
      0.0
     ],
     "size": [
-     2.0,
-     0.4
+     2.6,
+     0.3
     ],
     "color": [
      1.0,
-     0.705,
-     0.508
+     0.8116,
+     0.6709
     ],
-    "intensity": 18,
+    "intensity": 30,
     "enabled": true,
     "visible": false
    }
   ],
   "bounces": 10,
   "yaw": 0,
-  "pitch": 7,
+  "pitch": 6,
   "distance": 6.0,
   "target": [
    0,
@@ -825,7 +827,642 @@
      "unlit": false
     },
     "portal": -1
+   },
+   {
+    "name": "Kickback",
+    "shape": "box",
+    "position": [
+     -1.75,
+     -12.3
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2143,
+     4.2857
+    ],
+    "elevation": -0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.04,
+      0.06
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Kickback",
+    "shape": "box",
+    "position": [
+     1.75,
+     -12.3
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2143,
+     4.2857
+    ],
+    "elevation": -0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.04,
+      0.06
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Masking unit",
+    "shape": "box",
+    "position": [
+     0,
+     -14.0
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     5.1429,
+     0.2857
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.04,
+      0.04,
+      0.06
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Neon 1",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -13.88
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 0.45,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.1,
+      0.5
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 8,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Neon 2",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -13.88
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 0.8,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.6,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 8,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Neon 3",
+    "shape": "cylinder",
+    "position": [
+     0,
+     -13.88
+    ],
+    "size": 1.0,
+    "stretch": 4.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     90
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 1.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.7,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 8,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Approach dot 1",
+    "shape": "sphere",
+    "position": [
+     -0.3,
+     -1.0
+    ],
+    "size": 0.05,
+    "stretch": 0.3,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.07,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.9,
+      0.7
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 3,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   },
+   {
+    "name": "Approach dot 2",
+    "shape": "sphere",
+    "position": [
+     0.3,
+     -1.0
+    ],
+    "size": 0.05,
+    "stretch": 0.3,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.07,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.9,
+      0.7
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 3,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
    }
-  ]
+  ],
+  "animation": {
+   "length": 2.4,
+   "fps": 24,
+   "shutter": 0.5,
+   "tracks": [
+    {
+     "path": "objects/13/position/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -5.0,
+       "interp": "linear"
+      },
+      {
+       "time": 1.6,
+       "value": -11.75,
+       "interp": "ease"
+      },
+      {
+       "time": 2.4,
+       "value": -12.45,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/13/position/0",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.12,
+       "interp": "linear"
+      },
+      {
+       "time": 1.6,
+       "value": 0.02,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/3/position/0",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": 0.35,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/3/position/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -12.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": -12.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -13.1,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/3/tilt/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": 80,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/4/position/0",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -0.15,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": -0.15,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -0.55,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/4/position/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -12.26,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": -12.26,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -12.9,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/4/tilt/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -75,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/5/position/0",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.15,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.15,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": 0.6,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/5/position/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -12.26,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": -12.26,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -12.7,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/5/tilt/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": 70,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/7/position/0",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -0.2,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/7/position/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -12.52,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": -12.52,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -13.3,
+       "interp": "hold"
+      }
+     ]
+    },
+    {
+     "path": "objects/7/tilt/1",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": 0.0,
+       "interp": "hold"
+      },
+      {
+       "time": 1.6,
+       "value": 0.0,
+       "interp": "ease"
+      },
+      {
+       "time": 2.2,
+       "value": -85,
+       "interp": "hold"
+      }
+     ]
+    }
+   ]
+  },
+  "exposure": 1.3
  }
 }

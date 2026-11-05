@@ -106,6 +106,16 @@ impl Renderer {
     pub unsafe fn reconfigure_upscalers(&mut self) -> Result<()> {
         unsafe { each!(self, g => g.reconfigure_upscalers()) }
     }
+    pub fn is_vulkan(&self) -> bool {
+        matches!(self, Renderer::Vulkan(_))
+    }
+    /// Blocks until DLSS (NGX) has started, for runs that need it from the first frame.
+    pub fn wait_ngx(&mut self) {
+        match self {
+            Renderer::D3d12(g) => g.poll_ngx(true),
+            Renderer::Vulkan(g) => g.wait_ngx(),
+        }
+    }
     pub fn capabilities(&self) -> Capabilities {
         each!(self, g => g.capabilities())
     }

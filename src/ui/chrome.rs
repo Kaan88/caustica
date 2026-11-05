@@ -2,6 +2,47 @@
 use super::*;
 
 impl App {
+    /// D3D12 or Vulkan, saved in the prefs and used from the next start (the renderer can't be
+    /// swapped under a running scene). `--vulkan` / `--d3d12` override it for one run.
+    #[cfg(windows)]
+    fn renderer_menu(&mut self, ui: &mut egui::Ui) {
+        let running = if self.vulkan { "Vulkan" } else { "D3D12" };
+        ui.weak(format!("Running: {running}"));
+        if let Some(why) = &self.vulkan_failed {
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                "Vulkan did not start; D3D12 runs instead.",
+            )
+            .on_hover_text(why.as_str());
+        }
+        let mut want = self.ui.prefs.vulkan;
+        ui.radio_value(&mut want, false, "D3D12 (DirectX 12)");
+        ui.radio_value(&mut want, true, "Vulkan");
+        if want != self.ui.prefs.vulkan {
+            self.ui.prefs.vulkan = want;
+            self.ui.save_prefs();
+        }
+        if want != self.vulkan {
+            // After a fallback the choice stays Vulkan: a restart tries it again.
+            let retry = want && self.vulkan_failed.is_some();
+            ui.label(if retry {
+                "Vulkan is tried again at the next start."
+            } else {
+                "Takes effect after a restart."
+            });
+            if ui
+                .button(if retry {
+                    "Retry Vulkan now"
+                } else {
+                    "Restart now"
+                })
+                .clicked()
+            {
+                self.ui.restart = true;
+                ui.close_menu();
+            }
+        }
+    }
     pub(super) fn top_bar(&mut self, ctx: &egui::Context, known: bool) {
         egui::TopBottomPanel::top("top bar").show(ctx, |ui| {
             // Wraps onto a second row when the window is too narrow, so no control is cut off.
@@ -23,6 +64,8 @@ impl App {
                         ui.close_menu();
                     }
                     ui.menu_button("Text-to-scene model", |ui| self.ai_menu(ui));
+                    #[cfg(windows)]
+                    ui.menu_button("Renderer", |ui| self.renderer_menu(ui));
                     ui.separator();
                     if ui
                         .add_enabled(!self.ui.undo.is_empty(), egui::Button::new("Undo (Ctrl+Z)"))

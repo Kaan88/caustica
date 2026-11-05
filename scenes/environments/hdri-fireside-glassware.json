@@ -1,0 +1,658 @@
+{
+ "format": 1,
+ "title": "Fireside glassware",
+ "description": "A crystal decanter and two snifters of brandy on a lacquered side table, lit only by the room's fireplace and lamps: warm caustics through the glass and the brandy's colour deepening with its depth.",
+ "tags": [
+  "hdri",
+  "interior",
+  "glass",
+  "caustics"
+ ],
+ "credits": "Fireplace: Poly Haven (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 3.0,
+  "sky": 0.0,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.3,
+    0.2,
+    0.14
+   ],
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 24,
+  "yaw": -20,
+  "pitch": 12,
+  "distance": 2.6,
+  "target": [
+   0.05,
+   -0.15,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Side table",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.2857,
+     1.4286
+    ],
+    "elevation": -0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.16,
+      0.08
+     ],
+     "roughness": 0.45,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "clearcoat": 1.0,
+     "clearcoat_roughness": 0.04
+    },
+    "portal": -1
+   },
+   {
+    "name": "Decanter body",
+    "shape": "cylinder",
+    "position": [
+     -0.35,
+     -0.1
+    ],
+    "size": 1.0,
+    "stretch": 0.5,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5714,
+     0.5714
+    ],
+    "elevation": -0.125,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Decanter shoulder",
+    "shape": "sphere",
+    "position": [
+     -0.35,
+     -0.1
+    ],
+    "size": 0.5714,
+    "stretch": 0.6,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.05,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Decanter neck",
+    "shape": "cylinder",
+    "position": [
+     -0.35,
+     -0.1
+    ],
+    "size": 1.0,
+    "stretch": 0.3571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1286,
+     0.1286
+    ],
+    "elevation": 0.175,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stopper",
+    "shape": "sphere",
+    "position": [
+     -0.35,
+     -0.1
+    ],
+    "size": 0.2,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.34,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Decanter brandy",
+    "shape": "cylinder",
+    "position": [
+     -0.35,
+     -0.1
+    ],
+    "size": 1.0,
+    "stretch": 0.3429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.5429,
+     0.5429
+    ],
+    "elevation": -0.17,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.45,
+      0.12
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snifter 1",
+    "shape": "sphere",
+    "position": [
+     0.2,
+     0.15
+    ],
+    "size": 0.3429,
+    "stretch": 1.1,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.14,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snifter 1 stem",
+    "shape": "cylinder",
+    "position": [
+     0.2,
+     0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0343,
+     0.0343
+    ],
+    "elevation": -0.275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snifter 1 brandy",
+    "shape": "sphere",
+    "position": [
+     0.2,
+     0.15
+    ],
+    "size": 0.2286,
+    "stretch": 0.45,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.2,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.45,
+      0.12
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snifter 2",
+    "shape": "sphere",
+    "position": [
+     0.48,
+     -0.15
+    ],
+    "size": 0.3429,
+    "stretch": 1.1,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.14,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snifter 2 stem",
+    "shape": "cylinder",
+    "position": [
+     0.48,
+     -0.15
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0343,
+     0.0343
+    ],
+    "elevation": -0.275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Snifter 2 brandy",
+    "shape": "sphere",
+    "position": [
+     0.48,
+     -0.15
+    ],
+    "size": 0.2286,
+    "stretch": 0.45,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.2,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.45,
+      0.12
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.36,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Book",
+    "shape": "box",
+    "position": [
+     0.45,
+     0.3
+    ],
+    "size": 1.0,
+    "stretch": 0.0714,
+    "rotation": -12,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6,
+     0.4286
+    ],
+    "elevation": -0.275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.2,
+  "aperture": 0.02,
+  "focus_distance": 2.6,
+  "hdri": "hdri/fireplace_4k.hdr",
+  "hdri_strength": 1.0,
+  "hdri_rotation": 200,
+  "hdri_visible": true
+ }
+}

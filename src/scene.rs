@@ -23,8 +23,14 @@ pub struct Material {
     /// ambientCG download. Box-mapped, so it works on shapes, meshes, the floor and the walls.
     /// Empty = none.
     pub texture: String,
-    /// Repeats of the texture set per scene unit (the Cornell box is 2 wide).
+    /// Repeats of the texture set per scene unit (the Cornell box is 2 wide), or per UV unit
+    /// with `texture_uv`.
     pub texture_scale: f32,
+    /// Map the texture set by the mesh's own UVs instead of box mapping (a fabric following a
+    /// garment's seams). Objects without UVs (the built-in shapes read 0) show one texel of it;
+    /// the floor and the walls always box-map.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub texture_uv: bool,
     /// Nested dielectrics (track 10): where transmissive objects overlap, the higher priority
     /// owns the overlap (glass 2 over the water 1 that reaches into its wall). 0–7 (3 bits
     /// of the shader's medium stack).
@@ -193,6 +199,7 @@ impl Default for Material {
             textures: true,
             texture: String::new(),
             texture_scale: 0.5,
+            texture_uv: false,
             priority: 0,
             clearcoat: 0.,
             clearcoat_roughness: 0.03,

@@ -10,7 +10,7 @@
  "credits": "Caustica built-in scenes",
  "settings": {
   "cornell_room": false,
-  "floor_extent": 15.0,
+  "floor_extent": 4.0,
   "sky": 0.05,
   "base": [
    0.02,
@@ -19,16 +19,31 @@
   ],
   "floor": {
    "color": [
-    0.35,
-    0.3,
-    0.26
+    0.85,
+    0.12,
+    0.1
    ],
-   "roughness": 0.6,
+   "roughness": 0.9,
    "metallic": 0.0,
-   "reflectivity": 0.05,
+   "reflectivity": 0.0,
    "transmission": 0.0,
    "ior": 1.5,
-   "emission": 0.0
+   "emission": 0.0,
+   "pattern": "checker",
+   "secondary_color": [
+    0.95,
+    0.93,
+    0.88
+   ],
+   "pattern_scale": 6.0,
+   "unlit": false,
+   "sheen": 0.5,
+   "sheen_color": [
+    1.0,
+    0.9,
+    0.85
+   ],
+   "sheen_roughness": 0.5
   },
   "light_on": true,
   "light_position": [
@@ -736,6 +751,406 @@
      "emission": 16.0
     },
     "portal": -1
+   },
+   {
+    "name": "Gift",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.5429,
+    "rotation": 20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6,
+     0.6
+    ],
+    "elevation": -0.81,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.1,
+      0.35,
+      0.7
+     ],
+     "roughness": 0.35,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Gift ribbon",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.55,
+    "rotation": 20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1,
+     0.6143
+    ],
+    "elevation": -0.8075,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.7,
+      0.15
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Gift ribbon 2",
+    "shape": "box",
+    "position": [
+     -1.0,
+     -0.6
+    ],
+    "size": 1.0,
+    "stretch": 0.55,
+    "rotation": 20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6143,
+     0.1
+    ],
+    "elevation": -0.8075,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.7,
+      0.15
+     ],
+     "roughness": 0.3,
+     "metallic": 0.0,
+     "reflectivity": 0.2,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glass bowl",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     -0.45
+    ],
+    "size": 1.0,
+    "stretch": 0.3571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2,
+     0.2
+    ],
+    "elevation": -0.625,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glass stem",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     -0.45
+    ],
+    "size": 1.0,
+    "stretch": 0.3429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0286,
+     0.0286
+    ],
+    "elevation": -0.87,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Glass foot",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     -0.45
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6,
+     0.6
+    ],
+    "elevation": -0.995,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.985,
+      0.975
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 1
+    },
+    "portal": -1
+   },
+   {
+    "name": "Champagne",
+    "shape": "cylinder",
+    "position": [
+     0.85,
+     -0.45
+    ],
+    "size": 1.0,
+    "stretch": 0.2571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1771,
+     0.1771
+    ],
+    "elevation": -0.65,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.98,
+      0.9,
+      0.6
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.33,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "priority": 2
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side plate",
+    "shape": "cylinder",
+    "position": [
+     0.7,
+     0.55
+    ],
+    "size": 0.4286,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3333,
+     1.3333
+    ],
+    "elevation": -0.9925,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Fork",
+    "shape": "box",
+    "position": [
+     0.7,
+     0.55
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": -30,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6,
+     0.15
+    ],
+    "elevation": -0.98,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.92,
+      0.94
+     ],
+     "roughness": 0.15,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
    }
   ],
   "animation": {
@@ -1299,6 +1714,9 @@
      ]
     }
    ]
-  }
+  },
+  "aperture": 0.035,
+  "focus_distance": 3.0,
+  "aperture_blades": 7
  }
 }

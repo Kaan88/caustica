@@ -1,0 +1,211 @@
+{
+ "format": 1,
+ "title": "Glass at sunrise",
+ "description": "Frosted and clear glass bunnies and a jade sphere on a mirror-dark floor, backlit by a low sunrise: the sun shines through the glass toward the camera, and the frosted glass glows.",
+ "tags": [
+  "hdri",
+  "glass",
+  "outdoor",
+  "sunrise",
+  "backlight"
+ ],
+ "credits": "Spruit sunrise: Poly Haven (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.0,
+  "base": [
+   0.22,
+   0.25,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "roughness": 0.1,
+   "metallic": 0.0,
+   "reflectivity": 0.5,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 24,
+  "yaw": 180,
+  "pitch": 5,
+  "distance": 5.0,
+  "target": [
+   0,
+   -0.4,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Clear bunny",
+    "shape": "bunny",
+    "position": [
+     -0.9,
+     0
+    ],
+    "size": 1.5,
+    "stretch": 1.0,
+    "rotation": 30,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Frosted bunny",
+    "shape": "bunny",
+    "position": [
+     0.8,
+     0.2
+    ],
+    "size": 1.5,
+    "stretch": 1.0,
+    "rotation": -20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.92,
+      0.89
+     ],
+     "roughness": 0.19,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Jade sphere",
+    "shape": "sphere",
+    "position": [
+     0,
+     -1.0
+    ],
+    "size": 0.9,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.55,
+      0.85,
+      0.6
+     ],
+     "roughness": 0.1,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.62,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "density": 12.0,
+     "scatter_color": [
+      0.7,
+      0.95,
+      0.75
+     ],
+     "phase": 0.0
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 0.9,
+  "hdri": "hdri/spruit_sunrise_4k.hdr",
+  "hdri_strength": 1.0,
+  "hdri_rotation": 0,
+  "hdri_visible": true
+ }
+}

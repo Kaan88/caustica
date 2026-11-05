@@ -21,7 +21,7 @@ pub(super) struct ImageRef {
     height: u32,
 }
 
-#[cfg(windows)]
+#[cfg(upscalers)]
 mod ffi {
     use super::ImageRef;
     use ash::vk;
@@ -120,7 +120,7 @@ pub fn required_extensions(
     instance: vk::Instance,
     phys: vk::PhysicalDevice,
 ) -> Vec<&'static std::ffi::CStr> {
-    #[cfg(windows)]
+    #[cfg(upscalers)]
     unsafe {
         let mut names = [std::ptr::null(); 64];
         let n = ffi::caustica_vk_upscaler_extensions(
@@ -135,12 +135,20 @@ pub fn required_extensions(
             .map(|&p| std::ffi::CStr::from_ptr(p))
             .collect()
     }
-    #[cfg(not(windows))]
+    #[cfg(not(upscalers))]
     {
         let _ = (device, instance, phys);
         vec![]
     }
 }
+
+/// The NGX runtimes NGX looks for beside the exe (build.rs copies them there).
+#[cfg(upscalers)]
+const NGX_RUNTIME: &str = if cfg!(windows) {
+    "nvngx_dlss*.dll"
+} else {
+    "libnvidia-ngx-dlss*.so.*"
+};
 
 fn ngx_ok(code: u32) -> bool {
     code & 0xfff00000 != 0xbad00000
@@ -169,10 +177,10 @@ impl Upscalers {
             ngx: null_mut(),
             xess: null_mut(),
             reasons: [
-                "not on this platform yet".into(),
-                "not on this platform yet".into(),
+                "this build has no DLSS SDK (sh tools/setup.sh)".into(),
+                "this build has no DLSS SDK (sh tools/setup.sh)".into(),
                 fsr.into(),
-                "not on this platform yet".into(),
+                "Intel ships XeSS for Windows only (no libxess.so)".into(),
             ],
             rr_created: false,
             rr_failed: false,
@@ -181,7 +189,7 @@ impl Upscalers {
             sr_reset: true,
             sr_fresh: 0,
         };
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         unsafe {
             let (instance, phys, device) = (d.instance.handle(), d.phys, d.device.handle());
             let code = ffi::caustica_ngxvk_init(
@@ -203,7 +211,7 @@ impl Upscalers {
                     format!("needs an NVIDIA RTX GPU (this GPU: {})", d.name)
                 } else if !ngx_ok(code) || up.ngx.is_null() {
                     format!(
-                        "NGX did not start on Vulkan (0x{code:08x}); update the driver, and check that nvngx_dlss*.dll is next to the exe"
+                        "NGX did not start on Vulkan (0x{code:08x}); update the driver, and check that {NGX_RUNTIME} is next to the exe"
                     )
                 } else if caps & bit == 0 {
                     format!("this GPU or driver does not offer {what}")
@@ -216,17 +224,20 @@ impl Upscalers {
             let xcode = ffi::caustica_xessvk_init(instance, phys, device, &mut up.xess);
             up.reasons[3] = match xcode {
                 _ if !up.xess.is_null() => String::new(),
+                #[cfg(windows)]
                 1 => "libxess.dll is missing next to the exe".into(),
-                2 => "libxess.dll has no Vulkan entry points".into(),
+                #[cfg(not(windows))]
+                1 => "Intel ships XeSS for Windows only (no libxess.so)".into(),
+                2 => "libxess has no Vulkan entry points".into(),
                 c => format!("XeSS did not start on Vulkan (0x{c:x})"),
             };
         }
-        #[cfg(not(windows))]
+        #[cfg(not(upscalers))]
         let _ = d;
         up
     }
     pub fn ngx_caps(&self) -> u32 {
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         if !self.ngx.is_null() {
             return unsafe { ffi::caustica_ngxvk_caps(self.ngx) };
         }
@@ -234,7 +245,7 @@ impl Upscalers {
     }
     /// Releases the features (not the libraries) so the next frame recreates them.
     pub unsafe fn release(&mut self) {
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         unsafe {
             ffi::caustica_ngxvk_release(self.ngx)
         };
@@ -244,7 +255,7 @@ impl Upscalers {
         self.sr_failed.clear();
     }
     pub unsafe fn destroy(&mut self) {
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         unsafe {
             ffi::caustica_ngxvk_destroy(std::mem::replace(&mut self.ngx, null_mut()));
             ffi::caustica_xessvk_destroy(std::mem::replace(&mut self.xess, null_mut()));
@@ -277,6 +288,8 @@ impl Gpu {
     pub fn upscaler_usable(&self, kind: Upscaler) -> bool {
         !kind.temporal() || (self.upscaler_available(kind) && !self.up.sr_failed.contains(&kind))
     }
+    /// D3D12 parity (`gpu::Gpu::poll_ngx`): here NGX starts with the upscalers, nothing waits.
+    pub fn wait_ngx(&mut self) {}
     pub fn capabilities(&self) -> Capabilities {
         let backend = |ok: bool, i: usize, failed: bool| Backend {
             available: ok && !failed,
@@ -388,12 +401,12 @@ impl Gpu {
     /// After `frame.begin`: creates RR or the upscaler when they aren't yet. False when the
     /// one decided on failed to start (the frame then shows bicubic).
     pub(super) unsafe fn create_upscalers(&mut self, s: &Settings, sr: Option<Upscaler>) -> bool {
-        #[cfg(not(windows))]
+        #[cfg(not(upscalers))]
         {
             let _ = (s, sr);
             true
         }
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         unsafe {
             let cmd = self.frame.cmd;
             let (w, h, ow, oh) = (self.st.rw, self.st.rh, self.st.width, self.st.height);
@@ -470,9 +483,9 @@ impl Gpu {
         view: glam::Mat4,
         proj: glam::Mat4,
     ) {
-        #[cfg(not(windows))]
+        #[cfg(not(upscalers))]
         let _ = (s, jitter, reset, dt, view, proj);
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         unsafe {
             let images: Vec<ImageRef> = (0..self.textures.len())
                 .map(|i| self.image_ref(i))
@@ -510,9 +523,9 @@ impl Gpu {
         history_reset: i32,
         dt: f32,
     ) {
-        #[cfg(not(windows))]
+        #[cfg(not(upscalers))]
         let (code, _) = (0u32, (kind, s, &c, jitter, history_reset, dt));
-        #[cfg(windows)]
+        #[cfg(upscalers)]
         let code = unsafe {
             let color = self.image_ref(if s.denoise { 8 } else { 1 });
             let (depth, motion, out) = (self.image_ref(25), self.image_ref(6), self.image_ref(14));

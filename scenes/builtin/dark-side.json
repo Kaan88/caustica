@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Dark side of the moon",
- "description": "A white beam through a dense flint prism in light haze: spectral photons (Render → Spectral, photon mapping) split it by wavelength into a rainbow fanning onto the floor.",
+ "description": "A white beam through a dense flint prism in light haze: spectral photons (Render → Spectral, photon mapping) split it by wavelength into a rainbow that fans across the floor onto a white card.",
  "tags": [
   "optics",
   "spectral",
@@ -21,16 +21,24 @@
   ],
   "floor": {
    "color": [
-    0.55,
-    0.55,
-    0.55
+    0.6,
+    0.6,
+    0.6
    ],
-   "roughness": 0.9,
-   "metallic": 0,
-   "reflectivity": 0.02,
-   "transmission": 0,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
    "ior": 1.5,
-   "emission": 0
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
   },
   "light_on": false,
   "bounces": 12,
@@ -115,10 +123,54 @@
      "dispersion": 12.0
     },
     "portal": -1
+   },
+   {
+    "name": "Card",
+    "shape": "box",
+    "position": [
+     2.7,
+     0.3
+    ],
+    "size": 1.0,
+    "stretch": 1.7143,
+    "rotation": -12,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0857,
+     4.5714
+    ],
+    "elevation": -0.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.92,
+      0.92,
+      0.9
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
    }
   ],
   "fog": {
-   "density": 0.08,
+   "density": 0.12,
    "color": [
     1,
     1,
@@ -130,6 +182,6 @@
   },
   "integrator": 2,
   "spectral": true,
-  "exposure": 3.0
+  "exposure": 4.0
  }
 }

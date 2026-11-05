@@ -288,6 +288,13 @@ fn main() {
         });
     if dxc_spirv.exists() {
         println!("cargo:rustc-cfg=spirv");
+        // Hot reload on Vulkan compiles SPIR-V with the same DXC and flags as below.
+        println!(
+            "cargo:rustc-env=CAUSTICA_DXC_SPIRV={}",
+            PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
+                .join(&dxc_spirv)
+                .display()
+        );
         for &(file, entry, profile, name, defines) in entries {
             if profile.starts_with("lib_") {
                 continue;
@@ -318,11 +325,16 @@ fn main() {
             dxc_spirv.display()
         );
     }
+    // cfg(upscalers): bridge/vk.cpp is linked (NGX and XeSS on Vulkan). Always on Windows; on
+    // Linux when tools/setup.sh fetched the DLSS SDK (engine-notes "Linux DLSS").
+    println!("cargo::rustc-check-cfg=cfg(upscalers)");
     // Linux builds the Vulkan backend only (engine-notes "Vulkan backend: design", phase 2b):
     // no DXIL, no D3D12 upscaler bridges, no Windows resources.
     if !windows {
+        linux_upscalers(&out);
         return;
     }
+    println!("cargo:rustc-cfg=upscalers");
     assert!(
         env::var("TARGET").unwrap().contains("windows-msvc"),
         "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
@@ -516,4 +528,66 @@ END
         .unwrap_or_else(|e| panic!("{}: {e}", rc.display()));
     assert!(status.success(), "rc.exe failed on {}", rc_file.display());
     println!("cargo:rustc-link-arg-bins={}", res.display());
+}
+
+/// Linux: bridge/vk.cpp with the static NGX library and the DLSS / DLSS-D runtimes next to the
+/// exe (NGX looks there first). XeSS compiles in but finds no libxess.so: Intel ships none.
+/// Without the SDK (`sh tools/setup.sh` fetches it) the build has no upscalers.
+fn linux_upscalers(out: &std::path::Path) {
+    let lib = PathBuf::from("vendor/dlss/lib/Linux_x86_64");
+    let needed = [
+        lib.join("libnvsdk_ngx.a"),
+        PathBuf::from("vendor/dlss/include/nvsdk_ngx_vk.h"),
+        PathBuf::from("vendor/xess/inc/xess/xess_vk.h"),
+        PathBuf::from("vendor/vulkan-headers/include/vulkan/vulkan.h"),
+    ];
+    for path in &needed {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+    if let Some(missing) = needed.iter().find(|p| !p.exists()) {
+        println!(
+            "cargo:warning=no {} (sh tools/setup.sh): DLSS is left out",
+            missing.display()
+        );
+        return;
+    }
+    println!("cargo:rustc-cfg=upscalers");
+    println!("cargo:rerun-if-changed=bridge/vk.cpp");
+    cc::Build::new()
+        .cpp(true)
+        .file("bridge/vk.cpp")
+        .include("vendor/dlss/include")
+        .include("vendor/vulkan-headers/include")
+        .include("vendor/xess/inc")
+        .flag("-std=c++17")
+        // The NGX headers trip these; the bridge itself is clean.
+        .flag("-Wno-unused-parameter")
+        .flag("-Wno-missing-field-initializers")
+        .compile("caustica_vk");
+    println!(
+        "cargo:rustc-link-search=native={}",
+        std::fs::canonicalize(&lib).unwrap().display()
+    );
+    println!("cargo:rustc-link-lib=static=nvsdk_ngx");
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+    println!("cargo:rustc-link-lib=dylib=dl");
+    let destination = out.ancestors().nth(3).expect("Cargo profile directory");
+    let rel = lib.join("rel");
+    for entry in std::fs::read_dir(&rel).expect("vendor/dlss/lib/Linux_x86_64/rel") {
+        let source = entry.unwrap().path();
+        let name = source.file_name().unwrap().to_string_lossy().into_owned();
+        // RR (dlssd) and SR (dlss); not frame generation (dlssg).
+        if !(name.starts_with("libnvidia-ngx-dlss.so")
+            || name.starts_with("libnvidia-ngx-dlssd.so"))
+        {
+            continue;
+        }
+        println!("cargo:rerun-if-changed={}", source.display());
+        let dest = destination.join(&name);
+        let fresh = std::fs::metadata(&dest).map(|m| m.len()).ok()
+            == std::fs::metadata(&source).map(|m| m.len()).ok();
+        if !fresh {
+            std::fs::copy(&source, &dest).expect("copy the DLSS runtime next to the exe");
+        }
+    }
 }

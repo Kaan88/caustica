@@ -1,12 +1,13 @@
 {
  "format": 1,
  "title": "Veach ajar room",
- "description": "All light comes through a door left slightly open: almost every path is indirect. Shows the noise floor and what the denoisers do with it.",
+ "description": "All light comes through a door left slightly open: almost every path is indirect. Bidirectional path tracing connects light paths through the gap and converges quickly; switch Render → Integrator to path tracing to see the noise it removes, and what the denoisers do with it.",
  "tags": [
   "validation",
   "indirect",
   "veach",
-  "interior"
+  "interior",
+  "bdpt"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -87,6 +88,7 @@
   ],
   "fov": 65,
   "exposure": 1.6,
+  "integrator": 1,
   "objects": [
    {
     "name": "Ceiling",

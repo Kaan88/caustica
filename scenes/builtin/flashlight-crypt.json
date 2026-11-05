@@ -1,0 +1,1349 @@
+{
+ "format": 1,
+ "title": "Flashlight crypt",
+ "description": "A vaulted crypt in the dark: columns, marble sarcophagi, copper urns and an altar under a thin slit of moonlight. The flashlight is on (Render → Lights): a spot rides with the camera, so orbiting sweeps its beam across the stone.",
+ "tags": [
+  "lights",
+  "flashlight",
+  "interior",
+  "night"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 7.0,
+  "sky": 0.0,
+  "base": [
+   0.35,
+   0.33,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.35,
+    0.33,
+    0.3
+   ],
+   "roughness": 0.75,
+   "metallic": 0.0,
+   "reflectivity": 0.03,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 8,
+  "yaw": 0,
+  "pitch": 4,
+  "distance": 3.0,
+  "target": [
+   0,
+   0.2,
+   2.0
+  ],
+  "fov": 55,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -7.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     0.2857
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Front wall",
+    "shape": "box",
+    "position": [
+     0,
+     7.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     9.1429,
+     0.2857
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     -3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     20.0
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Side wall",
+    "shape": "box",
+    "position": [
+     3.1,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     20.0
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Ceiling",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0286,
+    "stretch": 0.2778,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     8.8889,
+     20.0
+    ],
+    "elevation": 3.1,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 1L",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     -5.5
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 1R",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -5.5
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sarcophagus 1",
+    "shape": "box",
+    "position": [
+     -2.3,
+     -4.4
+    ],
+    "size": 1.0,
+    "stretch": 1.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2857,
+     2.7143
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lid 1",
+    "shape": "box",
+    "position": [
+     -2.3,
+     -4.4
+    ],
+    "size": 1.0,
+    "stretch": 0.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4286,
+     2.8571
+    ],
+    "elevation": -0.125,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 2L",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     -3.3
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 2R",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -3.3
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Urn 1",
+    "shape": "pawn",
+    "position": [
+     2.3,
+     -2.2
+    ],
+    "size": 1.0,
+    "stretch": 1.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.35,
+      0.2
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 3L",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     -1.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 3R",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     -1.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sarcophagus 2",
+    "shape": "box",
+    "position": [
+     -2.3,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 1.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2857,
+     2.7143
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lid 2",
+    "shape": "box",
+    "position": [
+     -2.3,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4286,
+     2.8571
+    ],
+    "elevation": -0.125,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 4L",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     1.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 4R",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     1.1
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Urn 2",
+    "shape": "pawn",
+    "position": [
+     2.3,
+     2.2
+    ],
+    "size": 1.0,
+    "stretch": 1.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.35,
+      0.2
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 5L",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     3.3
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 5R",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     3.3
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sarcophagus 3",
+    "shape": "box",
+    "position": [
+     -2.3,
+     4.4
+    ],
+    "size": 1.0,
+    "stretch": 1.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.2857,
+     2.7143
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lid 3",
+    "shape": "box",
+    "position": [
+     -2.3,
+     4.4
+    ],
+    "size": 1.0,
+    "stretch": 0.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4286,
+     2.8571
+    ],
+    "elevation": -0.125,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 6L",
+    "shape": "cylinder",
+    "position": [
+     -1.6,
+     5.5
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Column 6R",
+    "shape": "cylinder",
+    "position": [
+     1.6,
+     5.5
+    ],
+    "size": 1.0,
+    "stretch": 5.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.6286,
+     0.6286
+    ],
+    "elevation": 1.0,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.4,
+      0.37
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.02,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Urn 3",
+    "shape": "pawn",
+    "position": [
+     2.3,
+     6.6
+    ],
+    "size": 1.0,
+    "stretch": 1.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.35,
+      0.2
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Altar",
+    "shape": "box",
+    "position": [
+     0,
+     -6.4
+    ],
+    "size": 1.0,
+    "stretch": 1.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.8571,
+     1.1429
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.85,
+      0.84,
+      0.79
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.05,
+      0.07,
+      0.1
+     ],
+     "pattern_scale": 5,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Chalice",
+    "shape": "pawn",
+    "position": [
+     0,
+     -6.4
+    ],
+    "size": 0.6,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.71,
+      0.29
+     ],
+     "roughness": 0.18,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Moon slit",
+    "shape": "box",
+    "position": [
+     0,
+     -6.95
+    ],
+    "size": 1.0,
+    "stretch": 1.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3571,
+     0.1714
+    ],
+    "elevation": 2.3,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.6,
+      0.7,
+      1.0
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": true
+    },
+    "portal": -1
+   }
+  ],
+  "flashlight": true,
+  "exposure": 1.4
+ }
+}

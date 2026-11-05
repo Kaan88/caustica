@@ -1,0 +1,714 @@
+{
+ "format": 1,
+ "title": "Swinging lantern",
+ "description": "A paper lantern on an iron chain, released sideways in a narrow alley: the chain is eight ball-jointed links, and the lantern is the only light, so the shadows of the chain and the walls swing with it.",
+ "tags": [
+  "physics",
+  "chain",
+  "emissive",
+  "night"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.25,
+   0.22,
+   0.19
+  ],
+  "floor": {
+   "color": [
+    0.25,
+    0.22,
+    0.19
+   ],
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "reflectivity": 0.08,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": -10,
+  "pitch": 6,
+  "distance": 5.5,
+  "target": [
+   0,
+   1.0,
+   0
+  ],
+  "fov": 50,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Left wall",
+    "shape": "box",
+    "position": [
+     -1.4,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 6.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4286,
+     11.4286
+    ],
+    "elevation": 1.25,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.36,
+      0.3
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   },
+   {
+    "name": "Right wall",
+    "shape": "box",
+    "position": [
+     1.6,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 6.4286,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4286,
+     11.4286
+    ],
+    "elevation": 1.25,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.42,
+      0.36,
+      0.3
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   },
+   {
+    "name": "Bracket",
+    "shape": "box",
+    "position": [
+     -1.0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7143,
+     0.0857
+    ],
+    "elevation": 2.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "body": "fixed"
+   },
+   {
+    "name": "Link 1",
+    "shape": "cylinder",
+    "position": [
+     -0.7614,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 2.504,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 2,
+      "at": [
+       -0.8,
+       2.55,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 2",
+    "shape": "cylinder",
+    "position": [
+     -0.6843,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 2.4121,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 3,
+      "at": [
+       -0.7229,
+       2.4581,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 3",
+    "shape": "cylinder",
+    "position": [
+     -0.6072,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 2.3202,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 4,
+      "at": [
+       -0.6457,
+       2.3661,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 4",
+    "shape": "cylinder",
+    "position": [
+     -0.53,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 2.2283,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 5,
+      "at": [
+       -0.5686,
+       2.2742,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 5",
+    "shape": "cylinder",
+    "position": [
+     -0.4529,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 2.1363,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 6,
+      "at": [
+       -0.4915,
+       2.1823,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 6",
+    "shape": "cylinder",
+    "position": [
+     -0.3758,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 2.0444,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 7,
+      "at": [
+       -0.4143,
+       2.0904,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 7",
+    "shape": "cylinder",
+    "position": [
+     -0.2986,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 1.9525,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 8,
+      "at": [
+       -0.3372,
+       1.9984,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Link 8",
+    "shape": "cylinder",
+    "position": [
+     -0.2215,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.1543,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     40.0
+    ],
+    "scale_xz": [
+     0.05,
+     0.05
+    ],
+    "elevation": 1.8606,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.12,
+      0.13
+     ],
+     "roughness": 0.4,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1,
+    "mass": 20.0,
+    "links": [
+     {
+      "object": 9,
+      "at": [
+       -0.2601,
+       1.9065,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Paper lantern",
+    "shape": "cylinder",
+    "position": [
+     -0.1829,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 0.5714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.4286,
+     0.4286
+    ],
+    "elevation": 1.6146,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      1.0,
+      0.55,
+      0.2
+     ],
+     "roughness": 0.5,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.5,
+     "sheen_color": [
+      1.0,
+      0.8,
+      0.6
+     ],
+     "sheen_roughness": 0.6
+    },
+    "portal": -1,
+    "mass": 2.0,
+    "links": [
+     {
+      "object": 10,
+      "at": [
+       -0.1829,
+       1.8146,
+       0.0
+      ]
+     }
+    ]
+   }
+  ],
+  "exposure": 1.8,
+  "physics": {
+   "enabled": true,
+   "bounce": 0.05,
+   "friction": 0.8
+  }
+ }
+}

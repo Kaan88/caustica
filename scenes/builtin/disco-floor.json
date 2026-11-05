@@ -1,10 +1,12 @@
 {
  "format": 1,
  "title": "Disco floor",
- "description": "A glowing checkerboard floor lights a mirror ball and dancers from below.",
+ "description": "A dark glass dance floor with glowing purple squares, a mirror ball and four coloured spots in a light haze: the beams sample the haze toward each spot (equiangular sampling), the ball scatters them.",
  "tags": [
   "emissive",
-  "party"
+  "party",
+  "fog",
+  "spot"
  ],
  "credits": "Caustica built-in scenes",
  "settings": {
@@ -12,27 +14,27 @@
   "floor_extent": 5.0,
   "sky": 0.0,
   "base": [
-   1.0,
-   0.25,
-   0.75
+   0.05,
+   0.05,
+   0.055
   ],
   "floor": {
    "color": [
-    1.0,
-    0.25,
-    0.75
+    0.55,
+    0.12,
+    0.85
    ],
-   "roughness": 0.3,
+   "roughness": 0.2,
    "metallic": 0.0,
-   "reflectivity": 0.1,
+   "reflectivity": 0.2,
    "transmission": 0.0,
    "ior": 1.5,
-   "emission": 1.6,
+   "emission": 0.5,
    "pattern": "checker",
    "secondary_color": [
-    0.0,
-    0.0,
-    0.0
+    0.005,
+    0.005,
+    0.01
    ],
    "pattern_scale": 1.2,
    "unlit": false
@@ -47,14 +49,127 @@
   "light_intensity": 12.0,
   "light_visible": false,
   "light_temperature": 5600.0,
-  "lights": [],
+  "lights": [
+   {
+    "name": "Spot 1",
+    "position": [
+     3.6842,
+     4.2,
+     1.5577
+    ],
+    "rotation": [
+     63.435,
+     67.082,
+     0.0
+    ],
+    "size": [
+     0.3,
+     0.3
+    ],
+    "color": [
+     1.0,
+     0.1,
+     0.4
+    ],
+    "intensity": 160.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "spot",
+    "spread": 14.0,
+    "blend": 0.25
+   },
+   {
+    "name": "Spot 2",
+    "position": [
+     -1.6646,
+     4.2,
+     3.6372
+    ],
+    "rotation": [
+     63.435,
+     -24.592,
+     0.0
+    ],
+    "size": [
+     0.3,
+     0.3
+    ],
+    "color": [
+     0.1,
+     0.5,
+     1.0
+    ],
+    "intensity": 160.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "spot",
+    "spread": 14.0,
+    "blend": 0.25
+   },
+   {
+    "name": "Spot 3",
+    "position": [
+     -3.587,
+     4.2,
+     -1.7701
+    ],
+    "rotation": [
+     63.435,
+     -116.265,
+     0.0
+    ],
+    "size": [
+     0.3,
+     0.3
+    ],
+    "color": [
+     1.0,
+     0.8,
+     0.1
+    ],
+    "intensity": 160.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "spot",
+    "spread": 14.0,
+    "blend": 0.25
+   },
+   {
+    "name": "Spot 4",
+    "position": [
+     1.5119,
+     4.2,
+     -3.7033
+    ],
+    "rotation": [
+     63.435,
+     157.792,
+     0.0
+    ],
+    "size": [
+     0.3,
+     0.3
+    ],
+    "color": [
+     0.2,
+     1.0,
+     0.4
+    ],
+    "intensity": 160.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "spot",
+    "spread": 14.0,
+    "blend": 0.25
+   }
+  ],
   "bounces": 10,
   "yaw": 15,
-  "pitch": 12,
+  "pitch": 10,
   "distance": 8,
   "target": [
    0,
-   0.4,
+   0.6,
    0
   ],
   "fov": 45,
@@ -63,6 +178,21 @@
    0.0,
    0.0
   ],
+  "exposure": 1.4,
+  "fog": {
+   "density": 0.05,
+   "color": [
+    0.95,
+    0.95,
+    1.0
+   ],
+   "phase": 0.5,
+   "height": 4.5,
+   "extent": 6.0,
+   "noise": 0.0,
+   "noise_size": 1.0,
+   "equiangular": true
+  },
   "objects": [
    {
     "name": "Mirror ball",
@@ -71,7 +201,7 @@
      0,
      0
     ],
-    "size": 2.2,
+    "size": 1.6,
     "stretch": 1.0,
     "rotation": 0.0,
     "tilt": [
@@ -91,7 +221,7 @@
       0.9,
       0.95
      ],
-     "roughness": 0.05,
+     "roughness": 0.02,
      "metallic": 1,
      "reflectivity": 0.05,
      "transmission": 0.0,

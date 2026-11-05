@@ -1,0 +1,908 @@
+{
+ "format": 1,
+ "title": "Loft corner",
+ "description": "The texture sets in one room: a sofa in woven fabric against a brick wall, a marble table on a metal base on a tiled floor patch, a stone bowl and planter, on a wood floor in window light and a warm lamp. Normal maps carry the detail at grazing light.",
+ "tags": [
+  "texture",
+  "interior",
+  "material",
+  "texture"
+ ],
+ "credits": "Bricks097, Fabric062, Marble016, Metal032, Tiles074, WoodFloor041: ambientCG (CC0). Rock wall 08: Poly Haven (CC0)",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 3.0,
+  "sky": 0.15,
+  "base": [
+   0.5,
+   0.4,
+   0.3
+  ],
+  "floor": {
+   "color": [
+    0.1114,
+    0.0734,
+    0.0423
+   ],
+   "roughness": 0.6037,
+   "metallic": 0.0,
+   "reflectivity": 0.05,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false,
+   "texture": "textures/WoodFloor041/WoodFloor041_2K-JPG_Color.jpg",
+   "texture_scale": 0.6
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Window",
+    "position": [
+     3.2,
+     1.3,
+     1.0
+    ],
+    "rotation": [
+     61.421,
+     60.642,
+     0.0
+    ],
+    "size": [
+     1.6,
+     2.2
+    ],
+    "color": [
+     1.0,
+     0.9524,
+     0.8935
+    ],
+    "intensity": 14,
+    "enabled": true,
+    "visible": false
+   },
+   {
+    "name": "Lamp",
+    "position": [
+     2.0,
+     0.65,
+     -1.4
+    ],
+    "rotation": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "size": [
+     0.18,
+     0.18
+    ],
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "intensity": 6.0,
+    "enabled": true,
+    "visible": false,
+    "kind": "sphere",
+    "temperature": 2800.0
+   }
+  ],
+  "bounces": 12,
+  "yaw": 25,
+  "pitch": 14,
+  "distance": 5.2,
+  "target": [
+   0,
+   -0.3,
+   -0.5
+  ],
+  "fov": 48,
+  "objects": [
+   {
+    "name": "Brick wall",
+    "shape": "box",
+    "position": [
+     0,
+     -2.0
+    ],
+    "size": 1.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     8.5714,
+     0.2143
+    ],
+    "elevation": 0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2469,
+      0.1599,
+      0.0991
+     ],
+     "roughness": 0.5987,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Bricks097/Bricks097_2K-JPG_Color.jpg",
+     "texture_scale": 0.7
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plaster wall",
+    "shape": "box",
+    "position": [
+     -2.9,
+     0.5
+    ],
+    "size": 1.0,
+    "stretch": 4.2857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2143,
+     7.1429
+    ],
+    "elevation": 0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.76,
+      0.72
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "marble",
+     "secondary_color": [
+      0.7,
+      0.68,
+      0.64
+     ],
+     "pattern_scale": 1.2,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rug",
+    "shape": "box",
+    "position": [
+     0.3,
+     0.6
+    ],
+    "size": 0.2857,
+    "stretch": 0.05,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     15.0,
+     10.0
+    ],
+    "elevation": -0.995,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.159,
+      0.1176,
+      0.0896
+     ],
+     "roughness": 0.0882,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Tiles074/Tiles074_2K-JPG_Color.jpg",
+     "texture_scale": 0.8
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sofa base",
+    "shape": "box",
+    "position": [
+     -0.2,
+     -1.35
+    ],
+    "size": 1.0,
+    "stretch": 0.6429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.7143,
+     1.2857
+    ],
+    "elevation": -0.775,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sofa back",
+    "shape": "box",
+    "position": [
+     -0.2,
+     -1.72
+    ],
+    "size": 1.0,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     3.7143,
+     0.2857
+    ],
+    "elevation": -0.25,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sofa arm",
+    "shape": "box",
+    "position": [
+     -1.4,
+     -1.35
+    ],
+    "size": 1.0,
+    "stretch": 0.3571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     1.2857
+    ],
+    "elevation": -0.425,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Sofa arm",
+    "shape": "box",
+    "position": [
+     1.0,
+     -1.35
+    ],
+    "size": 1.0,
+    "stretch": 0.3571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.2857,
+     1.2857
+    ],
+    "elevation": -0.425,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cushion 1",
+    "shape": "box",
+    "position": [
+     -0.85,
+     -1.3
+    ],
+    "size": 1.0,
+    "stretch": 0.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.7857,
+     1.0714
+    ],
+    "elevation": -0.475,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Cushion 2",
+    "shape": "box",
+    "position": [
+     0.45,
+     -1.3
+    ],
+    "size": 1.0,
+    "stretch": 0.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.7857,
+     1.0714
+    ],
+    "elevation": -0.475,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.5635,
+      0.5312,
+      0.4838
+     ],
+     "roughness": 0.8245,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Fabric062/Fabric062_2K-JPG_Color.jpg",
+     "texture_scale": 0.9
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coffee table",
+    "shape": "box",
+    "position": [
+     0.3,
+     0.5
+    ],
+    "size": 1.0,
+    "stretch": 0.0857,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.0
+    ],
+    "elevation": -0.59,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.0491,
+      0.0518,
+      0.0504
+     ],
+     "roughness": 0.1142,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Marble016/Marble016_2K-JPG_Color.jpg",
+     "texture_scale": 0.6
+    },
+    "portal": -1
+   },
+   {
+    "name": "Table base",
+    "shape": "box",
+    "position": [
+     0.3,
+     0.5
+    ],
+    "size": 1.0,
+    "stretch": 0.5429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.4286,
+     0.4286
+    ],
+    "elevation": -0.81,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2049,
+      0.2483,
+      0.2938
+     ],
+     "roughness": 0.4081,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Metal032/Metal032_2K-JPG_Color.jpg",
+     "texture_scale": 0.8
+    },
+    "portal": -1
+   },
+   {
+    "name": "Mug",
+    "shape": "cylinder",
+    "position": [
+     0.6,
+     0.45
+    ],
+    "size": 1.0,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1429,
+     0.1429
+    ],
+    "elevation": -0.5,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.88,
+      0.87,
+      0.83
+     ],
+     "roughness": 0.2,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bowl",
+    "shape": "sphere",
+    "position": [
+     0.0,
+     0.55
+    ],
+    "size": 0.45,
+    "stretch": 0.5,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.38,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.0846,
+      0.0717,
+      0.0567
+     ],
+     "roughness": 0.8391,
+     "metallic": 0.003,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/rock_wall_08/rock_wall_08_diff_2k.jpg",
+     "texture_scale": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lamp pole",
+    "shape": "cylinder",
+    "position": [
+     2.0,
+     -1.4
+    ],
+    "size": 1.0,
+    "stretch": 2.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.0571,
+     0.0571
+    ],
+    "elevation": -0.05,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.2049,
+      0.2483,
+      0.2938
+     ],
+     "roughness": 0.4081,
+     "metallic": 1.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/Metal032/Metal032_2K-JPG_Color.jpg",
+     "texture_scale": 0.8
+    },
+    "portal": -1
+   },
+   {
+    "name": "Lamp shade",
+    "shape": "cone",
+    "position": [
+     2.0,
+     -1.4
+    ],
+    "size": 0.5,
+    "stretch": 0.9,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 1.75,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.95,
+      0.9,
+      0.8
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "sheen": 0.3,
+     "sheen_color": [
+      1,
+      1,
+      1
+     ],
+     "sheen_roughness": 0.4
+    },
+    "portal": -1
+   },
+   {
+    "name": "Planter",
+    "shape": "cylinder",
+    "position": [
+     -2.4,
+     -1.5
+    ],
+    "size": 1.0,
+    "stretch": 0.7143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.7143,
+     0.7143
+    ],
+    "elevation": -0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.0846,
+      0.0717,
+      0.0567
+     ],
+     "roughness": 0.8391,
+     "metallic": 0.003,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "texture": "textures/rock_wall_08/rock_wall_08_diff_2k.jpg",
+     "texture_scale": 0.5
+    },
+    "portal": -1
+   },
+   {
+    "name": "Plant",
+    "shape": "sphere",
+    "position": [
+     -2.4,
+     -1.5
+    ],
+    "size": 1.1429,
+    "stretch": 1.4,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.15,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.12,
+      0.4,
+      0.1
+     ],
+     "roughness": 0.85,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "background": [
+   0.7,
+   0.75,
+   0.8
+  ],
+  "exposure": 1.2
+ }
+}

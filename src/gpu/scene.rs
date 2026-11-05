@@ -2,7 +2,18 @@
 use super::*;
 
 impl Gpu {
+    /// A failed rebuild (a D3D12 error part way) leaves BLASes queued for compaction whose
+    /// size readbacks never ran, and a TLAS cache that may not match the TLAS: both are dropped,
+    /// so the next rebuild builds the TLAS whole and compacts only what it builds.
     pub unsafe fn rebuild_scene(&mut self, s: &Settings) -> Result<()> {
+        let result = unsafe { self.rebuild_scene_inner(s) };
+        if result.is_err() {
+            self.compact_queue.clear();
+            self.tlas_cache = None;
+        }
+        result
+    }
+    unsafe fn rebuild_scene_inner(&mut self, s: &Settings) -> Result<()> {
         let packed = crate::lighting::materials(s);
         self.begin()?;
         let mut keep: Vec<ID3D12Resource> = vec![];

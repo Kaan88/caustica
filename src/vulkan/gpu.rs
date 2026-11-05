@@ -210,6 +210,33 @@ fn vk_format(f: TexFormat) -> vk::Format {
     }
 }
 
+/// The swap chain while `Gpu::new` runs: destroyed with its surface if `new` returns early.
+struct SwapGuard<'a>(&'a Device, Option<Swapchain>);
+
+impl SwapGuard<'_> {
+    fn into_inner(mut self) -> Swapchain {
+        self.1.take().unwrap()
+    }
+}
+
+impl std::ops::Deref for SwapGuard<'_> {
+    type Target = Swapchain;
+    fn deref(&self) -> &Swapchain {
+        self.1.as_ref().unwrap()
+    }
+}
+
+impl Drop for SwapGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(mut swap) = self.1.take() {
+            unsafe {
+                let _ = self.0.device.device_wait_idle();
+                swap.destroy(self.0);
+            }
+        }
+    }
+}
+
 impl Gpu {
     pub unsafe fn new(
         window: &winit::window::Window,
@@ -228,12 +255,17 @@ impl Gpu {
                 window.window_handle()?.as_raw(),
             );
             let (device, surface) = Device::new(Some(raw), debug)?;
-            let swap = Swapchain::new(
-                &device,
-                surface.context("no surface")?,
-                [width, height],
-                true,
-            )?;
+            let surface = surface.context("no surface")?;
+            let swap = match Swapchain::new(&device, surface, [width, height], true) {
+                Ok(swap) => swap,
+                Err(e) => {
+                    device.surface_fn.destroy_surface(surface, None);
+                    return Err(e);
+                }
+            };
+            // Until `Gpu` owns it, a failure below destroys the swap chain and the surface:
+            // Menu → Renderer then falls back to D3D12 on the same window.
+            let swap = SwapGuard(&device, Some(swap));
             let frame = Frame::new(&device)?;
             let accel_fns =
                 khr::acceleration_structure::Device::new(&device.instance, &device.device);
@@ -418,6 +450,7 @@ impl Gpu {
                 hdr_levels: [203., 1000.],
                 ..Default::default()
             };
+            let swap = swap.into_inner();
             let mut gpu = Self {
                 st,
                 swap,
@@ -793,7 +826,9 @@ impl Gpu {
                 | (jittered as u32) << 1
                 | spatial << 2
                 | s.mis_mode.min(2) << 4
-                | ((s.fog.equiangular && s.fog.density > 0.) as u32) << 6;
+                | ((s.fog.equiangular && s.fog.density > 0.) as u32) << 6
+                // As on D3D12: when to write the object ids.
+                | ((!jittered || (self.st.samples == 0 && self.up.sr_fresh <= 1)) as u32) << 7;
             let env = if s.physical_sky.on {
                 (1., s.physical_sky.rotation(), s.physical_sky.visible)
             } else {
@@ -941,7 +976,7 @@ impl Gpu {
             );
             self.queue_readbacks();
             self.stamp(3);
-            self.present(draw, primitives, pixels_per_point)?;
+            self.present(primitives, pixels_per_point)?;
             self.gui.free(&self.device, delta)?;
             // One frame in flight, as D3D12's submit: this frame's results are read now.
             self.device
@@ -957,18 +992,14 @@ impl Gpu {
     }
 
     /// Ends the frame's command buffer: blits the output (texture 10) into the next swap chain
-    /// image and presents it, or just submits when the window is minimized or not drawn.
-    unsafe fn present(
-        &mut self,
-        draw: bool,
-        primitives: &[egui::ClippedPrimitive],
-        ppp: f32,
-    ) -> Result<()> {
+    /// image and presents it, or just submits when the window is minimized. Frames that trace
+    /// nothing (paused, converged) still present: the UI must keep updating, as on D3D12.
+    unsafe fn present(&mut self, primitives: &[egui::ClippedPrimitive], ppp: f32) -> Result<()> {
         unsafe {
             let d = &self.device;
             let (swap, frame) = (&mut self.swap, &self.frame);
             let cmd = frame.cmd;
-            let shown = draw && !self.st.swap_size.contains(&0);
+            let shown = !self.st.swap_size.contains(&0);
             let index = if shown {
                 match swap.fns.acquire_next_image(
                     swap.handle,
@@ -1434,7 +1465,72 @@ impl Gpu {
         self.reset(true);
         Ok(())
     }
-    pub unsafe fn reload_shaders(&mut self, _sh: &crate::hotreload::Shaders) -> Result<()> {
+    /// Shader hot reload (debug builds): the compute pipelines rebuilt from the SPIR-V that
+    /// `hotreload` compiled. All are built before any is swapped, so an error keeps the old set.
+    /// The UI pipelines stay (D3D12 reloads those too).
+    pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
+        let list: [(&'static str, &[u8], &std::ffi::CStr); 22] = [
+            ("trace", &sh.trace, c"trace"),
+            ("trace_maps", &sh.trace_maps, c"trace"),
+            ("trace_lean", &sh.trace_lean, c"trace"),
+            ("trace_maps_lean", &sh.trace_maps_lean, c"trace"),
+            ("trace_spectral", &sh.trace_spectral, c"trace"),
+            ("trace_spectral_lean", &sh.trace_spectral_lean, c"trace"),
+            ("trace_paths", &sh.trace_paths, c"trace"),
+            ("trace_lpe", &sh.trace_lpe, c"trace"),
+            (
+                "restir_presample",
+                &sh.restir_presample,
+                c"restir_presample",
+            ),
+            ("restir_initial", &sh.restir_initial, c"restir_initial"),
+            ("restir_spatial", &sh.restir_spatial, c"restir_spatial"),
+            ("bdpt", &sh.bdpt, c"bdpt"),
+            ("bdpt_spectral", &sh.bdpt_spectral, c"bdpt"),
+            ("bdpt_resolve", &sh.bdpt_resolve, c"bdpt_resolve"),
+            ("photon_clear", &sh.photon_clear, c"photon_clear"),
+            ("photon_trace", &sh.photon_trace, c"photon_trace"),
+            (
+                "photon_trace_spectral",
+                &sh.photon_trace_spectral,
+                c"photon_trace",
+            ),
+            ("photon_gather", &sh.photon_gather, c"photon_gather"),
+            (
+                "photon_gather_spectral",
+                &sh.photon_gather_spectral,
+                c"photon_gather",
+            ),
+            ("filter", &sh.filter, c"filter"),
+            ("display", &sh.display, c"display"),
+            ("glare", &sh.glare, c"glare_pass"),
+        ];
+        unsafe {
+            let mut built = vec![];
+            for (name, code, entry) in list {
+                match self.layout.compute(
+                    &self.device,
+                    code,
+                    entry,
+                    vk::PipelineCreateFlags::empty(),
+                ) {
+                    Ok(p) => built.push((name, p)),
+                    Err(e) => {
+                        for (_, p) in built {
+                            self.device.device.destroy_pipeline(p, None);
+                        }
+                        return Err(e.context(format!("{name} pipeline")));
+                    }
+                }
+            }
+            self.device.device.device_wait_idle()?;
+            for (name, p) in built {
+                if let Some(old) = self.pipes.insert(name, p) {
+                    self.device.device.destroy_pipeline(old, None);
+                }
+            }
+        }
+        self.reset(true);
         Ok(())
     }
     /// Switches the swap chain between SDR, scRGB and (with `hdr10`) HDR10, as D3D12's
@@ -1472,6 +1568,7 @@ impl Gpu {
             let [w, h] = [self.st.width, self.st.height];
             self.resize_output(w, h, s)?;
         }
+        self.st.hdr_refused = on && want == 0;
         Ok(!on || want > 0)
     }
     /// The raw bytes of texture `index`, tightly packed rows.

@@ -17,6 +17,7 @@ impl Gpu {
         let (view, proj, eye) = s.camera(self.width as f32 / self.height as f32);
         let vp = proj * view;
         let reset = self.rr_reset;
+        self.poll_ngx(false);
         // RR and the temporal upscalers need a perspective camera (motion vectors, guides).
         self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective() && !self.painting
                 // Battle mode compares raw samples.
@@ -77,7 +78,9 @@ impl Gpu {
         };
         // Display flags: bit 0 jittered primary rays, bit 1 show the upscaled texture (14),
         // bits 2-3 the spatial upscale filter (1 bilinear, 2 bicubic), bits 4-5 light sampling,
-        // bit 6 equiangular sampling in fog.
+        // bit 6 equiangular sampling in fog, bit 7 write the object ids: unjittered, or the
+        // first frame after a real restart (not the upscaler's per-frame soft ones), so edge
+        // ids and the outlines don't follow the jitter.
         let spatial = if s.upscaler == Upscaler::Bilinear {
             1
         } else {
@@ -87,7 +90,8 @@ impl Gpu {
             | ((self.rr_active || sr.is_some()) as u32) << 1
             | spatial << 2
             | s.mis_mode.min(2) << 4
-            | ((s.fog.equiangular && s.fog.density > 0.) as u32) << 6;
+            | ((s.fog.equiangular && s.fog.density > 0.) as u32) << 6
+            | ((!jittered || (self.samples == 0 && self.sr_fresh <= 1)) as u32) << 7;
         let n = if draw {
             s.spp.min(s.max_samples.saturating_sub(self.samples))
         } else {

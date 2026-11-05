@@ -5,8 +5,8 @@
 #
 # The AppImage mounts read-only, which is the app's installed mode (src/dirs.rs): settings, user
 # scenes, downloads and captures go to $XDG_CONFIG_HOME/caustica, caches to $XDG_CACHE_HOME. The
-# Vulkan loader and the GPU driver come from the system (an AppImage must not bundle them), and
-# ffmpeg is found on PATH. glibc: it runs on distros with at least the build machine's glibc.
+# Vulkan loader and the GPU driver come from the system (an AppImage must not bundle them; DLSS's
+# NGX runtimes are bundled), and ffmpeg is found on PATH. glibc: it runs on distros with at least the build machine's glibc.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
@@ -31,6 +31,10 @@ trap 'rm -rf "$work"' EXIT
 app="$work/Caustica.AppDir"
 mkdir -p "$app/usr/bin"
 cp "$exe" "$app/usr/bin/caustica"
+# DLSS RR and SR (build.rs copies NGX's runtimes beside the exe; bridge/vk.cpp looks there).
+for so in "$(dirname "$exe")"/libnvidia-ngx-dlss*.so.*; do
+    if [ -f "$so" ]; then cp "$so" "$app/usr/bin/"; fi
+done
 # dirs::scenes() looks beside the exe.
 cp -r scenes "$app/usr/bin/scenes"
 cp README.md "$app/usr/bin/"

@@ -10,34 +10,34 @@
  "settings": {
   "cornell_room": false,
   "floor_extent": 15.0,
-  "sky": 0.08,
+  "sky": 0.0,
   "base": [
-   0.22,
-   0.25,
-   0.3
+   0.48,
+   0.47,
+   0.45
   ],
   "floor": {
    "color": [
-    0.72,
-    0.7,
-    0.66
+    0.48,
+    0.47,
+    0.45
    ],
-   "roughness": 0.3,
+   "roughness": 0.85,
    "metallic": 0.0,
-   "reflectivity": 0.08,
+   "reflectivity": 0.02,
    "transmission": 0.0,
    "ior": 1.5,
    "emission": 0.0,
-   "pattern": "solid",
+   "pattern": "marble",
    "secondary_color": [
-    0.04,
-    0.04,
-    0.04
+    0.4,
+    0.39,
+    0.37
    ],
-   "pattern_scale": 3.0,
+   "pattern_scale": 1.5,
    "unlit": false
   },
-  "light_on": true,
+  "light_on": false,
   "light_position": [
    -1.0,
    4.0,
@@ -47,40 +47,14 @@
   "light_intensity": 12.0,
   "light_visible": false,
   "light_temperature": 5600.0,
-  "lights": [
-   {
-    "name": "Cool rim",
-    "position": [
-     2.5,
-     3,
-     -2.5
-    ],
-    "rotation": [
-     0.0,
-     0.0,
-     0.0
-    ],
-    "size": [
-     2,
-     2
-    ],
-    "color": [
-     0.42,
-     0.65,
-     1.0
-    ],
-    "intensity": 10,
-    "enabled": true,
-    "visible": false
-   }
-  ],
+  "lights": [],
   "bounces": 10,
-  "yaw": -35,
-  "pitch": 12,
-  "distance": 7.5,
+  "yaw": -40,
+  "pitch": 8,
+  "distance": 8.0,
   "target": [
-   0.3,
-   0.6,
+   0.2,
+   0.4,
    0
   ],
   "fov": 42,
@@ -243,9 +217,9 @@
     "visible": true,
     "material": {
      "color": [
-      0.3,
-      0.3,
-      0.32
+      0.55,
+      0.55,
+      0.57
      ],
      "roughness": 0.35,
      "metallic": 1,
@@ -260,7 +234,10 @@
       0.04
      ],
      "pattern_scale": 3.0,
-     "unlit": false
+     "unlit": false,
+     "anisotropy": 0.5,
+     "anisotropy_rotation": 0.0,
+     "anisotropy_spun": true
     },
     "portal": -1,
     "mass": 40.0
@@ -288,11 +265,11 @@
     "visible": true,
     "material": {
      "color": [
-      0.15,
-      0.15,
-      0.15
+      0.25,
+      0.25,
+      0.26
      ],
-     "roughness": 0.5,
+     "roughness": 0.4,
      "metallic": 1,
      "reflectivity": 0.05,
      "transmission": 0.0,
@@ -2085,6 +2062,15 @@
    "speed": 1.0,
    "bounce": 0.1,
    "friction": 0.7
-  }
+  },
+  "physical_sky": {
+   "on": true,
+   "time": 16.5,
+   "day": 250.0,
+   "latitude": 45.0,
+   "turbidity": 3.5,
+   "north": 40.0
+  },
+  "exposure": 1.2
  }
 }

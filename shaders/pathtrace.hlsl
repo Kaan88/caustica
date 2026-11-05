@@ -393,20 +393,22 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
     Instance inst=instances[q.CommittedInstanceID()];uint prim=q.CommittedPrimitiveIndex();float2 b=q.CommittedTriangleBarycentrics();
     // uv_scale: texture units per world unit at the hit; T, B: world dP/du and dP/dv (both for
     // the footprint; T zero when only uv_scale is known).
-    h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;float3 T=0,B=0;
+    h.t=q.CommittedRayT();h.p=o+d*h.t;float2 uv=0;float4 tangent=0;bool mapped;float uv_scale=0;float3 T=0,B=0,gn;
     if(inst.material==0xffffffffu){
         // Static geometry: one instance per opacity group (Gpu::rebuild_scene), each starting at
         // triangle vertex_base of static_vertices.
         prim+=inst.vertex_base;uint idx=prim*3;
         Vertex a=static_vertices[idx],v=static_vertices[idx+1],c=static_vertices[idx+2];
         h.n=normalize(a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y);h.material=a.material;
+        gn=cross(v.position-a.position,c.position-a.position);
         mapped=flagged(h.material,16u);
-        if(mapped){uv_scale=materials[h.material].base_scale.w;float3 t,bt;box_map(h.p,h.n,uv_scale,uv,t,bt);tangent=float4(t,tangent_sign(h.n,t,bt));T=t/uv_scale;B=bt/uv_scale;}
+        if(mapped){uv_scale=abs(materials[h.material].base_scale.w);float3 t,bt;box_map(h.p,h.n,uv_scale,uv,t,bt);tangent=float4(t,tangent_sign(h.n,t,bt));T=t/uv_scale;B=bt/uv_scale;}
     }else{
         // An object: object-space normal to world by the inverse transpose (row vector × W2O).
         uint idx=inst.vertex_base+prim*3;Vertex a=vertices[idx],v=vertices[idx+1],c=vertices[idx+2];
         float3 n=a.normal*(1-b.x-b.y)+v.normal*b.x+c.normal*b.y;
         h.n=normalize(mul(n,(float3x3)q.CommittedWorldToObject3x4()));h.material=inst.material;
+        gn=mul(cross(v.position-a.position,c.position-a.position),(float3x3)q.CommittedWorldToObject3x4());
         // UVs and tangents only for materials with maps (flag 16).
         mapped=flagged(h.material,16u);float scale=materials[h.material].base_scale.w;float3x4 m2w=q.CommittedObjectToWorld3x4();
         if(mapped && scale>0){
@@ -422,9 +424,16 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
             float3 e1=v.position-a.position,e2=c.position-a.position;float2 d1=v.uv-a.uv,d2=c.uv-a.uv;float det=d1.x*d2.y-d1.y*d2.x;
             if(abs(det)>1e-12){float3 t=(e1*d2.y-e2*d1.y)/det,bt=(e2*d1.x-e1*d2.x)/det;tangent=float4(mul(m2w,float4(t,0)),tangent_sign(n,t,bt));T=tangent.xyz;B=mul(m2w,float4(bt,0));}
             float world_area=length(cross(mul(m2w,float4(e1,0)),mul(m2w,float4(e2,0))));uv_scale=sqrt(abs(det)/max(world_area,1e-20));
+            // A texture set on the mesh's UVs (base_scale.w < 0): |w| repeats per UV unit.
+            if(scale<0){float k=-scale;uv*=k;uv_scale*=k;T/=k;B/=k;}
         }
     }
-    h.front=dot(d,h.n)<0;if(!h.front)h.n=-h.n;h.ng=h.n;
+    // The side is the triangle's (its face normal turned toward the shading normal), not the
+    // interpolated normal's: at grazing hits on smooth meshes those can disagree, and a wrong
+    // side pushed or popped the wrong medium in a nested dielectric. ng is the face normal.
+    gn=dot(gn,gn)>1e-30?normalize(gn):h.n;if(dot(gn,h.n)<0)gn=-gn;
+    // The shading normal still faces the ray, as the BSDFs and cosines expect.
+    h.front=dot(d,gn)<0;if(!h.front)gn=-gn;if(dot(d,h.n)>0)h.n=-h.n;h.ng=gn;
     if(materials[h.material].layers.w>0 || has_grating(materials[h.material])){
         float3 ax=float3(1,0,0),ay=float3(0,1,0),o=0;
         if(inst.material!=0xffffffffu){float3x4 w=q.CommittedObjectToWorld3x4();ax=w._m00_m10_m20;ay=w._m01_m11_m21;o=w._m03_m13_m23;}
@@ -1314,6 +1323,15 @@ float2 filter_offset(float2 u){
     if(lights.y==2)return (float2(blackman_harris_inverse(u.x),blackman_harris_inverse(u.y))-0.5)*width;
     return (u-0.5)*width;
 }
+// filter_offset's density along one axis at offset x from a pixel centre: BDPT's light-tracing
+// splats weight the pixels around a film point by it (in both axes), so BDPT and photon mapping
+// render the path tracer's filtered image. The Gaussian is normalized over its ±3 sigma support.
+float filter_density(float x){
+    float width=lights.z,t=x/width+0.5;if(t<0 || t>1)return 0;
+    if(lights.y==1){float s=width/6;return exp(-0.5*x*x/(s*s))/(s*2.50662827*0.9973);}
+    if(lights.y==2)return (0.35875-0.48829*cos(2*PI*t)+0.14128*cos(4*PI*t)-0.01168*cos(6*PI*t))/(0.35875*width);
+    return 1/width;
+}
 // Path visualizer (track 14): the PATH_RECORD variant re-traces one pixel (path_record.xy) on one
 // thread, path_record.z paths with this frame's sample indices (the first sampling.y are exactly
 // the paths this frame accumulates), and writes no texture. Each event is a record (paths.rs
@@ -1341,9 +1359,12 @@ void record(uint kind,uint bounce,float3 position,float3 color,float value,float
 // The guide ray (pinhole through the lens centre, at the frame's jitter): RR's guides, the native
 // denoiser's and the temporal upscalers' inputs. Shared by every integrator.
 void write_guides(uint2 p,out Hit guide){
+    // The object ids (selection outlines, picking, the denoiser's edge stop) keep the first frame's
+    // hits while samples accumulate under a jitter: else edge pixels flip object every frame.
+    bool id_fresh=(scene_info.w&128u)!=0;
     float3 go,gd;bool gvalid;camera_ray(float2(p)+0.5+jitter.xy,false,go,gd,gvalid);
     if(intersect(go,gd,1e4,guide,false,true)){
-        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);prepare_film(m,abs(dot(-gd,guide.n)),1,0);normal_roughness[p]=float4(guide.n,m.color_rough.a);object_id[p]=guide.material+1;
+        Material m=material_at(guide.material,guide.p);apply_maps(guide,m);prepare_film(m,abs(dot(-gd,guide.n)),1,0);normal_roughness[p]=float4(guide.n,m.color_rough.a);if(id_fresh)object_id[p]=guide.material+1;
         diffuse_albedo[p]=float4(m.color_rough.rgb*(1-m.lobes.x)*(1-m.lobes.z),1);
         specular_albedo[p]=float4(spec_fresnel(m,abs(dot(-gd,guide.n)),f0_of(m)),1);
         depth[p]=camera_model.x==0||camera_model.x==4?-mul(world_view,float4(guide.p,1)).z:guide.t;
@@ -1355,7 +1376,7 @@ void write_guides(uint2 p,out Hit guide){
         // Only RR reads it; the native path skips the extra ray.
         Hit reflected;float3 reflected_direction=reflect(gd,guide.n);
         specular_distance[p]=modes.w!=0 && intersect(guide.p+guide.n*0.0003,reflected_direction,1e4,reflected,false,false)?reflected.t:65504.0;
-    }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
+    }else{guide.material=0xffffffffu;normal_roughness[p]=float4(0,0,0,1);if(id_fresh)object_id[p]=0;diffuse_albedo[p]=0;specular_albedo[p]=0;depth[p]=1e4;device_depth[p]=1;motion[p]=0;specular_distance[p]=65504.0;}
 }
 // Track 20: the same kernel as a ray generation shader for Shader Execution Reordering (SER,
 // Shader Model 6.9), dispatched by DispatchRays over the same threads (Gpu::integrate).

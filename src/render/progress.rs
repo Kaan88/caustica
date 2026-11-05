@@ -158,6 +158,17 @@ pub fn layout(w: u32, h: u32, done: usize, total: usize) -> [Layer; 3] {
 
 /// Waits for `done` to reach `total`, calling `draw(done)` each time it changes once 250 ms
 /// have passed. Returns whether the screen was shown.
+/// Windows marks a window "not responding" when its thread hasn't looked at its message queue
+/// for 5 s, which a cold driver compile exceeds. A peek that removes nothing counts as looking,
+/// without dispatching messages into winit, whose callback this runs inside.
+fn keep_responsive() {
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{MSG, PM_NOREMOVE, PeekMessageW};
+        let mut msg = MSG::default();
+        let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
+    }
+}
 pub fn watch(done: &AtomicUsize, total: usize, mut draw: impl FnMut(usize)) -> bool {
     let start = Instant::now();
     let mut shown = None;
@@ -170,6 +181,7 @@ pub fn watch(done: &AtomicUsize, total: usize, mut draw: impl FnMut(usize)) -> b
             shown = Some(n);
             draw(n);
         }
+        keep_responsive();
         std::thread::sleep(Duration::from_millis(16));
     }
     if shown.is_some() {

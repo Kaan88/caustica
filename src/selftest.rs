@@ -257,9 +257,14 @@ impl App {
                 self.settings.hdr_peak = 1000.;
                 self.settings.hdr_white = 200.;
             }
-            187 => self.actions.save_image = Some(video::ImageFormat::HdrPng),
+            // The HDR PNG needs HDR output: skipped where the swapchain offers none (checked at 187).
+            187 if !self.gpu.as_ref().is_some_and(|g| g.hdr_refused) => {
+                self.actions.save_image = Some(video::ImageFormat::HdrPng)
+            }
             188 => {
-                self.expect_image(video::ImageFormat::HdrPng.file("caustica"), None)?;
+                if !self.gpu.as_ref().is_some_and(|g| g.hdr_refused) {
+                    self.expect_image(video::ImageFormat::HdrPng.file("caustica"), None)?;
+                }
                 self.settings.hdr_mode = 1;
             }
             189 => {
@@ -650,6 +655,8 @@ impl App {
                 self.settings.hdr_peak = 1000.;
                 self.settings.hdr_white = 200.;
             }
+            // HDR PNG, then JPEG XR: both need HDR output (skipped as at 187).
+            227 | 228 if self.gpu.as_ref().is_some_and(|g| g.hdr_refused) => {}
             227 => self.actions.save_image = Some(video::ImageFormat::HdrPng),
             228 => {
                 self.expect_image(video::ImageFormat::HdrPng.file("caustica"), None)?;
@@ -659,8 +666,10 @@ impl App {
             229 => {
                 // The image crate has no JPEG XR decoder: check WIC wrote a plausible file.
                 let jxr = video::ImageFormat::Jxr.file("caustica");
-                let size = std::fs::metadata(&jxr).map(|m| m.len()).unwrap_or(0);
-                anyhow::ensure!(size > 1000, "{} was not written", jxr.display());
+                if !self.gpu.as_ref().is_some_and(|g| g.hdr_refused) {
+                    let size = std::fs::metadata(&jxr).map(|m| m.len()).unwrap_or(0);
+                    anyhow::ensure!(size > 1000, "{} was not written", jxr.display());
+                }
                 let _ = std::fs::remove_file(&jxr);
                 self.settings.hdr_mode = 0;
                 self.settings.hdr10 = false;
@@ -1226,6 +1235,11 @@ impl App {
                 "Drawing the UI changed a loaded value"
             ),
             // RGBA16F keeps 11 significant bits.
+            187 | 227 if g.hdr_refused => {
+                println!(
+                    "SELF-TEST NOTE: the swapchain offers no HDR format here; HDR checks skipped"
+                )
+            }
             187 => {
                 anyhow::ensure!(g.hdr_active, "Forced HDR output did not start");
                 check_hdr_output(g, s, 2e-3)?;

@@ -1,0 +1,3375 @@
+{
+ "format": 1,
+ "title": "Blackbody forge",
+ "description": "A smithy lit by what is hot: coals, a bar on the anvil and a rack of bars cooling from 1800 K to 1000 K, each emitting as a blackbody at its temperature (Planck's law; the spectral tracer, on here, emits the exact spectrum), from yellow-white to a dull red.",
+ "tags": [
+  "emissive",
+  "blackbody",
+  "spectral",
+  "interior"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 15.0,
+  "sky": 0.0,
+  "base": [
+   0.1,
+   0.09,
+   0.08
+  ],
+  "floor": {
+   "color": [
+    0.1,
+    0.09,
+    0.08
+   ],
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "reflectivity": 0.03,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [
+   {
+    "name": "Window",
+    "position": [
+     3.0,
+     2.0,
+     1.0
+    ],
+    "rotation": [
+     51.671,
+     71.565,
+     0.0
+    ],
+    "size": [
+     1.0,
+     1.5
+    ],
+    "color": [
+     0.6495,
+     0.7435,
+     1.0
+    ],
+    "intensity": 0.8,
+    "enabled": true,
+    "visible": false
+   }
+  ],
+  "bounces": 10,
+  "yaw": 15,
+  "pitch": 12,
+  "distance": 4.6,
+  "target": [
+   0.2,
+   -0.2,
+   -0.3
+  ],
+  "fov": 45,
+  "background": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "objects": [
+   {
+    "name": "Hearth",
+    "shape": "box",
+    "position": [
+     -1.6,
+     -0.8
+    ],
+    "size": 1.0,
+    "stretch": 1.1429,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.4286
+    ],
+    "elevation": -0.6,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.3,
+      0.12,
+      0.08
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Hood",
+    "shape": "box",
+    "position": [
+     -1.6,
+     -1.0
+    ],
+    "size": 1.0,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     2.0,
+     1.1429
+    ],
+    "elevation": 1.4,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Back wall",
+    "shape": "box",
+    "position": [
+     0,
+     -1.6
+    ],
+    "size": 1.0,
+    "stretch": 5.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     8.5714,
+     0.1429
+    ],
+    "elevation": 0.75,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.16,
+      0.13,
+      0.11
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 1",
+    "shape": "sphere",
+    "position": [
+     -1.719,
+     -0.9885
+    ],
+    "size": 0.2473,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.8018808918324567,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1058.1128535099474
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 2",
+    "shape": "sphere",
+    "position": [
+     -1.5221,
+     -0.6669
+    ],
+    "size": 0.1867,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.059513608226576,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1193.5708164935945
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 3",
+    "shape": "sphere",
+    "position": [
+     -1.3684,
+     -0.7465
+    ],
+    "size": 0.2185,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 5.390389144069798,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1273.4233486441879
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 4",
+    "shape": "sphere",
+    "position": [
+     -1.2607,
+     -0.8424
+    ],
+    "size": 0.16,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.737788287964069,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1054.2672972778441
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 5",
+    "shape": "sphere",
+    "position": [
+     -1.3768,
+     -1.0327
+    ],
+    "size": 0.2138,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.652155338714669,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1229.1293203228802
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 6",
+    "shape": "sphere",
+    "position": [
+     -2.0405,
+     -0.601
+    ],
+    "size": 0.2419,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.025869641628003,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1011.5521784976802
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 7",
+    "shape": "sphere",
+    "position": [
+     -1.259,
+     -0.9989
+    ],
+    "size": 0.2266,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 5.0697215803056945,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1254.1832948183417
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 8",
+    "shape": "sphere",
+    "position": [
+     -1.975,
+     -0.681
+    ],
+    "size": 0.2472,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.555310870774224,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1043.3186522464534
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 9",
+    "shape": "sphere",
+    "position": [
+     -1.4111,
+     -0.464
+    ],
+    "size": 0.1792,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.145588941039722,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1018.7353364623833
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 10",
+    "shape": "sphere",
+    "position": [
+     -1.4801,
+     -0.7243
+    ],
+    "size": 0.2443,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.8955275791652373,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1063.7316547499142
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 11",
+    "shape": "sphere",
+    "position": [
+     -1.2535,
+     -0.939
+    ],
+    "size": 0.2192,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.684460979867606,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1051.0676587920564
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 12",
+    "shape": "sphere",
+    "position": [
+     -1.6928,
+     -0.6857
+    ],
+    "size": 0.188,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 3.710709860029969,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1172.6425916017981
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 13",
+    "shape": "sphere",
+    "position": [
+     -2.0783,
+     -1.0555
+    ],
+    "size": 0.2261,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 3.507433879003736,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1160.4460327402242
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 14",
+    "shape": "sphere",
+    "position": [
+     -1.6743,
+     -0.6289
+    ],
+    "size": 0.2435,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 3.982092279920035,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1188.925536795202
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 15",
+    "shape": "sphere",
+    "position": [
+     -1.4449,
+     -0.9247
+    ],
+    "size": 0.1504,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.6430701976644817,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1048.584211859869
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 16",
+    "shape": "sphere",
+    "position": [
+     -2.0604,
+     -0.5463
+    ],
+    "size": 0.2287,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 5.935116683207222,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1306.1070009924333
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 17",
+    "shape": "sphere",
+    "position": [
+     -1.9907,
+     -0.6876
+    ],
+    "size": 0.2445,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.577989317872679,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1044.6793590723607
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 18",
+    "shape": "sphere",
+    "position": [
+     -1.4446,
+     -0.6253
+    ],
+    "size": 0.1907,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.3861628677866555,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1213.1697720671993
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 19",
+    "shape": "sphere",
+    "position": [
+     -1.2516,
+     -0.4768
+    ],
+    "size": 0.1928,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.2435620274659605,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1084.6137216479576
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 20",
+    "shape": "sphere",
+    "position": [
+     -1.3666,
+     -0.674
+    ],
+    "size": 0.1943,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 3.2285749137554904,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1143.7144948253294
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 21",
+    "shape": "sphere",
+    "position": [
+     -1.1324,
+     -0.9568
+    ],
+    "size": 0.2213,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.067272498603984,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1074.036349916239
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 22",
+    "shape": "sphere",
+    "position": [
+     -1.823,
+     -0.5218
+    ],
+    "size": 0.2485,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.7334779479565516,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1114.008676877393
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 23",
+    "shape": "sphere",
+    "position": [
+     -1.7202,
+     -0.5304
+    ],
+    "size": 0.2265,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 5.214885424122751,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1262.893125447365
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 24",
+    "shape": "sphere",
+    "position": [
+     -1.8857,
+     -1.035
+    ],
+    "size": 0.1635,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.014307380832895,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1010.8584428499737
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 25",
+    "shape": "sphere",
+    "position": [
+     -1.4334,
+     -1.1049
+    ],
+    "size": 0.2077,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.2170473066066316,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1083.022838396398
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 26",
+    "shape": "sphere",
+    "position": [
+     -1.9449,
+     -0.9197
+    ],
+    "size": 0.2201,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.1655130863775827,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1079.930785182655
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 27",
+    "shape": "sphere",
+    "position": [
+     -1.9815,
+     -0.4517
+    ],
+    "size": 0.2243,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.325966960309491,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1209.5580176185695
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 28",
+    "shape": "sphere",
+    "position": [
+     -1.5474,
+     -0.8015
+    ],
+    "size": 0.245,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6.495670673102878,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1339.7402403861727
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 29",
+    "shape": "sphere",
+    "position": [
+     -1.2781,
+     -1.1291
+    ],
+    "size": 0.2505,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.272164826339902,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1206.3298895803941
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 30",
+    "shape": "sphere",
+    "position": [
+     -1.4617,
+     -0.7909
+    ],
+    "size": 0.1631,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.6232547389874945,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1227.3952843392497
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 31",
+    "shape": "sphere",
+    "position": [
+     -1.3723,
+     -0.6014
+    ],
+    "size": 0.2011,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.2516968094651475,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1025.1018085679088
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 32",
+    "shape": "sphere",
+    "position": [
+     -1.5048,
+     -0.9036
+    ],
+    "size": 0.2482,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.8099015081614915,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1238.5940904896895
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 33",
+    "shape": "sphere",
+    "position": [
+     -1.1938,
+     -0.9346
+    ],
+    "size": 0.2404,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.7185822179720995,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1053.114933078326
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 34",
+    "shape": "sphere",
+    "position": [
+     -1.488,
+     -0.5693
+    ],
+    "size": 0.1748,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 5.902070557986038,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1304.1242334791623
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 35",
+    "shape": "sphere",
+    "position": [
+     -1.5126,
+     -0.9377
+    ],
+    "size": 0.2219,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 5.485369832816514,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1279.1221899689908
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 36",
+    "shape": "sphere",
+    "position": [
+     -1.861,
+     -0.7999
+    ],
+    "size": 0.1695,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 4.299183358056447,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1207.9510014833868
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 37",
+    "shape": "sphere",
+    "position": [
+     -1.9175,
+     -0.818
+    ],
+    "size": 0.1994,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.253866601295859,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1025.2319960777515
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 38",
+    "shape": "sphere",
+    "position": [
+     -1.16,
+     -0.5718
+    ],
+    "size": 0.2372,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 1.1501847721243394,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1019.0110863274604
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 39",
+    "shape": "sphere",
+    "position": [
+     -1.3835,
+     -0.6543
+    ],
+    "size": 0.2297,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.9896769952054626,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1009.3806197123278
+    },
+    "portal": -1
+   },
+   {
+    "name": "Coal 40",
+    "shape": "sphere",
+    "position": [
+     -1.9046,
+     -0.5879
+    ],
+    "size": 0.1848,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": -0.16,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.05,
+      0.05,
+      0.05
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.714285517911056,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1112.8571310746634
+    },
+    "portal": -1
+   },
+   {
+    "name": "Stump",
+    "shape": "cylinder",
+    "position": [
+     0.4,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8571,
+     0.8571
+    ],
+    "elevation": -0.7,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.35,
+      0.22,
+      0.12
+     ],
+     "roughness": 0.8,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anvil waist",
+    "shape": "box",
+    "position": [
+     0.4,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.3571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.3571,
+     0.2857
+    ],
+    "elevation": -0.275,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anvil face",
+    "shape": "box",
+    "position": [
+     0.4,
+     0.0
+    ],
+    "size": 1.0,
+    "stretch": 0.2143,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     0.3714
+    ],
+    "elevation": -0.075,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Anvil horn",
+    "shape": "cone",
+    "position": [
+     0.92,
+     0.0
+    ],
+    "size": 0.4,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     -90
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.92,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Hot bar",
+    "shape": "box",
+    "position": [
+     0.4,
+     0.02
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 10,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.8571,
+     0.0714
+    ],
+    "elevation": 0.02,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 14,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1500
+    },
+    "portal": -1
+   },
+   {
+    "name": "Tongs",
+    "shape": "cylinder",
+    "position": [
+     0.95,
+     0.15
+    ],
+    "size": 0.5714,
+    "stretch": 0.05,
+    "rotation": 20,
+    "tilt": [
+     0,
+     80
+    ],
+    "scale_xz": [
+     0.06,
+     0.06
+    ],
+    "elevation": -0.01,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bar 1800 K",
+    "shape": "box",
+    "position": [
+     1.8,
+     -0.9
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     0.0714
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1800
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bar 1500 K",
+    "shape": "box",
+    "position": [
+     1.8,
+     -0.68
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     0.0714
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 12,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1500
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bar 1250 K",
+    "shape": "box",
+    "position": [
+     1.8,
+     -0.46
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     0.0714
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 6,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1250
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bar 1100 K",
+    "shape": "box",
+    "position": [
+     1.8,
+     -0.24
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     0.0714
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 2.5,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1100
+    },
+    "portal": -1
+   },
+   {
+    "name": "Bar 1000 K",
+    "shape": "box",
+    "position": [
+     1.8,
+     -0.02
+    ],
+    "size": 1.0,
+    "stretch": 0.0571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     0.0714
+    ],
+    "elevation": -0.38,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.9,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1000
+    },
+    "portal": -1
+   },
+   {
+    "name": "Rack",
+    "shape": "box",
+    "position": [
+     1.8,
+     -0.45
+    ],
+    "size": 1.0,
+    "stretch": 0.8571,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.1429,
+     1.5714
+    ],
+    "elevation": -0.7,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0.08,
+      0.08,
+      0.09
+     ],
+     "roughness": 0.45,
+     "metallic": 1,
+     "reflectivity": 0.05,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 1",
+    "shape": "sphere",
+    "position": [
+     0.0067,
+     -0.2225
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.7874,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 2049.1266358360626
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 2",
+    "shape": "sphere",
+    "position": [
+     0.4166,
+     0.1241
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.1762,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1912.3389881106182
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 3",
+    "shape": "sphere",
+    "position": [
+     -0.1676,
+     -0.1833
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.7501,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1709.5492588190439
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 4",
+    "shape": "sphere",
+    "position": [
+     0.7196,
+     -0.0914
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.668,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1774.485844505658
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 5",
+    "shape": "sphere",
+    "position": [
+     0.4323,
+     0.1516
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.5485,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1895.8295347209034
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 6",
+    "shape": "sphere",
+    "position": [
+     0.4814,
+     -0.2483
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.6627,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1772.2347208160043
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 7",
+    "shape": "sphere",
+    "position": [
+     0.3813,
+     0.2422
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.691,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 2041.3351620921144
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 8",
+    "shape": "sphere",
+    "position": [
+     0.3267,
+     -0.3151
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.6566,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1855.4777467428871
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 9",
+    "shape": "sphere",
+    "position": [
+     -0.1198,
+     0.3998
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.76,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1967.8665323216223
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 10",
+    "shape": "sphere",
+    "position": [
+     0.7029,
+     0.2359
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.3664,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1734.0086283440091
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 11",
+    "shape": "sphere",
+    "position": [
+     0.2447,
+     0.2911
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.3482,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1769.1938586958129
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 12",
+    "shape": "sphere",
+    "position": [
+     -0.009,
+     0.2743
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.126,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1826.1636772993672
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 13",
+    "shape": "sphere",
+    "position": [
+     0.8837,
+     0.2694
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.316,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1777.9771657363824
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 14",
+    "shape": "sphere",
+    "position": [
+     0.883,
+     0.3027
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.8776,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1976.7485711526015
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 15",
+    "shape": "sphere",
+    "position": [
+     0.8756,
+     0.371
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.8272,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1810.167698640027
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 16",
+    "shape": "sphere",
+    "position": [
+     0.8199,
+     -0.1233
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.7127,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1767.2748379495176
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 17",
+    "shape": "sphere",
+    "position": [
+     0.8796,
+     0.0241
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.4515,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 2054.6211999778393
+    },
+    "portal": -1
+   },
+   {
+    "name": "Spark 18",
+    "shape": "sphere",
+    "position": [
+     0.3806,
+     0.1488
+    ],
+    "size": 0.1,
+    "stretch": 0.1714,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     0.1714,
+     0.1714
+    ],
+    "elevation": 0.2646,
+    "grounded": false,
+    "visible": true,
+    "material": {
+     "color": [
+      0,
+      0,
+      0
+     ],
+     "roughness": 0.9,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 20,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false,
+     "temperature": 1912.9315605802663
+    },
+    "portal": -1
+   }
+  ],
+  "spectral": true,
+  "exposure": 1.2
+ }
+}
