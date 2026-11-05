@@ -35,7 +35,11 @@ cp "$exe" "$app/usr/bin/caustica"
 for so in "$(dirname "$exe")"/libnvidia-ngx-dlss*.so.*; do
     if [ -f "$so" ]; then cp "$so" "$app/usr/bin/"; fi
 done
-# dirs::scenes() looks beside the exe.
+# dirs::scenes() looks beside the exe. The fetched assets must be there too (release.ps1 copies
+# them from Windows; the mesh, environment and material scenes load them).
+for d in models hdri textures; do
+    [ -d "scenes/$d" ] || { echo "scenes/$d is missing: copy the fetched assets (tools/fetch_assets.ps1)" >&2; exit 1; }
+done
 cp -r scenes "$app/usr/bin/scenes"
 cp README.md "$app/usr/bin/"
 cp assets/caustica.png "$app/caustica.png"

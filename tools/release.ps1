@@ -46,8 +46,14 @@ if ($AppImage) {
     if ($LASTEXITCODE) { throw "ssh $Vm failed" }
     cmd /c "git archive --format=tar $ref | ssh $Vm tar -x -C ~/$remote"
     if ($LASTEXITCODE) { throw "copying the tree to $Vm failed" }
-    # The VM keeps cargo under its data disk (not in ~/.cargo).
-    ssh $Vm "export PATH=/mnt/2b4bc8c0-2e4e-4fc1-b330-27648dcbbf49/cargo/bin:`$PATH; cd ~/$remote && CAUSTICA_VERSION=$Version sh tools/appimage.sh"
+    # The fetched models, HDRIs and textures are not tracked: they go beside the tree, as the
+    # installer stages them (tools/fetch_assets.ps1 puts them in scenes\).
+    cmd /c "tar -cf - -C scenes models hdri textures | ssh $Vm tar -x -C ~/$remote/scenes"
+    if ($LASTEXITCODE) { throw "copying the assets to $Vm failed" }
+    # The VM keeps cargo under its data disk (not in ~/.cargo), and the AppDir goes there too:
+    # with the assets it is ~0.9 GB, more than the VM's tmpfs /tmp holds.
+    $data = '/mnt/2b4bc8c0-2e4e-4fc1-b330-27648dcbbf49'
+    ssh $Vm "mkdir -p $data/tmp; export TMPDIR=$data/tmp PATH=$data/cargo/bin:`$PATH; cd ~/$remote && CAUSTICA_VERSION=$Version sh tools/appimage.sh"
     if ($LASTEXITCODE) { throw "tools/appimage.sh failed on $Vm" }
     $image = "Caustica-$Version-x86_64.AppImage"
     scp "${Vm}:$remote/dist/$image" "dist/$image"
