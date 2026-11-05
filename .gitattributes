@@ -1,0 +1,11 @@
+# One line ending per file type in the repo, whatever the editor or tool wrote: LF everywhere,
+# CRLF for the Windows-only scripts. Binary files are detected (text=auto) or listed.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.iss text eol=crlf
+*.png binary
+*.ico binary
+*.exr binary
+*.hdr binary
