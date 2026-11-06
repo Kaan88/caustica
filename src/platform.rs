@@ -33,6 +33,22 @@ pub fn open_url(url: &str) {
     let _ = command.arg(url).spawn();
 }
 
+/// Lowers the calling thread's priority, for long CPU work behind a window.
+pub fn background_thread() {
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::System::Threading::{
+            GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_BELOW_NORMAL,
+        };
+        let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+    }
+    // On Linux "process" 0 is the calling thread alone.
+    #[cfg(not(windows))]
+    unsafe {
+        libc::setpriority(libc::PRIO_PROCESS, 0, 10);
+    }
+}
+
 /// Local wall-clock time as (year, month, day, hour, minute, second).
 pub fn local_time() -> [u32; 6] {
     #[cfg(windows)]

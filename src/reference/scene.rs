@@ -122,20 +122,30 @@ impl<'a> Scene<'a> {
         for c in &mut cdf {
             *c /= total;
         }
-        let (view, proj, eye) = s.camera(size[0] as f32 / size[1] as f32);
-        Scene {
+        let mut scene = Scene {
             s,
             bvh,
             materials,
             lights,
             cdf,
-            eye,
-            inverse_vp: (proj * view).inverse(),
-            camera_media: match crate::geometry::camera_medium(s, eye) {
-                0 => vec![],
-                e => vec![(e >> 13, (e & 0x1fff) - 1)],
-            },
+            eye: Vec3::ZERO,
+            inverse_vp: Mat4::IDENTITY,
+            camera_media: vec![],
             size,
-        }
+        };
+        scene.set_camera(s, size);
+        scene
+    }
+    /// Takes the camera of `camera`, a copy of the scene that differs from `self.s` in its camera
+    /// fields at most. What renders reads the camera from here, never from `self.s`.
+    pub(super) fn set_camera(&mut self, camera: &Settings, size: [u32; 2]) {
+        let (view, proj, eye) = camera.camera(size[0] as f32 / size[1] as f32);
+        self.eye = eye;
+        self.inverse_vp = (proj * view).inverse();
+        self.camera_media = match crate::geometry::camera_medium(camera, eye) {
+            0 => vec![],
+            e => vec![(e >> 13, (e & 0x1fff) - 1)],
+        };
+        self.size = size;
     }
 }

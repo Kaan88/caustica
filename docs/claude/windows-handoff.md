@@ -1,12 +1,15 @@
 # Continuing from Windows
 
-Branch `cpu-playable`. Snapshot of work in progress, not `main`: `main` stays at the last verified state until this has run on real Windows.
+Branch `cpu-playable`. Snapshot of work in progress, unreviewed for the CPU renderer and CPU mode, not `main`: `main` stays at the last verified state until this has run on real Windows.
 
 ## In this branch
 - Flashlight beside the camera, with a beam profile (`scenes/ies/flashlight.ies`) and settings in its outliner row.
 - Achievements reworked (`src/stats.rs`).
 - 24 of the 42 UI review findings fixed; `docs/ui-review.md` lists the 18 still open.
-- CPU renderer split into `src/reference/`, with its refusal holes closed. The CPU mode (Menu, `--cpu`) is being added: see `git log` on this branch for how far it got.
+- CPU renderer split into `src/reference/`, with its refusal holes closed.
+- CPU mode (`--cpu`, and a switch in the UI): written, but the work stopped during its first test on 2026-11-07, before its independent check. Start here: run it, finish what is missing against the "playable" brief below, and have it checked.
+
+The playable brief: a clear switch that shows the CPU render full view through the normal display pass, the camera and edits restarting it with a fast preview while moving, samples and time in the status bar, saving with the normal buttons, a plain message listing what the scene uses that the CPU can't render yet, and CPU threads that don't starve the UI.
 
 ## First steps on Windows
 1. `git fetch origin`, `git switch cpu-playable`. `vendor` and the fetched `scenes` folders are not in git; the checkout's own copies are used.

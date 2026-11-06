@@ -229,11 +229,17 @@ struct App {
     script: Option<script::Script>,
     /// Loopback capture while `settings.audio.enabled` (track 19), never headless.
     audio: Option<audio::Audio>,
-    /// The CPU reference rendering into the A/B compare (Look → Compare).
+    /// The CPU renderer in the viewport: the full view (`cpu_view`) or Look → Compare's reference.
     cpu_reference: Option<reference::Live>,
+    /// The software view: the viewport shows the CPU's render (`--cpu`, Menu, top bar, Render tab).
+    cpu_view: bool,
+    /// An image went up after this frame's render: the next frame shows it.
+    cpu_uploaded: bool,
+    /// The self-test's image from before a camera move.
+    cpu_view_image: Option<std::sync::Arc<Vec<f32>>>,
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
-const SCENES_FROM: u32 = 303;
+const SCENES_FROM: u32 = 308;
 fn transport_key(s: &Settings) -> String {
     // The JSON tree without objects and lights (hashed below); the caller compares fields.
     let mut j = {
@@ -410,6 +416,7 @@ impl App {
         let mut d3d12 = false;
         let mut hidden = false;
         let mut capture_ui = false;
+        let mut cpu_view = false;
         let mut script_path: Option<PathBuf> = None;
         let mut interface = ui::UiState::default();
         let mut self_test = false;
@@ -619,6 +626,7 @@ impl App {
                     )
                 }
                 "--capture-ui" => capture_ui = true,
+                "--cpu" => cpu_view = true,
                 // A Rhai script that drives the app (see src/script.rs).
                 "--script" => {
                     script_path = Some(PathBuf::from(args.next().context("--script needs a file")?))
@@ -712,7 +720,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -738,6 +746,12 @@ impl App {
         if let Some(t) = time {
             anyhow::ensure!(t >= 0., "--time can't be negative");
             s = reference::at_time(&s, t);
+            s.validate()?;
+        }
+        // A hidden software view waits for the finished render, which a scene that keeps moving
+        // never reaches: it renders the scene frozen, as `--reference` does.
+        if cpu_view && hidden && !orbit_test && !self_test && time.is_none() {
+            s = reference::at_time(&s, 0.);
             s.validate()?;
         }
         if let Some(spp) = reference {
@@ -849,6 +863,9 @@ impl App {
             script,
             audio: None,
             cpu_reference: None,
+            cpu_view,
+            cpu_uploaded: false,
+            cpu_view_image: None,
         })
     }
     /// Handles the script's requests until it asks for frames or has nothing to ask. Returns
@@ -1047,6 +1064,17 @@ impl App {
             && self.export.is_some()
             && self.hold_frames < 600;
         self.hold_frames += self.held as u32;
+        // A hidden run of the software view captures the finished render, not the first pass.
+        if self.hidden
+            && self.cpu_view
+            && !self.self_test
+            && !self.orbit_test
+            && self.frames.is_some()
+            && self.cpu_reference.as_ref().is_none_or(|l| l.busy())
+        {
+            self.held = true;
+            std::thread::sleep(Duration::from_millis(5));
+        }
         if self.self_test && !self.held {
             self.self_test_script()?;
         }
@@ -1432,8 +1460,18 @@ impl App {
         if self.actions.reset {
             g.reset(true);
             self.actions.reset = false;
+            // Restart means the CPU's render too.
+            if let Some(live) = &mut self.cpu_reference {
+                live.key.clear();
+            }
         }
-        let draw = (!self.paused || g.samples == 0) && (g.samples < s.max_samples || self.painting);
+        // The software view traces one GPU pass per restart, for what clicks read (object ids,
+        // depth) and the albedo under the light meter; the picture is the CPU's.
+        let draw = if self.cpu_view {
+            g.samples == 0
+        } else {
+            (!self.paused || g.samples == 0) && (g.samples < s.max_samples || self.painting)
+        };
         // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
         // Zebras would be drawn into the exported frames.
         g.zebras = self.ui.zebras && self.export.is_none();
@@ -1604,9 +1642,16 @@ impl App {
             }
         } else {
             g.path_request = self.ui.paths.take_request();
+            // Through the normal display pass; `cpu_view` in post.hlsl reads this split.
+            let shown = self.cpu_view.then(|| Settings {
+                compare: true,
+                split: 2.,
+                view: 0,
+                ..s.clone()
+            });
             unsafe {
                 g.render(
-                    s,
+                    shown.as_ref().unwrap_or(s),
                     draw,
                     dt,
                     &primitives,
@@ -1806,41 +1851,51 @@ impl App {
             self.settings.compare = true;
             self.actions.reference = false;
         }
+        let size = [g.width, g.height];
         match self.actions.cpu_reference.take() {
             Some(true) => {
                 self.cpu_reference = Some(reference::Live::start(
                     s.clone(),
-                    [g.width, g.height],
+                    size,
                     self.last_key.clone(),
+                    false,
                 ))
             }
             Some(false) => self.cpu_reference = None,
             None => {}
         }
-        // The CPU reference follows the scene: an edit or a resize starts it over once the new
-        // key and size have held for 150 ms (a drag doesn't start a render per frame). An
-        // export renders at its own size with a stale key, so the reference waits for its end.
-        let size = [g.width, g.height];
-        if self.export.is_none()
-            && let Some(live) = &mut self.cpu_reference
-        {
-            if live.key != self.last_key || live.size != size {
-                // The old image no longer matches; the split shows the GPU until the first pass.
-                live.cancel();
+        // The CPU renderer follows the scene: an edit or a resize restarts it. An export renders
+        // at its own size with a stale key, so it waits for its end; the view's switch does too.
+        if self.export.is_none() {
+            if self.cpu_view != self.cpu_reference.as_ref().is_some_and(|l| l.view) {
+                self.cpu_reference = self
+                    .cpu_view
+                    .then(|| reference::Live::start(s.clone(), size, self.last_key.clone(), true));
                 g.reference_valid = false;
-                match &live.pending {
-                    Some((k, z, since)) if *k == self.last_key && *z == size => {
-                        if since.elapsed() >= Duration::from_millis(150) {
-                            *live = reference::Live::start(s.clone(), size, self.last_key.clone());
-                        }
+            }
+            if let Some(live) = &mut self.cpu_reference {
+                live.set_paused(self.paused);
+                if live.key != self.last_key || live.size != size {
+                    live.follow(s.clone(), self.last_key.clone(), size);
+                    // The old image no longer matches; the split shows the GPU until the first
+                    // pass. The view keeps it until the preview.
+                    if !live.view {
+                        g.reference_valid = false;
                     }
-                    _ => live.pending = Some((self.last_key.clone(), size, Instant::now())),
                 }
-            } else if let Some(image) = live.image(!g.reference_valid) {
-                unsafe {
-                    g.upload_reference(&image)?;
+                if let Some(image) = live.image(!g.reference_valid) {
+                    unsafe {
+                        g.upload_reference(&image)?;
+                    }
+                    self.cpu_uploaded = true;
+                    self.settings.compare |= !live.view;
+                } else if live.view && !g.reference_valid {
+                    // Nothing yet: black, not the GPU's picture under the CPU's name.
+                    let black = vec![0f32; size[0] as usize * size[1] as usize * 4];
+                    unsafe {
+                        g.upload_reference(&black)?;
+                    }
                 }
-                self.settings.compare = true;
             }
         }
         // A text-to-scene critique: the render as a PNG, scaled to fit what vision models take.
@@ -1870,20 +1925,31 @@ impl App {
             }
         }
         if let Some(format) = self.actions.save_image.take() {
+            let samples = match &self.cpu_reference {
+                Some(live) if live.view => live.state().samples,
+                _ => g.samples,
+            };
             let path = format.file(&self.ui.export_stem(
                 &self.settings,
-                g.samples,
+                samples,
                 g.width,
                 g.height,
             ));
-            match unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) } {
+            let saved = if self.cpu_view && format == video::ImageFormat::Layers {
+                Err(anyhow::anyhow!(
+                    "The software view has no layers to save: they come from the GPU's render"
+                ))
+            } else {
+                unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) }
+            };
+            match saved {
                 Ok(()) => {
                     self.ui.toast_file(
                         format!(
                             "Saved {} ({}, {} spp)",
                             path.display(),
                             format.label(),
-                            g.samples
+                            samples
                         ),
                         path,
                     );
@@ -1984,9 +2050,14 @@ impl App {
             self.settings.scene_name,
             if self.ui.scene_dirty { " *" } else { "" },
             g.adapter_name,
-            g.samples,
+            match &self.cpu_reference {
+                Some(live) if live.view => live.state().samples,
+                _ => g.samples,
+            },
             g.gpu_ms,
-            if g.rr_active {
+            if self.cpu_view {
+                "CPU"
+            } else if g.rr_active {
                 "DLSS RR"
             } else if s.denoise {
                 "À-trous"
@@ -2091,6 +2162,17 @@ impl App {
                     self.fail(event_loop, e);
                     return;
                 }
+            }
+            if let Some(live) = self.cpu_reference.as_ref().filter(|l| l.view) {
+                let st = live.state();
+                if let Some(e) = st.error {
+                    self.fail(event_loop, anyhow::anyhow!(e));
+                    return;
+                }
+                println!(
+                    "CPU_VIEW samples={} seconds={:.1} threads={} images={} missing={:?}",
+                    st.samples, st.seconds, st.threads, st.images, st.missing
+                );
             }
             println!(
                 "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3} trace_ms_mean={:.3} reconstruct_ms_mean={:.3} display_ms_mean={:.3} ui_ms_mean={:.3}",
@@ -3056,21 +3138,28 @@ impl ApplicationHandler for App {
             self.tick(event_loop);
             return;
         }
+        // The software view's GPU has one pass to do per restart, so it doesn't spin the loop.
         let active = self.gpu.as_ref().is_some_and(|g| {
-            (!self.paused && g.samples < self.settings.max_samples)
+            (!self.cpu_view && !self.paused && g.samples < self.settings.max_samples)
+                || (self.cpu_view && g.samples == 0)
                 || self.frames.is_some()
                 || self.export.is_some()
                 || self.timeline.playing
                 || self.settings.rotate
                 || self.script.is_some()
         });
+        // An idle viewport still shows each new pass of the CPU renderer, every 200 ms, or within
+        // 33 ms in the software view, whose previews have to keep up with the camera. An image
+        // goes up after the frame's render, so the last pass takes one frame more to show.
+        let cpu = self.cpu_reference.as_ref().is_some_and(|l| l.busy())
+            || std::mem::take(&mut self.cpu_uploaded);
         event_loop.set_control_flow(if active {
             ControlFlow::Poll
+        } else if cpu && self.cpu_view {
+            ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(33))
         } else {
             ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(200))
         });
-        // An idle viewport still shows each new pass of the CPU reference (every 200 ms).
-        let cpu = self.cpu_reference.as_ref().is_some_and(|l| l.running());
         // Shader hot reload is polled in redraw: an edit while paused or converged reloads too.
         // (Only when idle: a rendering loop redraws, and polls, anyway.)
         let shaders = !active && self.hot.as_ref().is_some_and(|h| h.changed());

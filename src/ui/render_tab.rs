@@ -32,6 +32,33 @@ impl App {
         let g = self.gpu.as_ref().unwrap();
         let s = &mut self.settings;
         let advanced = self.ui.advanced;
+        section(ui, "Renderer");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.cpu_view, false, "GPU")
+                .on_hover_text("The viewport shows the GPU's path tracer");
+            ui.selectable_value(&mut self.cpu_view, true, "CPU (software)")
+                .on_hover_text(chrome::CPU_VIEW_HELP);
+        });
+        if self.cpu_view {
+            if let Some(live) = self.cpu_reference.as_ref().filter(|l| l.view) {
+                let st = live.state();
+                note(
+                    ui,
+                    &format!(
+                        "{} threads at low priority. {} / {} spp, {:.1} s.",
+                        st.threads, st.samples, st.cap, st.seconds
+                    ),
+                );
+                let text = chrome::cpu_view_text(&st);
+                if !text.is_empty() {
+                    ui.label(egui::RichText::new(text).small().color(WARN));
+                }
+            }
+            note(
+                ui,
+                "It always shows the plain image, whatever the view keys pick. The GPU settings below wait for the GPU view.",
+            );
+        }
         section(ui, "Reconstruction");
         let caps = g.capabilities();
         ui.add_enabled((caps.rr.available || s.rr) && !s.battle, egui::Checkbox::new(&mut s.rr, "DLSS Ray Reconstruction"))

@@ -10,7 +10,8 @@
 //! light sampling (emissive triangles by power), its own random numbers (PCG per pixel and
 //! sample) and its own MIS. So a disagreement points at the GPU's sampling, sample sequences,
 //! acceleration structures or shader arithmetic, not at a different model. Scenes it cannot
-//! render (`unsupported`) are refused with a list of what is missing.
+//! render (`unsupported`) are refused with a list of what is missing, except by the app's software
+//! view (`Live`, `--cpu`), which renders what it can and shows that list.
 use crate::scene::Settings;
 use anyhow::{Context, Result};
 
@@ -28,7 +29,7 @@ mod scene;
 mod tests;
 
 pub use prepare::{at_time, prepare};
-pub use progressive::{Live, Progressive, render};
+pub use progressive::{Live, LiveState, Progressive, render};
 
 /// What a scene uses that the reference does not render; empty when it can.
 pub fn unsupported(s: &Settings) -> Vec<String> {

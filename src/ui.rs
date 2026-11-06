@@ -1667,6 +1667,7 @@ impl App {
             self.timeline_panel(ctx);
             self.side_panel(ctx, known.is_some());
         }
+        self.cpu_view_message(ctx);
         self.scenes_window(ctx);
         self.assets_window(ctx);
         self.video_window(ctx);

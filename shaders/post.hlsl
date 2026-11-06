@@ -195,8 +195,12 @@ void bin_scopes(uint2 op,float3 c){
     InterlockedAdd(scopes[uint2(uint(saturate(cb+0.5)*127+0.5),132+uint(saturate(0.5-cr)*127+0.5))],1,dummy);
 }
 // Scene light at an output pixel without the display's other work (for halation taps).
+// The software view (Render tab): a split past the edge makes the whole image the CPU's, in what's
+// saved and what the lens effects see too. The A/B split never goes past 1.
+bool cpu_view(){return options.z>0 && filter_settings.w!=0 && options.w>1;}
 float3 scene_at(int2 op){
     op=clamp(op,0,int2(dimensions.zw)-1);
+    if(cpu_view())return reference_image[op].rgb;
     if((scene_info.w&2)!=0)return reconstruction[op].rgb;
     return native_at(int2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)));
 }
@@ -297,7 +301,7 @@ float film_grain(uint2 op){
 }
 [numthreads(8,8,1)]void display(uint3 tid:SV_DispatchThreadID){
     uint2 op=tid.xy;if(any(op>=dimensions.zw))return;uint2 p=min(uint2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)),dimensions.xy-1);
-    float3 c=beauty(p,op);linear_output[op]=float4(c,1);
+    float3 c=cpu_view()?reference_image[op].rgb:beauty(p,op);linear_output[op]=float4(c,1);
     if(modes.x==1)c=normal_roughness[p].xyz*0.5+0.5;
     else if(modes.x==2)c=pow(diffuse_albedo[p].rgb,1/2.2);
     else if(modes.x==3)c=exp(-depth[p]*0.3).xxx;

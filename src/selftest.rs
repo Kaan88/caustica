@@ -563,6 +563,22 @@ impl App {
                 self.settings.fog.density = 0.3;
                 self.settings.fog.noise = 1.5;
             }
+            // The software view: the CPU's picture in the display pass, a restart on a camera move,
+            // and back. Waited for here, checked in `self_test_checks`.
+            303 => {
+                self.settings.max_samples = 4;
+                self.settings.bounces = 3;
+                self.cpu_view = true;
+            }
+            304 | 306 => {
+                let start = Instant::now();
+                while self.cpu_reference.as_ref().is_some_and(|l| l.running())
+                    && start.elapsed() < Duration::from_secs(60)
+                {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+            305 => self.settings.yaw += 0.5,
             302 => self.settings.fog = Default::default(),
             // Physics on while a gizmo arrow holds an object: it must not fall.
             237 => {
@@ -1336,6 +1352,35 @@ impl App {
                     "Walking forward did not move the camera ({:?})",
                     s.target
                 );
+            }
+            // The image uploaded at the end of 304 is the one displayed, and saved, in 305; the
+            // GPU has stopped after its pass.
+            305 => {
+                let live = self.cpu_reference.as_ref().context("No software view")?;
+                let image = live.image(true).context("The software view has no image")?;
+                anyhow::ensure!(
+                    live.view && live.state().samples == 4,
+                    "The software view did not finish"
+                );
+                anyhow::ensure!(
+                    g.samples <= s.spp,
+                    "The GPU went on in the software view: {} spp",
+                    g.samples
+                );
+                self.cpu_view_image = Some(image.clone());
+                let linear = unsafe { g.read_floats(18)? };
+                anyhow::ensure!(linear == *image, "The linear output is not the CPU's image");
+            }
+            307 => {
+                let live = self.cpu_reference.as_ref().context("No software view")?;
+                let image = live.image(true).context("The software view has no image")?;
+                anyhow::ensure!(
+                    live.state().samples == 4
+                        && self.cpu_view_image.as_ref().is_some_and(|i| **i != *image),
+                    "The software view did not restart on the camera move"
+                );
+                self.cpu_view_image = None;
+                self.cpu_view = false;
             }
             218 => anyhow::ensure!(!g.rr_active, "RR must be off for a panorama camera"),
             224 => anyhow::ensure!(

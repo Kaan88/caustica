@@ -20,6 +20,18 @@ const LOGOS: [(&[u8], &str, bool); 3] = [
         true,
     ),
 ];
+pub(super) const CPU_VIEW_HELP: &str = "Show the software path tracer: every ray on the CPU, through the same exposure, tone map and look. A rough preview while the camera moves, then it refines. The GPU only displays the image.";
+/// What the software view's image leaves out, or why there is none; empty when it is all there.
+pub(super) fn cpu_view_text(st: &crate::reference::LiveState) -> String {
+    match &st.error {
+        Some(e) => e.clone(),
+        None if st.missing.is_empty() => String::new(),
+        None => format!(
+            "The CPU can't render these yet, so this image is without them: {}.",
+            st.missing.join(", ")
+        ),
+    }
+}
 /// Whether this platform shows the logo: the upscalers it doesn't ship stay out.
 fn logo_shown(windows_only: bool) -> bool {
     !windows_only || cfg!(windows)
@@ -75,6 +87,8 @@ impl App {
                     ui.weak(format!("Caustica {}", crate::VERSION));
                     ui.separator();
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
+                    ui.checkbox(&mut self.cpu_view, "Render on the CPU (software)")
+                        .on_hover_text(CPU_VIEW_HELP);
                     if ui.button("Phone remote…").clicked() {
                         self.ui.show_remote = true;
                         ui.close_menu();
@@ -211,6 +225,10 @@ impl App {
                         &format!("{} · Rust, Direct3D 12, DXR 1.1", g.adapter_name),
                     );
                 });
+                ui.selectable_value(&mut self.cpu_view, false, "GPU")
+                    .on_hover_text("The viewport shows the GPU's path tracer");
+                ui.selectable_value(&mut self.cpu_view, true, "CPU")
+                    .on_hover_text(CPU_VIEW_HELP);
                 ui.separator();
                 if ui
                     .button("◀")
@@ -450,14 +468,52 @@ impl App {
             });
         });
     }
+    /// The software view's one plain message: what this scene uses that its image leaves out. On
+    /// the viewport itself, since it changes what you are looking at.
+    pub(super) fn cpu_view_message(&mut self, ctx: &egui::Context) {
+        let Some(st) = self
+            .cpu_reference
+            .as_ref()
+            .filter(|l| l.view)
+            .map(|l| l.state())
+        else {
+            return;
+        };
+        let text = cpu_view_text(&st);
+        if text.is_empty() {
+            return;
+        }
+        egui::Area::new(egui::Id::new("cpu view message"))
+            .order(egui::Order::Middle)
+            .interactable(false)
+            .anchor(egui::Align2::LEFT_TOP, egui::vec2(8., 8.))
+            .constrain_to(ctx.available_rect())
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.set_max_width(420.);
+                    ui.label(egui::RichText::new(text).small().color(WARN));
+                });
+            });
+    }
     pub(super) fn status_bar(&mut self, ctx: &egui::Context) {
         let (text, fallback) = pipeline(self);
         let g = self.gpu.as_ref().unwrap();
         let s = &self.settings;
+        // The software view counts the CPU's samples; the GPU's stop after one pass.
+        let cpu = self
+            .cpu_reference
+            .as_ref()
+            .filter(|l| l.view)
+            .map(|l| l.state());
+        let shown = cpu.as_ref().map_or(g.samples, |st| st.samples);
         egui::TopBottomPanel::bottom("status bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                let converged = g.samples >= s.max_samples;
-                let (state, color) = if self.paused {
+                let converged = shown >= s.max_samples;
+                let (state, color) = if cpu.as_ref().is_some_and(|st| st.images == 0) {
+                    ("Preparing the scene", egui::Color32::from_rgb(110, 200, 120))
+                } else if cpu.as_ref().is_some_and(|st| st.preview) {
+                    ("Preview", egui::Color32::from_rgb(110, 200, 120))
+                } else if self.paused {
                     ("Paused", egui::Color32::GRAY)
                 } else if converged {
                     ("Converged", ACCENT)
@@ -468,10 +524,10 @@ impl App {
                 ui.painter().circle_filled(dot.center(), 4., color);
                 ui.label(state);
                 ui.separator();
-                ui.monospace(format!("{} / {} spp", g.samples, s.max_samples))
+                ui.monospace(format!("{shown} / {} spp", s.max_samples))
                     .on_hover_text("Samples per pixel: more is cleaner. Rendering stops at the cap.");
                 ui.add(
-                    egui::ProgressBar::new((g.samples as f32 / s.max_samples as f32).min(1.))
+                    egui::ProgressBar::new((shown as f32 / s.max_samples as f32).min(1.))
                         .desired_width(80.)
                         .desired_height(8.),
                 );
@@ -479,19 +535,26 @@ impl App {
                 let now = Instant::now();
                 let (at, samples, rate) = &mut self.ui.sample_rate;
                 let elapsed = now.duration_since(*at).as_secs_f32();
-                if g.samples < *samples {
-                    (*at, *samples, *rate) = (now, g.samples, 0.);
+                if shown < *samples {
+                    (*at, *samples, *rate) = (now, shown, 0.);
                 } else if elapsed > 0.25 {
-                    let r = (g.samples - *samples) as f32 / elapsed;
+                    let r = (shown - *samples) as f32 / elapsed;
                     *rate = if *rate > 0. { *rate * 0.6 + r * 0.4 } else { r };
-                    (*at, *samples) = (now, g.samples);
+                    (*at, *samples) = (now, shown);
                 }
                 if !converged && !self.paused && *rate > 0. {
-                    let left = (s.max_samples - g.samples.min(s.max_samples)) as f32 / *rate;
+                    let left = (s.max_samples - shown.min(s.max_samples)) as f32 / *rate;
                     ui.monospace(time_left(left))
                         .on_hover_text("Time until the sample cap at the current speed");
                 }
                 ui.separator();
+                if let Some(st) = &cpu {
+                    ui.monospace(format!("CPU · {} threads · {:.1} s", st.threads, st.seconds))
+                        .on_hover_text("Time the CPU has spent on this image");
+                    ui.separator();
+                    ui.label(format!("{} × {}", g.width, g.height));
+                    return;
+                }
                 let [trace, rebuild, display, gui] = g.pass_ms;
                 let passes = format!(
                     "Trace {trace:.2} ms · denoise / RR / upscale {rebuild:.2} ms · display {display:.2} ms · UI {gui:.2} ms"

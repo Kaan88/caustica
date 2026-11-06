@@ -250,7 +250,11 @@ impl App {
         section(ui, "Light path expressions");
         lpe_section(ui, s, &mut self.ui.lpe_edit);
         section(ui, "Compare");
-        let cpu = self.cpu_reference.as_ref().map(|l| l.state());
+        let cpu = self
+            .cpu_reference
+            .as_ref()
+            .filter(|l| !l.view)
+            .map(|l| l.state());
         ui.horizontal_wrapped(|ui| {
             if ui
                 .button("Freeze reference (C)")
@@ -265,16 +269,17 @@ impl App {
                 "Render reference on CPU"
             };
             if ui
-                .button(label)
+                .add_enabled(!self.cpu_view, egui::Button::new(label))
                 .on_hover_text(
                     "Path-trace the scene on the CPU (an independent renderer of the same model) and show it left of the split, refining as it goes. Edits and camera moves start it over.",
                 )
+                .on_disabled_hover_text("The viewport is already showing the CPU's render")
                 .clicked()
             {
                 self.actions.cpu_reference = Some(cpu.is_none());
             }
             ui.add_enabled(
-                g.reference_valid,
+                g.reference_valid && !self.cpu_view,
                 egui::Checkbox::new(&mut s.compare, "Show split"),
             )
             .on_disabled_hover_text("Freeze a reference (C) or render one on CPU first");
@@ -295,7 +300,7 @@ impl App {
                 ),
             }
         }
-        if s.compare {
+        if s.compare && !self.cpu_view {
             let what = if cpu.is_some() {
                 "Left of the line shows the CPU reference."
             } else {
@@ -331,18 +336,30 @@ impl App {
                 },
             );
         });
+        // The software view saves the CPU's image; stills and videos below render on the GPU.
+        let samples = self
+            .cpu_reference
+            .as_ref()
+            .filter(|l| l.view)
+            .map_or(g.samples, |l| l.state().samples);
         let stem = self
             .ui
-            .export_stem(&self.settings, g.samples, g.width, g.height);
+            .export_stem(&self.settings, samples, g.width, g.height);
         note(
             ui,
             &format!(
                 "Saves the view as it is now: {} samples, {} × {}",
-                g.samples, g.width, g.height
+                samples, g.width, g.height
             ),
         );
+        if self.cpu_view {
+            note(
+                ui,
+                "These save the CPU's image. High-resolution stills and videos still render on the GPU.",
+            );
+        }
         let (state, refining) = save_state(
-            g.samples,
+            samples,
             self.settings.max_samples,
             self.paused,
             self.ui.sample_rate.2,

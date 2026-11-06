@@ -422,3 +422,129 @@ fn passes_match_one_render() {
     assert_eq!(p.samples, 5);
     assert_eq!(p.image(), one);
 }
+/// A moved camera renders the same bits as a fresh render from there, at any size.
+#[test]
+fn a_moved_camera_matches_a_fresh_render() {
+    let mut s = Settings::default();
+    s.bounces = 3;
+    let mut moved = s.clone();
+    moved.yaw += 0.4;
+    moved.distance *= 0.8;
+    let stop = AtomicBool::new(false);
+    let mut p = Progressive::new(&s, [16, 12]).unwrap();
+    assert!(p.pass(2, 2, &stop, &|_| {}));
+    p.move_camera(&moved, [12, 10]);
+    assert_eq!(p.samples, 0);
+    assert!(p.pass(3, 2, &stop, &|_| {}));
+    assert_eq!(p.image(), render(&moved, [12, 10], 3, &|_| {}).unwrap());
+}
+#[test]
+fn a_preview_spreads_one_sample_over_each_block() {
+    let mut s = Settings::default();
+    s.bounces = 3;
+    let p = Progressive::new(&s, [17, 10]).unwrap();
+    let image = p.preview(4, 2, &AtomicBool::new(false)).unwrap();
+    assert_eq!(image.len(), 17 * 10 * 4);
+    assert!(image.iter().all(|v| v.is_finite()));
+    let at = |x: usize, y: usize| &image[(y * 17 + x) * 4..(y * 17 + x) * 4 + 4];
+    assert_eq!(at(0, 0), at(3, 3));
+    assert_eq!(at(16, 9), at(16, 8));
+    assert!(image.iter().any(|v| *v != image[0]));
+}
+#[test]
+fn slow_samples_take_bigger_blocks() {
+    assert_eq!(progressive::preview_block(0.01), 1);
+    assert_eq!(progressive::preview_block(0.05), 1);
+    assert_eq!(progressive::preview_block(0.2), 2);
+    assert_eq!(progressive::preview_block(3.2), 8);
+    assert_eq!(progressive::preview_block(1e6), 32);
+}
+#[test]
+fn only_the_camera_keeps_the_scene() {
+    let s = Settings::default();
+    let mut camera = s.clone();
+    camera.yaw += 1.;
+    camera.pitch += 0.1;
+    camera.distance += 1.;
+    camera.target[0] += 1.;
+    camera.fov += 1.;
+    assert!(progressive::same_but_camera(&s, &camera));
+    let mut edit = camera.clone();
+    edit.bounces += 1;
+    assert!(!progressive::same_but_camera(&s, &edit));
+}
+/// Waits for the render to finish (a stuck thread fails the test instead of hanging it).
+fn finish(live: &Live) -> LiveState {
+    let start = std::time::Instant::now();
+    while live.running() && start.elapsed().as_secs() < 60 {
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(!live.running());
+    live.state()
+}
+#[test]
+fn the_view_follows_the_camera_and_the_scene() {
+    let mut s = Settings::default();
+    s.bounces = 3;
+    s.max_samples = 3;
+    let size = [16, 12];
+    let mut live = Live::start(s.clone(), size, "a".into(), true);
+    let st = finish(&live);
+    assert_eq!((st.samples, st.preview), (3, false));
+    let image = live.image(false).unwrap();
+    assert_eq!(*image, render(&s, size, 3, &|_| {}).unwrap());
+    assert!(live.image(false).is_none());
+    // A new camera at a new size: the old image is no use at that size, and the new one is exact.
+    let mut moved = s.clone();
+    moved.yaw += 0.5;
+    live.follow(moved.clone(), "b".into(), [12, 10]);
+    assert!(live.running());
+    finish(&live);
+    let image = live.image(true).unwrap();
+    assert_eq!(*image, render(&moved, [12, 10], 3, &|_| {}).unwrap());
+    // A different scene: the worker builds it.
+    let mut edited = moved.clone();
+    edited.bounces = 5;
+    live.follow(edited.clone(), "c".into(), [12, 10]);
+    finish(&live);
+    let image = live.image(true).unwrap();
+    assert_eq!(*image, render(&edited, [12, 10], 3, &|_| {}).unwrap());
+}
+/// The reference refuses what the view renders and lists.
+#[test]
+fn the_view_lists_what_the_reference_refuses() {
+    let mut s = Settings::default();
+    s.max_samples = 2;
+    s.fog.density = 0.1;
+    let size = [8, 6];
+    let reference = Live::start(s.clone(), size, String::new(), false);
+    assert!(finish(&reference).error.unwrap().contains("fog"));
+    assert!(reference.image(true).is_none());
+    let view = Live::start(s, size, String::new(), true);
+    let st = finish(&view);
+    assert!(st.error.is_none());
+    assert_eq!(st.missing, ["fog"]);
+    assert!(view.image(false).is_some());
+}
+#[test]
+fn a_paused_view_holds_after_its_pass_and_goes_on() {
+    let mut s = Settings::default();
+    s.max_samples = 1 << 30;
+    s.bounces = 2;
+    let live = Live::start(s, [4, 3], String::new(), true);
+    live.set_paused(true);
+    let start = std::time::Instant::now();
+    while live.state().samples == 0 && start.elapsed().as_secs() < 60 {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    let held = live.state().samples;
+    assert!(held > 0);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert_eq!(live.state().samples, held);
+    live.set_paused(false);
+    while live.state().samples == held && start.elapsed().as_secs() < 60 {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(live.state().samples > held);
+}

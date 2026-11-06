@@ -1441,6 +1441,8 @@ impl Gpu {
             self.device.device.device_wait_idle()?;
             // The upscalers are made for one size; the next frame recreates them.
             self.up.release();
+            // Texture 13 goes with the others.
+            self.st.reference_valid = false;
             let d = &self.device;
             for i in self.textures.drain(..) {
                 d.free_image(i);
