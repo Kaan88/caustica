@@ -184,8 +184,8 @@ impl App {
         });
         section(ui, "Display");
         grid("display").show(ui, |ui| {
-            row(ui, "Output", "Auto shows real HDR when Windows HDR is on for this monitor, using Windows' calibration and SDR content brightness.", |ui| {
-                let outputs = ["Auto (follow Windows)", "SDR", "HDR (forced)"];
+            row(ui, "Output", if cfg!(windows) { "Auto shows real HDR when Windows HDR is on for this monitor, using Windows' calibration and SDR content brightness." } else { "Auto shows real HDR when the desktop has HDR on for this monitor (Wayland colour management), using its brightness settings." }, |ui| {
+                let outputs = [if cfg!(windows) { "Auto (follow Windows)" } else { "Auto (follow the desktop)" }, "SDR", "HDR (forced)"];
                 egui::ComboBox::from_id_salt("output").selected_text(outputs[s.hdr_mode as usize]).show_ui(ui, |ui| {
                     for (i, n) in outputs.iter().enumerate() {
                         ui.selectable_value(&mut s.hdr_mode, i as u32, *n);
@@ -193,24 +193,24 @@ impl App {
                 });
             });
             if g.hdr_active || s.hdr_mode != 1 {
-                row(ui, "Swapchain", "scRGB: 16-bit float, Windows converts it for the panel. HDR10: 10-bit PQ in BT.2020, sent to the panel as it is (for comparison).", |ui| {
+                row(ui, "Swapchain", "scRGB: 16-bit float, the desktop converts it for the panel. HDR10: 10-bit PQ in BT.2020, sent to the panel as it is (for comparison).", |ui| {
                     ui.selectable_value(&mut s.hdr10, false, "scRGB (FP16)");
                     ui.selectable_value(&mut s.hdr10, true, "HDR10 (PQ)");
                 });
             }
             if g.hdr_active {
-                row(ui, "Peak brightness", "From Windows HDR Calibration, or set by hand.", |ui| {
+                row(ui, "Peak brightness", if cfg!(windows) { "From Windows HDR Calibration, or set by hand." } else { "From the desktop's display settings, or set by hand." }, |ui| {
                     let mut windows = s.hdr_peak == 0.;
-                    if ui.checkbox(&mut windows, "Windows").changed() {
+                    if ui.checkbox(&mut windows, if cfg!(windows) { "Windows" } else { "Desktop" }).changed() {
                         s.hdr_peak = if windows { 0. } else { g.hdr_levels[1].clamp(80., 10000.) };
                     }
                     if !windows {
                         ui.add(crate::slider(&mut s.hdr_peak, 80. ..=4000.).logarithmic(true).suffix(" nits"));
                     }
                 });
-                row(ui, "Paper white", "Brightness of white; Windows' SDR content brightness by default.", |ui| {
+                row(ui, "Paper white", if cfg!(windows) { "Brightness of white; Windows' SDR content brightness by default." } else { "Brightness of white; the desktop's SDR brightness by default." }, |ui| {
                     let mut windows = s.hdr_white == 0.;
-                    if ui.checkbox(&mut windows, "Windows").changed() {
+                    if ui.checkbox(&mut windows, if cfg!(windows) { "Windows" } else { "Desktop" }).changed() {
                         s.hdr_white = if windows { 0. } else { g.hdr_levels[0].clamp(40., 1000.) };
                     }
                     if !windows {

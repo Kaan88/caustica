@@ -689,6 +689,7 @@ impl Gpu {
                 hdr10_refused: false,
                 hdr_refused: false,
                 hdr_levels: [200., 1000.],
+                hdr_reference: 0.,
                 painting: false,
                 zebras: false,
                 scopes_on: false,

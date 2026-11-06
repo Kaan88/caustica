@@ -38,6 +38,8 @@ windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Graphics_
 
 [target.'cfg(not(windows))'.dependencies]
 libc = "0.2"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 
 [build-dependencies]
 cc = "1"

@@ -63,6 +63,8 @@ pub struct Device {
     pub memory: vk::PhysicalDeviceMemoryProperties,
     /// samplerAnisotropy is on (the texture-map sampler filters anisotropically).
     pub anisotropy: bool,
+    /// `VK_EXT_hdr_metadata` is enabled.
+    pub hdr_metadata: bool,
 }
 
 const DEVICE_EXTENSIONS: [&CStr; 3] = [
@@ -162,6 +164,14 @@ impl Device {
                     extensions.push(khr::swapchain::NAME.as_ptr());
                 }
                 let offered = instance.enumerate_device_extension_properties(phys)?;
+                // Tells a compositor the HDR output's range, so it needn't assume 10000 nits.
+                let hdr_metadata = surface.is_some()
+                    && offered
+                        .iter()
+                        .any(|o| o.extension_name_as_c_str() == Ok(ext::hdr_metadata::NAME));
+                if hdr_metadata {
+                    extensions.push(ext::hdr_metadata::NAME.as_ptr());
+                }
                 for e in gpu::upscale::required_extensions(true, instance.handle(), phys) {
                     let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e);
                     if !known && offered.iter().any(|o| o.extension_name_as_c_str() == Ok(e)) {
@@ -230,9 +240,9 @@ impl Device {
                         None,
                     )
                     .context("vkCreateDevice")?;
-                Ok((phys, family, name, device, anisotropy))
+                Ok((phys, family, name, device, anisotropy, hdr_metadata))
             })();
-            let (phys, family, name, device, anisotropy) = match made {
+            let (phys, family, name, device, anisotropy, hdr_metadata) = match made {
                 Ok(m) => m,
                 Err(e) => {
                     if let Some(s) = surface {
@@ -260,6 +270,7 @@ impl Device {
                     name,
                     memory,
                     anisotropy,
+                    hdr_metadata,
                 },
                 surface,
             ))
@@ -440,6 +451,8 @@ pub struct Swapchain {
     pub hdr: u8,
     /// Whether the surface offered the wanted mode's format and colour space (else SDR).
     pub hdr_ok: bool,
+    /// The peak last sent through `VK_EXT_hdr_metadata`; 0 after a rebuild.
+    metadata_peak: f32,
 }
 
 impl Swapchain {
@@ -461,9 +474,35 @@ impl Swapchain {
             vsync,
             hdr: 0,
             hdr_ok: true,
+            metadata_peak: 0.,
         };
         unsafe { s.recreate(d, size)? };
         Ok(s)
+    }
+
+    /// Describes the HDR output to the compositor when its peak (in signal nits) changes.
+    pub unsafe fn set_hdr_metadata(&mut self, d: &Device, peak: f32, hdr10: bool) {
+        if !d.hdr_metadata || self.hdr == 0 || self.metadata_peak == peak {
+            return;
+        }
+        self.metadata_peak = peak;
+        let xy = |x, y| vk::XYColorEXT { x, y };
+        let [r, g, b] = if hdr10 {
+            [xy(0.708, 0.292), xy(0.170, 0.797), xy(0.131, 0.046)]
+        } else {
+            [xy(0.640, 0.330), xy(0.300, 0.600), xy(0.150, 0.060)]
+        };
+        let metadata = vk::HdrMetadataEXT::default()
+            .display_primary_red(r)
+            .display_primary_green(g)
+            .display_primary_blue(b)
+            .white_point(xy(0.3127, 0.3290))
+            .max_luminance(peak)
+            .max_content_light_level(peak);
+        unsafe {
+            ext::hdr_metadata::Device::new(&d.instance, &d.device)
+                .set_hdr_metadata(&[self.handle], &[metadata]);
+        }
     }
 
     pub unsafe fn recreate(&mut self, d: &Device, size: [u32; 2]) -> Result<()> {
@@ -571,6 +610,7 @@ impl Swapchain {
             }
             self.extent = extent;
             self.format = format.format;
+            self.metadata_peak = 0.;
             for s in self.release.drain(..) {
                 d.device.destroy_semaphore(s, None);
             }

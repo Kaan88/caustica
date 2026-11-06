@@ -1197,17 +1197,41 @@ impl App {
         let s = &frame;
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
         // display setup (HDR toggled, calibration rerun, SDR brightness moved).
+        // Wayland has no window position: the output's name tells when the window moved. It also
+        // can't hide a window, so a hidden run asks for no output, to stay reproducible.
+        #[cfg(not(windows))]
+        let window_output = self
+            .window
+            .as_ref()
+            .filter(|_| !self.hidden)
+            .and_then(|w| w.current_monitor())
+            .and_then(|m| m.name());
+        #[cfg(not(windows))]
+        if self
+            .monitor
+            .as_ref()
+            .is_none_or(|m| m.info.name != window_output.as_deref().unwrap_or_default())
+        {
+            self.display_dirty = true;
+        }
         if self.display_dirty
             || (self.rendered.is_multiple_of(30)
                 && self
                     .monitor
-                    .as_ref()
+                    .as_mut()
                     .is_some_and(|m| !unsafe { m.current() }))
         {
             let previous = self.monitor.take().map(|m| m.info);
-            self.monitor = self
-                .hwnd
-                .and_then(|h| unsafe { display::Monitor::query(h) }.ok());
+            #[cfg(windows)]
+            {
+                self.monitor = self
+                    .hwnd
+                    .and_then(|h| unsafe { display::Monitor::query(h) }.ok());
+            }
+            #[cfg(not(windows))]
+            {
+                self.monitor = unsafe { display::Monitor::query(window_output.as_deref()) }.ok();
+            }
             self.display_dirty = false;
             if let Some(m) = &self.monitor
                 && previous.as_ref() != Some(&m.info)
@@ -1255,6 +1279,15 @@ impl App {
                 1000.
             },
         ];
+        // A known Wayland output: see GpuState::hdr_reference. Windows reads levels as absolute.
+        #[cfg(not(windows))]
+        {
+            g.hdr_reference = if info.peak_nits > 0. {
+                info.sdr_white_nits
+            } else {
+                0.
+            };
+        }
         let rw = ((g.width as f32 * s.scale).round() as u32).max(1);
         if g.rw != rw && self.export.is_none() {
             unsafe {
@@ -2270,6 +2303,23 @@ impl ApplicationHandler for App {
             }
             return;
         }
+        // Wayland can't hide a window: a hidden run must not react to the user's pointer or keys
+        // (scripted input goes straight to egui, not through here).
+        if self.hidden
+            && matches!(
+                event,
+                WindowEvent::CursorMoved { .. }
+                    | WindowEvent::CursorEntered { .. }
+                    | WindowEvent::CursorLeft { .. }
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::Touch(_)
+                    | WindowEvent::KeyboardInput { .. }
+                    | WindowEvent::ModifiersChanged(_)
+            )
+        {
+            return;
+        }
         let is_redraw = matches!(event, WindowEvent::RedrawRequested);
         let consumed = if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
             input.on_window_event(window, &event).consumed
@@ -2794,6 +2844,14 @@ impl ApplicationHandler for App {
         if !is_redraw && let Some(w) = &self.window {
             w.request_redraw();
         }
+    }
+    /// What talks to the compositor goes before the event loop closes its connection, or it
+    /// crashes on Wayland: the swap chain and surface (NVIDIA's vkDestroySwapchainKHR), then the
+    /// window, then the clipboard worker inside egui_winit, which shares the connection.
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.gpu = None;
+        self.window = None;
+        self.input = None;
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if self.hidden {

@@ -661,12 +661,14 @@ impl App {
             228 => {
                 self.expect_image(video::ImageFormat::HdrPng.file("caustica"), None)?;
                 let _ = std::fs::remove_file(video::ImageFormat::Jxr.file("caustica"));
-                self.actions.save_image = Some(video::ImageFormat::Jxr);
+                if cfg!(windows) {
+                    self.actions.save_image = Some(video::ImageFormat::Jxr);
+                }
             }
             229 => {
                 // The image crate has no JPEG XR decoder: check WIC wrote a plausible file.
                 let jxr = video::ImageFormat::Jxr.file("caustica");
-                if !self.gpu.as_ref().is_some_and(|g| g.hdr_refused) {
+                if cfg!(windows) && !self.gpu.as_ref().is_some_and(|g| g.hdr_refused) {
                     let size = std::fs::metadata(&jxr).map(|m| m.len()).unwrap_or(0);
                     anyhow::ensure!(size > 1000, "{} was not written", jxr.display());
                 }

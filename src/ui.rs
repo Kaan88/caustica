@@ -1025,10 +1025,11 @@ fn hdr_line(app: &App) -> String {
     } else {
         info.name.clone()
     };
-    let windows = if info.hdr {
-        "Windows HDR on"
-    } else {
-        "Windows HDR off"
+    let windows = match (cfg!(windows), info.hdr) {
+        (true, true) => "Windows HDR on",
+        (true, false) => "Windows HDR off",
+        (false, true) => "desktop HDR on",
+        (false, false) => "desktop HDR off",
     };
     let mut line = if g.hdr_active {
         format!(

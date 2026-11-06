@@ -82,11 +82,13 @@ pub enum ImageFormat {
     Layers,
 }
 impl ImageFormat {
-    pub const ALL: [ImageFormat; 6] = [
+    /// JPEG XR is written through WIC, so only Windows offers it.
+    pub const ALL: [ImageFormat; if cfg!(windows) { 6 } else { 5 }] = [
         ImageFormat::Png,
         ImageFormat::Jpeg,
         ImageFormat::Exr,
         ImageFormat::HdrPng,
+        #[cfg(windows)]
         ImageFormat::Jxr,
         ImageFormat::Layers,
     ];
@@ -809,7 +811,7 @@ impl Job {
         // Back to the window's size when the export can't start (out of memory at 8K, ffmpeg).
         let writer = g
             .resize_output(w, h, &v)
-            .and_then(|()| Writer::start(&options, g.hdr_levels[1]));
+            .and_then(|()| Writer::start(&options, g.hdr_signal()[1]));
         let writer = match writer {
             Ok(writer) => writer,
             Err(e) => {

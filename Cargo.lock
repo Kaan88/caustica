@@ -569,6 +569,8 @@ dependencies = [
  "sha2",
  "tobj",
  "ureq",
+ "wayland-client",
+ "wayland-protocols",
  "windows",
  "winit",
  "zip",

@@ -316,20 +316,9 @@ pub fn write_jxr(path: &std::path::Path, scrgb: &[f32], width: u32, height: u32)
 }
 /// Off Windows the display counts as SDR until the Vulkan backend reads its HDR state.
 #[cfg(not(windows))]
-pub struct Monitor {
-    pub info: DisplayInfo,
-}
+mod linux;
 #[cfg(not(windows))]
-impl Monitor {
-    pub unsafe fn query(_hwnd: crate::platform::HWND) -> Result<Self> {
-        Ok(Self {
-            info: DisplayInfo::default(),
-        })
-    }
-    pub unsafe fn current(&self) -> bool {
-        true
-    }
-}
+pub use linux::Monitor;
 #[cfg(not(windows))]
 pub fn write_jxr(_path: &std::path::Path, _scrgb: &[f32], _width: u32, _height: u32) -> Result<()> {
     anyhow::bail!("JPEG XR needs Windows (WIC)")

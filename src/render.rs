@@ -144,6 +144,9 @@ pub struct GpuState {
     pub hdr_refused: bool,
     /// Paper white and panel peak in nits for the HDR transform (set by the app each frame).
     pub hdr_levels: [f32; 2],
+    /// Wayland: the compositor's reference white in nits, 0 elsewhere. It treats an HDR surface
+    /// as relative, showing a signal of 203 nits at its reference, so `hdr_signal` rescales.
+    pub hdr_reference: f32,
     /// Light painting (roadmap 5d): progressive path only, and scene edits keep the accumulation.
     pub painting: bool,
     /// Look tools (roadmap 5b): zebras, scopes (read back into `scopes` each frame) and a
@@ -185,6 +188,18 @@ pub struct GpuState {
     /// What the denoiser did on the last frame, in words (the status bar, Advanced on).
     pub denoiser_activity: &'static str,
     pub reference_valid: bool,
+}
+impl GpuState {
+    /// Paper white and peak as the HDR output encodes them: `hdr_levels`, relative to the
+    /// reference white on Wayland (`hdr_reference`).
+    pub fn hdr_signal(&self) -> [f32; 2] {
+        let scale = if self.hdr_reference > 0. {
+            203. / self.hdr_reference
+        } else {
+            1.
+        };
+        self.hdr_levels.map(|nits| nits * scale)
+    }
 }
 /// Round-to-nearest-even f32 → IEEE half; values past 65504 become infinity.
 pub fn f32_to_half(v: f32) -> u16 {
@@ -389,8 +404,8 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
         ],
         hdr: [
             st.hdr_active as u32 as f32,
-            st.hdr_levels[0],
-            st.hdr_levels[1],
+            st.hdr_signal()[0],
+            st.hdr_signal()[1],
             (st.hdr_active && st.hdr10) as u32 as f32,
         ],
         tools: [

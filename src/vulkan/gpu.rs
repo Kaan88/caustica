@@ -876,7 +876,7 @@ impl Gpu {
             }
             // eye.w scales the UI to paper white in HDR (gui.hlsl); negative for HDR10.
             if self.st.hdr_active {
-                c.eye[3] = self.st.hdr_levels[0] / 80. * if self.st.hdr10 { -1. } else { 1. };
+                c.eye[3] = self.st.hdr_signal()[0] / 80. * if self.st.hdr10 { -1. } else { 1. };
             }
             let d = &self.device;
             d.write(&self.constants, 0, bytemuck::bytes_of(&c))?;
@@ -1175,6 +1175,7 @@ impl Gpu {
             d.device.queue_submit2(d.queue, &[submit], frame.fence)?;
             match index {
                 Some(i) => {
+                    swap.set_hdr_metadata(d, self.st.hdr_signal()[1], self.st.hdr10);
                     let present_waits = [swap.release[i as usize]];
                     let swapchains = [swap.handle];
                     let indices = [i];
@@ -1633,10 +1634,10 @@ impl Gpu {
             let raw = unsafe { std::slice::from_raw_parts(buffer.mapped, len) };
             let mut px = match format {
                 vk::Format::R16G16B16A16_SFLOAT => {
-                    crate::render::hdr_ui_to_srgb8(raw, false, self.st.hdr_levels[0])
+                    crate::render::hdr_ui_to_srgb8(raw, false, self.st.hdr_signal()[0])
                 }
                 vk::Format::A2B10G10R10_UNORM_PACK32 => {
-                    crate::render::hdr_ui_to_srgb8(raw, true, self.st.hdr_levels[0])
+                    crate::render::hdr_ui_to_srgb8(raw, true, self.st.hdr_signal()[0])
                 }
                 _ => raw.to_vec(),
             };
