@@ -122,6 +122,15 @@ impl App {
                         self.ui.toast("Reset to the default scene and settings");
                         ui.close_menu();
                     }
+                    ui.menu_button("About", |ui| {
+                        ui.label(format!("Caustica {}", crate::VERSION));
+                        ui.label("MIT license. Third-party components keep their own terms.");
+                        ui.label("Uses the NVIDIA DLSS SDK. NVIDIA and DLSS are trademarks of NVIDIA Corporation.");
+                        ui.hyperlink_to(
+                            "Third-party notices",
+                            "https://github.com/Kaan88/caustica/blob/main/THIRD-PARTY-NOTICES.md",
+                        );
+                    });
                     ui.separator();
                     ui.label(egui::RichText::new("Keys").strong());
                     for line in [

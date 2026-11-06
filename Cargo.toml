@@ -2,6 +2,7 @@
 name = "caustica"
 version = "0.11.1"
 edition = "2024"
+license = "MIT"
 build = "build.rs"
 
 [dependencies]

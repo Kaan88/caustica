@@ -44,6 +44,9 @@ cp -r scenes "$app/usr/bin/scenes"
 cp README.md THIRD-PARTY-NOTICES.md "$app/usr/bin/"
 mkdir -p "$app/usr/bin/licenses"
 cp vendor/dlss/LICENSE.txt "$app/usr/bin/licenses/NVIDIA-DLSS.txt"
+cp LICENSE "$app/usr/bin/licenses/Caustica-MIT.txt"
+cp assets/THREE-LICENSE.txt "$app/usr/bin/licenses/three.js-MIT.txt"
+cp assets/CREDITS.md "$app/usr/bin/licenses/Mesh-credits.md"
 cp assets/caustica.png "$app/caustica.png"
 cat > "$app/caustica.desktop" <<'EOF'
 [Desktop Entry]

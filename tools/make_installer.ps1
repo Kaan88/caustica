@@ -38,7 +38,10 @@ foreach ($l in @(
         @('vendor\fsr\Kits\FidelityFX\docs\license.md', 'AMD-FSR.md'),
         @('vendor\xess\LICENSE.txt', 'Intel-XeSS.txt'),
         @('vendor\agility\LICENSE.txt', 'Microsoft-Agility.txt'),
-        @('vendor\ffmpeg\LICENSE', 'FFmpeg.txt'))) {
+        @('vendor\ffmpeg\LICENSE', 'FFmpeg.txt'),
+        @('LICENSE', 'Caustica-MIT.txt'),
+        @('assets\THREE-LICENSE.txt', 'three.js-MIT.txt'),
+        @('assets\CREDITS.md', 'Mesh-credits.md'))) {
     Copy-Item -LiteralPath (Join-Path $root $l[0]) -Destination (Join-Path $licenses $l[1])
 }
 Push-Location $root

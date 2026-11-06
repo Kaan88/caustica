@@ -2,7 +2,7 @@
 
 Written 2026-10-29. This is research and a plan; no code has been changed.
 
-> **Update 2026-10-30:** this is a personal project that will never be published, so license terms do not limit which scenes or assets to use. The licensing notes below are background only. The ordered plan is [roadmap.md](roadmap.md).
+> **Update 2026-10-30:** written while the project was unpublished, so it ignores licence terms; it has been public since 2026-11-06, so check what a scene or asset allows before shipping it (roadmap ground rules). The licensing notes below are background only. The ordered plan is [roadmap.md](roadmap.md).
 Paths are relative to the repo root.
 
 ## 0. What the engine can and cannot do today

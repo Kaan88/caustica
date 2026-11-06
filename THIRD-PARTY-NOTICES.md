@@ -1,6 +1,14 @@
 # Third-party notices
 
-Caustica includes or downloads the following. Each stays under its own terms; nothing here changes them. Full texts are in `licenses/` beside this file in release packages.
+Caustica's own source code is under the MIT license (`LICENSE`, or `licenses/Caustica-MIT.txt` in release packages). That covers the code only, not the components, models, textures and environments below. Each of those stays under its own terms; nothing here changes them. Full texts are in `licenses/` beside this file in release packages.
+
+## End-user terms
+
+By installing or using Caustica you agree that the third-party components it includes are used under their own terms, including these: you may not reverse engineer, decompile or disassemble them, remove their proprietary notices, or redistribute them on their own. The NVIDIA, Microsoft, AMD and Intel components are provided by their owners under the licences in `licenses/`, and those owners are not responsible for Caustica.
+
+## NVIDIA DLSS
+
+Caustica uses the NVIDIA DLSS SDK. NVIDIA and DLSS are trademarks of NVIDIA Corporation. DLSS needs an NVIDIA GPU.
 
 ## Upscaler and runtime components
 
@@ -8,12 +16,12 @@ Caustica includes or downloads the following. Each stays under its own terms; no
 - **AMD FSR SDK / FidelityFX** (`amd_fidelityfx_*`, Windows): Copyright Advanced Micro Devices, Inc. (`licenses/AMD-FSR.md`).
 - **Intel XeSS SDK** (`libxess.dll`, Windows): Copyright Intel Corporation, under the Intel Simplified Software License (`licenses/Intel-XeSS.txt`).
 - **Microsoft D3D12 Agility SDK** (`D3D12\`, Windows): Copyright Microsoft Corporation (`licenses/Microsoft-Agility.txt`).
-- **FFmpeg** (`ffmpeg.exe`, Windows): a separate program the app runs for video export, from the gyan.dev "essentials" build (`licenses/FFmpeg.txt`). Source: https://ffmpeg.org and https://github.com/GyanD/codexffmpeg
+- **FFmpeg** (`ffmpeg.exe`, Windows): a separate program the app runs for video export, from the gyan.dev "essentials" build, licensed under the GNU GPL version 3 (`licenses/FFmpeg.txt`). Source: https://ffmpeg.org and https://github.com/GyanD/codexffmpeg
 
 ## Models
 
-- **Utah teapot:** Martin Newell's patches, by way of three.js (MIT, `assets/THREE-LICENSE.txt`).
-- **Stanford bunny, Happy Buddha, Armadillo, Lucy, XYZ RGB dragon, and the dragon in DragonAttenuation:** Stanford University Computer Graphics Laboratory (https://graphics.stanford.edu/data/3Dscanrep/). Free to use for research and to redistribute for free, with credit; not for commercial use without Stanford's permission. Taken from Alec Jacobson's common-3d-test-models, and for DragonAttenuation through Morgan McGuire's Computer Graphics Archive and Khronos glTF-Sample-Assets.
+- **Utah teapot:** Martin Newell's patches, by way of three.js (MIT, `licenses/three.js-MIT.txt`).
+- **Stanford bunny, Happy Buddha, Armadillo, Lucy, XYZ RGB dragon, and the dragon in DragonAttenuation:** Stanford University Computer Graphics Laboratory (https://graphics.stanford.edu/data/3Dscanrep/). Free to use for research and to redistribute for free, with credit; not for commercial use without Stanford's permission. Credits are in `licenses/Mesh-credits.md`. Taken from Alec Jacobson's common-3d-test-models, and for DragonAttenuation through Morgan McGuire's Computer Graphics Archive and Khronos glTF-Sample-Assets.
 - **Spot:** Keenan Crane (CC0 1.0). **Suzanne:** the Blender Foundation's test model, through common-3d-test-models.
 - **ABeautifulGame (chess set):** ASWF / MaterialX Project, glTF conversion by Ed Mackey (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/).
 - **Duck:** Sony (SCEA Shared Source License 1.0), through Khronos glTF-Sample-Assets.

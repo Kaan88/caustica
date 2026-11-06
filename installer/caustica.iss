@@ -36,6 +36,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 WizardStyle=modern
+LicenseFile=..\THIRD-PARTY-NOTICES.md
 SetupIconFile=..\assets\caustica.ico
 UninstallDisplayIcon={app}\caustica.exe
 UninstallDisplayName=Caustica

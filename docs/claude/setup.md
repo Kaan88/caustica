@@ -16,7 +16,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
   - `vendor/xess`: Intel XeSS SDK 3.0.2, commit `8fe81bd…`. Headers plus `libxess.dll`.
   - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap, Blackman-Harris 1.5 px pixel filter (native path), 16× texture anisotropy.
-- **Personal project, never published:** license terms don't limit assets or SDK use. The ordered plan is `docs/roadmap.md`:
+- **Public since 2026-11-06:** the code is MIT; what ships keeps its own terms (`THIRD-PARTY-NOTICES.md`, ground rules in `docs/roadmap.md`).
   - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.

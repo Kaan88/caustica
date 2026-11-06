@@ -6,8 +6,8 @@ Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-res
 
 ## Ground rules from the owner
 
-- **Personal project, never published.** License terms don't constrain anything: use any model, scene, HDRI or texture, including research-only, NC, ND and SA assets, Sponza, the Stanford scans and Disney data. Assets may be downloaded into the project, or into a local `assets/` folder, as convenient. The licensing cautions in scene-research.md are kept only as background.
-- Credits stay in `assets/CREDITS.md` out of courtesy, not obligation.
+- **Public since 2026-11-06, under MIT for the code.** Models, textures, HDRIs and SDKs keep their own terms; `THIRD-PARTY-NOTICES.md` lists them, and anything new that ships goes in it.
+- **Licence risks the owner has accepted (2026-11-06), and will act on if raised:** Sponza stays bundled, though the CRYENGINE agreement covers games built with CRYENGINE; the GPLv3 FFmpeg stays bundled without published sources; releases up to v0.10.1 stay up without notices. Research-only and NC assets such as the Stanford scans are fine only while the app stays free.
 - **Performance work never lowers quality** (owner rule, 2026-11-02). The defaults stay as they are (spp, bounces, sample cap, DLAA render scale, RR preset), and no "performance mode" or lower-quality option is added. Speed has to come from doing the same work more efficiently. A change that alters the image has to be justified as unbiased, or as equal under the convergence measurement.
 
 ## Done
@@ -80,7 +80,6 @@ Work the [keep] items in "Open tails" below, grouped by area, smallest first. An
 ### Self-update, open items
 
 Built 2026-11-06 (engine-notes "Self-update"). Open:
-- The repo went public on 2026-11-06 with these licence questions open, for the owner: Sponza's CRYENGINE terms, FFmpeg's licence for the bundled build, Stanford's non-commercial terms, the licence of the app's own code (the repo has no `LICENSE`), and the releases up to v0.10.1, which ship no notices.
 - On real Windows, not yet run: the D3D12 renderer with these changes (the releases were built under Wine); an all-users update's relaunch, with its UAC prompt; the *Updated to* toast after a setup; `tools/release.ps1`'s `SHA256SUMS` and `make_installer.ps1`'s licence copy; Vulkan with DLSS after the extension change.
 - Later, if wanted: resuming an interrupted download; slim updates without the 700 MB of assets; signing, since `SHA256SUMS` doesn't protect against a compromised account.
 
@@ -185,7 +184,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 
 ### Scripting and tools
 - [drop] Text-to-scene: smaller prompt for local models, streaming, Codex and OpenAI live tests (not installed here), per-profile keys, whole-scene replace on edit.
-- [drop] NGX project GUID is a development one: moot, the project is never published.
+- [keep] NGX project GUID is a development one. It was moot while the project was unpublished; check what NVIDIA expects now that releases are public.
 - [drop] Gamepad untested: no controller here.
 
 ### Performance

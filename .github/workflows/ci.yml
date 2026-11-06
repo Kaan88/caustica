@@ -86,6 +86,16 @@ jobs:
           if (Test-Path target/release/ffmpeg.exe) { Copy-Item target/release/ffmpeg.exe $dist }
           Copy-Item -Recurse scenes $dist/scenes
           Copy-Item README.md $dist
+          Copy-Item THIRD-PARTY-NOTICES.md $env:DIST
+          New-Item -ItemType Directory -Force "$env:DIST/licenses" | Out-Null
+          Copy-Item vendor/dlss/LICENSE.txt "$env:DIST/licenses/NVIDIA-DLSS.txt"
+          Copy-Item vendor/fsr/Kits/FidelityFX/docs/license.md "$env:DIST/licenses/AMD-FSR.md"
+          Copy-Item vendor/xess/LICENSE.txt "$env:DIST/licenses/Intel-XeSS.txt"
+          Copy-Item vendor/agility/LICENSE.txt "$env:DIST/licenses/Microsoft-Agility.txt"
+          Copy-Item vendor/ffmpeg/LICENSE "$env:DIST/licenses/FFmpeg.txt"
+          Copy-Item LICENSE "$env:DIST/licenses/Caustica-MIT.txt"
+          Copy-Item assets/THREE-LICENSE.txt "$env:DIST/licenses/three.js-MIT.txt"
+          Copy-Item assets/CREDITS.md "$env:DIST/licenses/Mesh-credits.md"
           Compress-Archive -Path $dist -DestinationPath "dist/$name.zip"
           "ZIP=dist/$name.zip" >> $env:GITHUB_ENV
           "DIST=$((Resolve-Path $dist).Path)" >> $env:GITHUB_ENV
