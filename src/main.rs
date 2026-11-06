@@ -1269,7 +1269,9 @@ impl App {
             if s.hdr_white > 0. {
                 s.hdr_white
             } else {
-                info.sdr_white_nits.max(40.)
+                // Wayland's reference follows the brightness slider, well below Windows' range.
+                info.sdr_white_nits
+                    .max(if cfg!(windows) { 40. } else { 1. })
             },
             if s.hdr_peak > 0. {
                 s.hdr_peak
@@ -1861,11 +1863,11 @@ impl App {
         if self.debug {
             let messages = unsafe { g.debug_messages() };
             for msg in &messages {
-                eprintln!("D3D12: {msg}");
+                eprintln!("validation: {msg}");
             }
             anyhow::ensure!(
                 messages.is_empty(),
-                "D3D12 validation produced {} warning/error messages",
+                "GPU validation produced {} warning/error messages",
                 messages.len()
             );
         }

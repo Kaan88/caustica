@@ -191,14 +191,16 @@ pub struct GpuState {
 }
 impl GpuState {
     /// Paper white and peak as the HDR output encodes them: `hdr_levels`, relative to the
-    /// reference white on Wayland (`hdr_reference`).
+    /// reference white on Wayland (`hdr_reference`). PQ ends at 10000 nits, so at a low reference
+    /// the peak stops there and the transform rolls off to it instead of clipping.
     pub fn hdr_signal(&self) -> [f32; 2] {
         let scale = if self.hdr_reference > 0. {
             203. / self.hdr_reference
         } else {
             1.
         };
-        self.hdr_levels.map(|nits| nits * scale)
+        let [white, peak] = self.hdr_levels;
+        [white * scale, peak * scale].map(|nits| nits.min(10000.))
     }
 }
 /// Round-to-nearest-even f32 → IEEE half; values past 65504 become infinity.

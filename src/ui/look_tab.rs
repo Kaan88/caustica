@@ -211,10 +211,10 @@ impl App {
                 row(ui, "Paper white", if cfg!(windows) { "Brightness of white; Windows' SDR content brightness by default." } else { "Brightness of white; the desktop's SDR brightness by default." }, |ui| {
                     let mut windows = s.hdr_white == 0.;
                     if ui.checkbox(&mut windows, if cfg!(windows) { "Windows" } else { "Desktop" }).changed() {
-                        s.hdr_white = if windows { 0. } else { g.hdr_levels[0].clamp(40., 1000.) };
+                        s.hdr_white = if windows { 0. } else { g.hdr_levels[0].clamp(crate::scene::HDR_WHITE_MIN, 1000.) };
                     }
                     if !windows {
-                        ui.add(crate::slider(&mut s.hdr_white, 40. ..=1000.).logarithmic(true).suffix(" nits"));
+                        ui.add(crate::slider(&mut s.hdr_white, crate::scene::HDR_WHITE_MIN..=1000.).logarithmic(true).suffix(" nits"));
                     }
                 });
             }

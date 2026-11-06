@@ -28,10 +28,14 @@ unsafe extern "system" fn on_message(
     let text = unsafe { (*data).message_as_c_str() }
         .map(|m| m.to_string_lossy().into_owned())
         .unwrap_or_default();
-    if severity.intersects(
-        vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-            | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
-    ) {
+    // NGX loads its networks through NVIDIA's private CuModule chain, which the layer can't know.
+    let vendor = text.contains("VUID-VkCuModuleCreateInfoNVX-pNext-pNext");
+    if !vendor
+        && severity.intersects(
+            vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+                | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
+        )
+    {
         eprintln!("vulkan: {text}");
         if let Ok(mut m) = MESSAGES.lock() {
             m.push(text);
@@ -173,7 +177,9 @@ impl Device {
                     extensions.push(ext::hdr_metadata::NAME.as_ptr());
                 }
                 for e in gpu::upscale::required_extensions(true, instance.handle(), phys) {
-                    let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e);
+                    let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e)
+                        // NGX lists it, but it may not be enabled beside the core feature below.
+                        || e == vk::EXT_BUFFER_DEVICE_ADDRESS_NAME;
                     if !known && offered.iter().any(|o| o.extension_name_as_c_str() == Ok(e)) {
                         extensions.push(e.as_ptr());
                     }

@@ -837,6 +837,10 @@ impl Object {
         }
     }
 }
+/// The paper white slider's lowest nits. Wayland's reference follows the brightness slider, far
+/// below Windows' range. `validate` takes 1 everywhere, so a saved scene loads on both.
+pub const HDR_WHITE_MIN: f32 = if cfg!(windows) { 40. } else { 1. };
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
@@ -1418,7 +1422,7 @@ impl Settings {
         anyhow::ensure!(
             self.hdr_mode < 3
                 && (self.hdr_peak == 0. || (80. ..=10000.).contains(&self.hdr_peak))
-                && (self.hdr_white == 0. || (40. ..=1000.).contains(&self.hdr_white)),
+                && (self.hdr_white == 0. || (1. ..=1000.).contains(&self.hdr_white)),
             "Invalid HDR output settings"
         );
         // serde_json rejects nonfinite values. Bound every value used for resource sizes or transport.
