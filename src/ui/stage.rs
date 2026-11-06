@@ -21,7 +21,11 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Fog",
         "A homogeneous medium from the floor up to a height: god rays and visible light beams. Extinction per unit length; 0 is off.",
         |ui| {
-            ui.add(crate::slider(&mut f.density, 0. ..=10.).logarithmic(true));
+            ui.add(
+                crate::slider(&mut f.density, 0. ..=10.)
+                    .logarithmic(true)
+                    .custom_formatter(|v, _| short_number(v)),
+            );
         },
     );
     if f.density <= 0. {
@@ -49,7 +53,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     );
     row(
         ui,
-        "Fog phase",
+        "Fog scatter direction",
         "Henyey-Greenstein g: positive scatters forward, which makes beams glow toward the camera.",
         |ui| {
             ui.add(crate::slider(&mut f.phase, -0.95..=0.95));
@@ -89,24 +93,20 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
             },
         );
     }
-    row(
+    check_row(
         ui,
         "Equiangular",
         "Also samples scattering along each ray where it passes close to a light (path tracer). Cleaner beams per sample, but about 1.5× the trace time in fog: off by default.",
-        |ui| {
-            ui.checkbox(&mut f.equiangular, "");
-        },
+        &mut f.equiangular,
     );
 }
 /// Physical sky rows of the Stage grid (track 9).
 pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
-    row(
+    check_row(
         ui,
         "Physical sky",
         "A sun and an Earth sky computed from the time, date and latitude. Replaces the sky light and the HDRI while on.",
-        |ui| {
-            ui.checkbox(&mut s.physical_sky.on, "");
-        },
+        &mut s.physical_sky.on,
     );
     if !s.physical_sky.on {
         return;
@@ -125,13 +125,11 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
-    row(
+    check_row(
         ui,
         "Clock time",
         "On: the time above is the clock at a longitude and time zone (with the equation of time), not solar time.",
-        |ui| {
-            ui.checkbox(&mut p.clock, "");
-        },
+        &mut p.clock,
     );
     if p.clock {
         row(ui, "Longitude", "Degrees east (negative: west).", |ui| {
@@ -222,21 +220,17 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(ui, "Stars", "Star brightness at night (0: none).", |ui| {
         ui.add(crate::slider(&mut p.stars, 0. ..=1000.).logarithmic(true));
     });
-    row(
+    check_row(
         ui,
         "Moon",
         "The moon, its phase from the date; after twilight it lights the sky.",
-        |ui| {
-            ui.checkbox(&mut p.moon, "");
-        },
+        &mut p.moon,
     );
-    row(
+    check_row(
         ui,
-        "Seen by camera",
+        "Visible to camera",
         "Off: the camera sees the background colour while the sky still lights.",
-        |ui| {
-            ui.checkbox(&mut p.visible, "");
-        },
+        &mut p.visible,
     );
     row(
         ui,
@@ -279,26 +273,17 @@ pub(super) fn day_name(day: f32) -> String {
     }
     "31 Dec".into()
 }
-pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
+pub(super) fn stage_ui(
+    ui: &mut egui::Ui,
+    s: &mut Settings,
+    advanced: bool,
+    hdri_error: Option<&str>,
+) {
     section(ui, "Stage");
     grid("stage").show(ui, |ui| {
-        row(
-            ui,
-            "Cornell box",
-            "The closed box with colored side walls.",
-            |ui| {
-                ui.checkbox(&mut s.cornell_room, "");
-            },
-        );
+        check_row(ui, "Cornell box", "The closed box with coloured side walls.", &mut s.cornell_room);
         if s.cornell_room {
-            row(
-                ui,
-                "Measured walls",
-                "The original Cornell box's measured spectra on the walls and the light (red left, green right; exact with Spectral on in the Render tab). The wall colours and the light's colour and temperature are then ignored.",
-                |ui| {
-                    ui.checkbox(&mut s.measured_room, "");
-                },
-            );
+            check_row(ui, "Measured walls", "The original Cornell box's measured spectra on the walls and the light (red left, green right; exact with Spectral on in the Render tab). The wall colours and the light's colour and temperature are then ignored.", &mut s.measured_room);
         }
         row(
             ui,
@@ -330,7 +315,7 @@ pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 let name = std::path::Path::new(&s.hdri)
                     .file_name()
                     .map_or("None".into(), |n| n.to_string_lossy().to_string());
-                ui.label(name).on_hover_text(&s.hdri);
+                own_tip(ui.label(name), &s.hdri);
                 if ui.small_button("Load…").clicked()
                     && let Some(path) = rfd::FileDialog::new()
                         .add_filter("HDRI", &["hdr", "exr"])
@@ -349,6 +334,12 @@ pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 if !s.hdri.is_empty() && ui.small_button("Clear").clicked() {
                     s.hdri.clear();
                 }
+                if !s.hdri.is_empty()
+                    && !s.physical_sky.on
+                    && let Some(e) = hdri_error
+                {
+                    cant_load(ui, e);
+                }
             },
         );
         if !s.hdri.is_empty() && !s.physical_sky.on {
@@ -362,22 +353,8 @@ pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
             row(ui, "HDRI rotation", "Turns the HDRI about the vertical axis.", |ui| {
                 ui.add(crate::slider(&mut s.hdri_rotation, -180. ..=180.).suffix("°"));
             });
-            row(
-                ui,
-                "Seen by camera",
-                "Off: the camera sees the background colour while the HDRI still lights the scene.",
-                |ui| {
-                    ui.checkbox(&mut s.hdri_visible, "");
-                },
-            );
-            row(
-                ui,
-                "Split sun",
-                "Takes a compact sun out of the HDRI as a separate disc light of the same power and colour, so light sampling always finds it: much less noise with low-resolution sunlit HDRIs (about the same at 8k). Nothing changes for maps without one.",
-                |ui| {
-                    ui.checkbox(&mut s.hdri_sun, "");
-                },
-            );
+            check_row(ui, "Visible to camera", "Off: the camera sees the background colour while the HDRI still lights the scene.", &mut s.hdri_visible);
+            check_row(ui, "Split sun", "Takes a compact sun out of the HDRI as a separate disc light of the same power and colour, so light sampling always finds it: much less noise with low-resolution sunlit HDRIs (about the same at 8k). Nothing changes for maps without one.", &mut s.hdri_sun);
             row(
                 ui,
                 "Ground height",
@@ -387,14 +364,7 @@ pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
                 },
             );
         }
-        row(
-            ui,
-            "Shadow catcher",
-            "The floor shows the background behind it, darkened only where objects shadow it: for compositing objects onto an HDRI (with Ground height) or a background colour.",
-            |ui| {
-                ui.checkbox(&mut s.shadow_catcher, "");
-            },
-        );
+        check_row(ui, "Shadow catcher", "The floor shows the background behind it, darkened only where objects shadow it: for compositing objects onto an HDRI (with Ground height) or a background colour.", &mut s.shadow_catcher);
         row(ui, "Left wall", "Linear RGB.", |ui| {
             ui.color_edit_button_rgb(&mut s.left);
         });
@@ -402,14 +372,14 @@ pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
             ui.color_edit_button_rgb(&mut s.right);
         });
         let base = if s.cornell_room {
-            "Back wall, ceiling & floor"
+            "Other walls"
         } else {
             "Ground"
         };
         row(ui, base, "Linear RGB.", |ui| {
             ui.color_edit_button_rgb(&mut s.base);
         });
-        row(ui, "Background", "Color seen where rays escape.", |ui| {
+        row(ui, "Background", "Colour seen where rays escape.", |ui| {
             ui.color_edit_button_rgb(&mut s.background);
         });
     });
@@ -426,9 +396,7 @@ pub(super) fn stage_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
 pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
     section(ui, "Camera");
     grid("camera").show(ui, |ui| {
-        row(ui, "Auto orbit", "Circle the scene (A).", |ui| {
-            ui.checkbox(&mut s.rotate, "");
-        });
+        check_row(ui, "Auto orbit", "Circle the scene (A).", &mut s.rotate);
         row(
             ui,
             "Orbit speed",
@@ -556,29 +524,15 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
     } else if !s.perspective() {
         note(
             ui,
-            "This camera model renders with the native denoiser; RR, temporal upscalers and the gizmo are off. A 360° panorama exports best at 2:1 (e.g. --width 4096 --height 2048).",
+            "This camera model renders with the native denoiser; RR, temporal upscalers, click picking and the gizmo are off. A 360° panorama exports best at 2:1 (e.g. --width 4096 --height 2048).",
         );
     }
 }
 pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
     section(ui, "Main light");
     grid("main light").show(ui, |ui| {
-        row(
-            ui,
-            "On",
-            "The ceiling light of the Cornell box, or the studio key light.",
-            |ui| {
-                ui.checkbox(&mut s.light_on, "");
-            },
-        );
-        row(
-            ui,
-            "Show outline",
-            "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.",
-            |ui| {
-                ui.checkbox(&mut s.light_outline, "");
-            },
-        );
+        check_row(ui, "On", "The ceiling light of the Cornell box, or the studio key light.", &mut s.light_on);
+        check_row(ui, "Show outline", "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.", &mut s.light_outline);
         row(ui, "Intensity", "Brightness multiplier.", |ui| {
             ui.add(
                 crate::slider(&mut s.light_intensity, 0. ..=2000.)
@@ -588,13 +542,13 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
         });
         row(
             ui,
-            "Color temperature",
+            "Colour temperature",
             "Warm (low) to cool (high) white.",
             |ui| {
                 ui.add(crate::slider(&mut s.light_temperature, 1000. ..=12000.).suffix(" K"));
             },
         );
-        row(ui, "Color filter", "Tints the light, like a gel.", |ui| {
+        row(ui, "Colour filter", "Tints the light, like a gel.", |ui| {
             ui.color_edit_button_rgb(&mut s.light_tint);
         });
         row(ui, "Size", "Bigger lights give softer shadows.", |ui| {
@@ -613,17 +567,16 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
                         .prefix(axis),
                 );
             }
+            crate::revert_dot(ui, &mut s.light_position);
         });
     });
     more(ui, "main light more", advanced, |ui| {
         grid("main light advanced").show(ui, |ui| {
-            row(
+            check_row(
                 ui,
                 "Visible to camera",
                 "Show the light's panel in the image.",
-                |ui| {
-                    ui.checkbox(&mut s.light_visible, "");
-                },
+                &mut s.light_visible,
             );
             row(ui, "Aspect", "Width relative to depth.", |ui| {
                 ui.add(

@@ -40,7 +40,7 @@ impl App {
                 });
                 ui.separator();
                 if !c.per_frame {
-                    ui.label(egui::RichText::new(RUN_HELP).weak());
+                    ui.label(RUN_HELP);
                     let r = ui.add(
                         egui::TextEdit::multiline(&mut c.source)
                             .code_editor()
@@ -78,7 +78,7 @@ impl App {
                             }
                         });
                 } else {
-                    ui.label(egui::RichText::new(FRAME_HELP).weak());
+                    ui.label(FRAME_HELP);
                     let r = ui.add(
                         egui::TextEdit::multiline(&mut self.settings.animation.script)
                             .code_editor()
@@ -95,7 +95,7 @@ impl App {
                             ui.colored_label(egui::Color32::from_rgb(240, 110, 100), e);
                         }
                         _ => {
-                            ui.label(egui::RichText::new("Runs when the playhead moves.").weak());
+                            ui.label("Runs when the playhead moves.");
                         }
                     }
                 }

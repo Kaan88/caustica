@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Flashlight crypt",
- "description": "A vaulted crypt in the dark: columns, marble sarcophagi, copper urns and an altar under a thin slit of moonlight. The flashlight is on (Render → Lights): a spot rides with the camera, so orbiting sweeps its beam across the stone.",
+ "description": "A vaulted crypt in the dark: columns, marble sarcophagi, copper urns and an altar under a thin slit of moonlight. The flashlight is on (its row in the outliner, or T): a spot rides with the camera, so orbiting sweeps its beam across the stone.",
  "tags": [
   "lights",
   "flashlight",
@@ -1344,6 +1344,9 @@
    }
   ],
   "flashlight": true,
+  "flashlight_config": {
+   "intensity": 240.0
+  },
   "exposure": 1.4
  }
 }

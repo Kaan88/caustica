@@ -18,7 +18,7 @@ const COLORS: [egui::Color32; 3] = [
 const HOVER: egui::Color32 = egui::Color32::from_rgb(255, 214, 90);
 const AXES: [&str; 3] = ["X", "Y", "Z"];
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Tool {
     Select,
     Move,
@@ -48,7 +48,7 @@ pub enum Handle {
     ViewRing,
 }
 /// The point rotations and scales turn around when several items transform together.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Pivot {
     /// The mean of the items' origins.
     Median,

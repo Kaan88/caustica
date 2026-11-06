@@ -1,7 +1,7 @@
 """GPU-vs-CPU oracle: renders scenes on the GPU (raw accumulation) and with the CPU reference
-(reference.rs, an independent path tracer of the same model) and tests that they agree.
+(src/reference/, an independent path tracer of the same model) and tests that they agree.
 
-    python tools/oracle.py [--exe PATH] [--scenes a,b,...] [--integrator 0|1|2]
+    python tools/oracle.py [--exe PATH] [--scenes a,b,...] [--integrator 0|1|2] [--time T]
                            [--size 320x240] [--gpu-spp 1024] [--cpu-spp 512] [--out DIR]
 
 The test is statistical. d = GPU - CPU luminance per pixel; the scene structure cancels and
@@ -10,6 +10,11 @@ std(d) / sqrt(pixels) (pixels are independent samples). A scene fails when its m
 more than --z standard errors AND by more than --floor relative (so a long render doesn't fail
 on a 0.05% float difference), or when one block of an 8 x 8 grid does (a localized bias that
 the whole-image mean hides). Prints one line per scene; exits 1 if any failed.
+
+With --time both sides render the scene as it stands at T seconds, frozen (reference::at_time:
+tracks, the per-frame script, physics and cloth in fixed steps, the rotating camera). Without it
+the GPU's physics and rotation run on the wall clock while the CPU's stay at t = 0, so those
+scenes need --time.
 
 Scenes the CPU reference refuses (reference::unsupported) are reported as SKIP; the CPU side
 always path-traces (a scene file's integrator is overridden), and --rgb turns spectral off on both. Default list:
@@ -71,6 +76,7 @@ def main():
     p.add_argument('--integrator', type=int, default=0)
     p.add_argument('--rgb', action='store_true', help='render spectral scenes in RGB on both sides')
     p.add_argument('--set', action='append', default=[], help='key=json for both sides (repeatable)')
+    p.add_argument('--time', help='seconds on the timeline, frozen, for both sides')
     p.add_argument('--size', default='320x240')
     p.add_argument('--gpu-spp', type=int, default=1024)
     p.add_argument('--cpu-spp', type=int, default=512)
@@ -90,6 +96,8 @@ def main():
         size += ['--set', 'pixel_filter=0', '--set', 'filter_width=1']
     for kv in a.set:
         size += ['--set', kv]
+    if a.time is not None:
+        size += ['--time', a.time]
     failed = 0
     print(f'{"scene":28} {"GPU/CPU":>8} {"z":>7}  worst block (ratio, z, row/col)')
     for name in [s for s in a.scenes.split(',') if s]:

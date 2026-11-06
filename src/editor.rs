@@ -1,7 +1,7 @@
 //! Inspectors for the Scene tab: objects, area lights and materials. Every range matches
 //! `Settings::validate`, and every slider goes through `crate::slider` (clamps edits only).
 use crate::scene::{AreaLight, LightKind, Material, Object, Pattern, Shape};
-use crate::ui::{more, row};
+use crate::ui::{cant_load, check_row, check_row_with, more, own_tip, row, why_disabled};
 
 pub fn pattern_label(p: Pattern) -> &'static str {
     match p {
@@ -27,12 +27,9 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
                 let name = std::path::Path::new(&m.texture)
                     .file_name()
                     .map_or(m.texture.clone(), |n| n.to_string_lossy().to_string());
-                ui.label(name).on_hover_text(&m.texture);
+                own_tip(ui.label(name), &m.texture);
                 if let Err(e) = crate::texture::load(&m.texture) {
-                    ui.label(
-                        egui::RichText::new("missing").color(egui::Color32::from_rgb(232, 176, 72)),
-                    )
-                    .on_hover_text(format!("{e:#}"));
+                    cant_load(ui, &format!("{e:#}"));
                 }
             }
             if ui.small_button("Load…").clicked() {
@@ -66,13 +63,11 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
                 ui.add(crate::slider(&mut m.texture_scale, 0.01..=100.).logarithmic(true));
             },
         );
-        row(
+        check_row(
             ui,
             "Mesh UVs",
             "Map the set by the mesh's own UVs (texture scale = repeats per UV unit) instead of projecting it along the axes. For imported meshes; built-in shapes have no UVs.",
-            |ui| {
-                ui.checkbox(&mut m.texture_uv, "");
-            },
+            &mut m.texture_uv,
         );
     }
 }
@@ -102,7 +97,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
         .num_columns(2)
         .spacing([12., 6.])
         .show(ui, |ui| {
-            row(ui, "Color", "Linear RGB base color.", |ui| {
+            row(ui, "Colour", "Linear RGB base colour.", |ui| {
                 ui.color_edit_button_rgb(&mut m.color);
             });
             row(
@@ -116,7 +111,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             row(
                 ui,
                 "Metal",
-                "1 tints reflections with the base color, like gold or copper.",
+                "1 tints reflections with the base colour, like gold or copper.",
                 |ui| {
                     ui.add(crate::slider(&mut m.metallic, 0. ..=1.));
                 },
@@ -152,14 +147,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             .num_columns(2)
             .spacing([12., 6.])
             .show(ui, |ui| {
-                row(
-                    ui,
-                    "Beam splitter",
-                    "A thin partial mirror (optics bench): Reflection sets the share reflected, the rest passes straight through (front faces only: a thin box splits once).",
-                    |ui| {
-                        ui.checkbox(&mut m.splitter, "");
-                    },
-                );
+                check_row(ui, "Beam splitter", "A thin partial mirror (optics bench): Reflection sets the share reflected, the rest passes straight through (front faces only: a thin box splits once).", &mut m.splitter);
                 row(
                     ui,
                     "Reflection",
@@ -198,7 +186,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     },
                 );
                 if m.sheen > 0. {
-                    row(ui, "Sheen color", "Linear RGB colour of the sheen.", |ui| {
+                    row(ui, "Sheen colour", "Linear RGB colour of the sheen.", |ui| {
                         ui.color_edit_button_rgb(&mut m.sheen_color);
                     });
                     row(
@@ -245,14 +233,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                             ui.add(crate::slider(&mut m.anisotropy_rotation, -180. ..=180.));
                         },
                     );
-                    row(
-                        ui,
-                        "Spun",
-                        "Brushed in circles around the object's y axis (a pan, a watch dial).",
-                        |ui| {
-                            ui.checkbox(&mut m.anisotropy_spun, "");
-                        },
-                    );
+                    check_row(ui, "Spun", "Brushed in circles around the object's y axis (a pan, a watch dial).", &mut m.anisotropy_spun);
                 }
                 row(
                     ui,
@@ -276,20 +257,22 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     });
                 }
                 if m.transmission > 0. {
-                    row(
+                    let mut on = m.dispersion > 0.;
+                    let dispersion = check_row_with(
                         ui,
                         "Dispersion",
                         "Splits white light into a rainbow by wavelength (only with Spectral on, in the Render tab). The Abbe number: lower disperses more; crown glass 60, flint 30, dense flint 20.",
-                        |ui| {
-                            let mut on = m.dispersion > 0.;
-                            if ui.checkbox(&mut on, "").changed() {
-                                m.dispersion = if on { 30. } else { 0. };
-                            }
+                        &mut on,
+                        None,
+                        |ui, on| {
                             if on {
                                 ui.add(crate::slider(&mut m.dispersion, 10. ..=100.));
                             }
                         },
                     );
+                    if dispersion.changed() {
+                        m.dispersion = if on { 30. } else { 0. };
+                    }
                     row(
                         ui,
                         "Volume density",
@@ -316,7 +299,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         );
                         row(
                             ui,
-                            "Phase",
+                            "Scatter direction",
                             "Henyey-Greenstein g: negative scatters back, 0 evenly, positive forward (fog, milk ~0.8).",
                             |ui| {
                                 ui.add(crate::slider(&mut m.phase, -0.95..=0.95));
@@ -352,14 +335,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         ui.add(crate::slider(&mut m.priority, 0..=7));
                     },
                 );
-                row(
-                    ui,
-                    "Glow only",
-                    "The surface only emits light; rays stop there.",
-                    |ui| {
-                        ui.checkbox(&mut m.unlit, "");
-                    },
-                );
+                check_row(ui, "Glow only", "The surface only emits light; rays stop there.", &mut m.unlit);
                 row(
                     ui,
                     "Pattern",
@@ -380,7 +356,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     },
                 );
                 if m.pattern != Pattern::Solid {
-                    row(ui, "Second color", "The pattern's other color.", |ui| {
+                    row(ui, "Second colour", "The pattern's other colour.", |ui| {
                         ui.color_edit_button_rgb(&mut m.secondary_color);
                     });
                     row(ui, "Pattern scale", "Repetitions per scene unit.", |ui| {
@@ -399,12 +375,21 @@ pub fn shape_combo(ui: &mut egui::Ui, id: &str, shape: &mut Shape) {
             }
         });
 }
-pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
+pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: bool) {
     ui.add(
         egui::TextEdit::singleline(&mut o.name)
             .char_limit(128)
             .desired_width(f32::INFINITY),
     );
+    ui.label(egui::RichText::new("Material").strong());
+    if crate::mesh::has_maps(o) {
+        ui.checkbox(&mut o.material.textures, "Texture maps").on_hover_text(
+            "Base colour, normal and metallic-roughness maps from the mesh file. Colour,              roughness and metallic below start at the maps' averages and scale them; off              shows those averages as flat values.",
+        );
+    }
+    material_ui(ui, "object", &mut o.material, advanced);
+    ui.separator();
+    ui.label(egui::RichText::new("Shape and placement").strong());
     egui::Grid::new("object")
         .num_columns(2)
         .spacing([12., 6.])
@@ -424,12 +409,6 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                     });
                 },
             );
-            row(ui, "Mass", "Density multiplier of its physics body (1 = default)", |ui| {
-                ui.add(crate::slider(&mut o.mass, 0.01..=100.).logarithmic(true).suffix("×"));
-            });
-            row(ui, "Locked", "The gizmo can't move it (laser puzzle walls and targets)", |ui| {
-                ui.checkbox(&mut o.locked, "");
-            });
             if let Some((label, range, default)) = o.sdf.detail() {
                 row(ui, label, "The procedural surface's shape parameter (reset: its default).", |ui| {
                     let mut v = if o.detail > 0. { o.detail } else { default };
@@ -442,68 +421,6 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                 row(ui, "Phase", "Where the blobs are; key it (I) and play the timeline to animate them.", |ui| {
                     ui.add(crate::slider(&mut o.phase, 0. ..=100.));
                 });
-            }
-            row(
-                ui,
-                "Physics",
-                "How the physics sandbox treats it: dynamic bodies fall and collide, fixed ones collide but never move, none are ignored. Strings (tethers) are never bodies.",
-                |ui| {
-                    use crate::scene::Body;
-                    for (b, name) in [(Body::Dynamic, "Dynamic"), (Body::Fixed, "Fixed"), (Body::None, "None")] {
-                        ui.selectable_value(&mut o.body, b, name);
-                    }
-                    if !o.links.is_empty() {
-                        ui.label(format!("{} joint(s)", o.links.len()))
-                            .on_hover_text("Ball joints to other bodies (chains, ropes, bridges), set in the scene file.");
-                    }
-                },
-            );
-            if o.sdf.is_none() && (o.mesh.is_empty() || o.cloth.is_some()) {
-                row(
-                    ui,
-                    "Cloth",
-                    "Simulates the object as a cloth with the physics sandbox: a particle grid over the object's local x-z square that drapes over bodies and pushes dynamic ones back.",
-                    |ui| {
-                        let mut on = o.cloth.is_some();
-                        if ui.checkbox(&mut on, "").changed() {
-                            // Ungrounded where it is: the simulation keeps the frame it starts in.
-                            let centre = crate::geometry::object_frame(o).0;
-                            o.grounded = false;
-                            o.elevation = centre.y;
-                            o.cloth = on.then(crate::scene::Cloth::default);
-                            o.mesh.clear();
-                        }
-                        if let Some(c) = &mut o.cloth {
-                            use crate::scene::ClothPin;
-                            for (p, name) in [(ClothPin::None, "Free"), (ClothPin::Corners, "Corners"), (ClothPin::Edge, "Edge")] {
-                                ui.selectable_value(&mut c.pin, p, name)
-                                    .on_hover_text("Pins: none, the two corners of the far (−z) edge, or that whole edge (a curtain).");
-                            }
-                            ui.add(crate::slider(&mut c.resolution, 4..=48).suffix(" ×"))
-                                .on_hover_text("Particles per side.");
-                            ui.add(crate::slider(&mut c.stiffness, 0. ..=1.))
-                                .on_hover_text("Bending stiffness: 0 silk, 1 canvas.");
-                            ui.add(
-                                egui::DragValue::new(&mut c.mass)
-                                    .speed(0.01)
-                                    .range(0.01..=100.)
-                                    .suffix(" kg"),
-                            )
-                            .on_hover_text("The cloth's total mass: what a dynamic body it touches feels.");
-                            ui.checkbox(&mut c.self_collision, "Self-collision")
-                                .on_hover_text("Folds push apart instead of passing through each other.");
-                            if !o.maps_from.is_empty() {
-                                ui.label("UV").on_hover_text(format!(
-                                    "Texture coordinates of the grid's corners (u0, v0 at the pinned edge, u1, v1 opposite) for the maps of {}.",
-                                    o.maps_from
-                                ));
-                                for u in &mut c.uv {
-                                    ui.add(egui::DragValue::new(u).speed(0.01).range(-64. ..=64.));
-                                }
-                            }
-                        }
-                    },
-                );
             }
             if o.cloth.is_some() {
                 // The mesh is the simulation's.
@@ -527,13 +444,9 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                             .map(std::ffi::OsStr::new)
                             .or_else(|| std::path::Path::new(&o.mesh).file_name())
                             .map_or(o.mesh.clone(), |n| n.to_string_lossy().to_string());
-                        ui.label(name).on_hover_text(&o.mesh);
+                        own_tip(ui.label(name), &o.mesh);
                         if let Err(e) = crate::mesh::load(&o.mesh) {
-                            ui.label(
-                                egui::RichText::new("missing")
-                                    .color(egui::Color32::from_rgb(232, 176, 72)),
-                            )
-                            .on_hover_text(format!("{e:#}"));
+                            cant_load(ui, &format!("{e:#}"));
                         }
                         if ui.small_button("Use a shape").clicked() {
                             o.mesh.clear();
@@ -558,16 +471,10 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                             .range(-40. ..=40.)
                             .prefix("z "),
                     );
+                    crate::revert_dot(ui, &mut o.position);
                 },
             );
-            row(
-                ui,
-                "Rest on floor",
-                "Keep the object standing on the floor.",
-                |ui| {
-                    ui.checkbox(&mut o.grounded, "");
-                },
-            );
+            check_row(ui, "Rest on floor", "Keep the object standing on the floor.", &mut o.grounded);
             row(
                 ui,
                 if o.grounded {
@@ -580,22 +487,113 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                     ui.add(crate::slider(&mut o.elevation, -40. ..=40.).suffix(" units"));
                 },
             );
-            row(ui, "Size", "Overall scale.", |ui| {
+            row(ui, "Scale", "Overall scale.", |ui| {
                 ui.add(
                     crate::slider(&mut o.size, 0.05..=30.)
                         .logarithmic(true)
                         .suffix("×"),
                 );
             });
-            row(ui, "Turn", "Rotation around the vertical axis.", |ui| {
+            row(ui, "Yaw", "Rotation around the vertical axis.", |ui| {
                 ui.add(crate::slider(&mut o.rotation, -180. ..=180.).suffix("°"));
             });
+            // Only the simulation reads these; a cloth keeps its row, or it could not be turned off.
+            if physics {
+                row(ui, "Mass", "Density multiplier of its physics body (1 = default)", |ui| {
+                    ui.add(crate::slider(&mut o.mass, 0.01..=100.).logarithmic(true).suffix("×"));
+                });
+                row(
+                    ui,
+                    "Physics",
+                    "How the physics sandbox treats it: dynamic bodies fall and collide, fixed ones collide but never move, none are ignored. Strings (tethers) are never bodies.",
+                    |ui| {
+                        use crate::scene::Body;
+                        for (b, name) in [(Body::Dynamic, "Dynamic"), (Body::Fixed, "Fixed"), (Body::None, "None")] {
+                            ui.selectable_value(&mut o.body, b, name);
+                        }
+                        if !o.links.is_empty() {
+                            own_tip(
+                                ui.label(format!("{} joint(s)", o.links.len())),
+                                "Ball joints to other bodies (chains, ropes, bridges), set in the scene file.",
+                            );
+                        }
+                    },
+                );
+            }
+            if (physics || o.cloth.is_some())
+                && o.sdf.is_none()
+                && (o.mesh.is_empty() || o.cloth.is_some())
+            {
+                let mut on = o.cloth.is_some();
+                let cloth = check_row_with(
+                    ui,
+                    "Cloth",
+                    "Simulates the object as a cloth with the physics sandbox: a particle grid over the object's local x-z square that drapes over bodies and pushes dynamic ones back.",
+                    &mut on,
+                    None,
+                    |ui, _| {
+                        if let Some(c) = &mut o.cloth {
+                            use crate::scene::ClothPin;
+                            for (p, name) in [(ClothPin::None, "Free"), (ClothPin::Corners, "Corners"), (ClothPin::Edge, "Edge")] {
+                                own_tip(
+                                    ui.selectable_value(&mut c.pin, p, name),
+                                    "Pins: none, the two corners of the far (−z) edge, or that whole edge (a curtain).",
+                                );
+                            }
+                            own_tip(
+                                ui.add(crate::slider(&mut c.resolution, 4..=48).suffix(" ×")),
+                                "Particles per side.",
+                            );
+                            own_tip(
+                                ui.add(crate::slider(&mut c.stiffness, 0. ..=1.)),
+                                "Bending stiffness: 0 silk, 1 canvas.",
+                            );
+                            own_tip(
+                                ui.add(
+                                    egui::DragValue::new(&mut c.mass)
+                                        .speed(0.01)
+                                        .range(0.01..=100.)
+                                        .suffix(" kg"),
+                                ),
+                                "The cloth's total mass: what a dynamic body it touches feels.",
+                            );
+                            own_tip(
+                                ui.checkbox(&mut c.self_collision, "Self-collision"),
+                                "Folds push apart instead of passing through each other.",
+                            );
+                            if !o.maps_from.is_empty() {
+                                own_tip(ui.label("UV"), format!(
+                                    "Texture coordinates of the grid's corners (u0, v0 at the pinned edge, u1, v1 opposite) for the maps of {}.",
+                                    o.maps_from
+                                ));
+                                for u in &mut c.uv {
+                                    ui.add(egui::DragValue::new(u).speed(0.01).range(-64. ..=64.));
+                                }
+                            }
+                        }
+                    },
+                );
+                if cloth.changed() {
+                    // Ungrounded where it is: the simulation keeps the frame it starts in.
+                    let centre = crate::geometry::object_frame(o).0;
+                    o.grounded = false;
+                    o.elevation = centre.y;
+                    o.cloth = on.then(crate::scene::Cloth::default);
+                    o.mesh.clear();
+                }
+            }
         });
     more(ui, "object transform more", advanced, |ui| {
         egui::Grid::new("object advanced")
             .num_columns(2)
             .spacing([12., 6.])
             .show(ui, |ui| {
+                check_row(
+                    ui,
+                    "Locked",
+                    "The gizmo can't move it (laser puzzle walls and targets)",
+                    &mut o.locked,
+                );
                 row(
                     ui,
                     "Height scale",
@@ -640,14 +638,6 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
                 });
             });
     });
-    ui.separator();
-    ui.label(egui::RichText::new("Material").strong());
-    if crate::mesh::has_maps(o) {
-        ui.checkbox(&mut o.material.textures, "Texture maps").on_hover_text(
-            "Base colour, normal and metallic-roughness maps from the mesh file. Colour,              roughness and metallic below start at the maps' averages and scale them; off              shows those averages as flat values.",
-        );
-    }
-    material_ui(ui, "object", &mut o.material, advanced);
 }
 /// A blackbody temperature: a checkbox (off = 0) and a kelvin slider.
 fn kelvin_ui(ui: &mut egui::Ui, t: &mut f32) {
@@ -673,17 +663,8 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
         .num_columns(2)
         .spacing([12., 6.])
         .show(ui, |ui| {
-            row(ui, "On", "Switch this light on or off.", |ui| {
-                ui.checkbox(&mut l.enabled, "");
-            });
-            row(
-                ui,
-                "Show outline",
-                "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.",
-                |ui| {
-                    ui.checkbox(&mut l.outline, "");
-                },
-            );
+            check_row(ui, "On", "Switch this light on or off.", &mut l.enabled);
+            check_row(ui, "Show outline", "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.", &mut l.outline);
             row(ui, "Kind", "Rectangle, disk and spot lights shine from their front; a sphere all round; a sun from far away in one direction, with sharp shadows when its angle is small.", |ui| {
                 egui::ComboBox::from_id_salt("light kind")
                     .selected_text(l.kind.label())
@@ -705,9 +686,12 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         .suffix("×"),
                 );
             });
-            row(ui, "Color", "Linear RGB color of the light.", |ui| {
+            row(ui, "Colour", "Linear RGB colour of the light.", |ui| {
                 ui.add_enabled_ui(l.temperature == 0., |ui| {
-                    ui.color_edit_button_rgb(&mut l.color);
+                    why_disabled(
+                        ui.color_edit_button_rgb(&mut l.color),
+                        "Untick Temperature to pick a colour",
+                    );
                 });
             });
             row(
@@ -744,8 +728,10 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         if !l.ies.is_empty() && ui.small_button("Clear").clicked() {
                             l.ies.clear();
                         }
-                        if !l.ies.is_empty() && crate::ies::profile(&l.ies).is_none() {
-                            ui.colored_label(ui.visuals().warn_fg_color, "unreadable");
+                        if !l.ies.is_empty()
+                            && let Some(e) = crate::ies::load_error(&l.ies)
+                        {
+                            cant_load(ui, &e);
                         }
                     },
                 );
@@ -759,6 +745,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                             .prefix(axis),
                     );
                 }
+                crate::revert_dot(ui, &mut l.position);
             });
             match l.kind {
                 LightKind::Sphere => row(
@@ -771,6 +758,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                                 .speed(0.01)
                                 .range(0.05..=40.),
                         );
+                        crate::revert_dot(ui, &mut l.size[..1]);
                     },
                 ),
                 LightKind::Sun => row(
@@ -793,6 +781,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         for p in &mut l.size {
                             ui.add(egui::DragValue::new(p).speed(0.025).range(0.05..=40.));
                         }
+                        crate::revert_dot(ui, &mut l.size);
                     },
                 ),
             }
@@ -819,14 +808,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
             .num_columns(2)
             .spacing([12., 6.])
             .show(ui, |ui| {
-                row(
-                    ui,
-                    "Visible to camera",
-                    "Show the light's panel in the image.",
-                    |ui| {
-                        ui.checkbox(&mut l.visible, "");
-                    },
-                );
+                check_row(ui, "Visible to camera", "Show the light's panel in the image.", &mut l.visible);
                 if audio {
                     row(
                         ui,
@@ -845,14 +827,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         },
                     );
                 }
-                row(
-                    ui,
-                    "Casts shadows",
-                    "The light's own panel blocks other lights. Off: they shine through it, while reflections still see it.",
-                    |ui| {
-                        ui.checkbox(&mut l.shadows, "");
-                    },
-                );
+                check_row(ui, "Casts shadows", "The light's own panel blocks other lights. Off: they shine through it, while reflections still see it.", &mut l.shadows);
                 if !matches!(l.kind, LightKind::Spot | LightKind::Sun) {
                     rotation_row(ui, l);
                 }
@@ -873,6 +848,7 @@ fn rotation_row(ui: &mut egui::Ui, l: &mut AreaLight) {
                         .suffix("°"),
                 );
             }
+            crate::revert_dot(ui, &mut l.rotation);
         },
     );
 }

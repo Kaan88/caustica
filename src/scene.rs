@@ -679,6 +679,42 @@ impl AudioReact {
         *self == Self::default()
     }
 }
+/// How the flashlight is built and carried (Scene tab: its outliner row opens these).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Flashlight {
+    /// The brightest direction, as a spot's intensity.
+    pub intensity: f32,
+    pub color: [f32; 3],
+    /// The hot spot's half angle, degrees, where it falls to half.
+    pub beam: f32,
+    /// The corona around it, and the dim spill out to the bezel's cut-off, relative to the peak.
+    pub corona: f32,
+    pub spill: f32,
+    /// An IES file to use instead of the three above; empty = none.
+    pub ies: String,
+    /// Where it is held: right of and below the eye, in scene units.
+    pub right: f32,
+    pub down: f32,
+    /// The beam crosses the view axis this far ahead of the eye.
+    pub aim: f32,
+}
+impl Default for Flashlight {
+    fn default() -> Self {
+        Flashlight {
+            intensity: 90.,
+            color: [1., 0.93, 0.82],
+            beam: 5.,
+            corona: 0.1,
+            spill: 0.006,
+            // A worn flashlight's look; clearing it hands the beam to the three sliders above.
+            ies: "ies/flashlight.ies".into(),
+            right: 0.3,
+            down: 0.4,
+            aim: 8.,
+        }
+    }
+}
 /// Track 17 laser puzzle: a laser from `origin` along `direction`, routed by mirrors, splitters
 /// and glass to the object `target` (−1 = none) in at most `par` moves. A zero direction is
 /// treated as +x.
@@ -846,9 +882,11 @@ pub const HDR_WHITE_MIN: f32 = if cfg!(windows) { 40. } else { 1. };
 pub struct Settings {
     pub objects: Vec<Object>,
     pub lights: Vec<AreaLight>,
-    /// Flashlight mode (track 7): a spot light rides on the camera, a little below the eye,
-    /// aimed at the view's centre. Added to each frame's copy, never stored as a light.
+    /// Flashlight mode (track 7): a spot light carried beside the camera, off to the lower right
+    /// so its shadows show, aimed at the view's centre. Added to each frame's copy, never stored
+    /// as a light.
     pub flashlight: bool,
+    pub flashlight_config: Flashlight,
     pub scene_name: String,
     pub cornell_room: bool,
     /// The Cornell box room with the original's measured spectra (`spectrum::measured`): red
@@ -1055,6 +1093,7 @@ impl Default for Settings {
             ],
             lights: vec![],
             flashlight: false,
+            flashlight_config: Flashlight::default(),
             scene_name: "Classic Cornell box".into(),
             cornell_room: true,
             measured_room: false,
@@ -1668,6 +1707,19 @@ impl Settings {
                 && self.rotate_speed.abs() <= 60.,
             "Invalid scene coordinates"
         );
+        let f = &self.flashlight_config;
+        anyhow::ensure!(
+            (0. ..=2000.).contains(&f.intensity)
+                && f.color.iter().all(|v| (0. ..=1.).contains(v))
+                && (2. ..=30.).contains(&f.beam)
+                && (0. ..=1.).contains(&f.corona)
+                && (0. ..=0.2).contains(&f.spill)
+                && f.ies.len() <= 512
+                && (-2. ..=2.).contains(&f.right)
+                && (-2. ..=2.).contains(&f.down)
+                && (0.5..=50.).contains(&f.aim),
+            "Invalid flashlight settings"
+        );
         for l in &self.lights {
             anyhow::ensure!(
                 l.name.len() <= 128
@@ -1701,10 +1753,15 @@ impl Settings {
         let inv = view.inverse();
         let forward = inv.transform_vector3(-Vec3::Z).normalize_or(-Vec3::Z);
         let down = inv.transform_vector3(-Vec3::Y).normalize_or(-Vec3::Y);
-        let position = eye + down * 0.08 + forward * 0.05;
-        let pitch = (-forward.y).clamp(-1., 1.).acos();
+        let right = inv.transform_vector3(Vec3::X).normalize_or(Vec3::X);
+        let f = &self.flashlight_config;
+        // Held off to the side: the shadow beside a thing is as wide as the angle between the eye
+        // and the light.
+        let position = eye + right * f.right + down * f.down;
+        let beam = (eye + forward * f.aim - position).normalize_or(forward);
+        let pitch = (-beam.y).clamp(-1., 1.).acos();
         let yaw = if pitch.sin() > 1e-4 {
-            (-forward.x).atan2(-forward.z)
+            (-beam.x).atan2(-beam.z)
         } else {
             0.
         };
@@ -1713,10 +1770,16 @@ impl Settings {
             position: position.to_array().map(|v| v.clamp(-50., 50.)),
             rotation: [pitch.to_degrees(), yaw.to_degrees(), 0.],
             size: [0.06; 2],
-            color: [1., 0.93, 0.82],
-            intensity: 60.,
+            color: f.color,
+            intensity: f.intensity,
             visible: false,
             kind: LightKind::Spot,
+            // The cone stays as the fallback for an unreadable file.
+            ies: if f.ies.is_empty() {
+                crate::ies::beam_spec(f.beam, f.corona, f.spill)
+            } else {
+                f.ies.clone()
+            },
             spread: 40.,
             blend: 0.6,
             shadows: false,
@@ -1775,6 +1838,24 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_flashlight_hangs_beside_the_eye_and_aims_down_the_view() {
+        let s = Settings::default();
+        let (view, _, _) = s.camera(1.);
+        let f = &s.flashlight_config;
+        let light = s.flashlight_light();
+        let at = glam::Vec3::from(light.position);
+        let local = view.transform_point3(at);
+        assert!(
+            (local.x - f.right).abs() < 1e-3 && (local.y + f.down).abs() < 1e-3,
+            "not at the hold: {local}"
+        );
+        // The beam crosses the view axis at the aim distance (a tolerance for the Euler angles).
+        let cross = view.inverse().transform_point3(glam::Vec3::Z * -f.aim);
+        let miss = (at + light.direction() * (cross - at).length() - cross).length();
+        assert!(miss < 1e-2, "misses the axis by {miss}");
+        assert!(crate::ies::profile(&light.ies).is_some(), "{}", light.ies);
+    }
     #[test]
     fn presets_are_valid() {
         for i in 0..PRESETS.len() {

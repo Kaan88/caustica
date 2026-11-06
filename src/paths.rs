@@ -354,8 +354,7 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
                 egui::RichText::new(
                     "Click a pixel while this window is open (or Alt+click any time) to re-trace its paths with this frame's samples.",
                 )
-                .small()
-                .weak(),
+                .small(),
             );
             if !perspective {
                 ui.label(

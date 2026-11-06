@@ -3,7 +3,7 @@
 //! set on the selected object / floor / walls, or a model added to the scene). Catalogs,
 //! downloads and thumbnails all run on background threads (`assets.rs`).
 use crate::assets::{self, Asset, Job, Kind, Source};
-use crate::ui::{ACCENT, Selection, note, placeholder};
+use crate::ui::{ACCENT, Selection, field_hint, note, placeholder};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -328,7 +328,7 @@ impl crate::App {
                         ui.separator();
                     }
                     if ui
-                        .add(egui::TextEdit::singleline(&mut b.search).hint_text("Search names and tags…").desired_width(220.))
+                        .add(egui::TextEdit::singleline(&mut b.search).hint_text(field_hint("Search names and tags…")).desired_width(220.))
                         .changed()
                     {
                         b.page = 0;
@@ -410,7 +410,7 @@ impl crate::App {
                         note(ui, &a.credit);
                         ui.horizontal_wrapped(|ui| {
                             for t in a.tags.iter().take(12) {
-                                ui.label(egui::RichText::new(t).small().weak());
+                                ui.label(egui::RichText::new(t).small());
                             }
                         });
                         ui.hyperlink_to(egui::RichText::new(&a.page).small(), &a.page);
@@ -527,7 +527,7 @@ impl crate::App {
 fn other_sources(ui: &mut egui::Ui) {
     note(
         ui,
-        "These have no public API the app can browse (or need an account). Download in a web browser, then use + Mesh… (OBJ, glTF, GLB) or Stage → HDRI → Load….",
+        "These have no public API the app can browse (or need an account). Download in a web browser, then use + Add, Mesh file… (OBJ, glTF, GLB) or Stage → HDRI → Load….",
     );
     egui::ScrollArea::vertical()
         .id_salt("other sources")

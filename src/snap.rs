@@ -6,7 +6,7 @@ use crate::scene::Settings;
 use glam::Vec3;
 
 /// What Ctrl snaps to during a transform.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Target {
     /// Steps of 0.1 units, 15° and 0.1× (the original behaviour).
     Increment,

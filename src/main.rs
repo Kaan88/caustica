@@ -203,6 +203,9 @@ struct App {
     /// Auto-key's reference state before the scene has keys (anim::Timeline::auto_key).
     auto_key_base: Option<scene::Settings>,
     keys_down: std::collections::HashSet<KeyCode>,
+    /// A text field holds the keyboard (see `ui::settle_focus`); the widget focused last frame.
+    text_focus: bool,
+    focus_seen: Option<egui::Id>,
     /// Screensaver show mode (`/s`): cycles scenes and quits on input.
     saver: Option<saver::Saver>,
     /// `--turntable PATH`: render the video in a headless run, then exit (size 0 = the window's).
@@ -411,6 +414,7 @@ impl App {
         let mut interface = ui::UiState::default();
         let mut self_test = false;
         let mut reference: Option<u32> = None;
+        let mut time: Option<f32> = None;
         let mut selected_preset = 0;
         let mut update_from = None;
         let mut update_yes = false;
@@ -580,6 +584,15 @@ impl App {
                         .unwrap_or_else(|_| serde_json::Value::String(value.into()));
                     s = serde_json::from_value(j).with_context(|| format!("--set {pair}"))?;
                 }
+                // The scene as it stands at this time on the timeline (reference::at_time), frozen.
+                "--time" => {
+                    time = Some(
+                        args.next()
+                            .context("--time needs seconds")?
+                            .parse()
+                            .context("--time needs seconds")?,
+                    );
+                }
                 "--no-rr" => s.rr = false,
                 "--rr" => s.rr = true,
                 "--require-rr" => {
@@ -612,6 +625,7 @@ impl App {
                 }
                 // For UI captures: open a tab, show the advanced rows.
                 "--ui-tab" => {
+                    interface.tab_from_args = true;
                     interface.tab = match args.next().context("--ui-tab needs a name")?.as_str() {
                         "scene" => ui::Tab::Scene,
                         "render" => ui::Tab::Render,
@@ -624,6 +638,7 @@ impl App {
                 }
                 "--ui-advanced" => interface.advanced = true,
                 "--ui-scenes" => interface.show_scenes = true,
+                "--ui-shortcuts" => interface.show_shortcuts = true,
                 "--ui-assets" => interface.assets.open = true,
                 "--ui-video" => interface.show_video = true,
                 // Path visualizer open, recording the paths through output pixel X,Y (and
@@ -644,6 +659,7 @@ impl App {
                     interface.zebras = true;
                 }
                 "--ui-tool" => {
+                    interface.tool_from_args = true;
                     interface.tool = match args.next().context("--ui-tool needs a name")?.as_str() {
                         "select" => gizmo::Tool::Select,
                         "move" => gizmo::Tool::Move,
@@ -656,7 +672,7 @@ impl App {
                 }
                 "--ui-select" => {
                     let what = args.next().context(
-                        "--ui-select needs stage, camera, main-light, light:N or object:N",
+                        "--ui-select needs stage, camera, main-light, flashlight, light:N or object:N",
                     )?;
                     let index =
                         |prefix: &str| what.strip_prefix(prefix).and_then(|n| n.parse().ok());
@@ -664,6 +680,7 @@ impl App {
                         "stage" => ui::Selection::Stage,
                         "camera" => ui::Selection::Camera,
                         "main-light" => ui::Selection::MainLight,
+                        "flashlight" => ui::Selection::Flashlight,
                         _ => match (index("light:"), index("object:")) {
                             (Some(i), _) => ui::Selection::Light(i),
                             (_, Some(i)) => ui::Selection::Object(i),
@@ -679,7 +696,7 @@ impl App {
                     frames = Some(SCENES_FROM + scenes::list().len() as u32);
                 }
                 "--no-vsync" => s.vsync = false,
-                // The CPU reference renderer (reference.rs): no GPU, an EXR of N samples per pixel.
+                // The CPU reference renderer (src/reference/): no GPU, an EXR of N samples per pixel.
                 "--reference" => {
                     reference = Some(
                         args.next()
@@ -695,7 +712,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|light:N|object:N --capture-sequence dir --reference SPP --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -718,10 +735,15 @@ impl App {
             (64..=8192).contains(&size[0]) && (64..=8192).contains(&size[1]),
             "Dimensions must be 64–8192"
         );
+        if let Some(t) = time {
+            anyhow::ensure!(t >= 0., "--time can't be negative");
+            s = reference::at_time(&s, t);
+            s.validate()?;
+        }
         if let Some(spp) = reference {
             let path = capture.context("--reference needs --capture out.exr")?;
             anyhow::ensure!(spp > 0, "--reference needs at least one sample");
-            reference::run(&s, size, spp, &path)?;
+            reference::run(&s, 0., size, spp, &path)?;
             std::process::exit(0);
         }
         anyhow::ensure!(frames != Some(0), "--frames must be positive");
@@ -812,6 +834,8 @@ impl App {
             walking: None,
             auto_key_base: None,
             keys_down: Default::default(),
+            text_focus: false,
+            focus_seen: None,
             saver: screensaver.then(saver::Saver::new),
             turntable_cli,
             export: None,
@@ -849,6 +873,11 @@ impl App {
                     console::log(&mut self.ui.console.log, line);
                 }
                 self.script = None;
+                if result.is_ok()
+                    && let Some(st) = &mut self.stats
+                {
+                    st.mark("scripter");
+                }
                 console::log(
                     &mut self.ui.console.log,
                     match &result {
@@ -903,7 +932,7 @@ impl App {
             }
             let reply = match request {
                 Request::Load(name) => {
-                    self.ui.checkpoint(&self.settings);
+                    self.ui.checkpoint_scene(&self.settings);
                     self.ui.selection = ui::Selection::Stage;
                     self.laser = laser::Laser::default();
                     self.physics = None;
@@ -1028,7 +1057,8 @@ impl App {
             self.settings.yaw += self.settings.rotate_speed * dt;
         }
         let window = self.window.as_ref().unwrap().clone();
-        let input = self.input.as_mut().unwrap().take_egui_input(&window);
+        let mut input = self.input.as_mut().unwrap().take_egui_input(&window);
+        ui::keep_tab_for_app(&mut input, self.text_focus && self.ui.transform.is_none());
         let ctx = self.egui.clone();
         let output = ctx.run(input, |ctx| {
             // During an export only its progress window is drawn (and takes input): the scene
@@ -1039,6 +1069,15 @@ impl App {
                 self.ui(ctx);
             }
         });
+        self.text_focus = ui::settle_focus(
+            &ctx,
+            output.platform_output.ime.is_some(),
+            &mut self.focus_seen,
+        );
+        // That focus settles next frame, also in an idle viewport.
+        if self.focus_seen.is_some() {
+            window.request_redraw();
+        }
         self.input
             .as_mut()
             .unwrap()
@@ -1047,7 +1086,14 @@ impl App {
         // whenever the playhead or the keys change. An export renders its own copy.
         if self.export.is_none() {
             self.timeline.advance(&self.settings.animation, dt);
-            self.timeline.update(&mut self.settings);
+            let keys_edited = self.timeline.keys_changed(&self.settings);
+            // An edit still in its field came before what the playhead is about to write.
+            if !keys_edited && self.timeline.playhead_moved() && !self.edits_foreign() {
+                self.ui.flush_pending(&self.settings);
+            }
+            let applied =
+                self.timeline.update(&mut self.settings) && !self.settings.animation.is_empty();
+            self.ui.keys_applied(&self.settings, applied, keys_edited);
             // Auto-key waits for a drag or transform to end (one key per edit, not per frame).
             let busy = self.ui.transform.is_some() || self.drag.is_some();
             if self
@@ -1075,6 +1121,9 @@ impl App {
                     *best = n;
                     self.ui.save_prefs();
                 }
+                if let Some(st) = &mut self.stats {
+                    st.solved(&self.settings.scene_name, n <= par);
+                }
                 let moves = if n == 1 {
                     "1 move".into()
                 } else {
@@ -1093,7 +1142,10 @@ impl App {
                 .map_err(anyhow::Error::from)
                 .and_then(|j| std::fs::write(&path, j).map_err(Into::into))
             {
-                Ok(()) => self.ui.toast(format!("Saved {}", path.display())),
+                Ok(()) => {
+                    self.ui.mark_clean(&self.settings);
+                    self.ui.toast(format!("Saved {}", path.display()));
+                }
                 Err(e) => self.ui.error(format!("Save failed: {e}")),
             }
         }
@@ -1106,8 +1158,9 @@ impl App {
                     Ok(s)
                 }) {
                 Ok(s) => {
-                    self.ui.checkpoint(&self.settings);
+                    self.ui.checkpoint_scene(&self.settings);
                     self.settings = s;
+                    self.ui.mark_clean(&self.settings);
                     self.ui.toast(format!("Loaded {}", path.display()));
                 }
                 Err(e) => self.ui.error(format!("Load rejected: {e}")),
@@ -1412,6 +1465,7 @@ impl App {
                     .and_then(|text| look::read_cube(&text))
                     .and_then(|(n, data)| unsafe { g.set_lut(Some((n, &data))) })
             };
+            self.ui.lut_error = result.as_ref().err().map(|e| format!("{e:#}"));
             match result {
                 Ok(()) if !s.lut_path.is_empty() => {
                     self.ui.toast(format!("LUT loaded: {}", s.lut_path))
@@ -1468,8 +1522,12 @@ impl App {
             }
         } else if environment != self.hdri_loaded && self.export.is_none() {
             self.hdri_loaded = environment;
+            self.ui.environment_error = None;
             if let Err(e) = unsafe { sky::upload_environment(g, s) } {
                 unsafe { g.set_environment(None)? };
+                if !s.physical_sky.on {
+                    self.ui.environment_error = Some(format!("{e:#}"));
+                }
                 self.ui.error(if s.physical_sky.on {
                     format!("Sky: {e:#}")
                 } else {
@@ -1520,16 +1578,22 @@ impl App {
             let job_done = job.done();
             if step.is_err() || job_done {
                 let job = self.export.take().unwrap();
-                let (out, still) = (job.options.output(), job.options.still);
+                let (out, still, width) =
+                    (job.options.output(), job.options.still, job.options.width);
                 let result = unsafe { job.finish(g, s, step.is_err()) };
                 match step.and(result) {
                     Ok(text) => {
                         println!("EXPORT {text}");
                         self.ui.toast_file(text, out);
-                        if let Some(st) = &mut self.stats
-                            && still
-                        {
-                            st.images_saved += 1;
+                        if let Some(st) = &mut self.stats {
+                            if still {
+                                st.images_saved += 1;
+                                if width >= 7680 {
+                                    st.mark("billboard");
+                                }
+                            } else {
+                                st.videos_exported += 1;
+                            }
                         }
                     }
                     Err(e) => {
@@ -1580,6 +1644,7 @@ impl App {
                     }
                     self.ui.tab = ui::Tab::Scene;
                     self.ui.panel_hidden = false;
+                    self.ui.scroll_to_inspector = !menu;
                     self.show_ui = true;
                     if frame_pick && let ui::Selection::Object(i) = sel {
                         self.settings
@@ -1699,26 +1764,26 @@ impl App {
                 })
                 .map(|e| &e.title)
                 .collect();
-            let checks = [
-                ("first-light", g.samples > 0),
-                ("long-exposure", g.samples >= 65_536),
-                ("tourist", st.presets_seen.len() >= PRESETS.len()),
-                (
-                    "collector",
-                    !builtin.is_empty() && builtin.iter().all(|t| st.scenes_seen.contains(*t)),
-                ),
-                ("photographer", st.images_saved >= 10),
-                (
-                    "caustic-hunter",
-                    s.scene_name == "Cornell caustic" && g.samples >= 4096,
-                ),
-                ("hot-shader", st.hot_reloads > 0),
-                ("billion", st.paths >= 1e9),
-            ];
-            for (id, done) in checks {
-                if done && let Some(title) = st.unlock(id) {
-                    self.ui.toast(format!("Achievement unlocked: {title}"));
-                }
+            let eye = s.camera(1.).2;
+            st.observe(stats::Moment {
+                samples: g.samples,
+                seconds: dt,
+                scene: &s.scene_name,
+                integrator: s.integrator,
+                battle: s.battle,
+                spectral: s.spectral,
+                real_lens: s.real_lens(),
+                hdr: g.hdr_active,
+                walking: self.walking.is_some().then_some(eye),
+                flashlight: s.flashlight,
+                physics: self.physics.is_some(),
+                audio: s.audio.enabled,
+                cpu_samples: self.cpu_reference.as_ref().map_or(0, |c| c.state().samples),
+            });
+            let scenes_done =
+                !builtin.is_empty() && builtin.iter().all(|t| st.scenes_seen.contains(*t));
+            for title in st.unlock_reached(scenes_done) {
+                self.ui.toast(format!("Achievement unlocked: {title}"));
             }
             if self.stats_saved.elapsed() > Duration::from_secs(30) {
                 st.save();
@@ -1814,7 +1879,12 @@ impl App {
             match unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) } {
                 Ok(()) => {
                     self.ui.toast_file(
-                        format!("Saved {} ({})", path.display(), format.label()),
+                        format!(
+                            "Saved {} ({}, {} spp)",
+                            path.display(),
+                            format.label(),
+                            g.samples
+                        ),
                         path,
                     );
                     if let Some(st) = &mut self.stats {
@@ -1910,7 +1980,9 @@ impl App {
             }
         }
         window.set_title(&format!(
-            "Caustica · {} · {} spp · {:.2} ms GPU · {}",
+            "Caustica · {}{} · {} · {} spp · {:.2} ms GPU · {}",
+            self.settings.scene_name,
+            if self.ui.scene_dirty { " *" } else { "" },
             g.adapter_name,
             g.samples,
             g.gpu_ms,
@@ -2065,10 +2137,8 @@ fn slider<'a, N: egui::emath::Numeric>(
     // Modified: the value differs from the reset reference (the scene as loaded).
     let modified: Box<dyn Fn() -> bool + 'a> = Box::new(move || {
         // SAFETY: as above.
-        unsafe { reset_value::<N>(target as *const N) }.is_some_and(|r| {
-            let (v, r) = (unsafe { (*target).to_f64() }, r.to_f64());
-            (v - r).abs() > 1e-6 * r.abs().max(1.)
-        })
+        unsafe { reset_value::<N>(target as *const N) }
+            .is_some_and(|r| differs(unsafe { *target }, r))
     });
     let range = range.start().to_f64()..=range.end().to_f64();
     let inner = egui::Slider::from_get_set(range, move |v: Option<f64>| {
@@ -2127,24 +2197,55 @@ impl egui::Widget for Slider<'_> {
         let mut response = ui.add(self.inner);
         // A dot after a value that differs from the scene as loaded; clicking it reverts.
         // The space is always taken, so the row does not shift when the dot appears.
-        let size = egui::vec2(8., response.rect.height());
-        let (rect, dot) = ui.allocate_exact_size(size, egui::Sense::click());
         let mut reset = slider_double_clicked(ui, &response);
-        if (self.modified)() {
-            let color = if dot.hovered() {
-                ui.visuals().strong_text_color()
-            } else {
-                ui::ACCENT
-            };
-            ui.painter().circle_filled(rect.center(), 2.5, color);
-            reset |= dot
-                .on_hover_text("Changed from the scene as loaded. Click to revert.")
-                .clicked();
-        }
+        reset |= modified_dot(ui, response.rect.height(), (self.modified)());
         if reset && (self.reset)() {
             response.mark_changed();
         }
-        response.on_hover_text_at_pointer("Double-click to reset")
+        if ui::slider_in_row(ui.ctx()) {
+            response
+        } else {
+            response.on_hover_text_at_pointer("Double-click to reset")
+        }
+    }
+}
+/// The dot after a modified value (its space is always taken); true when it was clicked.
+fn modified_dot(ui: &mut egui::Ui, height: f32, modified: bool) -> bool {
+    let (rect, dot) = ui.allocate_exact_size(egui::vec2(8., height), egui::Sense::click());
+    if !modified {
+        return false;
+    }
+    let color = if dot.hovered() {
+        ui.visuals().strong_text_color()
+    } else {
+        ui::ACCENT
+    };
+    ui.painter().circle_filled(rect.center(), 2.5, color);
+    ui::row_tip_yields(&dot);
+    dot.on_hover_text("Changed from the scene as loaded. Click to revert.")
+        .clicked()
+}
+/// True when `value` differs from its reset reference by more than rounding.
+fn differs<N: egui::emath::Numeric>(value: N, reference: N) -> bool {
+    let (v, r) = (value.to_f64(), reference.to_f64());
+    (v - r).abs() > 1e-6 * r.abs().max(1.)
+}
+/// The slider's "modified" dot for a group of `DragValue`s (a position, say): it shows when
+/// any of `values` differs from the scene as loaded, and a click reverts them all. They get no
+/// double-click, since their first click starts a text edit that would write the old text back.
+pub fn revert_dot<N: egui::emath::Numeric>(ui: &mut egui::Ui, values: &mut [N]) {
+    // SAFETY: the values are live fields of the settings being drawn, which `reset_source`
+    // registered for this frame.
+    let reference = |v: &N| unsafe { reset_value::<N>(v as *const N) };
+    let modified = values
+        .iter()
+        .any(|v| reference(v).is_some_and(|r| differs(*v, r)));
+    if modified_dot(ui, ui.spacing().interact_size.y, modified) {
+        for v in values {
+            if let Some(r) = reference(v) {
+                *v = r;
+            }
+        }
     }
 }
 /// A slider senses drags, so egui never reports it as double-clicked: read the pointer.
@@ -2288,6 +2389,22 @@ impl ApplicationHandler for App {
                 self.ui.prefs = prefs::Prefs::load();
                 self.ui.prefs_live = true;
                 self.ui.advanced |= self.ui.prefs.advanced;
+                // Where the UI was left, unless the command line chose a tab or tool.
+                if !self.ui.tab_from_args {
+                    self.ui.tab = self.ui.prefs.tab;
+                }
+                if !self.ui.tool_from_args {
+                    self.ui.tool = self.ui.prefs.tool;
+                }
+                self.ui.local = self.ui.prefs.local;
+                self.ui.pivot = self.ui.prefs.pivot;
+                self.ui.snap_to = self.ui.prefs.snap_to;
+                self.ui.panel_width = self.ui.prefs.panel_width;
+                // Undo for panel edits and the last session: not for frame-limited or scripted
+                // runs or the screensaver (nor headless runs and the self-test, above).
+                if self.frames.is_none() && self.script.is_none() && self.saver.is_none() {
+                    self.ui.start_edit_tracking(&self.settings);
+                }
                 self.egui.set_zoom_factor(self.ui.prefs.zoom);
                 self.gamepad = gilrs::Gilrs::new().ok();
                 if let Some(from) = std::env::var_os(update::UPDATED_FROM) {
@@ -2433,6 +2550,17 @@ impl ApplicationHandler for App {
             return;
         }
         match event {
+            // A close would throw the running export away, and no undo brings that back: the
+            // export window asks for a second one.
+            WindowEvent::CloseRequested
+                if self.export.is_some()
+                    && self
+                        .ui
+                        .close_armed
+                        .is_none_or(|t| t.elapsed() > Duration::from_secs(6)) =>
+            {
+                self.ui.close_armed = Some(Instant::now());
+            }
             WindowEvent::CloseRequested => self.shut_down(event_loop),
             WindowEvent::Resized(size) => {
                 if size.width > 0
@@ -2514,6 +2642,13 @@ impl ApplicationHandler for App {
                         self.last_click = (!self.frame_pick).then_some((now, self.cursor));
                         self.pick_point = Some(self.cursor);
                         self.pick_toggle = self.shift;
+                    } else if self.drag == Some(MouseButton::Left)
+                        && self.drag_distance < 3.
+                        && !self.settings.perspective()
+                        && self.walking.is_none()
+                        && !self.egui.is_pointer_over_area()
+                    {
+                        self.ui.toast(ui::PICKING_OFF);
                     } else if self.drag == Some(MouseButton::Right)
                         && self.drag_distance < 3.
                         && self.shift
@@ -2607,6 +2742,11 @@ impl ApplicationHandler for App {
                 self.ui.box_start = None;
                 self.ui.box_armed = false;
                 self.drag = None;
+                // A dialog or an alt-tab takes the key-ups with it: nothing may stay held.
+                // (The self-test holds its keys by hand.)
+                if !self.self_test {
+                    self.keys_down.clear();
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let dx = (position.x - self.cursor[0]) as f32;
@@ -2664,9 +2804,11 @@ impl ApplicationHandler for App {
                     }
                 }
             }
-            // Walk mode owns WASD / Q / E while it runs; held keys are tracked for movement.
+            // Walk mode owns WASD / Q / E while it runs; held keys are tracked for movement, and a
+            // release always counts, or a key let go in a text field would keep walking.
             WindowEvent::KeyboardInput { ref event, .. }
-                if self.walking.is_some() && !self.egui.wants_keyboard_input() =>
+                if self.walking.is_some()
+                    && (self.keys_free() || event.state == ElementState::Released) =>
             {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if event.state == ElementState::Pressed {
@@ -2675,6 +2817,12 @@ impl ApplicationHandler for App {
                             self.walking = None;
                             self.keys_down.clear();
                             self.ui.toast("Walk mode off");
+                        } else if !event.repeat
+                            && self.ui.transform.is_none()
+                            && self.global_key(code)
+                        {
+                            // Ctrl+Z, Y or O are no movement, F12, F1 and Tab no held keys.
+                            self.keys_down.remove(&code);
                         } else if !event.repeat
                             && let Some(w) = &mut self.walking
                         {
@@ -2695,6 +2843,7 @@ impl ApplicationHandler for App {
                                         "Head bob off"
                                     });
                                 }
+                                KeyCode::KeyT => self.toggle_flashlight(),
                                 _ => {}
                             }
                         }
@@ -2704,9 +2853,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. }
-                if event.state == ElementState::Pressed
-                    && !event.repeat
-                    && !self.egui.wants_keyboard_input() =>
+                if event.state == ElementState::Pressed && !event.repeat && self.keys_free() =>
             {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if self.transform_key(code) {
@@ -2718,23 +2865,7 @@ impl ApplicationHandler for App {
                     let selected = !self.ui.targets().is_empty();
                     let over_view = !self.egui.is_pointer_over_area();
                     match code {
-                        KeyCode::KeyZ | KeyCode::KeyY if self.ctrl => {
-                            let redo = code == KeyCode::KeyY || self.shift;
-                            let done = if redo {
-                                self.ui.redo(&mut self.settings)
-                            } else {
-                                self.ui.undo(&mut self.settings)
-                            };
-                            // The restored values stay; the keys apply once the playhead moves.
-                            self.timeline.settle(&self.settings);
-                            let text = match (redo, done) {
-                                (false, true) => "Undo",
-                                (true, true) => "Redo",
-                                (false, false) => "Nothing to undo",
-                                (true, false) => "Nothing to redo",
-                            };
-                            self.ui.toast(text);
-                        }
+                        code if self.global_key(code) => {}
                         KeyCode::KeyD if self.ctrl && selected => {
                             self.run_command(ui::Command::Duplicate);
                         }
@@ -2758,13 +2889,12 @@ impl ApplicationHandler for App {
                         KeyCode::KeyI if self.alt => self.delete_keys(),
                         KeyCode::KeyI if !self.ctrl => self.key_selection(self.shift),
                         KeyCode::KeyK if !self.ctrl => self.toggle_playback(),
+                        KeyCode::KeyT if !self.ctrl => self.toggle_flashlight(),
                         KeyCode::ArrowLeft if self.shift => self.step_frame(-1),
                         KeyCode::ArrowRight if self.shift => self.step_frame(1),
                         KeyCode::KeyS if self.ctrl => self.save_scene(self.shift),
-                        KeyCode::KeyO if self.ctrl => self.open_scene_dialog(),
                         KeyCode::PageUp => self.step_scene(-1),
                         KeyCode::PageDown => self.step_scene(1),
-                        KeyCode::F1 => self.ui.show_shortcuts = !self.ui.show_shortcuts,
                         // Blender's modal transforms, when an object or light is selected.
                         KeyCode::KeyG | KeyCode::KeyS | KeyCode::KeyR
                             if selected && over_view && !self.ctrl =>
@@ -2774,16 +2904,28 @@ impl ApplicationHandler for App {
                                 KeyCode::KeyR => gizmo::Mode::Rotate,
                                 _ => gizmo::Mode::Scale,
                             };
-                            if !self.start_transform(mode, None) {
-                                self.ui.toast("The main light only moves and scales");
-                            }
+                            self.start_transform(mode, None);
                         }
-                        // Escape deselects; closing the window is the only way to quit.
+                        // The same keys away from the viewport say so: R must not throw the
+                        // samples away while something is selected.
+                        KeyCode::KeyG | KeyCode::KeyS | KeyCode::KeyR if selected && !self.ctrl => {
+                            self.ui
+                                .toast("Point at the viewport to move, rotate or scale");
+                        }
+                        KeyCode::KeyG | KeyCode::KeyS if !self.ctrl => {
+                            self.ui.toast("Select an object or light first");
+                        }
+                        // Escape closes the scene browser, else deselects; closing the window is
+                        // the only way to quit.
                         KeyCode::Escape => {
                             if self.ui.context_menu.take().is_none()
                                 && !std::mem::take(&mut self.ui.box_armed)
                             {
-                                self.ui.select(ui::Selection::None);
+                                if self.ui.show_scenes {
+                                    self.ui.show_scenes = false;
+                                } else {
+                                    self.ui.select(ui::Selection::None);
+                                }
                             }
                         }
                         // Multi-select (3b): B boxes, Ctrl+A selects all, Alt+A none.
@@ -2791,19 +2933,9 @@ impl ApplicationHandler for App {
                             self.ui.box_armed = true;
                             self.ui.toast("Box select: drag a rectangle (Shift adds)");
                         }
+                        KeyCode::KeyB if over_view => self.ui.toast(ui::PICKING_OFF),
                         KeyCode::KeyA if self.ctrl => self.select_all(),
                         KeyCode::KeyA if self.alt => self.ui.select(ui::Selection::None),
-                        // Tab: all → top bar only → nothing (screenshot mode) → all.
-                        KeyCode::Tab => {
-                            if !self.show_ui {
-                                self.show_ui = true;
-                                self.ui.panel_hidden = false;
-                            } else if !self.ui.panel_hidden {
-                                self.ui.panel_hidden = true;
-                            } else {
-                                self.show_ui = false;
-                            }
-                        }
                         KeyCode::Space => {
                             self.paused = !self.paused;
                             self.ui
@@ -2825,6 +2957,14 @@ impl ApplicationHandler for App {
                         {
                             self.ui.checkpoint(&self.settings);
                             self.physics_spawn(self.shift)
+                        }
+                        KeyCode::KeyE | KeyCode::KeyN
+                            if !self.settings.physics.enabled && over_view && !self.ctrl =>
+                        {
+                            self.ui.toast("Physics is off (Scene tab, Simulate)");
+                        }
+                        KeyCode::KeyP if self.ctrl => {
+                            self.ui.show_scenes = !self.ui.show_scenes;
                         }
                         KeyCode::KeyP => {
                             self.ui.paths.open = !self.ui.paths.open;
@@ -2868,7 +3008,6 @@ impl ApplicationHandler for App {
                             self.ui
                                 .toast("Reference frozen: turn on Show split in the Look tab");
                         }
-                        KeyCode::F12 => self.actions.save_image = Some(video::ImageFormat::Png),
                         KeyCode::Digit1
                         | KeyCode::Digit2
                         | KeyCode::Digit3
@@ -2944,8 +3083,53 @@ impl ApplicationHandler for App {
     }
 }
 impl App {
-    /// Closing the window, or Menu → Renderer → Restart now: saves the stats, stops a running
-    /// export (ffmpeg, and deletes the unfinished video) and ends the event loop.
+    /// Shortcuts run unless a text field holds the keyboard, or a widget has just been given it:
+    /// a DragValue's field only appears the frame after its click.
+    fn keys_free(&self) -> bool {
+        !self.text_focus && self.focus_seen.is_none()
+    }
+    /// The keys that also work in walk mode, none of which it uses. Ctrl+S is not one: Ctrl and
+    /// S crouch and walk back there.
+    fn global_key(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::KeyZ | KeyCode::KeyY if self.ctrl => {
+                let redo = code == KeyCode::KeyY || self.shift;
+                let done = if redo {
+                    self.ui.redo(&mut self.settings)
+                } else {
+                    self.ui.undo(&mut self.settings)
+                };
+                // The restored values stay; the keys apply once the playhead moves.
+                self.timeline.settle(&self.settings);
+                let text = match (redo, done) {
+                    (false, true) => "Undo",
+                    (true, true) => "Redo",
+                    (false, false) => "Nothing to undo",
+                    (true, false) => "Nothing to redo",
+                };
+                self.ui.toast(text);
+            }
+            KeyCode::KeyO if self.ctrl => self.open_scene_dialog(),
+            KeyCode::F1 => self.ui.show_shortcuts = !self.ui.show_shortcuts,
+            // Tab: all → top bar only → nothing (screenshot mode) → all.
+            KeyCode::Tab => {
+                if !self.show_ui {
+                    self.show_ui = true;
+                    self.ui.panel_hidden = false;
+                } else if !self.ui.panel_hidden {
+                    self.ui.panel_hidden = true;
+                } else {
+                    self.show_ui = false;
+                }
+            }
+            KeyCode::F12 => self.actions.save_image = Some(video::ImageFormat::Png),
+            _ => return false,
+        }
+        true
+    }
+    /// Closing the window, or Menu → Renderer → Restart now: saves the stats and unsaved work
+    /// (last-session.json), stops a running export (ffmpeg, and deletes the unfinished video)
+    /// and ends the event loop.
     fn shut_down(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(st) = &self.stats {
             st.save();
@@ -2953,6 +3137,7 @@ impl App {
         if let (Some(job), Some(g)) = (self.export.take(), &mut self.gpu) {
             let _ = unsafe { job.finish(g, &self.settings, true) };
         }
+        self.ui.close_session(&self.settings);
         event_loop.exit();
     }
 

@@ -33,6 +33,7 @@ cargo fmt --check; cargo test --locked; cargo clippy --locked -- -D warnings; ca
   - `--debug`: needs the Windows Graphics Tools.
   - `--orbit-test`: moves the camera 0.25° per frame after frame 64.
   - `--capture-sequence dir`: captures the last 32 frames.
+- `--time T`: the scene as it stands at T seconds on the timeline, frozen (`reference::at_time`: tracks, per-frame script, physics and cloth in fixed steps, the rotating camera), on either renderer. It makes a physics scene comparable between two runs; `tools/oracle.py --time T` passes it to both sides.
 - Unbiased reference for noise measurement: `--no-rr --raw --samples N --frames N/spp --capture ref.exr`. Linear RGB32F at output resolution.
 - `tools/rr_stability.py` is an RR shimmer regression. It uses emission-only walls and black emission-only blocks, so there is no Monte Carlo noise.
   - Run `python tools/rr_stability.py --exe <path>` to use a build other than `target/release`.

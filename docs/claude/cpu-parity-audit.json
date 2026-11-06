@@ -1,0 +1,992 @@
+{
+"groups": [
+{
+"group": "camera",
+"items": [
+{
+"feature": "Camera ray dispatcher (shared prerequisite for DoF, projections and lenses)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:905 camera_ray; :1419-1423 trace_main (throughput starts at lens_valid?camera_weight:0; an invalid sample still counts in the mean)",
+"plan": "reference.rs only. Add to Scene: right=view.row(0).truncate(), up=view.row(1).truncate(), forward=-view.row(2).truncate() (the HLSL reads world_view[0], [1], -[2], and render.rs:356 uploads view.to_cols_array()), aspect=w/h, tan_half=1./proj.y_axis.y (environment.z, render.rs:404). s.camera() (scene.rs:1797) is always perspective, whatever the projection. Add fn camera_ray(&self, pixel: Vec2, r: &mut Rng) -> Option<(Vec3 origin, Vec3 direction, Vec3 weight)>, where None means invalid. Change radiance() (reference.rs:731) to take weight: Vec3 and start with throughput = weight. In Progressive::pass (reference.rs:1036-1039), None adds zero to the sum and the sample still counts. The pinhole path must draw no random numbers, so scenes that already render stay bit-identical. Dispatch order as on the GPU: real lens (s.real_lens()), projection 1, 2, 3, then camera_direction plus the thin lens for 0 and 4.",
+"how_to_test": "cargo test passes_match_one_render and the_cornell_box_renders. tools/oracle.py with its default scene list must still pass unchanged.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Depth of field: thin lens, aperture blades, blade rotation, cat-eye, tilted focal plane",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:854 aperture_point; :933-940 thin-lens branch of camera_ray; constants at src/render.rs:419-430",
+"plan": "In camera_ray after d=camera_direction(pixel), return unchanged if s.aperture<=0. It applies to projection 0 and 4 only: 1, 2 and 3 return earlier and ignore the aperture, and a real lens also takes precedence over it. n = if projection==4 {(forward*cos(tilt)+up*sin(tilt)).normalize()} else {forward}, with tilt=s.tilt.to_radians(). focal = eye + d*(forward*s.focus_distance).dot(n)/d.dot(n).max(1e-4). Aperture point l: blades<=2 (0 = round) gives q=sqrt(u), a=2*PI*u and q*(cos a, sin a). Otherwise n_b=blades as f32, k=floor(u*n_b), a0=rot+2*PI*k/n_b, a1=rot+2*PI*(k+1)/n_b, rot=s.blade_rotation.to_radians(), then u,v folded when u+v>1 and l=u*(cos a0,sin a0)+v*(cos a1,sin a1). Cat-eye: ndc=pixel/size*2-1 with ndc.y negated; if s.cat_eye>0 and (l - ndc*Vec2(aspect,1)*s.cat_eye*0.7).length()>1, return None. Draw l before this test. o=eye+(right*l.x+up*l.y)*s.aperture; d=(focal-o).normalize(); weight=ONE. No area normalization: a bladed aperture keeps the same brightness. Remove the need for 'depth of field' (reference.rs:43).",
+"how_to_test": "Unit test: all aperture samples for one pixel satisfy o+d*t = the same focal point; every bladed sample lies inside the polygon; the cat-eye rejects more at the corners than the centre. Oracle: --scenes preset:0 --set aperture=0.1 --set focus_distance=3; add --set aperture_blades=6 --set blade_rotation=20 --set cat_eye=0.5; add --set projection=4 --set tilt=10. Then --scenes abacus (DoF, 6 blades, cat-eye; a rough JSON scan found no other blockers). tilt-shift-village also needs the physical sky.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Orthographic projection (1)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:924; half height at src/render.rs:429",
+"plan": "h=s.distance*(s.fov.to_radians()*0.5).tan(). o=eye+(right*ndc.x*aspect+up*ndc.y)*h, d=forward, weight=ONE, with ndc.y negated. No aperture. Note for the texture group: the GPU footprint here is cone_width=2*h/height and cone_spread=0 (pathtrace.hlsl:1407). Remove the projection check at reference.rs:39-42 once projections 1-3 are in.",
+"how_to_test": "Unit test: d==forward for all pixels, and the origin at the image centre is eye. Oracle: --scenes preset:0 --set projection=1. isometric-workshop also needs sphere lights.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Equirectangular 360 projection (2)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:925",
+"plan": "phi=ndc.x*PI, theta=ndc.y*PI*0.5 (ndc.y negated). d=(right*sin(phi)*cos(theta)+up*sin(theta)+forward*cos(phi)*cos(theta)).normalize(); o=eye. Do not clamp ndc: filter offsets may pass the frame edge, as on the GPU. No aperture.",
+"how_to_test": "Unit test: ndc (0,0) gives forward, (1,0) gives -forward, (0,1) gives up. Oracle: --scenes preset:0 --set projection=2, then panorama-gallery (a rough JSON scan found no other blockers).",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Little planet projection (3)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:926-931",
+"plan": "Mirror it exactly, including the 1e-5 bias on all three components: fh=(Vec3::new(forward.x,0.,forward.z)+Vec3::splat(1e-5)).normalize(); rh=fh.cross(Vec3::Y).normalize(); q=Vec2(ndc.x*aspect,ndc.y)*tan_half*2.; k=1.+q.dot(q); d=(rh*(2.*q.x/k)+fh*(2.*q.y/k)-Vec3::Y*((1.-q.dot(q))/k)).normalize(); o=eye. No aperture.",
+"how_to_test": "Unit test: ndc (0,0) gives -Y, and d is unit length everywhere. Oracle: --scenes preset:0 --set projection=3. little-planet also needs the physical sky.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Real lens systems: all 5 prescriptions, f-number, focus, bladed stop, cos^4 weight",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:873 trace_lens, :892 lens_ray, :909-922 camera_ray branch; shaders/common.hlsli:112 inside_aperture; src/lens.rs:367 pack; src/gpu/passes.rs:443 prepare_lens; src/render.rs:472-476",
+"plan": "Reuse lens::pack, the model, and port the shader's tracing rather than Surfaces::trace_from_film: that one tests a round stop and is private. Scene gets lens: Option<(Vec<[f32;4]>, usize)> from lens::pack(&Params{lens:s.lens_system, f_number:s.f_number, focus_mm:s.focus_distance*s.lens_scale*1000., fov:s.fov.to_radians(), aspect:w/h, dispersion:s.dispersion}) when s.real_lens(); optionally add lens::Params::of(s,aspect) for all three callers. Buffer: h=data[0], g=data[1], surface i at data[2+2i] (radius, vertex z, aperture radius) and data[3+2i] (IOR R,G,B), band b at data[34+b]. Ray: f=(-ndc.x*h[0],-ndc.y*h[1],0) with ndc.y negated; rr=|f.xy|; e=data[34+min((rr/g[3]*h[2]) as usize, h[2] as usize-1)]; if e[3]<=0 return None. q=(lerp(e[0],e[1],u),(2v-1)*e[2]); rotate by cs=f.xy/rr, or (1,0) if rr<=1e-6: (q.x*cs.x-q.y*cs.y, q.x*cs.y+q.y*cs.x). d=(q.x,q.y,g[0])-f normalized; c2=d.z*d.z taken BEFORE tracing. trace_lens for i in (0..n).rev(): stop (radius 0): t=(z-o.z)/d.z; else oc=o-(0,0,z+R), b=oc.dot(d), disc=b*b-(oc.dot(oc)-R*R), None if disc<0, q=sqrt(disc), t=if (d.z>0)!=(R<0){-b-q}else{-b+q}, nrm=(oc+t*d).normalize(). None unless t>0 (NaN must fail too); o+=t*d. Stop: test inside_aperture(o.xy, radius): blades<=2 uses a disk; else a=atan2(y,x)-rot-PI/n, a-=round(a/sector)*sector, |q|*cos(a)<=r*cos(PI/n), then continue. Surface: None if |o.xy|>radius; before=if i>0 {ior(i-1,c)} else {1}; d=refract(d, if nrm.dot(d)>0 {-nrm} else {nrm}, ior(i,c)/before) using the existing reference.rs refract, whose ZERO result means None. World: o=eye+(right*lo.x+up*lo.y+forward*(g[2]-lo.z))*(0.001/s.lens_scale); d=(right*ld.x+up*ld.y-forward*ld.z).normalize(). Failed trace is None; the pinhole fallback is only for the guide ray, which the CPU does not have. Scale is 1/1000 per lens_scale, so use that exact expression. Weight=ONE*c2*c2*e[3]*h[3], channel c=1 unless dispersion is on. Remove the need at reference.rs:44.",
+"how_to_test": "Unit test per lens index 1..=5: at ndc (0,0) the mean of weight over many samples, counting None as 0, is 1 within 3% (pack normalizes exposure to 1 at the centre). Oracle: --scenes preset:0 --set lens_system=N --set f_number=4 --set focus_distance=4.7 for N=1..5, and with --set aperture_blades=6. Raise --cpu-spp to 2048 for the fisheye. street-bokeh (Double Gauss f/1.4) also needs clear coats.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Real lens RGB dispersion (Settings::dispersion)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:912 channel pick, :867 lens_ior, :921 weight m[c]=3; hero-wavelength branch at :920",
+"plan": "In the lens branch: c=if s.dispersion>0 {((r.f()*3.) as usize).min(2)} else {1}, drawing the number only when dispersion is on. ior(i,c)=data[3+2i][c]. Weight multiplies a Vec3 with 3 in channel c and 0 elsewhere. pack already spreads the indices by dispersion and keeps green fixed. Write lens_ior so a spectral case can be added: c=3 uses b=(n.z-n.x)/(1/0.465^2-1/0.61^2), n=n.y+b*(1/l^2-1/0.55^2), l=lambda_nm*1e-3, weight (3,0,0) and hero-only paths. That branch waits for the spectral group, which stays refused via s.spectral.",
+"how_to_test": "Unit test: with dispersion=1 the per-channel centre-pixel mean stays near 1; red and blue differ at frame edges. Oracle: --scenes preset:0 --set lens_system=4 --set dispersion=1 (the uncorrected singlet shows it most). Spectral: after that group lands, the same scene without --rgb and spectral=true.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Motion blur (timeline shutter)",
+"status": "missing",
+"gpu_code": "src/video.rs:864 Job::blur, :872 animate, :914-923 before_render; src/anim.rs:270 Animation::apply",
+"plan": "There is no shader code: the GPU re-poses the whole scene per export pass, and accumulates. A still gets no blur on the GPU, so plain --reference must stay unblurred, and Live needs nothing. Add CLI --reference-time T (seconds), parsed near src/main.rs:683, meaning the export frame at time T. Blur applies when animation.shutter>0, !animation.is_empty() and !s.physics.enabled (Job::start makes a Sim then, so blur() is false; a physics scene should be refused for --reference-time, since the Sim is not replayed here). Without blur: render animation.apply(&s,T) plus add_flashlight. With blur: shutter_s=animation.shutter/animation.fps.max(1); build M=32 moments at t=T+((i+0.5)/M-0.5)*shutter_s, each via apply then add_flashlight. Make Scene own its Settings (s: Settings rather than &'a) and drop the Progressive lifetime. Progressive holds scenes: Vec<Scene>. Share geometry: bvh: Arc<Bvh>, reused when crate::geometry_key (main.rs:333) matches the previous moment; materials, lights and cdf rebuild per moment because intensities can animate (Bvh order is deterministic only for identical tris, so reuse only on an identical key). Sample: m=if scenes.len()>1 {(r.f()*M) as usize} else {0}, drawn right after Rng::new and only when M>1 so other renders stay bit-identical. Unlike the GPU's per-pass u=fract(pass*0.618034), this decorrelates moments across pixels; same expectation. Run unsupported() on every moment, because a key can switch a feature on.",
+"how_to_test": "Unit test: two-key object with shutter 0.5: M>1 image differs from the T image and passes_match_one_render still holds. Comparison: GPU --headless --scene pool-break-1984 --no-rr --scale 1 --turntable DIR --turntable-timeline --turntable-format exr --turntable-frames N, frame n, against --reference 512 --reference-time n/fps --capture cpu.exr, using tools/reference_compare.py. bowling-lane is also usable (shutter 0.5, no blockers in a rough JSON scan). birthday-cake needs sheen; lava-lamp may need SDF. Check first that the export EXR, read_floats(18) at video.rs:188, is the same raw linear image as --raw; I did not verify that slot, nor exactly how export spp and --samples interact.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Firefly clamp (Settings::firefly)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:1665 (mean read at :1396, updated at :1667); value at src/render.rs:376 options.x",
+"plan": "In the sample loop of Progressive::pass (reference.rs:1034-1040), after radiance() (already finite and non-negative): if s.firefly>0. && k>4 {let mean=*sum/k as f32; let l=lum(c); c*=(s.firefly*lum(mean).max(0.05)/l.max(1e-6)).min(1.)}; *sum+=c. lum uses 0.2126, 0.7152, 0.0722. Use absolute k (0-based), so the running mean is exactly the GPU's and pass splits stay bit-identical. Difference from the GPU, accepted: sampling.x is the count at frame start, so at --spp 4 the GPU starts clamping at sample 8, not 5. Remove the need at reference.rs:34. Fix tools/oracle.py: the GPU command appends --set firefly=0 after the user's sets (oracle.py:109) while the CPU gets none, so a scene or --set with firefly>0 would compare clamped CPU with unclamped GPU once the refusal goes. Put firefly=0 before the user's --set on BOTH commands. The clamp's bias depends on each sample's radiance distribution, which differs between the two estimators, so exact agreement is not expected: treat a GPU/CPU ratio as a report, not a gate. Update the refusal text and docs, since the reference is no longer clamp-free when a scene asks for the clamp.",
+"how_to_test": "Unit tests: passes_match_one_render with firefly=3 and a split across sample 5; on preset 0 firefly=1 gives mean<=unclamped; firefly=100 is within noise of unclamped. No builtin scene sets firefly. Oracle, after the fix above: --scenes gem-display --set firefly=10 (read the ratio; do not require a pass).",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Pixel filters: box, Gaussian, Blackman-Harris, width",
+"status": "present",
+"gpu_code": "shaders/pathtrace.hlsl:1299 erfinv, :1307 blackman_harris_inverse, :1320 filter_offset, :1419 use",
+"plan": "Nothing to implement. reference.rs:540-601 matches the shader in formula, coefficients and the Gaussian's clamp to width/2. The RR, upscaler and jitter branch (scene_info.w&1) is display-pipeline only, and raw comparisons use --no-rr. Keep filter_offset's two draws first in the stream: it runs before camera_ray, as on the GPU. New projections take the filtered pixel unchanged.",
+"how_to_test": "Oracle: --scenes preset:0 with --set pixel_filter=0 --set filter_width=1, then pixel_filter=1 filter_width=2, then pixel_filter=2 filter_width=4. Default is Blackman-Harris 1.5, covered by the standard list.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Camera medium: camera inside an absorbing dielectric (and inside a participating one)",
+"status": "partial",
+"gpu_code": "src/geometry.rs:476 camera_medium; shaders/pathtrace.hlsl:561 medium_entry, :567 camera_media, :572 medium_absorption, :1424 seeding of media, absorption and density",
+"plan": "Absorbing case is present: Scene.camera_media (reference.rs:961) decodes the same entry, priority e>>13 and material (e&0x1fff)-1, radiance() seeds the stack at reference.rs:739, and transmittance matches -log(max(colour,0.001)). All projections and lenses keep it computed from eye only, as on the GPU, even when the origin moves (ortho, thin lens, lens front element); do not recompute it per ray. Missing: density>0 at the camera. Those scenes are refused by the 'participating media in objects' check (reference.rs:92). When the object-media group adds free flight, it must also seed density and sigma from top(&media) at path start, as pathtrace.hlsl:1424 does, not only on a push or remove. No camera-side work otherwise.",
+"how_to_test": "No current test covers it. Add a unit test: Settings::default plus a tinted transmission=1 box around the eye gives non-empty camera_media and a darker image than without the tint. Oracle: underwater needs the physical sky; sunset-tank has a density-named material field and may need object media. Run --scenes underwater,sunset-tank after those groups land.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Camera flashlight on the CLI reference (camera-attached spot)",
+"status": "partial",
+"gpu_code": "src/main.rs:1195-1196 frame.add_flashlight() (each GPU frame), src/video.rs:890, src/scene.rs:1791; CPU entry src/main.rs:724",
+"plan": "The headless GPU path adds the flashlight per frame, while main.rs:724 calls reference::run(&s,...) with no flashlight, so the oracle would compare a lit GPU with an unlit CPU instead of refusing. Live appears to receive the per-frame copy, which I did not fully trace. Fix: clone s and call add_flashlight() before reference::run, so unsupported() sees its IES profile and refuses (flashlight_light sets ies) until the IES work lands. Light rods from the laser puzzle (main.rs:1197-1200) are a similar per-frame copy on the GPU only; apply the same treatment if the puzzle is in scope.",
+"how_to_test": "tools/oracle.py --scenes flashlight-crypt must print SKIP naming IES profiles now, and pass after the IES work.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Glare, vignette, film look; guide rays, motion vectors",
+"status": "not-needed",
+"gpu_code": "shaders/post.hlsl:213 lens_and_film and the glare pass; shaders/pathtrace.hlsl:1361 write_guides",
+"plan": "No reference.rs work. These run on the accumulated image or serve the denoisers, and are outside the raw comparison. Live already shows the CPU mean through the same display pass. The guide ray's pinhole fallback in camera_ray (:916) also does not apply to the CPU. Only if a standalone CPU beauty image with these effects is wanted would a separate post step be needed, which is not part of the transport.",
+"how_to_test": "None needed; oracle compares --raw captures.",
+"size": "S",
+"affects_converged_image": false
+}
+]
+},
+{
+"group": "environment",
+"items": [
+{
+"feature": "Emitter list semantics (foundation for spheres, suns, the HDRI split, and shadow-ray length)",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "src/lighting.rs:343 (analytic), :406-498 (emitter_table); shaders/pathtrace.hlsl:828 emitter_pdf, :948 nee_limit, :1006-1042 sample_light, :1436-1437 env_nee, tri_nee and p_env, :1584 hit weight",
+"plan": "Keep the reference's own sampler (an independent estimator is its purpose) but give it the table's meaning. In reference.rs replace Scene.lights: Vec<usize> with `enum Light { Tri(usize), Sphere { c: Vec3, r: f32, le: Vec3 }, Sun { d: Vec3, om: f32, le: Vec3, hidden: bool } }`, keep `cdf`, and add `tri_light: Vec<u32>` per BVH triangle (0 = none, else entry + 1), which replaces the binary_search in light_pdf. Build it in Scene::new: for each `crate::lighting::analytic(s)` take l = crate::lighting::emitted(&materials[a.material]); power = 4*PI*r*r*lum(l) for a sphere, lum(l)*PI*om*(2-om)*a.area for a sun (same numbers as emitter_table); skip power <= 0. Sphere triangles (material matches an entry) set tri_light to the sphere's entry and are not added as triangles. Other triangles stay area*lum; skip lum <= 0 and area < 1e-10 as emitter_table does (today the code keeps black ones with a 1e-6 floor). The spot's cone power factor is optional because it only changes variance. Add `p_env: f32` to Scene: 0 without an environment, 1 with one and no lights, else 0.5 (later the SDF group extends this). Every light pdf in NEE and in the hit and miss weights is multiplied by (1 - p_env). sample_light returns (ld, le, pl, limit) instead of dist. Port nee_limit for triangles: max(0.0002, len - min(0.5*len, 0.0006 / max(|c|, 0.02))), with c = dot(ln, ld). This replaces `dist - 2e-3`, which is the fixed margin engine-notes 'Grazing shadow rays' removed from the GPU because it lost light at grazing angles. Also add `ng` to Surface (geometric normal flipped toward the ray) and take the shadow origin as p + ng*0.0003, as line 1607 does; today it uses the shading normal.",
+"how_to_test": "The existing oracle defaults must still pass: python tools/oracle.py (preset:0, veach-mis, nighthawks and others). Add a unit test that the probabilities sum to 1 and that every triangle of a sphere light maps to one entry, matching lighting.rs analytic_lights_lead_the_table. Check night-skyline on the oracle for the nee_limit change.",
+"size": "M"
+},
+{
+"feature": "Sphere lights",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:809 sphere_om, :808 cone_sample, :829 emitter_pdf sphere branch, :1028-1034 NEE; src/geometry.rs:709 inscribed mesh; src/lighting.rs:220 two-sided",
+"plan": "Depends on the emitter list item. Add `sphere_om(d2, r)`: s2 = r*r/d2; if d2 > r*r then s2/(1+sqrt(1-s2)) else 0. Add `cone_sample(axis, om, r) -> (dir, pdf)`: x = u*om, s = sqrt(x*(2-x)), a = 2*PI*u2, basis(axis, (s cos a, s sin a, 1-x)), pdf = 1/(2*PI*om). NEE: c = centre - x, d2 = c.length_squared(), om = sphere_om; om == 0 (inside) gives no sample. ld = cone_sample(c/sqrt(d2), om); b = c.dot(ld); limit = b - sqrt(max(0, r*r - (d2 - b*b))); then limit = max(0.0002, limit - 0.0006). le is the flat entry emission and pl = (1-p_env)*prob*pc. Rays hit the geometry::geometry mesh (already in the BVH, two-sided because optical.w is 0, unlit, so the path ends). On such a hit with bounce > 0 and !previous_delta, the weight is prev/(prev + (1-p_env)*prob/(2*PI*om)) from previous_position, or 1 when om is 0. It must use tri_light, because binary_search would return 0 and double count. Do not shrink the mesh or intersect a true sphere: the mesh and the true sphere differ on purpose. Remove Sphere from the `unsupported` light check.",
+"how_to_test": "python tools/oracle.py --scenes bulb-workshop (5 sphere lights, no other refused feature found in its JSON). Unit test: a sphere over a white floor at MIS, NEE-only and BSDF-only style weights should give the same mean; also a camera inside a sphere (om = 0) stays finite.",
+"size": "S"
+},
+{
+"feature": "Sun lights (area light kind Sun)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:1034 NEE, :1511-1517 miss loop; src/lighting.rs:323 sun_area, :343 analytic; src/geometry.rs:717 (no geometry)",
+"plan": "Depends on the emitter list item. NEE: ld = cone_sample(d, om), le = entry emission, pl = (1-p_env)*prob/(2*PI*om), limit = max(0.0002, 1e4 - 0.0006). Add to the miss branch of radiance(), after the environment term, a loop over Sun entries (keep their indices in `suns: Vec<usize>`, or put them first as the GPU does): x = direction.cross(d); skip if direction.dot(d) <= 0 or x.dot(x) > om*(2-om) (use the cross product, because a float cosine lacks precision for a 0.05 degree sun). Skip at bounce == 0 if the sun's material has flag 2. w = 1 unless bounce > 0 && !previous_delta, then prev/(prev + (1-p_env)*prob/(2*PI*om)). radiance += throughput*le*w. Take a sun's emission from lighting::emitted, not from a recomputation; AreaLight::radiance is already in the record. Remove Sun from the `unsupported` check. A sun in view has very high radiance in a sub-pixel disk, so the oracle's block test will be noisy; prefer camera views that do not contain it (engine-notes records the 1 degree BSDF-only tail).",
+"how_to_test": "python tools/oracle.py --scenes sun-greenhouse (one 0.53 degree sun). Unit test: a sun of intensity 1 with a white diffuse floor reads radiance about 1 when facing it, matching the AreaLight::radiance definition.",
+"size": "S"
+},
+{
+"feature": "IES profiles, including the 'beam:' spec",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:814-822 ies_sample and ies_profile, :824-827 spot; src/lighting.rs:222-236 packing; src/ies.rs:150-165 pack, :103-127 beam",
+"plan": "The profile needs no new parsing: lighting::materials already resolves files and 'beam:' specs through ies::profile and packs them, so 'beam:' works as soon as the record is decoded. Add to reference.rs `ies_sample(m, i)`: k = i/3; v = layers[k] for k<4, sheen[k-4] for k<8, base_scale[k-8] for k<12, surface_scale[k-12] for k<16, medium[k-16] for k<19, else phase[0]; result = (((v as u32) >> (8*(i%3))) & 255) as f32 / 255. Add `ies_profile(m, c)`: c <= 0 gives 0; x = acos(min(c,1))*(59/(0.5*PI)); i = min(x as usize, 58); lerp(sample(i), sample(i+1), x - i). In `spot()`, test flag 16384 first and return ies_profile; a spot with a profile has no flag 32, and the profile replaces the cone. Both hit and NEE paths already call spot through `emitted`, with the cosine as the GPU has it. Trap in `unsupported`: an IES light's packed samples sit in layers, sheen and surface_scale, so the checks for clear coats (layers[0]), anisotropy (layers[3]), sheen and thin films (surface_scale[2]) report false refusals for any IES scene. Removing the IES bit alone will not unblock these scenes: add a `flags(m) & 16384 == 0` filter to those mats.iter() checks, and do the same in any later BSDF code that reads these fields (lights are unlit, so the BSDF itself never runs on them). Power: GPU emitter_table applies no profile factor; nothing needs to match here since selection is variance only, but a narrow profile will be noisy with a power-only pick.",
+"how_to_test": "python tools/oracle.py --scenes ies-wall,bunny-museum (4 and 6 disk lights with profiles). Unit test: pack a known profile with ies::pack through lighting::materials and check ies_profile at 0 and 45 degrees and beyond 90 degrees; assert unsupported is empty for a scene with one IES disk.",
+"size": "S"
+},
+{
+"feature": "Flashlight (carried spot with a beam profile)",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "src/main.rs:1196 frame.add_flashlight, src/video.rs:890; src/scene.rs:1750-1796; src/main.rs:722-724 --reference path",
+"plan": "Live gets it already: main.rs:1227 binds s = &frame, which has the flashlight added, so it refuses for IES until the IES item lands and then works. The CLI does not: main.rs:724 passes the plain Settings to reference::run, while GPU headless goes through redraw and adds the light, so with flashlight=true the two renderers would render different scenes and the oracle would report a false failure. Fix at the top of reference::run: `let mut s = s.clone(); s.add_flashlight();`. Do not do it in Progressive::new, or Live would add it twice. It is a no-shadow hidden light (flags 2 + 8192 + 16384), all of which the reference's accept() and spot already cover. The same CLI gap exists for laser::beam_objects at main.rs:1198ff (puzzle rods); that belongs to whichever group handles the puzzle, but it is the same fix site.",
+"how_to_test": "python tools/oracle.py --scenes preset:0 --set flashlight=true. Also a unit test that a reference render with flashlight=true differs from one without it, and that the light count rises by one only.",
+"size": "S"
+},
+{
+"feature": "HDRI environment: loading, radiance, rotation, strength, seen-by-camera",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:523-531 env_bilinear, :540-543 environment_radiance, :1506 miss; src/environment.rs:158 load; src/sky.rs:555 upload_environment; src/gpu/frame.rs:101-109; src/render.rs:450-459",
+"plan": "Add to Scene `env: Option<Env>` with `map: Arc<EnvMap>, strength, rotation, visible, sun_dir, sun_radiance`. Source it as upload_environment does: physical_sky.on gives sky::bake_cached(&s.physical_sky)? with strength 1, rotation = physical_sky.rotation(), visible = physical_sky.visible; else non-empty s.hdri gives environment::load(&s.hdri, s.hdri_sun)? with s.hdri_strength, s.hdri_rotation.to_radians(), s.hdri_visible. Scene::new becomes fallible (Progressive::new already returns Result, and Live already shows the error). Add a one-entry cache in reference.rs keyed by sky::environment_key(s), holding Arc<EnvMap>, because Live restarts on every edit and an 8k HDR takes seconds to decode. `env_bilinear(d)`: theta = acos(clamp(d.y)), phi = atan2(d.x, -d.z) - rotation, uv = (frac(phi/(2*PI)+0.5), theta/PI)*size - 0.5, i = floor, f = uv - i, wrap x with rem_euclid, clamp y, bilerp the f32 texels. `environment_radiance(d)`: with env, bilinear*strength + (in_env_sun(d) ? sun_radiance*strength : 0); without, today's gradient, which moves into this function unchanged. Note the HDRI replaces background and s.sky entirely. Miss branch: env = (bounce == 0 && has env && !visible) ? s.background : environment_radiance(camera_chain ? background_dir(origin, direction) : direction). The hidden rule is bounce 0 only: glass still shows the map. Texels are read as f32, whereas the GPU stores half floats divided by peak/60000 (device.rs:457-466), which only matters at night (see the stars and moon item). Remove the HDRI line from `unsupported`.",
+"how_to_test": "python tools/oracle.py --scenes hdri-noon-spheres,hdri-night-bund,hdri-living-room-teapot; repeat one with --set hdri_rotation=90, --set hdri_strength=2 and --set hdri_visible=false. Scene names resolve through scenes::find; these live in scenes/environments and their maps in scenes/hdri. Unit test: a constant map inside a white-furnace setup gives strength.",
+"size": "M"
+},
+{
+"feature": "HDRI importance sampling and MIS",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:477-481 env_texel, :486-491 env_pdf, :495-498 cdf_search, :502-508 sample_env, :509-519 sample_env_map, :1008-1010 NEE, :1507 miss weight; src/environment.rs:211-262 build",
+"plan": "Reuse EnvMap.cdf: conditional row y at cdf[y*w .. y*w + w], marginal at cdf[h*w .. h*w + h]. Stride is always w. Ignore the cutpoint rows from h+1 on: a plain binary search for the first i with u < cdf[i] returns the same index (lighting test cutpoints_give_the_binary_search_index). `sample_env_map`: y = search(marginal, uy), x = search(row y, ux); y0, y1 and x0, x1 are the neighbouring CDF values (0 before the first); fy = saturate((uy-y0)/max(y1-y0, 1e-9)), same for fx; theta = PI*(y+fy)/h; phi = 2*PI*((x+fx)/w - 0.5) + rotation; d = (sin t sin p, cos t, -sin t cos p); pdf = lum(texel(x,y))*inv_norm*sin(PI*(y+0.5)/h)/max(sin t, 1e-6). `env_pdf(d)` uses the nearest texel via env_texel with the same formula. lum is environment::luminance. The pdf uses the nearest texel while radiance is bilinear; that mismatch is deliberate on the GPU (comment at :521) and stays unbiased, so copy it rather than fixing it. Strength is not in the pdf. In sample_light: if env and r.f() < p_env, sample and return (ld, environment_radiance(ld), p_env*pe, 1e4) when pe > 0. Miss weight at bounce > 0 && !previous_delta: prev/(prev + p_env*env_pdf(direction)). NEE never applies the hidden rule or ground projection.",
+"how_to_test": "Unit test: histogram of sample_env_map over a small map from environment::build matches its pdf, and the pdf integrates to 1 (same as environment.rs the_pdf_is_normalized). Oracle: hdri-sunset-dragon, whose mesh path must have no maps or it will SKIP, and hdri-night-bund for high dynamic range.",
+"size": "M"
+},
+{
+"feature": "HDRI split sun (hdri_sun)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:484-485 env_sun_on and in_env_sun, :489 mixture pdf, :503-507 sample_env; src/environment.rs:44 Sun::direction, :170-176 share; src/render.rs:481-494",
+"plan": "environment::load already splits the map and fills map.sun and map.sun_share. In Env store d = sun.direction(rotation) (rotation added to phi, as render.rs:483 does), om = sun.om, share = sun_share, radiance = sun.radiance*strength (strength folds into radiance only). in_env_sun(d): d.dot(dir) > 0 && cross(d,dir).length_squared() <= om*(2-om)*1.000001. sample_env: if sun present and r.f() < share, cone_sample(dir, om) and pdf = env_pdf(d); else sample_env_map and pdf = (1-share)*pdf + (in_env_sun(d) ? share/(2*PI*om) : 0). env_pdf applies that same mixture. Radiance adds the disc inside environment_radiance (see the HDRI item). The sky bake leaves sun None, so hdri_sun is inert with physical_sky on, and load's bool must come from s.hdri_sun only.",
+"how_to_test": "python tools/oracle.py --scenes hdri-shadow-catcher --set shadow_catcher=false --set hdri_ground=0 (that scene has hdri_sun on). Compare its CPU image with hdri_sun=false: means should agree closely since the split conserves power. Unit test: pdf integrates to 1 with a sun.",
+"size": "S"
+},
+{
+"feature": "HDRI ground projection (hdri_ground)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:534-539 ground_on, ground_dir, background_dir; :1433 camera_chain; :1506; src/render.rs:497-502",
+"plan": "Add `camera_chain = true` before the bounce loop and at the top of each real bounce: camera_chain = camera_chain && previous_delta. False hits do not count as a bounce and do not change it. ground height = physical_sky.on ? 0 : s.hdri_ground, floor y = -1 (geometry::static_geometry floor; render.rs:497 hard-codes it). ground_on = height > 0 && env present. ground_dir(p) = normalize(p - (0, -1 + height, 0)). background_dir(o, d): if !ground_on or d.y >= 0 or o.y <= -1 return d; else ground_dir(o + d*((-1 - o.y)/d.y)). Use it only in the miss branch, under camera_chain. Miss weight stays 1 there because camera_chain implies previous_delta, so no MIS change. NEE and rough bounces keep plain directions.",
+"how_to_test": "python tools/oracle.py --scenes hdri-shadow-catcher --set shadow_catcher=false (height 1.7). Unit test: a downward ray from y = 0 returns the expected direction and an upward ray is unchanged.",
+"size": "S"
+},
+{
+"feature": "Shadow catcher",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:1524-1543; src/render.rs:500; docs/engine-notes.md:921",
+"plan": "Depends on the emitter list, HDRI and ground items. Insert right after `throughput *= transmittance(...)` and the surface computation, before emission: if sf.material == 3 && s.shadow_catcher { seen = ground_on ? ground_dir(sf.p) : direction; bg = if camera_chain { base = (bounce == 0 && env present && !visible) ? s.background : environment_radiance(seen); all = lit = 0; repeat 4 times: sample_light(sf.p); if pl > 0 { c = n.dot(ld); if c > 0 { w = lum(le)*c/pl; all += w; if !occluded(p + ng*0.0003, ld, limit) { lit += w } } }; base * (if all > 0 { lit/all } else { 1 }) } else { environment_radiance(seen) }; radiance += throughput*bg; break }. Use the rec.709 luminance weights. It applies with or without an HDRI (without one, the gradient). The ratio of sums over four samples is consistent but biased at low sample count, and the bias must be reproduced by using exactly four samples, so a CPU/GPU comparison is only valid with that count. The same p_env is used. Do not add emission or a BSDF. Mis mode bits (scene_info bits 4-5) are not in the reference, so nothing else is needed. Remove the line from `unsupported`.",
+"how_to_test": "python tools/oracle.py --scenes hdri-shadow-catcher, then with --set hdri_ground=0, then --set hdri_visible=false (the background colour must appear on the floor), and one with no HDRI on the Cornell-free default with --set shadow_catcher=true. Self-test frames 297-299 show the GPU reference behaviour.",
+"size": "S"
+},
+{
+"feature": "Physical sky: atmosphere map and analytic sun",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "src/sky.rs:412 bake, :527 bake_cached, :142 sun, :149 sun_extent, :131 rotation; src/lighting.rs:247-266 record, :367-378 analytic, :386 sun_material; src/gpu/frame.rs:101-103; src/render.rs:498",
+"plan": "No shader sky code exists: the sky reaches the GPU only as a baked map plus one sun record. So this needs no atmosphere port. The map goes through the HDRI item with strength 1, rotation = physical_sky.rotation(), visible = physical_sky.visible, ground projection forced off, hdri and hdri_sun ignored. The sun arrives automatically: lighting::analytic(s) already leads with the sky's sun and returns none below the horizon, and materials() already appends its record (flag 2 when not visible). So the sun item's miss and NEE code handles it. bake_cached is safe from the Live worker and shares its cache with the GPU path, and the bake is deterministic for a given key, with its map size set by build profile (1024x512 release, 512x256 debug), so GPU and CPU match within one exe but debug-test expectations must not hard-code the size. Remove the line from `unsupported`. p_env becomes 1 when the sun is down and no other light exists, because then there are no emitter entries.",
+"how_to_test": "python tools/oracle.py --scenes sky-garden-dusk,desert-monolith,sunlit-room-day-cycle (no other refused feature found in their JSON, though texture checks via mesh maps may still SKIP). Add --set with physical_sky north changed to confirm the sun and map turn together. sky::tests already cover the bake.",
+"size": "S"
+},
+{
+"feature": "Physical sky: stars and moon",
+"status": "not-needed",
+"affects_converged_image": true,
+"gpu_code": "src/sky.rs:462-509 stars and moon baked into the texels; src/gpu/device.rs:457-466 half-float upload; src/render.rs:207 f32_to_half",
+"plan": "No reference code: both are texels in the baked map, and no shader or lighting record holds a moon. They come with the sky item. But expect one disagreement that is not a reference bug. The GPU stores the map in half floats, with subnormal steps of about 6e-8 and values below about 3e-8 flushed to 0 (f32_to_half returns zero when the exponent is below -10), and scale stays 1 at night since the peak is small. The night floor is (2e-7, 3e-7, 6e-7)*intensity, so it lands on only about 3 to 10 steps, and faint stars or moonlit sky lose precision or vanish. The CDF is built from exact f32 values while the shader's pdf reads the quantised texel, so a texel flushed to 0 can be chosen and then gives pe = 0. This is predicted from the code and has not been measured. Keep the reference on f32 texels and let the oracle report the night result. Do not quantise the CPU side to make it pass; record any gap in docs/roadmap.md as a GPU finding.",
+"how_to_test": "python tools/oracle.py --scenes sky-garden-dusk --set 'physical_sky={\"on\":true,\"time\":1.0,\"day\":172,\"stars\":1,\"moon\":true}' with raised exposure irrelevant to raw EXRs. Compare to a daytime run. A gap only at night points at the half-float upload; confirm by temporarily testing with a higher intensity to move values out of the subnormal range.",
+"size": "S"
+},
+{
+"feature": "One-sided emitter rule",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:1038 NEE, :1569 hit, :436 h.front from the geometric normal; src/lighting.rs:220, :44-46 grating_code note",
+"plan": "reference.rs emitted() already applies optical[3] > 0.5 and !front, and rect, disk and spot are 1, sphere 0, and emissive objects 0. Negative optical.w (grating) correctly reads as two-sided because the test is > 0.5. The differences are in which normal decides. The GPU's h.front comes from the geometric normal, and NEE uses ln = normalize(cross(e1, e2)). The reference uses the interpolated vertex normal for both (surface() and sample_light). Flat light fans and quads give the same result, so this only matters on a smooth emissive one-sided mesh, which no light currently is. Change it for exactness: in surface(), front = d.dot(ng) < 0 with ng from the triangle's edges and winding, then flip n toward the ray independently (GPU :436: if d.dot(n) > 0 then n = -n). In sample_light, n = normalize(cross(p1-p0, p2-p0)). This also changes dielectric entry and exit on smooth glass meshes, so run the full default oracle list after.",
+"how_to_test": "python tools/oracle.py with defaults, especially gem-display and aquarium for the front-face change. Unit test: a one-sided rect seen from behind gives zero both by a direct hit and in NEE.",
+"size": "S"
+},
+{
+"feature": "Hidden-from-camera rule",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:366-378 intersect masks, :1445 camera_ray = bounce == 0, :1506 hidden HDRI, :1515 hidden sun; src/lighting.rs:196, :221, :260",
+"plan": "Triangle and sphere-mesh lights are done: accept(Ray::Camera) drops flag 2 and kind is Camera only at bounce 0, which also covers its false hits, as on the GPU. Only lights set flag 2, since pack() has no hidden bit for objects. Two parts remain, each specified in its own item: the hidden sun test at bounce 0 and the hidden environment showing s.background at bounce 0. Both use bounce == 0, not camera_chain, so a hidden light is visible through glass; keep that. The guide ray's use of the same rule is denoiser data and not needed here.",
+"how_to_test": "python tools/oracle.py --scenes sun-greenhouse --set hdri_visible=false is not relevant; use a scene file variant with a sun light visible=false, and hdri-noon-spheres --set hdri_visible=false. Also preset:0 --set light_visible=false for the existing path.",
+"size": "S"
+},
+{
+"feature": "Lights that cast no shadows, and clear-glass shadow skipping",
+"status": "present",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:450-463 occluded; src/lighting.rs:221",
+"plan": "Ray::Shadow in Scene::accept matches: flag 8192 skipped; lobes[2] >= 0.5 skipped unless s.glass_shadow. The spheres' inscribed mesh is handled by limit, not by this rule, so no change for sphere lights. glass_blocks at :16 is a static of the shader, separate from the setting; check it is not forced on in the path being compared if a glass scene differs.",
+"how_to_test": "Already covered by the default oracle list; add preset:0 with a no-shadow rect through a scene file.",
+"size": "S"
+},
+{
+"feature": "Rectangle, disk and spot lights; spot cone; blackbody and measured colour as RGB",
+"status": "present",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:824-827 spot, :1570; src/lighting.rs:189-208, :237-242; src/geometry.rs fan",
+"plan": "Nothing to add. reference::spot uses the same smoothstep on secondary.xy behind flag 32, the signed cosine in NEE and the flipped normal on hits; triangles come from geometry::geometry and emission from lighting::materials, including the main light's blackbody colour in RGB outside spectral mode. Only the IES branch must go first in spot().",
+"how_to_test": "Default oracle list (preset:0, veach-mis, nighthawks).",
+"size": "S"
+},
+{
+"feature": "No-HDRI background (sky gradient over background colour)",
+"status": "present",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:542",
+"plan": "reference.rs:783-786 has the same formula and bounce rule. Move it unchanged into environment_radiance so the shadow catcher and the hidden and miss branches share it. It is not importance sampled on either side (env_nee needs an HDRI), so its weight stays 1.",
+"how_to_test": "white-furnace in the default oracle list.",
+"size": "S"
+},
+{
+"feature": "Audio-reactive lights",
+"status": "not-needed",
+"affects_converged_image": false,
+"gpu_code": "src/main.rs:1202-1215 audio::apply on the frame copy; src/audio.rs:205; docs/engine-notes.md:630-637",
+"plan": "No reference code. audio::apply only scales settings in the per-frame copy, and is off in headless and video runs, so the CLI reference and the headless GPU are both unaffected, and light data comes through lighting::materials. Only one behaviour is worth knowing: Live takes that same frame copy, whose values change every frame, so a Live restart needs the key to settle for 150 ms and may rarely finish a pass while music plays. Leave that unless the owner asks; the simplest fix would be starting Live from unscaled settings.",
+"how_to_test": "None for the renderer. The existing audio tests cover apply.",
+"size": "S"
+}
+]
+},
+{
+"group": "materials",
+"items": [
+{
+"feature": "Prerequisite: hit frame (face normal, side, offsets, object frames, tangent)",
+"status": "partial",
+"gpu_code": "shaders/pathtrace.hlsl:396-441 (gn, h.front, h.ng, tangent); :1452 false-hit origin; :1660ish origin=h.p+h.ng*(+/-0.0003); NEE origin :1605ish h.p+h.ng*0.0003",
+"plan": "Do this first; normal maps, portals, splitters and anisotropy depend on it. reference.rs Surface today has only p,n,front,material; front comes from the interpolated normal and offsets use the shading normal. (1) Add Surface.ng, Surface.raw_n (interpolated, unflipped), Surface.tangent, Surface.tri, Surface.b. (2) In Scene::surface: gn=(p1-p0).cross(p2-p0) normalized (fallback n); if gn.dot(n)<0 then gn=-gn; front=d.dot(gn)<0; if !front gn=-gn; if d.dot(n)>0 n=-n; ng=gn. (3) Replace offsets: NEE origin sf.p+sf.ng*0.0003, next origin sf.p+sf.ng*(if direction.dot(sf.ng)>0 {0.0003} else {-0.0003}), false-hit origin sf.p-sf.ng*0.0003. The NEE test stays sf.n.dot(ld)>0. (4) Add Scene.frames: Vec<Frame{m2w:Mat4,w2o:Mat4,size:Vec3,linear:bool}> indexed by material-5 for 5..5+objects.len(), built like geometry::object_transform (Mat4::from_translation(center)*r*scale via object_frame and object_scale, or make scale_rotation pub(crate)); size=column lengths. (5) Tangent, only when m.layers[3]>0 or m.optical[3]<0: statics ax=X, ay=Y, o=0; objects ax=m2w.x_axis, ay=m2w.y_axis, o=m2w.w_axis, unnormalized. tangent=if flags&2048!=0 {ay.cross(p-o)} else {ax}. (6) Port aniso_frame(n,t,rotation)->(T,B): T=t-n*n.dot(t); normalize if length_squared>1e-12 else basis(n,X); T=T*cos+n.cross(T)*sin; B=n.cross(T).",
+"how_to_test": "Regression first: tools/oracle.py default list still passes after only this change (nighthawks, gem-display, aquarium are the sensitive ones; cornell-water-tank's coplanar contact may move, see notes). Unit test: a triangle with a shading normal facing away from the ray gets front from the face normal.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Texture store and sampler (attach_maps on the CPU, bilinear level 0, sRGB)",
+"status": "missing",
+"gpu_code": "src/render.rs:586 attach_maps; shaders/pathtrace.hlsl:42 sample_map; src/gpu/passes.rs:673 sRGB view format; src/gpu/init.rs:311 wrap + anisotropic sampler; src/mesh.rs:29 Map",
+"plan": "Reuse render::attach_maps; it has no GPU dependency and fills maps, base_scale, surface_scale, the flag bits 8/16/64 and the emissive fields. In Scene::new: build records=[InstanceRecord{vertex_base:0,material:5+i,emitter_base:0,object:i}] for visible non-SDF objects (only .material and .object are read), then attach_maps(s,&records,&mut materials,&mut |map| dedupe by Arc::as_ptr into Scene.maps: Vec<Arc<Map>>, return index). Slots are index+1 in m.maps as on the GPU, 0 = none. Map access: mip 0 is map.rgba, level l>=1 is map.mips[l-1], dims (w>>l).max(1) and (h>>l).max(1). Add fn texel(map,level,x,y)->Vec4 with wrapped x,y; if map.srgb decode rgb through a 256-entry sRGB LUT (expose mesh::srgb_tables or a pub fn on Map), alpha always v/255. bilinear(map,level,uv): x=u*w-0.5, y=v*h-0.5, floor with rem_euclid wrap, lerp in linear space as the SRGB view does. sample_map(slot,uv)=bilinear level 0 (alpha test and emissive use this). Scene is shared across threads; Arc<Map> is immutable so no locks. In unsupported: delete the 'texture maps', 'alpha cutouts', 'emissive maps' needs and mesh_has_maps (it also wrongly ignored Material::textures, since it uses parts' maps rather than mesh::maps).",
+"how_to_test": "Unit tests on a synthetic Map::new: 2x2 checker sampled at texel centres returns exact values, u=1.25 wraps to 0.25, sRGB 128 decodes to about 0.216, a mid-edge sample averages in linear. Assert attach_maps through the CPU path gives base_scale = value/average.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Box mapping (texture sets on shapes, floor, walls)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:228-235 box_map; :237 tangent_sign; :405 statics; :415-420 objects",
+"plan": "Port box_map(p,n,scale)->(uv,t,bt) verbatim, dominant axis a=n.abs(): x: s=sign(n.x) (n.x<0 -> -1), uv=(-s*p.z,-p.y), t=(0,0,-s), bt=(0,-1,0); y: uv=(p.x,s*p.z), t=X, bt=(0,0,s); z: uv=(s*p.x,-p.y), t=(s,0,0), bt=(0,-1,0); uv*=scale. Ties favour x then y. tangent_sign(n,t,bt)=if n.cross(t).dot(bt)<0 {1} else {-1}. It must see the UNFLIPPED interpolated normal (raw_n), as the shader calls it before flipping. Static (material 0..=3): w=abs(base_scale[3]); box_map(sf.p,raw_n,w); tangent=(t,sign); T=t/w,B=bt/w; uv_scale=w. Object with base_scale[3]>0: op=w2o.transform_point3(p); object normal no=size*(R^T raw_n) which is proportional to the shader's interpolated object normal (the reference has no object normals; the difference only matters under non-uniform scale and only for axis choice); box_map(op*size,no,scale); tangent world=m2w.transform_vector3(t), sign from no,t,bt; T=normalize(m2w t)/scale, B=normalize(m2w bt)/scale; uv_scale=scale. Gate everything on flags&16 so untextured scenes pay nothing.",
+"how_to_test": "oracle --scenes on scenes/materials/texture-showroom.json, texture-brick-box.json, texture-rock-garden.json (not loft-corner: sphere light; not duck-on-wood: HDRI, until those land). Unit test: a +x, -x, +y, -z normal each give the shader's uv and a right-handed sign.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Mesh UVs and per-triangle tangents",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:421-428; src/render/plan.rs:34 mesh_uvs; src/gpu/scene.rs:336; src/mesh.rs:276 uvs (cloth too)",
+"plan": "geometry::object_geometry writes uv=[0,0], so patch it in Scene::new: walk s.objects, off starts at static_geometry(s).len(); for each visible non-SDF object n=object_source(o).1.len(); if its material has flag 16, uvs=mesh_uvs(o,n) (same order as source.iter()) and copy into vertices[off..off+n]; off+=n. Check n matches geometry() which skips invisible (empty) and SDF objects. Add Tri.uv:[Vec2;3]. At a hit with flag 16 and base_scale[3]<=0: uv=barycentric; world edges e1w=p1-p0, e2w=p2-p0 are exactly mul(m2w,e); d1=uv1-uv0, d2=uv2-uv0, det=d1.x*d2.y-d1.y*d2.x. If |det|>1e-12: tworld=(e1w*d2.y-e2w*d1.y)/det, btworld=(e2w*d1.x-e1w*d2.x)/det, T=tworld, B=btworld; sign=tangent_sign in object space (transform via w2o, with no). uv_scale=sqrt(|det|/max(e1w.cross(e2w).length(),1e-20)). If base_scale[3]<0: k=-w; uv*=k; uv_scale*=k; T/=k; B/=k. With |det|<=1e-12 tangent.w stays 0, so no normal map, and T=0 selects the isotropic footprint. glTF tangents are not read on either side.",
+"how_to_test": "oracle on a scene with a textured mesh, e.g. scenes/materials/texture-duck-on-wood.json once the HDRI lands, or scenes/meshes/sponza.json (no HDRI dependency to check) at low size. Unit test: a quad with uv (0,0),(1,0),(0,1) has T=e1, B=e2, uv_scale=1/sqrt(area*2) as computed.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Base colour map",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:243 sample_maps, :473 apply_maps, :1568-1571 emission before apply_maps",
+"plan": "Add fn apply_maps(m:&mut PackedMaterial, hit_maps). Port sample_maps as a function returning (albedo,rough,metal,n) for flag 16: albedo=if mp[0]!=0 {(sample.rgb*base_scale.rgb).clamp(0,1)} else {RAW material color, unpatterned}. Careful: the fallback and the map replace the pattern, as the shader reads materials[h.material], not material_at. Call order in radiance(): material_at, portal, splitter, emitted(), then apply_maps, then film, then NEE and sampling. Emission therefore keeps the unmapped colour. Light power in Scene::new must use crate::lighting::emitted(m) rather than color*emission, to match when flag 64 is set.",
+"how_to_test": "oracle texture-showroom and texture-rock-garden, with --set anisotropy=1 first to isolate filtering. Self-check: a map of constant colour c with value c/avg renders the same as untextured (compare two CPU renders with reference_compare.py).",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Metallic-roughness map",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:244-249",
+"plan": "rough_metal starts at (color_rough[3],lobes[0]). If mp[2]!=0: r=sample; if surface_scale[0]>0 rough=(r.g*surface_scale[0]).clamp(0,1); if surface_scale[1]>0 metal=(r.b*surface_scale[1]).clamp(0,1). Note 0 means leave unscaled (a channel averaging black). apply_maps writes color_rough[3] and lobes[0] on the copy, so f0_of, spec_probability, eval_bsdf and the rough-glass branch all see them; no other change.",
+"how_to_test": "oracle texture-showroom (Metal032 has metalness). Unit test: surface_scale=(0,0) keeps material values.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Normal map",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:250-253; offset rule :1605ish uses h.ng",
+"plan": "If mp[1]!=0 and tangent.w!=0: t=sample.xyz*2-1 (UNORM, no renormalize, so filtered mips shorten it); n=sf.n (already flipped toward the ray); T=tangent.xyz-n*n.dot(tangent.xyz); if T.length_squared()>1e-12 {T=T.normalize(); B=n.cross(T)*tangent.w; n=(T*t.x+B*t.y+n*t.z.max(1e-3)).normalize()}. Overwrites sf.n, so the prerequisite item (offsets from ng, side from ng) must land first or light leaks. n can now point away from v: keep the clamps in eval_bsdf (nv saturates to 0), and keep the path's exit tests against sf.n (dot(n,next)<=0 ends the path) like the shader. Anisotropy tangent is computed from the same fields but aniso_frame projects against the mapped n, as at :763.",
+"how_to_test": "oracle texture-brick-box (Bricks097 NormalGL). Block ratios matter more than the mean; look at --heat in reference_compare.py. Unit test: a flat (0.5,0.5,1) texel leaves n unchanged within 1%; green up tilts toward +B*sign.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Emissive map",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:954-962 emitted_color; :1036-1038 light sample; src/render.rs attach_maps emissive block; src/lighting.rs:398 emitted",
+"plan": "Flag 64 means m.secondary=[slot+1,mean rgb over peak], medium.xyz=1/map mean, opaque, pattern 0. Reference needs no emitter record: it knows the triangle and barycentrics directly. Change emitted(m,front,c) to take the Le colour: colour=if flags&64!=0 {secondary[1..4]*sample_map(secondary[0],uv).rgb*medium.xyz} else {color_rough.rgb}; times optical[1], one-sided rule, spot. uv is the triangle's interpolated mesh uv with no scale factor (the emitter UV record stores vertex uvs, level 0 sample, no k). In sample_light compute it with the sampled (a,b); on BSDF hits with sf.b. Patch uvs for flag 64 as well as 16 (attach_maps sets both). Power stays lighting::emitted (mean colour), uniform over the triangle, as the GPU's table; the reference's point on a triangle is still uniform, so MIS is unchanged. The flag-64 material still has its own colour for the BSDF. Remove spot interaction concern: flag 32 reads secondary[0..1], but spots are not meshes.",
+"how_to_test": "oracle on a scene using scenes/models/Lantern.glb (the one local model with an emissiveTexture, no scene file references it yet: add the object with a temp scene in the scratch dir, walls and a quad light). Furnace-style check: mean radiance over an emitter seen directly equals mean colour * emission within noise.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Alpha cutout (MASK) in all ray types",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:218-227 alpha_hole; :377 intersect; :459 occluded; src/render.rs attach_maps flag 8; src/texture.rs (sets have cutoff 0)",
+"plan": "Bvh::intersect's accept is Fn(u32); change to Fn(u32,usize,Vec2)->bool (material,tri index in bvh order,barycentrics) and update the two BVH tests. Scene::accept adds, before the existing kind rule: if flags&8!=0 && self.alpha_hole(m,tri,b,key) return false. alpha_hole: uv = barycentric Tri.uv with NO k or box map (the shader reads raw vertex uvs; a texture set never has a cutoff, so only mesh parts reach this); a=sample_map(maps[0],uv).a at level 0, always; c=f32::from_bits(maps[3]); if c>=0 return a<c. The test sits after the tt<limit check, as a candidate would be tested, and any-hit exits only after accept passes. Patch uvs for any flag-8 material too. Shadow, bounce and camera rays all use it. Holes consume no bounce or false hit. Hardware OMMs are conservative, so they do not change the result.",
+"how_to_test": "oracle on scenes/meshes/sponza.json (three MASK materials) at 320x240; expect leaf shadows in block ratios. Unit test: one quad with a half-transparent map, ray through the hole misses, through the solid half hits, for Ray::Shadow as well.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Stochastic blend (glTF BLEND as stochastic transparency)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:224-226; src/mesh.rs Maps::cutoff doc",
+"plan": "In alpha_hole when c<0: hole iff a*(-c)<=u, u in [0,1) from a hash, not an Rng draw, because accept is a shared Fn and the decision must be stable per candidate within one ray. Add per-ray key: let key=r.next() before each intersect call, only when Scene.has_blend (any material with flag 8 and cutoff<0), so other scenes' bits stay as they are. Capture key in the accept closure (accept(kind,key)). u=(hash(key^hash(tri as u32*0x85ebca6b)^b.x.to_bits())>>8)/2^24; hash can be the same PCG-style mix as Rng or the splitmix in Rng::new. Each ray decides independently, which matches the shader (its rng_state and dimension_index advance between rays). The GPU uses the a from level 0 and the factor alpha in -c, no sRGB.",
+"how_to_test": "No shipped model has alphaMode BLEND (checked Lantern, Avocado, Duck, DragonAttenuation, ABeautifulGame, Sponza, Barrel_01), so test with a unit test on synthetic maps: a quad with a=0.5 and c=-0.8 blocks 40% of rays over 20000 samples within 3 sigma; and an image test against the GPU with a small hand-written glTF in the scratch dir.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Ray-cone LOD vs level 0 (trilinear + anisotropic sampling)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:43-73 footprint and sample_map_lod; :1407-1408 init; :1422 reset per sample; :1452, :1519 width growth; :1634-1644 spread growth; src/gpu/init.rs:311 aniso 16; lights.w = Settings::anisotropy",
+"plan": "Mirror the cones, since the GPU's converged textured image is defined by them and level 0 would make blocks disagree. Keep a const-free escape: add a private Scene.level0:bool off by default, for true-supersampled comparison. State in radiance(): cone_width=0.; cone_spread=2.*tan_half_fov/height, where tan_half_fov=1/proj.y_axis.y from s.camera and height=size[1] (dimensions.w is the output height; --scale 1 in oracle makes it the render height; orthographic is the projection group's job: spread 0, width 2*ortho/height). Growth: after each accepted segment cone_width+=cone_spread*h.t (false hits too). Footprint at hit uses cone_width+cone_spread*h.t, which is computed BEFORE the update in the shader's intersect, so compute w at the hit, sample, and add. Note this double-counts nothing since width was grown only on prior segments. Spread: coat or spec sample += 0.5*a; cosine sample += 0.5; delta and portals none. Port footprint(d,ng,w,T,B,uv_scale) verbatim, ng after the flip: c=max(|d.ng|,0.05); T zero or det<=1e-20*tt*bb gives minor=(w*uv_scale,0), major=(0,w*uv_scale/c). Sampling sample_lod(map,uv,minor,major): lm,lM lengths, n=max(s.anisotropy,1); if lM>n*lm then minor=dir(minor or perp major)*lM/n. CPU filter: ma=|major*dims|, mi=|minor*dims|; lod=log2(max(mi,1e-20)).clamp(0,levels-1); N=ceil(ma/max(mi,tiny)).clamp(1,16); average N trilinear tap at uv+major*((i+.5)/N-.5). Hardware footprints are vendor-specific, so bit match is impossible; expect mean agreement and small block errors on high-contrast maps. Alpha and emissive stay level 0. BSDF sites call sample_lod for base, normal, metal-rough.",
+"how_to_test": "oracle texture-showroom, texture-brick-box with default anisotropy=16 and with --set anisotropy=1. Flip Scene.level0 and confirm the image gets sharper only at distance and the mean stays within 1%. Unit tests: footprint on a 45 degree hit has lM/lm about 1.41; a lod in [k,k+1) mixes those two levels.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Clear coat",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:790-799 eval; :687 coat_probability; :1634 sampling; shaders/layers.hlsli:190 coat_albedo",
+"plan": "Load COAT_ALBEDO with hlsl_table like ggx_table (1024 entries; same 32x32 lookup; generalize ggx_albedo to take the table). coat_fresnel(c)=0.04+0.96*(1-c)^5. At the end of eval_bsdf, after sheen: cc=layers[0]; if cc>0 {ac=max(layers[1]^2,0.001); dc=ggx_d(nh,ac); keep=1-cc*coat_albedo(nv,layers[1]); r=r*keep+cc*coat_fresnel(vh)*dc*g1(nv,ac)*g1(nl,ac)/max(4*nv*nl,1e-6)/ggx_albedo(nv,layers[1]); pdf=pdf+(dc*nh/max(4*vh,1e-6)-pdf)*0.3*cc}. Then the existing keep=1-transmission on both. Note the Rust keeps r and pdf before the keep; restructure so the layers run before it. Sampling in the non-transmission branch: pc=0.3*layers[0]; if pc>0 && r.f()<pc {d=ggx_sample(n,direction,ac)} else existing choice. Draw no extra number when pc=0. Update the eval_bsdf doc comment. Remove the 'clear coats' need.",
+"how_to_test": "oracle layered-furnace (furnace: conservation, no lights), layer-sweeps, layered-materials, neon-diner, perfume-vanity, velvet-lounge. Unit test: smooth coat with white base in furnace MC integrates near 1 at nv=1 and nv=0.2.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Sheen",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:677-684 sheen_lambda, sheen_lobe; :788-789 eval; shaders/layers.hlsli:27-35 sheen_albedo, SHEEN_MIN_ROUGHNESS 0.07",
+"plan": "Load SHEEN_ALBEDO via hlsl_table (256 entries; 16x16: x=saturate((nv,r))*15, index min(14), (iy+r)*16+ix+c). Port sheen_lambda_l, sheen_lambda and sheen_lobe verbatim: a=max(r,0.07)^2; d=(2+1/a)*sat(1-nh*nh)^(0.5/a)/(2*PI); vis=sat(1/((1+lam(nv,a)+lam(nl,a))*4*max(nv*nl,1e-6))); result d*vis/max(1,sheen_albedo(nv,r)). The lambda's a is the squared one, while the albedo takes the raw r. In eval_bsdf before the coat: s=sheen rgb max; if s>0 {keep=1-s*sheen_albedo(nv,layers[2]).min(1); r=r*keep+sheen.rgb*sheen_lobe(layers[2],nh,nv,nl)}. No pdf term: it is sampled by the cosine lobe, so no sampling change. Sheen is rgb times strength per lighting::pack. Remove the 'sheen' need.",
+"how_to_test": "oracle layered-materials, layered-furnace, swinging-lantern, velvet-lounge, jack-o-lantern, perfume-vanity. Unit test: sheen_lobe finite at nv or nl near 0 and table index bounds at r=1, nv=1.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Anisotropy (including spun)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:695-712 frame, alpha, D, G1, VNDF sampler; :760-768 eval; :1641 sampling; shaders/layers.hlsli:263-275 aniso_albedo",
+"plan": "Load ANISO_ALBEDO (2304 values). Port aniso_albedo: x=sat(nv,az,rough,strength)*(11,3,7,5); i=min(x,(10,2,6,4)); 16-corner multilinear with index ((j.w*8+j.z)*4+j.y)*12+j.x. Change eval_bsdf(m,n,t,v,l) to take the tangent. If layers[3]>0: (T,B)=aniso_frame(n,t,sheen[3]); aa=(a,lerp(a,1,w*w)) with w=layers[3]; h local=(h.T,h.B,nh); ggx_d_aniso: s=(hx/ax,hy/ay,hz), k=s.s, 1/(PI*ax*ay*k*k); g1_aniso(w,a)=2 wz/max(1e-6,wz+sqrt(wx^2 ax^2+wy^2 ay^2+wz^2)); ess=aniso_albedo(nv,atan2(|v.B|,|v.T|)*2/PI (0 if both tiny),rough,w); spec_pdf=gv*d/max(4*nv,1e-6) (VNDF, not the D*nh of isotropic). Port ggx_sample_aniso (Heitz 2018) verbatim, including s=0.5*(1+vh.z) and the reflect. In the spec branch use it when layers[3]>0, unless a grating order was chosen. Coat stays isotropic. A plain isotropic path must be unchanged. Remove the 'anisotropy' need.",
+"how_to_test": "oracle brushed-metal (spun), layered-furnace (furnace with anisotropy). wrecking-ball later (needs physical sky). Unit test: with layers[3] tiny, eval matches isotropic D and G1; VNDF furnace: mean of f*cos/pdf equals 1 for white metal within 2% across azimuths.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Thin film",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:580-625 film_sensitivity, film_fresnel, prepare_film, spec_fresnel; :1572-1577 preparation; :1622-1628 dielectric branch; :774-776 fc",
+"plan": "Port film_sensitivity (the Khronos Gaussian fit; keep constants and XYZ_TO_REC709 verbatim), schlick, film_fresnel(c1,eta2,eta3:Vec3,thickness) with waves=false only (spectral is another group), including the eta2 lerp by smoothstep(0,30,thickness), early return 1 if s2>=1, phi logic, two Airy orders with cm*=sq, saturate. Decode: thickness=w-floor(w/2048)*2048, ior=floor(w/2048)/100, w=surface_scale[3]. prepare_film: on the hit's m copy, base_scale.rgb=film_fresnel(c,ior/outside,eta3,th), q=sqrt(f0_of(m).clamp(0,0.9999)), eta3=if base>0 {base/outside} else {(1+q)/(1-q)}. Call after apply_maps with c=saturate(-direction.n). If strength surface_scale[2]>0: n1=1,n2=0; if lobes[2]>0 compute entry and after-stack as the existing branch, n1=front?ior(top media):own, n2=front?own:ior(top after). spec_fresnel(m,c,f0)=lerp(fresnel, base_scale.rgb, strength). In eval_bsdf: f=spec_fresnel(vh), fc=strength>0?spec_fresnel(1,f0):f0, used in the compensation; orders use spec_fresnel(vh0). Dielectric branch: frc=fr; if strength>0 && fr<1 {frc=lerp(fr,base_scale.rgb,strength); fr=mean(frc).clamp(1e-4,1-1e-4)}; choose by fr; throughput*=reflected?frc/fr:(1-frc)/(1-fr). The current code applies neither. Remove the 'thin films' need.",
+"how_to_test": "oracle thin-film (soap bubble glass and opaque). Check channel ratios with reference_compare.py since the film is colour-specific. Port lighting.rs's film_code decode test to the reference's decode. Unit test: thickness 0 gives the base Fresnel at 0 strength-independent; output in [0,1].",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Diffraction gratings",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:714-756 model, grating_wavelength, order_shares, grating_move; :778-786 eval; :1579 wavelength; :1639-1641 sampling; src/lighting.rs:47 grating_code",
+"plan": "Decode c=-optical[3]: share=floor(c/16384)/1000; spacing=c-floor(c/16384)*16384. At a grating hit, draw lambda once from r and pass it to both NEE and sampling at that hit (make it a parameter of eval_bsdf; 0 = none). Sampler: c3=rand%3, Box-Muller from two f(): lambda=MU[c]+SIGMA[c]*sqrt(-2 ln u1)*cos(2PI u2), u1 clamped away from 0, clamp to [300,900]; MU=(600,545,455), SIGMA=(40,35,25). weight=3*nc/sum(nc), nc=exp(-.5 x^2)/sigma per channel, sum floored at 1e-30. k=lambda/spacing. grating_move(n,B,l,shift): lt=l-n(n.l)+shift*B; s=lt.lt; moved=lt+n*sqrt(max(0,1-s)); valid s<1. order_shares: r=reflect(-v,n); w[o]=g*W[o] if moved mirror stays inside, ORDER=(-1,1,-2,2), W=(.35,.35,.15,.15). In eval after the base lobe when nl>0: per order with w>0 and grating_move(n,B,l,-ORDER*k) valid: nl0=max(n.l0,1e-6); h0=(v+l0)norm; orders+=w*spec_fresnel(vh0)*ggx_d(nh0,a)*g1(nl0,a)/nl0; op+=w*d0*nh0/max(4*vh0,1e-6)*nl/nl0. Then r=diff+(1-g)*(r-diff)+orders*(g1(nv,a)/max(4nv,1e-6))*(1+fc*(1/ess-1))*weight; pdf=(1-ps)*nl/PI+ps*((1-g)*spec_pdf+op). Sampling in spec branch: pick o by cumulative w; if chosen: ggx_sample isotropic, require n.next>0 and grating_move(...,+ORDER*k), else end the path. Anisotropic lobes keep their mirror lobe only. Remove 'diffraction gratings' need. has_grating also triggers the tangent.",
+"how_to_test": "oracle optical-discs (spun grooves). Expect noisy rainbows: raise cpu-spp to 2048 and judge by channel ratios per block. Unit tests: order pdf integrates to 1 with no evanescence; grating_code round trip; a Blu-ray spacing of 320nm gives zero order shares at normal view for lambda 550.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Beam splitters",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:1557-1566; src/lighting.rs pack flag 4096 (m.splitter)",
+"plan": "In radiance() after the portal test and before emitted(): if flags&4096!=0 && crossings<64 {crossings+=1; previous_delta=true; if !sf.front {origin=sf.p+direction*0.0005; continue;} throughput*=rgb(m.color_rough) (the patterned colour); if r.f()<m.lobes[1] {direction=reflect(direction,sf.n); origin=sf.p+direction*0.0005; bounce+=1; continue;} else {origin=sf.p+direction*0.0005; continue;}}. In the shader only reflection consumes a bounce (pass-through does bounce-- before continue), and no roulette runs on either path. crossings is the same counter as portals, per path. Reflection flips only with sf.n, the shading normal. Emitted radiance of the splitter itself is skipped. Shadow rays already see it as opaque (lobes[2]<0.5), as on the GPU. Past 64 crossings it shades as an ordinary material. Reflectivity 0-1 is lobes[1]. Remove the 'beam splitters' need. Tip: the loop's `while bounce<s.bounces` gives the same exit as the shader's for loop.",
+"how_to_test": "optics-bench uses fog and BDPT; oracle already forces integrator=0, add --set fog={density 0} with the scene's other fog fields as JSON (--set is top-level only). Better: a small temp scene with a thin box splitter between a light and a wall; 50% reflectivity gives half the power on each side, and a closed box must split once, not twice (~67% bug the shader's comment warns of).",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Portals",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:1543-1556; src/lighting.rs:267-292 record, :296 portal_matrix",
+"plan": "In radiance() after material_at and before splitters: if flags&4!=0 && crossings<16 {crossings+=1; if !sf.front {origin=sf.p+direction*0.001; continue;} let pm=&self.materials[m.secondary[3] as usize]; let P=Vec4(p,1), D=Vec4(direction,0); direction=Vec3(dot(pm.color_rough,D),dot(pm.lobes,D),dot(pm.optical,D)).normalize(); origin=Vec3(dot of same rows with P)+direction*0.001; previous_delta=true; continue;}. Back faces do not set previous_delta in the shader and neither consume a bounce; front crossings consume none either. Beer-Lambert and the cone update happen before, so they stay. Light sampling never sees through a portal, which is why previous_delta=true and weight 1 is right: don't add NEE through them; shadow rays are stopped by the portal (lobes[2]<0.5). Past 16 crossings the portal shades as its white record (colour 1, roughness 0). IMPORTANT unsupported bug: the extra portal records have matrix rows in lobes and optical, so scans read translations as flags and gratings (lobes[3] as u32 & bits, optical[3]<0: any portal whose map has negative z translation reports 'diffraction gratings'). After this work, either delete those needs or restrict all material scans to the first 5+objects+lights records via a helper. Scene::new's light loop only touches referenced materials, so is safe.",
+"how_to_test": "oracle bigger-on-the-inside and infinite-corridor (both portal scenes, no other blockers; check lights). Corridor exercises the 16-crossing limit. Unit test: portal_matrix round trip: front entry at a's centre leaves b's centre with direction flipped in local z; a back-face hit passes straight.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Floor patterns (checker, stripes, marble)",
+"status": "present",
+"gpu_code": "shaders/pathtrace.hlsl:464-470 material_at; applies to every material via optical.z and secondary",
+"plan": "Done: reference.rs material_at matches line by line (fmod abs floor sum, step of sin, the marble vein with 0.75 cap). Two small follow-ups: (1) add a unit test pinning the values at chosen points, since nothing protects them now; (2) when maps land, keep the rule that a textured material loses its pattern, because sample_maps reads the raw record (see Base colour map). Emission uses the patterned colour, both in hits and light samples; power stays pattern-free on both sides.",
+"how_to_test": "Already covered by oracle shape-material-matrix (marble), and bulb-workshop or layered-cocktail (checker), night-skyline (stripes) can be added to the default list. Unit test: known t at a few points against hand-computed values.",
+"size": "S",
+"affects_converged_image": false
+}
+]
+},
+{
+"group": "volumes-sdf",
+"items": [
+{
+"feature": "Homogeneous fog box (free flight, Henyey-Greenstein, scatter NEE). Build this first: it adds the medium segment that the other volume items plug into.",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:1474-1500 (segment in trace), :189 flight, :1158-1163 hg_pdf/hg_sample, :1208 fog_interval, :1215 medium_params, :182-184 tint_of/fog_extinction; src/render.rs:460-466 (fog constants)",
+"plan": "reference.rs. Add helpers: `tint_of(t)` (p = t as u32; p == 0 gives ONE, else (p&255, (p>>8)&255, p>>16)/255); `hg_pdf(c,g)` = (1-g\u00b2)/(4\u03c0\u00b7d\u00b7sqrt(d)), d = max(1+g\u00b2-2gc, 1e-6); `hg_sample(d,g,r)`: |g|<1e-3 gives c = 1-2u, else s = (1-g\u00b2)/(1-g+2gu), c = (1+g\u00b2-s\u00b2)/(2g); clamp c, then basis(d, (sn\u00b7cos a, sn\u00b7sin a, c)), a = 2\u03c0\u00b7u2. `fog_interval(o,d,tmax)`: slab against (-extent,-1,-extent)..(extent,height,extent) with 1/d, where |d|<=1e-9 uses +1e-9; t0 = max(0, near), t1 = min(tmax, far); valid when density>0 && t1>t0. The floor is fixed at y=-1. `Medium{sigma,albedo,g,t0,t1}` and `medium_params(media,o,d,tmax)->Option<Medium>`: an empty stack gives fog (sigma = density\u00b7tint_of(pack_tint(fog.extinction)), albedo = fog.color, g = fog.phase). In radiance(), between the false-hit loop (line 780) and `let Some(h) = hit` (781): tmax = hit.map_or(1e4,|h|h.t). If a medium exists, ts = t0 - ln(1-u)/sigma.x. If ts>=t1, fall through. Otherwise: throughput *= transmittance(media,ts)*albedo; x = origin+direction*ts; sample_light(x): pp = hg_pdf(direction.dot(ld),g); shadow ray from x with NO offset, using Ray::Shadow; radiance += throughput*medium_transmittance(x,ld,limit)*pp*le/(pl+pp).max(1e-8); direction = hg_sample; previous_pdf = pp; previous_delta = false; previous_position = x; origin = x; Russian roulette as at line 897 when bounce>=3; bounce += 1; continue. A scatter consumes a bounce, as on the GPU (the `continue` in the for loop at :1429). The pass-through branch keeps the existing throughput line at 789. Emission hits after a scatter already use previous_pdf. Remove the `s.fog.density > 0.` refusal at line 31.",
+"how_to_test": "tools/oracle.py --scenes cornell-fog. Also `--set fog/phase=-0.5` on the same scene. Unit test: reuse the setup of the_albedo_table_parses_and_a_white_furnace_conserves with fog albedo 1 and bounces >= 64; the mean must stay 1 within noise. weather-project is a second oracle scene if nothing else refuses it.",
+"size": "M"
+},
+{
+"feature": "Shadow-ray transmittance through media (medium_transmittance and surface_distance)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:1239-1247 medium_transmittance, :1221-1233 surface_distance, :1608 (surface NEE gate), :1493 (scatter NEE)",
+"plan": "reference.rs. Add `medium_transmittance(media,o,d,limit,r)->Vec3`: with top(media) present and m.medium[3] <= 0, return ONE at once. This early return also skips fog: clear glass has no fog and no absorption on shadow rays. With m.medium[3] > 0: start = nearest surface in (1e-4, limit) with accept-all (no camera, glass or no-shadow rules, any=false, SDFs included; `limit` if none), tr = transmittance(media,start)*exp(-extinction_of(m)*start). Then fog: if fog_interval(o,d,limit) exists, t0 = max(t0,start), and if t1>t0, tr *= fog_tr(o,d,t0,t1,r) (exp(-sigma*(t1-t0)) while homogeneous). Yes, the fog part also runs after an object medium, as on the GPU. Surface NEE at lines 808-828: multiply by it only when fog density>0 or the current top's medium[3]>0, passing the same offset origin as the shadow ray. Scatter NEE always applies it.",
+"how_to_test": "tools/oracle.py --scenes cornell-fog,scattering-materials; block ratios show missing shadow attenuation as walls too bright relative to the GPU.",
+"size": "S"
+},
+{
+"feature": "Participating media in objects (density, scatter_color, phase on transmissive materials)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:183 extinction_of, :1217 (medium_params object branch), :1474 gate, :1484-1485 (absorption plus albedo); src/lighting.rs:139-156 (packing), :73-87 spectrum_fields",
+"plan": "Extend medium_params: top(media) = Some(e) uses m = materials[e.1]; return None unless m.medium[3]>0; sigma = extinction_of(m) = m.medium[3] * (if m.phase[2]<0. || m.phase[2]==4. {ONE} else {tint_of(m.phase[3])}); albedo = rgb(m.medium); g = m.phase[0]; t0 = 0, t1 = tmax. The material's colour still absorbs by Beer-Lambert (existing `transmittance`, applied to ts at a scatter and to h.t otherwise), so the total is exp(-(sigma+absorption)\u00b7t) in effect. Fog never applies with a non-empty stack. Quirk to copy: a segment that ends in a nested false hit gets absorption only, with no free flight and no extinction (:1452); scattering is sampled only on the segment after the false-hit loop. Do NOT copy integrators.hlsl walk_step here, which samples flight on each crossed segment; the reference's judge is trace. Remove the `medium[3] > 0` refusal at lines 91-94.",
+"how_to_test": "tools/oracle.py --scenes scattering-materials with more bounces if needed (the notes say dense media darken at the default limit, and this is the same on both sides). Also an IOR-1 smoke box: `--set objects/N/material/density=...` on any scene with a clear glass box. underwater and sunset-tank depend on physical_sky, spectral or other refusals until those groups land.",
+"size": "S"
+},
+{
+"feature": "Chromatic extinction (per-channel sigma in fog and media, spectral-MIS free flight)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:189-197 flight, :182 tint_of; src/lighting.rs:57-67 pack_tint, :73-77; src/render.rs:462-466",
+"plan": "Replace the grey distance sampling with `flight(sigma,t0,t1,r)->(ts,w)`. If all channels are equal: w = ONE, ts = t0 - ln(1-u)/sigma.x, one random number. Otherwise: c = min((u1*3) as usize,2); s = sigma[c]; ts = t0 - ln(1-u2)/max(s,1e-12); f = if ts<t1 {exp(-sigma*(ts-t0))*sigma} else {exp(-sigma*(t1-t0))}; w = f/max(mean(f),1e-30). Apply it as the GPU does: ts>=t1 gives throughput *= w; a scatter gives throughput *= transmittance(media,ts)*w*albedo. Shadow rays are already per channel because sigma is a Vec3. Read the tint through tint_of(pack_tint(..)), not the raw colour: the 8-bit quantisation and the relative-to-max scaling are part of the model.",
+"how_to_test": "tools/oracle.py --scenes cornell-fog --set fog/extinction=[0.4,0.7,1] and scattering-materials (one opal object has an extinction tint). Unit test: mean of w over passing flights, i.e. E[w\u00b7(ts>=t1)], equals exp(-sigma\u00b7d) per channel within 3 standard errors.",
+"size": "S"
+},
+{
+"feature": "Heterogeneous fog (Fog::noise, spectral and delta tracking, ratio tracking)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:1172-1205 (lattice, value_noise, fog_density, fog_track, fog_tr), :3 hash; src/render.rs:503 (fog_noise)",
+"plan": "Port bit-exactly, because the noise field IS the model. hash(x): x^=x>>16; x=x.wrapping_mul(0x7feb352d); x^=x>>15; x=x.wrapping_mul(0x846ca68b); x^=x>>16. lattice(c: IVec3) = hash((c.x as u32).wrapping_mul(73856093) ^ (c.y as u32).wrapping_mul(19349663) ^ (c.z as u32).wrapping_mul(83492791)) as f32 * (1/2^32). value_noise: trilinear over floor(p) with f = f\u00b2(3-2f) in the shader's lerp order. fog_density(p): p /= noise_size; 4 octaves, a = .5, s += a*vn(p), n += a, p = p*2.03+(17.1,-3.7,9.3), a *= .5; result max(0, 1+noise*(2s/n-1)). fog_track(o,d,t0,t1,s0,r): mu = max_element(s0)*(1+noise); mu<=0 returns t1; loop up to 1024 times: t -= ln(1-u)/mu; if t>=t1 return (t,w); st = s0*density(o+d*t); sn = mu-st; a = w\u00b7st; b = w\u00b7sn; pr = a/max(a+b,1e-30); if u<pr {w *= st/(mu*pr); return} else w *= sn/(mu*(1-pr)). Falling out of the loop returns t1. fog_tr: same majorant, tr *= 1-s0*density/mu, stop when t>=t1, return 0 when max channel <1e-4, 1024 steps at most. Use all of this from r.f(); the GPU's random()/side_random split exists only to keep Sobol dimensions aligned. In the segment: media empty && noise>0 uses fog_track instead of flight (the albedo and the w handling stay the same); the local sigma it returns is not used by the path tracer.",
+"how_to_test": "tools/oracle.py --scenes stage-beams (noise 0.75, spot lights) and cornell-fog --set fog/noise=2 --set fog/noise_size=0.3, also with --set fog/extinction=[0.4,0.7,1] (the same check as engine-notes wave 3). Unit test: fog_tr's mean against exp(-\u222bsigma\u00b7k) integrated numerically in 4096 steps along a fixed ray. lighthouse-fog needs sphere lights first.",
+"size": "S"
+},
+{
+"feature": "Equiangular sampling (Fog::equiangular)",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "shaders/pathtrace.hlsl:1251-1259 (equiangular, equiangular_pdf, flight_pdf), :1266-1291 equiangular_light_side, :981-999 emission_cos and cone_interval, :1477-1479 and :1492 (MIS); src/gpu/frame.rs:93 (flag)",
+"plan": "It reduces noise only, so it is unbiased against plain free flight: fog scenes can render with the option ignored from the first fog commit (no refusal). Parity port: active when s.fog.equiangular && density>0 && media empty && !lights.is_empty() && noise<=0. Before flight: if the SDF emitter list is non-empty, return 0 with probability 0.5; otherwise pick a triangle by the existing CDF and a uniform point lp; n = face normal; k = emission_cos(m): (flags&16384!=0 || optical[3]>0.5) gives 0 else -1, then if flags&32!=0 && flags&16384==0, k = max(k, secondary[0]). cone_interval port gives [ea,eb]; empty means skip. equiangular: c = (lp-o)\u00b7d; h = max(|lp-o-d\u00b7c|,1e-4); a0 = atan2(ea-c,h), a1 = atan2(eb-c,h); t = clamp(c+h\u00b7tan(lerp(a0,a1,u)),ea,eb); pe = h/max((a1-a0)(h\u00b2+(t-c)\u00b2),1e-30). x = o+d\u00b7t; ld = toward lp; a one-sided light seen from behind gives 0; le via material_at/emitted; pl = light_pdf(tri,x,lp), including the (1-sdf_share) factor. pp = hg_pdf(d\u00b7ld,g); pd = mean(sigma\u00b7exp(-sigma(t-t0))); nw = pl/(pl+pp). Unoccluded: radiance += throughput\u00b7exp(-sigma(t-t0))\u00b7sigma\u00b7albedo\u00b7pp\u00b7le\u00b7medium_transmittance\u00b7nw/(pl\u00b7(pe+pd)). Free-flight side: sample_light must also return anchor (lp, n, k), None for SDF samples and, later, sun samples (spheres: centre with k = -1). The scatter NEE term is multiplied by we = pd/max(pd+pe,1e-30), where pe = 0 unless ts lies in cone_interval(origin,direction,anchor,...) for that anchor. Use r for all random numbers.",
+"how_to_test": "On the CPU, cornell-fog at --set fog/equiangular=true and false: channel means agree within noise, RMSE against a long render drops 12-17% (engine-notes wave 2 figures). tools/oracle.py --scenes disco-floor (noise 0, spot lights, equiangular on).",
+"size": "M"
+},
+{
+"feature": "Nested dielectrics (priority stack, false hits, Beer absorption, camera seed)",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:435-437 (side from face normal), :1445-1456 (false hits), :561-572 stack helpers, :1619-1629 (refraction), :1654 (origin offset)",
+"plan": "The stack, priorities, false hits, eta\u00b2, absorption and camera seed in reference.rs (lines 609-623, 749-780, 835-862, 961-964) already match. Two gaps remain. (1) `surface` (line 655) takes `front` from the interpolated normal; the GPU takes it from the face normal because a wrong side pushed or popped the wrong medium at grazing hits on smooth meshes. Fix: gn = (p1-p0)\u00d7(p2-p0) normalized; if gn\u00b7n<0 then gn = -gn; front = d\u00b7gn<0; if !front then gn = -gn; if d\u00b7n>0 then n = -n; store `ng: gn` in Surface. (2) Offsets use ng instead of n: NEE origin (816) sf.p+ng*0.0003; next origin (890-896) by direction\u00b7ng; false-hit origin (779) sf.p-ng*0.0003. Keep shading n for the cosines. Everything else stays. camera_medium deliberately ignores meshes and SDFs, and the reference inherits that because it calls the same function.",
+"how_to_test": "tools/oracle.py --scenes gem-display,aquarium,cornell-water-tank --set objects/... lifted 1 cm (notes: coplanar contacts are ambiguous; do not read glass-of-water's 3-6% as a failure). Unit test: a triangle whose interpolated normals oppose its face normal must report the side of the face.",
+"size": "S"
+},
+{
+"feature": "SDF object infrastructure (scene list, ray transform, hits, normals, visibility rules)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:369-373 (intersect candidate rules), :383-389 (committed hit), :453-455 (occluded), :1225-1227 (surface_distance), :327-355 sdf_hit; src/render/plan.rs:246-268; src/scene.rs:818 Sdf::id; src/geometry.rs:135 object_transform, :577 (no triangles)",
+"plan": "Add to Scene: `sdfs: Vec<SdfObject{raw,material,w2o:Mat4,o2w:Mat4}>` for s.objects with o.visible && !o.sdf.is_none(); raw = o.sdf.id(o.phase,o.detail) (kind in low 8 bits, thousandths in the high 24; do not reorder the enum), material = 5+i, o2w from object_transform's row-major t as plan.rs builds it: Mat4::from_cols_array(&[t[0],t[4],t[8],0.,t[1],t[5],t[9],0.,t[2],t[6],t[10],0.,t[3],t[7],t[11],1.]). Add a Scene method `nearest(o,d,tmax,accept,any)`: call bvh.intersect, then for each sdf whose material passes accept: oo = w2o.transform_point3(o), dd = w2o.transform_vector3(d) (NOT normalized, so t stays the world t), sdf_hit(raw,oo,dd,1e-4,limit); keep the nearer and shrink limit; `any` returns early. Replace every bvh.intersect call in radiance (lines 750, 814). The existing accept closure gives the GPU's rules: Camera flags&2, Shadow lobes[2]<0.5 unless glass_shadow (flag 8192 is set only on lights, lighting.rs:221). Change Hit to carry `material: u32` and `sdf: Option<u32>`; lines 756-757 and 761 must not index bvh.tris for an SDF hit. surface(h,o,d) for SDF: p = o+d*t; op = oo+dd*t; n = (Mat3::from_mat4(w2o).transpose()*sdf_normal(raw,op)).normalize() (HLSL mul(v,M) is the transpose); front = d\u00b7n<0; flip n when !front; ng = n. light_pdf must not be called for SDF hits. SDFs have no maps on the GPU (Hit is zeroed before sample_maps), so narrow the texture refusal at line 61 to o.sdf.is_none(). If the anisotropy work lands, the tangent is normalize(cross(n, |n.y|<0.99 ? Y : X)). sdf_hit's common head: inv = 1/d with |d|<=1e-12 replaced by +1e-12; a = (-1-o)*inv, b = (1-o)*inv; t0 = max(tmin, max(min(a,b))), t1 = min(tmax, min(max(a,b))); t0>t1 means no hit. Marching for kinds 2-5: L = |d|, s = t0*L, e = t1*L, u = d/L; for kinds other than 4 and 5 clip to the unit sphere: b = o\u00b7u, D = b\u00b2-o\u00b7o+1, D<0 means miss, s = max(s,-b-\u221aD), e = min(e,-b+\u221aD). side = sdf(o+u*s)<0 ? -1 : 1. Up to 128 steps while s<e: h = side*sdf(raw,o+u*s); if h<1e-4*L {t = s/L; return t>tmin}; s += kind==3 ? 0.9h : h. Copy the code's tolerance 1e-4*L; engine-notes' 2e-4 is out of date. Return false when the loop ends. Generic normal: tetrahedral differences with e = 1e-4, k = (1,-1): k.xyy*sdf(p+k.xyy*e)+k.yyx*sdf(p+k.yyx*e)+k.yxy*sdf(p+k.yxy*e)+k.xxx*sdf(p+k.xxx*e). Bvh::intersect returns None when there are no triangles, so SDF-only scenes work. Remove the refusal at lines 45-48 last, with the shapes below.",
+"how_to_test": "Unit tests with a stretched and rotated exact sphere: the hit t and the normal against the analytic ellipsoid; the same object from inside (refraction exit). tools/oracle.py --scenes sdf-gallery covers the glass sphere's enter and exit through the stack.",
+"size": "M"
+},
+{
+"feature": "SDF fields: exact torus, Mandelbulb (power 8 and other powers), Menger sponge",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:258-283 (sdf_box, sdf_mandelbulb, sdf_menger), :306-316 (sdf_detail, sdf)",
+"plan": "A new private section in reference.rs (or src/reference/sdf.rs), all in f32, no f64. Detail: v = (raw>>8) as f32*0.001, v>0 ? v : fallback. Dispatch: kind 2: r = detail(0.28), length((|p.xz|-(1-r), p.y))-r. Kind 3: mandelbulb(p, detail(8)). Kind 4: menger(p, clamp(detail(5) as i32,1,6)). Kind 5: metaballs, 6: cylinder, 7: cone; other kinds: |p|-1. Mandelbulb: p *= 1.15. If n!=8 use the spherical loop (y up, up to 6 iterations while r<2; th = acos(clamp(w.y/max(r,1e-12)))*n; ph = atan2(w.z,w.x)*n; dr = r^(n-1)*n*dr+1; w = r^n*(sin th cos ph, cos th, sin th sin ph)+p), return 0.5*ln(max(r,1e-8))*r/dr/1.15. n==8 must port Quilez's polynomial form term for term from lines 268-276 (it is not numerically the same as the polar form, and the two must agree with the GPU's choice), up to 6 iterations while m<4, return 0.25*ln(max(m,1e-16))*sqrt(m)/dz/1.15. rsqrt in the shader is 1/sqrt. Menger: d = box(p,1), s = 1; per level: a = p*s; a = a-2*floor(a*0.5)-1; s *= 3; r = |1-3|a||; d = max(d,(min(max(r.x,r.y),min(max(r.y,r.z),max(r.z,r.x)))-1)/s). sdf_box: q = |p|-b; length(max(q,0))+min(max_element(q),0).",
+"how_to_test": "tools/oracle.py --scenes sdf-gallery at 320x240 with a block check; the fractal blocks show any field mismatch. Unit tests: torus against its exact distance at sample points; detail 0 equals the default; Menger level 1 gives -1/3-style interior values at known points; Mandelbulb's n=8 polynomial path agrees with the spherical path to about 1% near the surface, with both taken as shape checks.",
+"size": "S"
+},
+{
+"feature": "Metaballs (Sdf::Metaballs, kind 5, keyed by Object::phase)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:287-296 sdf_metaballs, :309 (phase from raw); src/scene.rs:818-824",
+"plan": "Port: ph = (raw>>8) as f32*0.001 with no fallback. q = (p.x,3p.y,p.z); d = min(|q-(0,-3.3,0)|-0.95, |q-(0,3.4,0)|-0.7). For i in 0..4: a = ph*(0.5+0.17i)+1.7i; r = 0.42+0.1*(i&1); c = (0.4 sin(1.3a+i), 2.3 sin a, 0.4 cos(0.9a+2i)); e = |q-c|-r; h = clamp(0.5+0.5(e-d)/0.5,0,1); d = lerp(e,d,h)-0.5h(1-h). Return d/3. It uses the unit-cube march with no sphere clip (kinds 4 and 5) and the tetrahedral normal. raw comes from Sdf::id, so rem_euclid(10000) and the 24-bit mask apply as on the GPU. The phase is whatever the Settings hold at render time, and any timeline evaluation is the caller's.",
+"how_to_test": "tools/oracle.py --scenes lava-lamp (once emissive SDFs work) and with --set objects/N/phase=3.7 to prove phase parity at a second pose, N being the wax object. Unit test: field sign inside the bottom pool and outside at the cube's corner.",
+"size": "S"
+},
+{
+"feature": "Exact sphere, cylinder and cone (analytic intersection, kinds 1, 6, 7)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "shaders/pathtrace.hlsl:332 (sphere), :335-344 (cylinder and cone), :299-305 (their SDFs), :319-322 (their normals)",
+"plan": "All three come after the shared cube slab in sdf_hit. Sphere: A = d\u00b7d, B = o\u00b7d, D = B\u00b2-A(o\u00b7o-1); D<0 misses; r = \u221aD; t = (-B-r)/A; if t<=tmin then t = (-B+r)/A; hit if t>tmin && t<tmax. Cylinder and cone: best = tmax; k = 1-o.y; A = d.xz\u00b7d.xz - (cone ? 0.25d.y\u00b2 : 0); B = 2\u00b7o.xz\u00b7d.xz + (cone ? 0.5k\u00b7d.y : 0); C = o.xz\u00b7o.xz - (cone ? 0.25k\u00b2 : 1); D = B\u00b2-4AC. If |A|>1e-12 && D>=0, for both roots x with x>tmin && x<best && |o.y+d.y\u00b7x|<=1: best = x. Caps: y in {-1,1}, skipping y=1 for the cone and |d.y|<1e-12: x = (y-o.y)/d.y; q = o.xz+d.xz\u00b7x; x>tmin && x<best && q\u00b7q<=1 gives best = x. Hit if best<tmax. Normals: sphere: p. Cylinder: rho = |p.xz|; |(|p.y|-1)|<|rho-1| gives (0,p.y,0), else (p.x,0,p.z). Cone: |p.y+1|<|rho-0.5(1-p.y)|*0.894 gives (0,-1,0), else (p.x/max(rho,1e-8),0.5,p.z/max(rho,1e-8)). sdf_cylinder and sdf_cone are used only by sdf() on the GPU's analytic path if a caller asks, so port them for completeness (Quilez's forms, lines 299-305).",
+"how_to_test": "Unit tests: rays at known angles against analytic t, from inside and outside, with non-uniform scale; cone apex and base rim. tools/oracle.py --scenes sdf-gallery (the glass sphere, copper cylinder and jade cone are in the first row of blocks).",
+"size": "S"
+},
+{
+"feature": "SDF emitters (emission found by BSDF hits, plus light sampling of emissive procedural objects)",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "shaders/pathtrace.hlsl:969-977 (sdf_share, sdf_record_prob, sdf_dir_pdf, sdf_record_of), :1011-1021 (sample_light branch), :1586-1589 (hit MIS), :809 sphere_om, :807 cone_sample, :972 nee_limit use; src/render/plan.rs:383-430 sdf_emitter_records",
+"plan": "Step 1 (this sets the image): emission on a hit already works through `emitted` once surface() handles SDFs; with no SDF light strategy the MIS weight is 1, so the mean is right but noisy. affects_converged_image is false only for step 2. Step 2 (NEE, for parity): in Scene::new, records for each SDF whose emission = max(r,g,b)*optical[1] > 0: centre = o2w(0), radius = max corner distance of the unit cube, power = emission*radius\u00b2, normalized CDF (last entry forced to 1). share = 0 with no records, 1 with no triangle lights, else 0.5. In sample_light, before the triangle branch: if records exist && (lights.is_empty() || u<0.5): pick j by CDF, q = its probability; c = centre-x; d2 = c\u00b7c; s2 = r\u00b2/d2; om = d2>r\u00b2 ? s2/(1+\u221a(1-s2)) : 0. om>0: x0 = u*om, s0 = \u221a(x0(2-x0)), ld = basis(c/|c|,(s0 cos a,s0 sin a,1-x0)), pc = 1/(2\u03c0 om). Otherwise uniform sphere, pc = 1/(4\u03c0). hh = nearest(x,ld,1e4,Shadow,false); keep it only when q>0 and hh's material is this object's. le = emitted(material_at(m,hh.p),front,(-ld)\u00b7hh.n), a one-sided check and spot included; pl = share*q*pc. limit = nee_limit(t,ld\u00b7n) = max(2e-4, t-min(0.5t, 6e-4/max(|c|,0.02))). The notes record that a flat cut lost 7%, so don't use the triangles' dist-2e-3 here; have sample_light return the limit instead of dist. Triangles: multiply light_pdf by (1-share) both at sampling and in hit MIS. Hit MIS at line 794: for an SDF hit with bounce>0, !previous_delta, optical[1]>0 and a record k: weight = prev/(prev+share*q_k*dirpdf(previous_position,k)), dirpdf as pc above. When the environment group adds p_env, these factors also take (1-p_env).",
+"how_to_test": "tools/oracle.py --scenes lava-lamp. NEE scene: sdf-gallery --set objects/1/material/emission=8 (a torus emitter over the floor) in the oracle. Unit test: a private flag turns SDF NEE off; NEE and hits-only means agree within 1%, and NEE's RMSE is lower (notes: about 8\u00d7 less error at equal time on a glossy floor). Note lava-lamp's wax sits inside glass, so NEE gains nothing there, by design.",
+"size": "M"
+},
+{
+"feature": "Refusal list, oracle coverage and notes for the volume and SDF work",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "src/reference.rs:22-98 unsupported, :1-13 module doc; tools/oracle.py DEFAULT; docs/engine-notes.md 'CPU reference renderer'",
+"plan": "Remove the fog (31), SDF (45-48) and object-media (91-94) refusals only when their code lands, each in the commit that makes it true. Add to tools/oracle.py DEFAULT: cornell-fog, scattering-materials, sdf-gallery, stage-beams, lava-lamp. Static reading of the scene files finds no refused top-level feature in those except the sphere lights and other groups' features named below; run them to confirm. Keep lighthouse-fog (sphere lights), vermeer-room and underwater (physical sky, sheen), dark-side, optics-bench and sunset-tank (spectral, or a non-path-tracer integrator; oracle's --rgb and integrator override cover some of that) as later-group checks. Update the module doc and the engine-notes 'Refused scenes' and 'Not done' bullets; record that the reference copies trace's segment rules, not walk_step's.",
+"how_to_test": "cargo test reference; `caustica --reference 16 --scene <each> --capture x.exr` no longer prints a refusal; tools/oracle.py with the new list prints no SKIP among the five and exits 0. Nothing here was run in this audit, which was read-only.",
+"size": "S"
+}
+]
+},
+{
+"group": "spectral-integrators",
+"items": [
+{
+"feature": "Map of what changes the converged image between integrators (rules every CPU integrator must follow)",
+"status": "missing",
+"gpu_code": "shaders/integrators.hlsl:3-8, 452 and 540 and 669 (glass_blocks=true); shaders/pathtrace.hlsl:450 (shadow mask); pathtrace.hlsl:1505-1560 (ground projection, shadow catcher, portals exist only in trace); pathtrace.hlsl:1431 (mis_mode); integrators.hlsl:234 and 239 (BDPT_BOUNCES 24, PHOTON_WALK 32)",
+"plan": "Noise only, same limit: ReSTIR, equiangular fog sampling, Sobol vs white noise, the battle-mode time split, SER. These change the converged image and must be copied, not smoothed over:\n(1) glass_blocks. BDPT and photon mapping always block shadow rays at clear glass, whatever glass_shadow says. The default is glass_shadow=true, so they match only by default. In Scene::accept (reference.rs:651) use `self.s.glass_shadow || integrator != 0`, with the integrator passed per pixel because of battle mode.\n(2) Portals. trace crosses them; walk_step does not, so a portal renders as its plain surface in BDPT and PM (bigger-on-the-inside is 8% off, roadmap 'no portals'). Beam splitters are handled in both.\n(3) Shadow catcher and ground projection live only in trace (env_ground, background_dir). escape() uses plain environment_radiance. Gate both CPU twins on integrator==0.\n(4) mis_mode applies only to trace. reference.rs ignores it today without refusing: a mis_mode 1 or 2 scene renders as MIS. Implement it for integrator 0: weight=mis==1?0 : mis==2?1 on hits, env_nee/tri_nee off when mis==2, denominator pl alone when mis==1, per pathtrace.hlsl:1431-1436 and 1584 and 1603, or add it to unsupported. Its renders differ at the bounce limit and by the open NEE/MIS gap (up to 0.57% on night-skyline).\n(5) Path length at the bounce limit. PT loops `bounce<bounces` with NEE on the last hit, so z-scatter paths get only their NEE MIS share. BDPT uses every (s,t) with s+t-2<=D, D=min(bounces,24), so z-scatter paths keep full weight. PM limits the camera delta chain and each photon walk separately (each <=min(bounces,32)), so total length can exceed bounces. At low bounces all three differ (documented: BSDF-only 0.4% dark at 6 bounces, equal at 32). Oracle comparisons between integrators need high bounces.\n(6) Film indices. vertex_material uses IOR 1 and optical.x (integrators.hlsl:91,98), not trace's medium stack, so a film on nested glass differs.\n(7) Rough glass is non-reciprocal (the lerp toward a cosine sample, flagged V_DELTA). Light subpaths and camera paths sample it differently. This is my reading of the code, not measured; expect a small BDPT-vs-PT gap on rough glass and do not treat it as a CPU bug.\n(8) Photon mapping is biased at finite passes (radius, gather slab). See the photon item.\n(9) Spectral vs RGB: dispersion and exact film/grating change the image, the rest agrees to about 0.1%. See the spectral items.\nThe stale docs need correcting when this lands, because they mislead an implementer: engine-notes 'BDPT and photon mapping' (box filter, no volumes or nested media, LPE note), 'Oracle and the pixel-filter finding' and 'Spectral rendering' ('BDPT stays RGB'), and the Settings::spectral doc comment at scene.rs:1011-1013. The shader is the truth: both integrators take filter_offset and media, and bdpt_spectral and photon_gather_spectral exist. Roadmap lines 203-204 mark reference spectral and other features [drop]; that conflicts with the parity goal and should be reopened.",
+"how_to_test": "tools/oracle.py --scenes preset:0,mirror-room --set bounces=32 for PT vs CPU; once CPU integrators exist, compare CPU integrator 1 and 2 against GPU 1 and 2, and against CPU 0 with --set bounces=32. Unit test: accept(Ray::Shadow) blocks clear glass for integrator 1 with glass_shadow=false.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Spectral core: three wavelengths in Vec3 channels, uplift, output, negative means",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:120-147 (tables, wave_sample, begin_wavelengths, up, to_rgb), 1420, 1660-1665 (to_rgb, no clamp), 1582; colour entry points at 572, 1041, 1485, 1506, 1540, 1562, 1568, 1582; integrators.hlsl:107-108",
+"plan": "Refused at reference.rs:33. Add to Scene: `spectral: bool` = s.spectral && lpe slots == 0 for integrator 0 (src/gpu/passes.rs:237: LPE forces the path tracer to RGB; BDPT and PM stay spectral regardless).\nTables: OUT, MEASURED, D65, LO, STEP and COUNT are already in src/spectral_tables.rs. SPECTRAL_BASIS is not there, so parse it once with crate::render::hlsl_table(include_str!(\"../shaders/spectral_tables.hlsli\"), \"SPECTRAL_BASIS\") into [[f32;3];81], as the Vulkan side does (src/vulkan/gpu.rs:424) and as ggx_table does.\nAdd `struct Waves { l: Vec3, rows: [Vec3;3], hero: bool }`, created per sample:\n- u=r.f(), but only when spectral, so RGB draws and passes_match_one_render stay bit-identical.\n- l[i]=wave_sample(fract(u+i/3)), with t(l)=tanh(0.0072(l-538)), sample(u)=538+0.5*ln((1+t)/(1-t))/0.0072 where t=lerp(t(380),t(780),u), and pdf(l)=0.0072/((t(780)-t(380))*cosh(0.0072(l-538))^2).\n- Table lookup: x=clamp((l-380)/5,0,79.999), i=floor(x), lerp.\n- rows[i]=basis(l[i]). up(rgb)=Vec3(rows[0].dot(rgb),rows[1].dot(rgb),rows[2].dot(rgb)).\n- to_rgb(v)=sum_i out(l[i])*v[i]/(3*pdf(l[i])).\nPass `&mut Waves` through radiance(). Keep the RGB path a cheap branch (Option<Waves> with up=identity).\nEntry points to wrap in reference.rs:\n- sky and background at :784 -> up(sky)\n- emission on hit at :792 -> up_material(colour)*optical[1]*spot\n- sample_light's le at :727 -> up_emitted\n- after computing emission, set m.color_rough rgb=up_material(m,rgb), m.sheen rgb=up (pathtrace.hlsl:1582; once sheen exists)\n- transmittance at :679-680: exp(ln(max(up_material(c),0.001))*t), read from the raw material as medium_absorption does\nLater features add medium albedo and tint_of, beam splitter, HDRI and physical sky via up(), and lens camera_weight.\nEnd of radiance() at :906: in spectral mode return to_rgb(radiance) with no max(0); the non-finite check stays. RGB keeps max(0). Clamping was measured at +35% red on Classic. Progressive::image then holds negatives. Check Live and Gpu::upload_reference show them through the display pass (the shader only clamps inside the native denoiser, post.hlsl:29); clamp at the upload for display if needed, never in the EXR. Roulette is unchanged (max_element per wavelength).\nDo not port the GPU's Weyl/hash details: PCG is fine.",
+"how_to_test": "Unit: every rgb in a grid through up then to_rgb over many u under flat D65 round-trips within 1e-3 (notes measured 1.1e-4 with the exact integral); white stays (1,1,1). Unit: forced hero-only vs three-wavelength mean agree on the Cornell box. Oracle: tools/oracle.py --scenes preset:0,veach-mis,white-furnace,gem-display --set spectral=true; notes give Classic RGB means (0.2078,0.1609,0.1224) vs spectral (0.2075,0.1609,0.1223).",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Hero wavelength termination and dispersion (Abbe number, Cauchy IOR)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:147 (hero), 198-207 (dispersive, ior_of), 571 (medium_ior), 1618-1620; lighting.rs:145-149 (phase.y only on transmissive materials)",
+"plan": "Depends on the spectral core. hero(th): if !hero_only { th=(3*th.x,0,0); hero_only=true }. Note begin_hero in the integrators sets hero_only without the 3 and hero_rgb multiplies at the end; the path tracer uses the 3-at-event form.\nior_of(m): if !(spectral && m.phase[1]>0 && hero_only) return optical[0]; else with l=lambda.x*1e-3, b=(nd-1)/(V*(1/0.4861^2-1/0.6563^2)), n=nd+b*(1/l^2-1/0.5876^2).\nIn radiance() at reference.rs:834: inside the `r.f()<m.lobes[2]` branch call hero(throughput) FIRST if dispersive(m), so NEE at this vertex (above it) still uses all three wavelengths, exactly as line 1618 sits. Then the `ior` closure at :836-838 and the n1/n2 at :845-848 use ior_of on materials from the stack, not optical[0]: a non-dispersive neighbour stays nd, and any dispersive one in the stack reads at the hero.\nf0_of keeps optical[0] (shader:573 region), so GGX specular on the same material is not dispersive; do not 'fix' that. Fresnel and eta^2 then use the wavelength-specific eta; eta^2 is scalar and applied to the Vec3. Hero state persists to the path's end. Later Beer and flight use channel x via zeros and `sigma.xxx` (pathtrace.hlsl:190, 1189) when media arrive.",
+"how_to_test": "Oracle: tools/oracle.py --scenes diamond-fire,gem-display --set spectral=true (diamond-fire uses disk lights, which unsupported allows). Unit: ior_of at 587.6 nm == nd; n(486.1)-n(656.3)==(nd-1)/V within 1e-4. dark-side's analytic fan (notes: floor x 2.15 at 420 nm to 3.38 at 680 nm) needs fog and PM first.",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "Spectral thin film (Airy terms per wavelength)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:582-621 (film_fresnel, prepare_film, prepare_film_waves, spec_fresnel), 1573-1577 and 1582, 1621-1627 (dielectric weights), 775 (fc); integrators.hlsl:90-99",
+"plan": "Refused at reference.rs:86, including RGB. Do RGB and spectral together, since only one line differs. Port film_fresnel(c1,eta2,eta3:Vec3,thickness,waves:Option<Vec3 lambdas>)->Vec3:\n- eta2=lerp(1,eta2,smoothstep(0,30,thickness)); s2=(1-c1^2)/eta2^2; if s2>=1 return ONE; c2=sqrt(1-s2)\n- r12=schlick(((eta2-1)/(eta2+1))^2,c1), t121=1-r12, phi21=eta2<1?0:PI\n- r23 per channel=schlick(((eta3-eta2)/(eta3+eta2))^2,c2); phi=phi21+(eta3<eta2?PI:0) per channel; opd=2*eta2*thickness*c2\n- r123=clamp(r12*r23,1e-5,0.9999), rs=t121^2*r23/(1-r123), i=r12+rs, cm=rs-t121, sq=sqrt(r123)\n- for k in 1..=2 { cm*=sq; i+=cm*2*(cos(k*(2*PI*opd/lambda+phi)) per channel, or film_sensitivity(k*opd,k*phi) in RGB) }; return saturate(i)\nThickness and IOR: surface_scale[3] mod 2048 and floor(/2048)/100; strength surface_scale[2].\nAdd a `base_scale` field on the hit copy of PackedMaterial (already in the record per the shader; verify in lighting.rs) or a local film:Vec3. Spec_fresnel=lerp(fresnel,film,strength); replace the Fresnel at eval_bsdf:172 and fc=spec_fresnel(m,1,f0) in the compensation.\nOrder in radiance(): compute film_n1,film_n2 from the stack (front: top ior then ior_of(m); back: ior_of(m) then ior after removal; opaque: 1,0), prepare_film (RGB, always, for guides), then in spectral after uplift prepare_film_waves with eta3=base>0?(base/outside):(1+q)/(1-q), q=sqrt(clamp(f0_of(uplifted m),0,0.9999)). Indices read ior_of at the current hero state.\nDielectric branch: frc=lerp(fr,film,strength); fr=clamp(mean(frc),1e-4,1-1e-4) when fr<1; throughput*=reflected?frc/fr:(1-frc)/(1-fr). Film keeps all three wavelengths (no hero).",
+"how_to_test": "Scene thin-film (bubbles, currently refused only for the film; verify) with tools/oracle.py --scenes thin-film and again with --set spectral=true. Unit: 0 nm returns plain Schlick of eta3 at eta2=1; a spectral film averaged over wavelengths under D65 agrees with the RGB CMF fit at 300 nm within a few percent.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Spectral diffraction gratings",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:716-758 (orders, grating_move, order_shares), 739 (grating_weight=1 in spectral), 772-781 (eval), 1579, 1632-1637 (sampling), 440 (tangent); integrators.hlsl:92,158",
+"plan": "Refused at reference.rs:88-90, RGB too. Build RGB and spectral together.\nNeeds a tangent, which reference Tri lacks. Per material id build (ax,ay,o) from crate::geometry::object_transform(o) for objects (material id = 5+index; axes are columns of the 3x4, and identity with o=0 for non-instanced). tangent=(flags&2048)!=0 ? ay.cross(p-o) : ax. Only when has_grating or layers[3]>0.\naniso_frame: T=t-n*dot(n,t), normalize else basis(n,(1,0,0)); rotate by sheen[3]; B=cross(n,T).\nConstants: orders {-1,1,-2,2}, weights {.35,.35,.15,.15}; share=floor(-optical[3]/16384)/1000; spacing=c-floor(c/16384)*16384 with c=-optical[3]; shift=lambda/spacing.\nWavelength: spectral = hero lambda; call hero(throughput) on EVERY grating hit before NEE (line 1579), whichever lobe is sampled. RGB = a per-hit draw from channel c=a%3 of N(mu,sigma), mu (600,545,455), sigma (40,35,25), clamped 300-900, and grating_weight=3*nc/sum(nc); in spectral the weight is 1. On CPU use an independent Rng keyed on (pixel,sample,bounce) so NEE and BSDF at the hit share lambda and the base stream is unaffected.\nEval: after the base r, for each order with w>0: grating_move(n,B,l,-o*k) -> l0, h0, d0; orders+=w*spec_fresnel(vh0)*d0*g1(nl0,a)/nl0; op+=w*d0*nh0/max(4*vh0,1e-6)*nl/nl0. Then r=diff+(1-g)*(r-diff)+orders*(g1(nv,a)/max(4*nv,1e-6))*(1+fc*(1/ess-1))*grating_weight; pdf=(1-ps)*nl/PI+ps*((1-g)*spec_pdf+op).\nSampling, in the specular branch: choose order o by u over order_shares; if o>=0, ggx sample then grating_move(n,B,next,o*k,next); a failure ends the path (pathtrace.hlsl:1635).\neval_bsdf gets `lambda` and tangent parameters: pass a small hit context rather than growing the tuple.",
+"how_to_test": "Scene optical-discs: tools/oracle.py --scenes optical-discs and --set spectral=true. Unit: a white grating in a furnace keeps energy within 2%; order_shares gives evanescent orders' energy back to the mirror (0.32 um grooves at normal view have all shares 0).",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Blackbody and measured spectra",
+"status": "partial",
+"gpu_code": "shaders/pathtrace.hlsl:152-164 (own_spectrum), 174-179 (up_material, up_emitted), 183 (extinction_of); src/lighting.rs:72-88 and 172-208; src/spectrum.rs",
+"plan": "RGB mode already works: PackedMaterial colour holds the integrated RGB (reference.rs:95 comment). Only the spectral values are missing, after the spectral core.\nown_spectrum(m), per i with l=lambda[i]:\n- phase[2]<0: t=-phase[2], r=560/l; v=r^5*(exp(1.438777e7/(560t))-1)/(exp(1.438777e7/(l t))-1)/d65(l)*phase[3] (compute in f64 or via exp_m1 only if f32 overflows; at 1000 K and 380 nm the exponent is 37.9, which fits f32)\n- phase[2]>0: code c, MEASURED lerp at l, c=1 [0], c=2 [1], c=3 [2], else [3]*phase[3]\nup_material(m,rgb)= spectral && phase[2]!=0 ? own_spectrum : up(rgb). It ignores rgb, so spatial pattern colours do not matter for those materials.\nup_emitted(id,x)= own_spectrum(m)*(sum(x)/max(sum(color_rough rgb),1e-12)) where phase[2]!=0, else up(x). Use it for sample_light's le (reference.rs:727), after spot and optical[1] are already in x. On hits use up_material(colour)*optical[1]*spot, matching line 1568.\nReflectance: replace colour at the uplift step. Room material ids carry it (lighting.rs:172-178, material 4 at :199-208 with phase[3] scale), and they all arrive via lighting::materials, so no plumbing is needed. Light table power stays RGB (reference.rs:942), which only affects noise.",
+"how_to_test": "tools/oracle.py --scenes measured-cornell,light-temperature-row with spectral on (measured-cornell sets it), plus blackbody-forge if its other features pass unsupported. Unit: to_rgb integral of own_spectrum over the wavelength pdf equals spectrum::measured(code) and blackbody_peak's colour*scale relation within 1e-3 (src/spectrum.rs already computes the target).",
+"size": "S",
+"affects_converged_image": true
+},
+{
+"feature": "BDPT: subpaths, strategies, MIS, camera-side estimation",
+"status": "missing",
+"gpu_code": "shaders/integrators.hlsl:14-32, 84-170, 174-225, 241-266, 295-435; entry 450-458; connection rules 219-225",
+"plan": "Refused at reference.rs:35-38. Same limit as PT by design, apart from the map item; the point is checking GPU BDPT against an independent BDPT. Add `fn bdpt_sample(&self,pixel:Vec2,r,waves)->(Vec3,splat list)` in a new src/reference/bdpt.rs (reference.rs is 1300 lines), and dispatch in Progressive::pass on the pixel's integrator.\nReuse: Bvh::intersect, surface, accept(Ray::Shadow), eval_bsdf, ggx_sample, cosine_sample, spec_probability, fresnel_dielectric, refract, reflect, media stack helpers top/push/remove, light_pdf CDF and area.\nVertex struct: p,n,info flags (DELTA,NO_BSDF,LIGHT,CAMERA,FRONT,MEDIUM),pdf_fwd,pdf_rev,beta,material,emitter tri+1,tangent,medium entry,g. Arrays cam[26], lig[25] on the stack; D=min(bounces,24); camera stops when T>D+1, light when S>D.\nPort, in this order:\n- area_pdf and to_area, with no cosine at medium vertices\n- vertex_material, emission, vertex_f, vertex_pdf\n- sample_vertex with mode 0 for BDPT, eta^2 only on radiance paths (line 149), and both pf and pr by swapping eval_bsdf arguments (165-166); dielectric sets DELTA and pf=pr=0\n- beam splitter when that lands: DELTA, front face tints\n- walk_step with false hits up to 32\n- hit_light, origin_pdf=(1-p_env)*pk/area, two_sided (optical[3]<0.5), spot_cone, light_dir_pdf, emit_dir, emission_toward\n- mis_weight, verbatim including remap0 and the delta rules\n- the four strategy branches (370-431)\nThe s==1 branch draws a FRESH light per camera vertex; it does not use lig[0]. Strategies with s>=2 use the subpath. Light-subpath origin: chosen with random()>=p_env, then lights CDF. The light normal is the FACE normal (cross of edges), not interpolated: reference.rs:720 interpolates for PT, so do not reuse it here. Term rule: add_term drops only that non-finite term and clamps at 0 per wavelength.\nconnected(): move both ends off their surfaces toward each other by 0.0003 and use the shadow ray length exactly; a fixed 0.6 mm stop made veach-ajar 4% dark. glass_blocks is on. Env and sun NEE and escape() (199-209) reuse the HDRI and sun CPU twins when they land; until then escape returns the sky gradient plus no suns.\nSide decision: GPU takes h.front from the geometric normal (pathtrace.hlsl:434-436) but reference.rs:662 from the interpolated one. Add face-normal `front` to Surface before BDPT relies on V_FRONT for the stack; this may also fix coplanar and grazing nested cases in PT.\nSpectral: begin_hero (hero_only=true from the start, no factor) and hero_rgb(v)=to_rgb((3*v.x,0,0)); all colours go through up/up_material/up_emitted (lines 36,111,200,207,336,344,385,398,405,409); vertex_material uplifts at each evaluation.\nDependencies: sphere and sun lights, media, gratings and so on arrive as their PT twins do; refuse the same combinations until then. A per-frame `sampling.y` has no meaning here, since one Rng per sample suffices.",
+"how_to_test": "Extend tools/oracle.py with --cpu-integrator (line 101 hard-codes integrator=0). Then tools/oracle.py --integrator 1 --cpu-integrator 1 --scenes preset:0,veach-ajar,cornell-caustic,white-furnace,mirror-room --set bounces=16. Notes: veach-ajar BDPT 1.005 against PT, presets 0 and 3 at 1.0003 and 1.0007. Unit: the mis_weight of all strategies of one fixed path sums to 1. Unit: furnace conserves.",
+"size": "L",
+"affects_converged_image": false
+},
+{
+"feature": "BDPT light tracing (t = 1) splats and their plumbing in Progressive",
+"status": "missing",
+"gpu_code": "shaders/integrators.hlsl:213-218 (camera_pdf_w, project), 275-294 (pick_filtered, splat_filtered), 377-391, 459-465; src/gpu/passes.rs:161 (light_tracing), 175-180 (photon.y); pathtrace.hlsl:1329-1334 (filter_density)",
+"plan": "Enabled when s.perspective() && s.aperture<=0 (no RR jitter on the CPU); otherwise the camera vertex is DELTA and t=1 is skipped.\nConstants from Settings::camera in Scene::new: A=4*(1/proj.x_axis.x)*(1/proj.y_axis.y)*share (photon.y; environment.y,z at render.rs:403-404), share = region pixels / all pixels; forward=-view.row(2).xyz; vp=proj*view for project(), which applies f=((c.x/c.w*.5+.5),(.5-c.y/c.w*.5))*size and tests inside the region.\nPort filter_density (box 1/width, Gaussian width/6 normalized over +-3 sigma, Blackman-Harris) next to filter_offset (reference.rs:592), pick_filtered and splat_filtered. Support is capped at 5 pixels per axis and clipped to the region, so the light strategy goes dim where the region clips the filter while MIS does not know: copy this rather than fixing it, or the GPU's edges will look wrong in comparison. On the CPU you may splat the whole support instead of picking one pixel; only variance differs, but picking keeps the code a direct mirror.\nNormalization: GPU's C has /max(sampling.y,1) and adds to a per-frame mean. CPU keeps sums over samples, so add C WITHOUT the spp division and let image() divide. One light subpath is traced per camera sample in the same region, which is what makes the factor right.\nDeterminism (passes_match_one_render): rows are locked per thread, so do not write sums of other rows directly and do not use atomics (float order would change the bits). Each row collects Vec<(pixel:u32,Vec3)>, and after thread::scope the lists are applied in row order. A cancelled pass drops them. Memory is bounded by successful terms; flush per row only.\nHidden-camera test: intersect(eye,q/|q|,|q|,camera accept) from the eye toward qs.p offset by n, with camera visibility rules (line 389-390).\nSpectral: hero_rgb(C*mis) goes to the splat, and `!any(c>0)` drops all-nonpositive RGB, as the shader does (a slight asymmetry against the camera path's kept negatives; mirror it, and flag it for a look).",
+"how_to_test": "Oracle with --integrator 1 --cpu-integrator 1 --scenes cornell-caustic (light tracing dominates caustics). Compare at --set pixel_filter=2 and pixel_filter=0: both should pass, which also lets oracle.py:89-90 drop its now-stale forced box filter. Add a passes_match_one_render variant for integrator 1.",
+"size": "M",
+"affects_converged_image": false
+},
+{
+"feature": "Photon mapping (progressive, with volume and SDF photons)",
+"status": "missing",
+"gpu_code": "shaders/integrators.hlsl:479-489, 497-504, 506, 513-537, 538-588, 599-635, 638-666, 667-702; src/gpu/passes.rs:132-152 (bounds), 165-180, 205-219; src/render.rs:527-530",
+"plan": "Refused at reference.rs:35-38. A separate estimator whose bias only fades with passes, so CPU and GPU must use the same schedule. A frame owns one photon map; radius^2=(photon_radius*bounds.r)^2*prod_{i=1..f}((i+2/3)/(i+1)), first frame unscaled.\nFrame boundaries: the GPU runs sampling.y=spp gathers per map (oracle: --spp 4, frames=spp/4). Keep this: frame index f = sample / s.spp, and Progressive::pass rounds to whole frames for integrator 2 (Live's pass sizing must request multiples). Otherwise bias is not comparable.\nBounds: lo,hi from s.objects_bounds() plus all geometry vertices with material!=3, plus the fog box (-e,-1,-e)..(e,height,e); r=max(0.5,|hi-lo|/2); default centre 0, r 2 if empty. Static_cache is the GPU's vertices without moving objects, while objects_bounds covers those: verify that equality when you port it.\nPhoton pass, per frame, parallel by photon index with Rng::new keyed (salt,frame,i) and per-photon local deposit Vecs, concatenated in index order so results do not depend on threads. Truncate at capacity=photons*clamp(bounces,1,PHOTON_BOUNCES) (read the const in render.rs) as the GPU drops overflow.\nEmit exactly as 541-565. Note this p_env differs from env_share(): sky=hdri||any(background>0)||s.sky>0, p_env=sky?(tri||sdf?0.5:1):0, p_tri=(1-p_env)*(sdf?(tri?.5:0):1). Sky: uniform direction pw=1/(4 pi) unless HDRI; o=disk_origin(ld) (bounds, radius r, 1.01 offset); b=sky(ld)*pi r^2/(p_env*pw). Table lights as BDPT's origin: b=emission_toward*c/(po*pd).\nWalk: k< min(bounces,32), walk_step; deposit from k>0, surface only if keeps_photons(vertex_material) (not gather_surface: lobes.z>=1, splitter, rough<0.2 with metal>0.5 or lum(f0)>0.5). Deposit power before sample_vertex. Roulette k>=2 uses survival=clamp(max3(b)/max(before,1e-30),.05,.95). Scatter vertices deposit volume photons from k>0, then b*=up(alb), hg_sample.\nGrid: HashMap<[i32;3],Vec<u32>> or sorted cell runs, keyed by floor(p/r), with surface and volume stored separately (no mantissa flag). No chain-cap logic: restart_chain is a GPU budget device and unbiased, so skip it.\nGather (667-702): camera walk min(bounces,32), emission vertex always added, near-mirrors and dielectrics walk through with mode 0. At gather_surface: L+=beta*(direct_light_at + gather); then continue only with prob lobes.z via mode 1, without reweighting. gather: 27 cells; test dist<r and |dq.n|<0.25r and n.wi>0; cell+=eval_bsdf(v,wi)*up(power); /(photons*pi r^2). Note no cosine.\ndirect_light_at: sample_light + mode 2 BSDF with balance heuristic (pdf/=1-z; escape prev_delta=false; hit emitter weight pf/(pf+(1-p_env)*emitter_pdf)). Here p_env=env_share (HDRI only).\nVolume: path ends at first scatter: beta*=up(alb); volume_direct + gather_volume (hg_pdf*power/(photons*(4/3) pi r^3*max(sigma,1e-8))). Needs fog/medium twins.\nSpectral: photon_trace: begin_wavelengths per photon, b=up_emitted or up, hero(b) (factor 3), deposit to_rgb(b) keeping negatives; camera: begin_hero per gather, up(power), hero_rgb(L). Dispersion and gratings read lambda.x. Photons from sdf_photon 513-537 when SDF lands. Memory worst case is about 340 MB at 2^20 photons, and CPU gather cost scales with photons per cell: consider a thread-count note in docs.",
+"how_to_test": "Oracle with --integrator 2 --cpu-integrator 2 --scenes preset:0,cornell-caustic,white-furnace,veach-mis (fix --spp 4 on both). Roadmap open item: PM white furnace 0.9945, check it falls with passes: run 256 vs 1024 frames on CPU and assert the ratio moves toward 1. Spectral: dark-side and sunset-tank once fog and object media land. Unit: radius schedule matches passes.rs:216-218 after N frames; a flat wall under a known light gives the analytic irradiance within noise.",
+"size": "L",
+"affects_converged_image": true
+},
+{
+"feature": "Battle mode (four quadrants, each its own integrator)",
+"status": "missing",
+"gpu_code": "src/gpu/passes.rs:284-345 (battle_frame, regions, [0,0,1,2]), 121-180 (integrate: region, share, photon boost); src/gpu/frame.rs:178-179; shaders/integrators.hlsl:217, 290",
+"plan": "Silent gap: unsupported() has no check for s.battle and reference.rs never reads it, so battle=true renders path tracing in all four quadrants without saying so. Bottom-half quadrants are then wrong wherever the integrators differ. Until BDPT and PM exist, add need(s.battle,\"battle mode\") as the first step (one line).\nThen: integrator_at(x,y)= if s.battle {[0,0,1,2][(x>=w/2) as usize + 2*(y>=h/2) as usize]} else {s.integrator}. Regions use integer w/2 and h/2 at render size, and the CPU renders at the given size (oracle uses --scale 1). Quadrant 1's ReSTIR is the plain path tracer (see ReSTIR item). Per-region state: region rect for project() and pick_filtered, share=area fraction in the A constant (t=1's importance), and for quadrant 3 its photons.\nDo NOT mirror the time balancing (q.cost, carry, photons x 1-4): it exists to compare by GPU time and only changes noise. CPU gives every pixel the same sample count; photons=(s.photons*share*1) as u32 clamped to 1024..=s.photons. Photon bias at a given frame differs from the GPU's boost; only the limit matches, so judge the photon quadrant with more passes.\nBounds, radius and map apply to the quadrant only (gather runs only in its pixels, yet photons fly anywhere). Spectral goes through all quadrants, with the LPE caveat for quadrants 0 and 1 only. Compare UI: Live restarts on battle change since transport_key does not remove it, which is right. Overlay lines belong to the viewer, not the reference.",
+"how_to_test": "tools/oracle.py --scenes preset:0 --set battle=true needs --cpu-integrator ignored in battle. Test per quadrant with an oracle --crop or a new reference_compare grid; 8x8 blocks already expose quadrant bias. Unit: integrator_at maps corners to 0,0,1,2. Self-test frames 286-289 cover the GPU's spectral battle; add one call to reference::unsupported there.",
+"size": "S",
+"affects_converged_image": false
+},
+{
+"feature": "ReSTIR DI",
+"status": "not-needed",
+"gpu_code": "shaders/pathtrace.hlsl:1601-1603 (reused light sample), 1584 and 1517 (previous_restir weights), 1148-1156 (restir_nee); src/gpu/passes.rs:226-235",
+"plan": "Noise only: do not implement it. GRIS with balance and pairwise weights is unbiased and measured within 0.1% against NEE at 4096 spp (engine-notes 'ReSTIR DI'), visibility enters only through the final shadow ray, and it changes only the first hit's light sample for the first min(spp,4) samples. reference.rs correctly ignores s.restir and does not refuse it, so fairy-lights-style settings already render.\nOne caveat to record, not fix: a ReSTIR vertex gives BSDF hits on table emitters weight 0, so first-bounce table light is pure NEE. It therefore inherits the open NEE-vs-MIS gap (night-skyline -0.57%, light-temperature-row -0.24%) that the CPU's MIS does not have. A sub-1% mismatch on those scenes with restir on points there first, not at reservoirs. Temporal reuse with a moving camera is outside this comparison because the accumulation resets.\nWork: S documentation only. State 'ignored, same limit' in the unsupported comment, and add restir to the oracle's runs. The CPU's own light selection stays per-triangle power.",
+"how_to_test": "tools/oracle.py --scenes preset:0,veach-mis,light-temperature-row --set restir=true runs today with no code change; expect the same |z| band as restir off. If those scenes refuse, use preset:0 and nighthawks.",
+"size": "S",
+"affects_converged_image": false
+},
+{
+"feature": "LPE layers (expressions, labels, per-slot running mean)",
+"status": "missing",
+"gpu_code": "shaders/pathtrace.hlsl:642-674 (DFA, lpe_add), 800 (lpe_diffuse), 1518-1523, 1563, 1591, 1603-1605, 1625 (lpe_advance), 1648-1653 (label split), 1674-1675 (mean); src/lpe.rs:470-521; src/gpu/passes.rs:237 and 466-491; post.hlsl:314",
+"plan": "Silent gap: s.lpe is ignored and not refused, so layers do not exist on the CPU, and one more effect goes unnoticed: with any slot set the GPU path tracer drops spectral (passes.rs:237) but the CPU, once spectral exists, would not. Use the same `slots>0 -> RGB` rule for integrator 0.\nReuse src/lpe.rs directly: let (table,slots,labels)=lpe::table(&s.lpe); classes=lpe::classes(&labels,&names), names=lpe::material_names(s) only if any expression contains a quote (passes.rs:469). Index: table[(k*32+state)*64+cls*8+event], next=low 8 bits, accept=bit 8, DEAD=255.\nPort as a small struct Lpe { state:[u8;4], weight:Vec3, sum:[Vec3;4], label:u32, light_label:u32 } with advance(event) and add(event,light,e) exactly as 657-671: non-finite e dropped, event 8 means no extra step, class 0 for V and B.\nSites in reference.rs radiance():\n- start: state 0, weight ONE\n- :786 miss: add(8,6,e)\n- after hit :791: label=class(material)\n- :800 emission: light_label=label; add(8,5,e) (e carries the MIS weight)\n- :826 NEE: light_label=class(light material) (extend sample_light's tuple with the tri); ed=e*diffuse/max(f,1e-30); add(0,5,ed); add(glossy(m),5,e-ed), glossy= color_rough[3]<0.1?2:1\n- :853 dielectric: advance(reflected?2:3)\n- :881: share=saturate(diffuse/max(bsdf,1e-30)), pd=lum(bsdf)>0?saturate(lum(diffuse)/lum(bsdf)):0, draw u from a SEPARATE Rng keyed (pixel,sample,bounce,salt) so the beauty's stream stays identical; u<pd: weight*=share/pd, advance(0); else weight*=(1-share)/(1-pd), advance(glossy)\nLater sites arrive with features: V at 1479, 1493, 1497; B at env NEE by lpe_env_sample; sun L with its class; beam splitter S; portals and false hits are no events.\nDiffuse part: eval_bsdf must also return (1-z)*dd, where dd=diff dimmed by sheen and coat keep but not the specular. Add it as a third field.\nStorage: Progressive gains lpe:Vec<[Vec3;4]> only when slots>0, the sum is per sample, and radiance returns a Sample struct {beauty,direct,spec,lpe,...}. No max(0) on AOVs.\nOutput: `reference::run` writes slot s.lpe_slot instead of the beauty when s.view==12 (post.hlsl:314 parity). Layer names from capture.rs lpe_layer_name (make it pub(crate) and move it next to AovLayer).\nOn the GPU LPE only exists in path tracing: with integrator!=0 the slots are never written. On the CPU keep them absent and report it in the error/log instead of zeros, and in battle quadrants 2-3 stay unwritten. Firefly refused already; the AOVs ignore it on the GPU.",
+"how_to_test": "Unit: for the partition 'C [LB]','C D .* [LB]','C [GS] .* [LB]','C [TV] .* [LB]' sum of slot means equals beauty mean within 1% (self-test 232-236 uses 3%) on preset 0 and nighthawks; with spectral set, beauty stays RGB. Oracle-style: GPU --set lpe=[...] --set view=12 --capture vs the CPU equivalent per slot with tools/reference_compare.py on preset:0 ('C D L' matched NEE-only to 0.02% on the GPU). Labels: 'C D\\'red wall\\' L' on preset:0 is zero outside the wall's reflections.",
+"size": "M",
+"affects_converged_image": true
+},
+{
+"feature": "Non-LPE AOVs and multi-layer EXR (direct, specular, albedos, normal, roughness, depth, motion, object id)",
+"status": "missing",
+"gpu_code": "src/render.rs:64-96 (aov_layers), src/gpu/capture.rs:37-43 and 264-290, src/video.rs:324 (write_layers); shaders/pathtrace.hlsl:1361-1380 (write_guides), 1402-1404 (sample_albedo), 1479-1542 and 1580 and 1603 (direct, first_spec, first_diffuse), 1668-1678; integrators.hlsl:445",
+"plan": "reference.rs outputs only RGBA beauty (:1057, :1189-1200). Add:\n`.layers.exr` branch in reference::run: same file-name rule as Gpu::capture (lowercased ends_with), Vec<crate::render::AovLayer> and crate::video::write_layers. Check write_layers has no GPU dependency, since --reference exits before any GPU exists in main.rs:721-726.\nPer-sample means (integrator 0), in the Sample struct from the LPE item:\n- direct: NEE terms at bounce==0 plus emission and sky at bounce<=1 (GPU's `direct+=e` sites; note the difference: <=1 for hits)\n- specular: whole sample radiance if first_spec, set when bounce 0 is delta or samples a GGX or coat lobe\n- diffuse_albedo: first_diffuse.rgb=colour*(1-metal)*(1-z), RGB before uplift, alpha coverage = share with first hit material==guide material; scatter at bounce 0 gives albedo; miss has alpha=guide missed?1:0\n- specular_albedo: spec_fresnel(|cos|,f0) at first hit\nBoth direct and specular go through to_rgb in spectral.\nGuides: one pinhole ray per pixel through centre with no jitter (CPU has none; GPU non-RR uses a sub-pixel jitter only with RR), Ray::Camera accept:\n- normal=shading n, roughness=color_rough[3], depth=-(view*p).z for projection 0 or 4, else t\n- object_id=material+1, miss: normal 0, roughness 1, depth 1e4, id 0, albedos 0\n- motion=0 (previous_vp==current for a still; the GPU writes delta from previous_vp which is 0 at rest)\nFilm in guides: prepare_film at |cos|, IORs (1,0).\nBDPT and PM: direct=mean, specular=0, albedos=the guide values (finish_frame does not write albedo; those are pixel-centre write_guides values) (integrators.hlsl:445).\nNot needed: device_depth, specular_distance (RR only); trace_stats and variance views 7-10 unless wanted, though m2 is trivial to add (Welford on luminance as 1670).\nMemory: add only when a layered capture is requested (flag on Progressive::new), to keep Live cheap. Layer order: beauty, diffuse_albedo, specular_albedo, normal, roughness, depth, motion, direct, specular, object_id, then lpeN.",
+"how_to_test": "caustica --headless --scene veach-mis --raw --no-rr --scale 1 --capture gpu.layers.exr vs --reference 256 --capture cpu.layers.exr, compared per layer via tools/exr.py: normal, depth and object_id exact except at silhouettes; albedo within edges; direct and specular means within noise. Extend reference_compare.py with a --layer option. Test: direct+indirect==beauty trivially at 1 bounce with mis on.",
+"size": "M",
+"affects_converged_image": false
+},
+{
+"feature": "Oracle and refusal plumbing for this group",
+"status": "partial",
+"gpu_code": "tools/oracle.py:85-110; src/reference.rs:22-98; src/selftest.rs:211-222",
+"plan": "Today the oracle cannot exercise any of this group: line 101 forces --set integrator=0 on the CPU, lines 89-90 force a box filter for integrator!=0 (stale since the 2026-11-05 filter change in the roadmap), and --rgb is the only spectral control. Add --cpu-integrator (default 0, or 'same') and drop the box forcing behind a flag. Spectral needs nothing else, because scene files and --set spectral=true reach both sides. PM needs identical --spp on both, so pass --spp 4 to --reference too and read s.spp in the frame rule.\nunsupported() order of work: replace `s.spectral` and `s.integrator!=0` lines as they land; add need(s.battle) and a line for lpe until each lands, because both are silently ignored today. Spectral keeps refusing through its dependencies (for example dark-side needs fog and PM; blackbody-forge and sunset-tank should be re-checked with `--reference 1` to see what else they need). Selftest frame 172's branch keeps working since it reads unsupported().\nRecommended order, because later items build on earlier ones: Sample struct and AOV plumbing, spectral core, spectra and dispersion, film and grating, LPE, BDPT, light tracing, photon mapping, battle. Each step has a scene already in scenes/builtin.",
+"how_to_test": "python tools/oracle.py --scenes preset:0 still passes after the flag change. Unit: unsupported lists battle and lpe when set. Run `caustica --reference 1 --scene X --capture t.exr` over the group's scenes to list remaining refusals.",
+"size": "S",
+"affects_converged_image": false
+}
+]
+},
+{
+"group": "app",
+"items": [
+{
+"feature": "CLI entry point `--reference SPP --capture` (scene content and flag handling)",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "src/main.rs:1195-1201 (each frame's copy: add_flashlight, puzzle beam rods); src/video.rs:890 (exports add the flashlight too)",
+"plan": "Measured bug: `--preset 0 --set flashlight=true --reference 1` prints REFERENCE_OK because main.rs:724 passes the raw settings, so the flashlight is silently left out. In the viewport the same setting is refused, because Live gets the frame copy and the flashlight is an IES light (bit 16384). Fix at main.rs:724: `let mut f = s.clone(); f.add_flashlight();` and, when `f.puzzle.enabled && f.puzzle.beam`, append `laser::beam_objects` (compute the segments as the App does at startup). Pass `&f` to reference::run. The flashlight then renders only once the integrator group's IES work lands; until then it refuses, which is the honest result. Also bail at the same site when --reference is combined with flags it ignores today: --turntable (until the CPU export item), --script, --self-test, --frames, --capture-sequence, --capture-ui.",
+"how_to_test": "`--preset 0 --set flashlight=true --reference 1 --capture a.exr` must refuse naming IES profiles today, and after IES support must differ from the render without it. `--reference 1 --script x.rhai` must error. Run oracle.py with --set flashlight=true after IES lands.",
+"size": "S"
+},
+{
+"feature": "CPU display transform for files written without a device (`--reference out.png`, CLI video, thumbnails)",
+"status": "missing",
+"gpu_code": "shaders/post.hlsl:85-93 (filmic, tone_curve), :96-103 (agx), :105-110 (pbr_neutral), :120-129 (film_look, tonemap), :212-221 (lens_and_film), :290-293 (film_grain), :316 (order of operations); constants at src/render.rs:368-374; LUT at src/gpu/device.rs:372",
+"plan": "reference::run (reference.rs:1184) writes `to_rgb8()` of clamped linear values for any non-EXR path: no exposure, no tone map, no sRGB-like encoding, no look. Add `src/reference/display.rs` or a section at the end of reference.rs: `pub fn display(s:&Settings, linear:&[f32], size) -> Vec<u8>`. Port in this order, as HLSL does: c*exposure, max 0; tone_curve/agx/pbr_neutral by s.tonemap; film_look (encode 1/2.2, lift, gain, grade gamma, trilinear LUT from look::read_cube(s.lut_path) blended by lut_strength, decode 2.2); pow 1/gamma. Before that run lens_and_film on the linear image: halation (12 directions, 2 rings, radius h*0.012), vignette 1/(1+1.6 r^2) squared. After it apply grain with film_grain's hash. Glare (FFT, post.hlsl:244-289) is the last step, as a separate later commit using a plain CPU radix-2 FFT on the same 512 grid; refuse it in `unsupported` until then. Take the field mapping for look, lift, gain, grade_gamma from render::constants rather than guessing. Use rows split over thread::scope for images over 1 MP. In reference::run: EXR stays linear, PNG/JPEG go through display. Reuse video::write_image (make it pub(crate), video.rs:273) so JPEG quality and GPano tags come along. Add HDR forms (hdr_map :135-148, hdr10_encode :150-153) only when the CPU video item needs HDR10.",
+"how_to_test": "Unit tests per tone map on known values copied from a GPU readback. Self-test on a free frame (209): put a ramp image in the reference with Gpu::upload_reference, split 1, read_rgba8(10), compare with display() for all 8 tone maps, within 2/255. `--reference 64 --preset 0 --capture a.png` should look like the GPU PNG; tools/oracle.py is not affected because it compares EXRs.",
+"size": "M"
+},
+{
+"feature": "Exposure, tone map, look and HDR in the viewport",
+"status": "present",
+"gpu_code": "shaders/post.hlsl:316 (reference_image replaces c before lens_and_film, hdr_map, tonemap); src/gpu/capture.rs:7 (upload)",
+"plan": "Nothing to do for the core path: the CPU mean goes through the real display pass, so exposure, gamma, all tone maps, lift/gain/LUT, grain, vignette, HDR output, zebras and scopes all apply. They are display-only and do not restart Live. The two exceptions are in the next item.",
+"how_to_test": "Existing frames 169-172; change exposure while Live runs and confirm samples do not reset.",
+"size": "S"
+},
+{
+"feature": "Display inputs that still read the GPU image inside the CPU region (halation, glare, direct/indirect sliders)",
+"status": "partial",
+"gpu_code": "shaders/post.hlsl:198 (scene_at), :216 (halation taps), :251 (glare highlights), :176 (beauty's direct/indirect recomposition), :300 (linear_output)",
+"plan": "The left of the split is not purely the CPU image. Halation and glare gather through scene_at, which reads the GPU's accumulation/reconstruction, and in no-RT mode that is black, so both vanish. The direct and indirect sliders scale only `c` in beauty(), which runs before the substitution, so they never touch the CPU side. Fixes: (1) In scene_at, return reference_image[op].rgb when options.z>0 && filter_settings.w!=0 && float(op.x)/dimensions.z<options.w. glare_pass's mode 0 goes through scene_at, so it follows. (2) At :300 write linear_output after that same substitution, so texture 18 holds what is shown. Check capture_reference (copies 18 to 13): freezing while compare is on then copies the composite, which is what the viewer sees, so it stays correct. (3) Direct/indirect: have radiance return the direct part too (the integrator group's AOV item adds this), keep a second sum in Progressive, and make `image(kd, ki)` compute direct*kd + (sum-direct)*ki. Live stores k in Shared and republishes when s.direct/s.indirect change (main.rs:1789 passes `again` when they differ). Shaders are compiled for both backends, so run tools/spirv_check.py. Constants do not change.",
+"how_to_test": "Glare and halation on, split 1, a GPU that is paused or black: the glow must follow the CPU image. Self-test: split 1, read_floats(18) must equal the uploaded reference exactly. Direct slider at 0: CPU left matches GPU right statistically.",
+"size": "M"
+},
+{
+"feature": "Viewport full view of the CPU image, and stopping cleanly",
+"status": "partial",
+"gpu_code": "shaders/post.hlsl:316 (split test and the split line); src/ui/look_tab.rs:245-300; src/main.rs:1391 (draw); src/main.rs:1766 (stop)",
+"plan": "Today the only full view is dragging the split to 100%, and the GPU keeps tracing and competing. Add a `Full view` checkbox next to `Show split` in look_tab.rs, as a UI field `self.ui.cpu_full`, not a Settings field (no validate or transport_key work). When set and Live is present: frame.compare=true, frame.split=1, applied to the frame copy only. In post.hlsl:316 draw the line only when options.w<1, because at split 1 the last column may still catch the line through float rounding. At main.rs:1391 use `draw = draw && !cpu_full` so the GPU stops spending power and CPU core time on submissions. Also fix stop: `Some(false)` at main.rs:1766 leaves compare on with the stale CPU image, now labelled `frozen reference`; set settings.compare=false and reference_valid=false unless the user chose Freeze. Note that docs/roadmap.md:204 marked this and the save and graph items [drop]; the owner's parity request reverses that, so update the roadmap.",
+"how_to_test": "Self-test free frame 214: Live running, cpu_full on, assert g.samples does not grow, read_rgba8(10) has no line colour (0.3,0.8,1) in the last column. Screenshot with --capture-ui --ui-tab look.",
+"size": "S"
+},
+{
+"feature": "Save the current image from the UI when showing the CPU render (PNG, JPEG, EXR, HDR PNG, JXR)",
+"status": "missing",
+"gpu_code": "src/main.rs:1821-1842 (save_image); src/video.rs:185-195 (read_image), :358 (save_current), :273 (write_image)",
+"plan": "Saving with compare on writes the display composite with the split line for PNG/JPEG, and the GPU's beauty for EXR (texture 18 is written before substitution). In the save_image branch at main.rs:1821, when Live has an image: for Exr add `video::save_linear(path, quality, &image, w, h)`, which wraps Frame::Linear, adding the alpha-stripped path write_image already has. For Png, Jpeg, HdrPng and Jxr force one display pass with frame.compare=true, split=1 and read as today (texture 10 or 26), once the post.hlsl line fix is in, so look and HDR are identical to the screen. For Layers: refuse with a toast until the AOV item lands. export_stem gets st.samples rather than g.samples, so `{spp}` in names is right. Add a one-line choice in export_tab (look_tab.rs:305): `Saves: CPU render` shown when Live has samples.",
+"how_to_test": "Self-test on free frame 224 with expect_image (main.rs:997) for PNG and EXR; decode the EXR and compare its mean to Live's. Manually: save with the split at 50% and confirm the file holds only the CPU image.",
+"size": "S"
+},
+{
+"feature": "Video, turntable, timeline and high-resolution still export on the CPU",
+"status": "missing",
+"gpu_code": "src/video.rs:766-856 (Job::start), :868-905 (animate), :913-925 (motion blur passes), :939-978 (after_render), :1068 (render); src/main.rs:1843-1868 and :1880",
+"plan": "Job needs a Gpu at every step, but its pure parts do not. (1) Split Job::animate into `moment(&mut self, t) -> Settings` (animation apply, physics, add_flashlight, video.rs:868-890) and the GPU upload, which stays in Job. (2) Add `video::render_cpu(s, options, cancel, progress)`: run the same setup as Job::start for the Settings copy (scale 1, no compare, view 0, max_samples = spp), Writer::start(&options, peak) with peak 1000 when no display exists. For each frame compute the yaw (Options::yaw) or moment(t); build reference::Progressive::new for that frame's settings; run passes with cancel; call display() for Frame::Rgba8, or the mean for Frame::Linear (EXR format); writer.try_send in a retry loop with a sleep, as `waiting` does. seconds_per_frame: stop adding passes once elapsed passes it. Reuse the same BVH when geometry_key is unchanged, so turntables build once: add Progressive::reset(&mut self, &Settings) that keeps the Scene when geometry and materials match and only moves the camera. Motion blur: for shutter > 0 take N = min(spp, 32) moments on the golden-ratio stratification of video.rs:919-921, each with spp/N samples into one sum. That means a BVH rebuild per moment; offset the sample index so seeds never repeat. HDR10 needs the hdr_map port. (3) App: run it on a thread like Live; add `Export` enum in main.rs with Gpu(Job) and Cpu(handle) and show the existing progress window. Choose Cpu in the no-RT mode, or with a `Use CPU` checkbox in video_ui.rs and the high-res row. (4) CLI: `--reference SPP --turntable out.mp4` calls render_cpu directly at main.rs:724, so it needs no device, and removes the bail from the first item.",
+"how_to_test": "`--reference 16 --turntable a.mp4 --turntable-frames 4 --turntable-format png`, 4 files, the first equal to `--reference 16` at the same yaw through display(). A timeline export on a keyed scene mirroring self-test frames 147-149 (two EXR frames). Cancel mid-frame leaves no partial writer. Unit test moment() against the GPU path's Settings for equal t.",
+"size": "L"
+},
+{
+"feature": "Denoising for the CPU render (native SVGF-style filter)",
+"status": "missing",
+"gpu_code": "shaders/post.hlsl:1-10 (overview), :28-52 (integrate), :53-60 (source/store), the filter entry at :61 onward; src/gpu/frame.rs:275 (passes); src/ui/render_tab.rs:84 (toggle)",
+"plan": "The CPU side shows raw means whatever s.denoise says. Port only the spatial part: the temporal passes (reproject, history) are not needed because Live restarts on any camera change and the mean is already the full history. In Progressive add per-pixel first-hit AOVs: sum of diffuse+specular albedo, normal, depth, object id, coverage (share of samples hitting the same id as sample 0, GPU's diffuse_albedo.a) and a luminance M2 sum for variance, adding bytes per pixel only when wanted (s.denoise true, or an AOV view is on). radiance then returns a struct (see the integrator group's AOV item). Then `reference::denoise(&Progressive, strength) -> Vec<f32>`: demodulate by albedo (max(albedo,0.05), albedo_at), compute variance as integrate does (the 5x5 same-id fallback under 4 samples), run the five \u00e0-trous passes (pass 2-6) with the same stops copied from `filter`, restore edge pixels by coverage and re-modulate. Run it on the publish path of Live with threads over rows, only when the last pass took under about 2 s, otherwise every Nth publish. Never put it in the sums: the accumulation stays unbiased, as on the GPU. CLI: `--reference` keeps raw by default for the oracle; add `--denoise`. RR, DLSS, FSR, XeSS get no twin (separate item). OIDN stays on roadmap line 217, a new SDK and not required for parity.",
+"how_to_test": "Unit test: flat-colour image with noise, variance falls and a step edge in the id map stays sharp. Compare with GPU at --no-rr, same spp, via SSIM or RMSE against a 4096 spp CPU render; the CPU filter should reach RMSE within about 20% of the GPU filter. oracle.py stays raw, proving the means are untouched.",
+"size": "L"
+},
+{
+"feature": "DLSS Ray Reconstruction, DLSS SR, FSR, XeSS and render scale",
+"status": "not-needed",
+"gpu_code": "src/gpu/frame.rs:21-50 (RR), :55-70 (prepare_upscaler); shaders/post.hlsl:160-173 (spatial upscale); src/render.rs Capabilities",
+"plan": "These are vendor GPU SDKs and do not apply to a CPU render at full output resolution. Live renders at output size and ignores s.scale by design. In CPU mode grey out those rows of render_tab.rs and Quality in chrome.rs with a one-line reason; with no NGX/XeSS device the existing Capabilities already report unavailable. The only related work is the low-resolution preview in the interactive item.",
+"how_to_test": "--cpu run with --capture-ui --ui-tab render: rows disabled, no NGX init attempted.",
+"size": "S"
+},
+{
+"feature": "Debug views, multi-layer EXR, light meter, click selection and path visualizer on the CPU",
+"status": "missing",
+"gpu_code": "shaders/post.hlsl:301-314 (views); src/gpu/capture.rs:264 (read_layers); src/gpu/frame.rs:155-175 (path records); src/render.rs Probe (u19 id)",
+"plan": "Views 1-12 read GPU textures and show GPU data even with the CPU split on; in no-RT mode they are black. Using the AOVs from the denoiser item: add Gpu::upload_aovs writing normal_roughness (2), diffuse_albedo (3), depth (5), direct_light (11), specular_light (12), object_id (19) and the accumulation (1, a = M2 for variance views) at output size, only in full-CPU mode, so all view branches work without shader edits. Views 8 and 9 (bounces, BVH steps) need counters from radiance into trace_stats. read_layers then works unchanged in full mode. CLI: write `.layers.exr` via video::write_layers from Progressive's AOVs. Probe and selection: add `reference::pick(&Scene, pixel) -> Probe` (one camera ray, no bounces) so meter and click-select work without readback of u19; the Live thread keeps the Scene in an Arc for this. Path visualizer: a recording variant of radiance filling the same PATH records; do this last. LPE AOVs (view 12) belong to the integrator group.",
+"how_to_test": "Self-test views loop (frames 150-157) repeated in the no-RT list with non-black asserts. Layers EXR read by tools/exr.py compared per layer with the GPU's (albedo and normal within 1% mean).",
+"size": "L"
+},
+{
+"feature": "Convergence graph measured against the CPU render",
+"status": "missing",
+"gpu_code": "src/ui/windows.rs:579-661 (reference load and use_current), :641 (stores it)",
+"plan": "Add a `Use the CPU reference` button beside `use current` in windows.rs, enabled when Live has samples: `self.ui.reference = Some((w, h, (*image).clone())); self.ui.graph.clear(); self.actions.reset = true;`. Image layout is already linear RGBA, rows top first, as read_floats(18) gives. Live must not restart on that reset: it follows transport key and size, not samples, so it will not. Add the same for the CLI by loading a `--reference` EXR, which already works through reference_path.",
+"how_to_test": "Manual on Cornell: graph slope about -0.5 and the final RMSE matches tools/reference_compare.py between the same two images.",
+"size": "S"
+},
+{
+"feature": "Scene thumbnails on a machine that cannot start the GPU renderer",
+"status": "missing",
+"gpu_code": "src/scenes.rs:341-388 (render_thumbnails: a child with --headless --frames 32 --width 320 --height 200 --scene); src/main.rs:3113",
+"plan": "Every child is a GPU headless run, so on a no-RT machine every thumbnail fails. Add a parameter to render_thumbnails: `cpu: bool`, true in CPU mode or with `--make-thumbnails --cpu`. Then args become `--reference 64 --width 320 --height 200 --scene X --capture partial.png`, which needs the display-transform item for correct PNGs and the lenient flag for refused scenes (`--reference-lenient`). Measured: 32 spp at 640x400 of preset 0 takes 0.5 s on 28 threads, so 64 spp at 320x200 is about 0.25 s here; a 4-core laptop about 1 s. Do not run children in parallel: each uses all cores. Thumbnails are keyed by content hash, so a CPU thumbnail stays valid later; accept that it lacks RR's denoising.",
+"how_to_test": "`caustica --make-thumbnails --cpu` with thumbnail cache pointed at a scratch dir: all 174 print THUMBNAIL with no FAILED once lenient exists. Compare preset 0's image to the GPU's for rough brightness.",
+"size": "M"
+},
+{
+"feature": "No ray tracing GPU, D3D12: device creation and a display-only Gpu",
+"status": "missing",
+"gpu_code": "src/gpu/init.rs:55-92 (adapter loop, DXR 1.1 required, error at :92), :378-420 (compute pipelines, include_bytes of trace variants), src/gpu/passes.rs:12 (tlas unwrap in bind), src/gpu/scene.rs:8 (rebuild_scene), src/gpu/frame.rs:327 (display)",
+"plan": "Today the window opens, then Gpu::new bails and the app exits; there is no UI without DXR 1.1. Display and egui need no ray tracing: post.hlsl's display/filter/glare are plain cs_6_5 and gui.hlsl is graphics. Design: `Gpu::new(..., want_rt)` and `GpuState.ray_tracing: bool`. Adapter order in init.rs:55: (a) hardware with tier >=1.1; (b) hardware without it, with FL 12_0 or above; (c) `factory.EnumWarpAdapter`. Today's loop does not skip DXGI_ADAPTER_FLAG_SOFTWARE, so if WARP reports tier 1.1 it could be picked silently; make that explicit. WARP's actual DXR status is unverified (roadmap.md:211 says to verify first) and it does not matter here because tier (c) needs only compute. Need typed UAV loads: check `TypedUAVLoadAdditionalFormats` in OPTIONS and treat lack as unsuitable. Env `CAUSTICA_NO_RT=1` forces this path on the owner's RTX machine, in the style of CAUSTICA_NO_OMM. With ray_tracing false: split create_compute_pipelines at :378 so only filter, display, glare are created and the trace fields become Option (or make a small `Tracers` struct as one Option, which touches fewer lines); skip SER and OMM; rebuild_scene and update_materials return Ok early, so no BLAS or TLAS is made; bind (passes.rs:12) sets root SRV 1 only when a TLAS exists. Render forces n=0 at frame.rs:101 and bypasses integrate, path records, ReSTIR, lens and LPE preparation, since they dispatch tracers. Skip the filter when reference fills the screen. NGX start is skipped. Unknown until tried: whether a null root SRV for a stripped register passes the debug layer, so bind a zero-size dummy buffer if it warns (self-test fails on warnings). Memory: full-size texture set stays as is, even on WARP.",
+"how_to_test": "`CAUSTICA_NO_RT=1 caustica --cpu --headless --frames 5 --capture a.png --preset 0` on the RTX machine, then with a WARP adapter forced by `CAUSTICA_ADAPTER=warp`. --debug with zero D3D12 warnings. A real test on a pre-RT GPU if one is available; say so in the notes if not.",
+"size": "L"
+},
+{
+"feature": "No ray tracing GPU, Vulkan and Linux",
+"status": "missing",
+"gpu_code": "src/vulkan.rs:74-78 (DEVICE_EXTENSIONS), :357-440 (suitable: AS and rayQuery mandatory), src/vulkan/layout.rs:65,109,246 (binding 100), src/vulkan/res.rs:376+ (AS), src/vulkan/gpu.rs:789 (render)",
+"plan": "Linux has only this backend, so `suitable` must grade devices. Move acceleration_structure, ray_query and deferred_host_operations from mandatory to `rt_extensions`; `suitable` returns (family, rt: bool). Keep required for both: Vulkan 1.3 core, descriptor indexing, storage-image without format. Make shaderInt64 and bufferDeviceAddress RT-only if post and gui SPIR-V do not need them (confirm with tools/spirv_check.py on those modules). Prefer rt discrete, then rt other, then non-rt, including CPU type devices last (lavapipe). Enable only the extensions present. layout.rs: omit binding 100 and its write at :246 when !rt; this needs post's SPIR-V not to declare it, which spirv_bindings.py can confirm, otherwise add a dummy descriptor layout variant for post only. Pipelines: create tracers only with rt. Same n=0 flow as D3D12 in vulkan/gpu.rs. Honour CAUSTICA_NO_RT. This machine has only the NVIDIA ICD (checked /usr/share/vulkan/icd.d), so lavapipe needs installing for a real test; whether current lavapipe offers ray query is unverified and not needed for this path. No Vulkan loader at all: Entry::load fails, go to the no-device item.",
+"how_to_test": "`CAUSTICA_NO_RT=1 caustica --cpu --vulkan --headless --frames 5 --capture a.png`; `--vulkan-smoke` still passes; VK_ICD_FILENAMES pointing at lavapipe if installed; validation layer clean.",
+"size": "L"
+},
+{
+"feature": "CPU renderer as a selectable mode of the app (`--cpu`, Menu -> Renderer, automatic fallback)",
+"status": "missing",
+"gpu_code": "src/main.rs:2207-2300 (resumed, fallback pattern at :2260-2280), :1758-1794 (Live control); src/ui/chrome.rs:32-60 (renderer_menu); src/prefs.rs; src/renderer.rs:37-58",
+"plan": "Do not add a third Renderer variant: keep Gpu as display device, and treat CPU rendering as an App mode. Add `App.cpu_mode: bool`, set by `--cpu`, `prefs.cpu`, or automatically when Gpu reports ray_tracing false. In redraw at main.rs:1758: if cpu_mode and no Live, start one and keep it alive; apply the full-view frame edits; draw=false. Pending and restart at :1774-1795 work unchanged. In `resumed`, follow the Vulkan-to-D3D12 fallback (:2260): on a no-DXR error, retry with want_rt=false and toast why. In chrome.rs:42 add a third radio `CPU (software)`, keep the restart rule. Add `running` label for it. Status line: CPU spp, sec/pass rather than GPU ms. When a scene is refused, draw st.error as a viewport note, not only in Look. Gate GPU-only panels through a single `if self.cpu_mode` in render_tab.rs (integrator choice, battle, ReSTIR, SER, upscalers). --self-test, --script and frames: these go through the normal loop so they work with `--cpu`; script `capture()` needs the save item. `samples()` in main.rs:951 should return Live's samples, so scripts waiting on convergence terminate. Idle redraw at main.rs:2948 already covers Live.",
+"how_to_test": "`--cpu --preset 0 --frames 300 --capture a.png` once Live has samples; frame limit should wait: define `--cpu --frames N` as `until Live reaches --samples`, then capture, so headless runs are deterministic. A scripted run reaching samples=64. Pref toggle restarts into CPU mode.",
+"size": "M"
+},
+{
+"feature": "Machine with no usable graphics API at all",
+"status": "partial",
+"gpu_code": "src/main.rs:724 (exits before any window), :2211 (window, then Gpu::new), :991 (fail)",
+"plan": "The CLI already works with no device: `--reference` runs in App::new before window or device (confirmed by code path, not on such a machine). With no adapter at all, the UI cannot draw: egui here needs D3D12 or Vulkan. On Windows WARP makes this nearly impossible. On Linux it means no loader or no ICD. A software egui rasterizer is out of proportion: not recommended. Instead make the failure helpful: extend the error at init.rs:92 and vulkan selection to name the CPU route, `No GPU available. Render without one: caustica --reference 256 --scene NAME --capture out.png`, and on Linux suggest installing Mesa's lavapipe. fail() prints to stderr, and release builds on Windows have no console, so also show a native message box there (windows crate Win32_UI_WindowsAndMessaging is already enabled).",
+"how_to_test": "Run with VK_ICD_FILENAMES=/nonexistent: exit code non-zero with the message; `--reference` in the same environment still renders.",
+"size": "S"
+},
+{
+"feature": "Scenes the CPU refuses when it is the only renderer",
+"status": "partial",
+"gpu_code": "src/reference.rs:22-96 (unsupported), :994-999 (Progressive::new refuses)",
+"plan": "Measured with the release build today: 99 of 174 scene files are accepted, all 24 presets are accepted, 75 refused. Most common reasons: sheen 20, HDRI 15, texture maps 13, physical sky 12, clear coats 12, fog 8, sphere and sun lights 6, anisotropy 6, spectral 5, object media 5, DOF 5, BDPT and photon mapping 4, projections 4 (a scene can list several). The integrator groups close these. For CPU mode, integrator != 0 and s.firefly > 0 need a policy, since these are settings rather than scene features: CPU mode path-traces whatever the integrator setting (spectral and estimator choice converge to the same image, oracle.py already overrides the integrator), and implement the firefly clamp, which is one min() on the sample's luminance. Add `Progressive::new_lenient`, used in CPU mode and by `--reference-lenient`, that renders while ignoring what is left and publishes `missing` for a viewport banner: a usable, labelled image beats a black screen while parity is partial. The oracle and `--reference` stay strict, so comparisons never silently lose a feature. Remove lenient when `unsupported` is empty.",
+"how_to_test": "The 174-scene loop (`--reference 1 --width 64 --height 64`, used for the counts above) as a tool: tools/reference_coverage.py printing accepted count and reasons, tracked in docs. Strict and lenient produce identical bits on an accepted scene.",
+"size": "S"
+},
+{
+"feature": "Performance on all cores",
+"status": "partial",
+"gpu_code": "src/reference.rs:982 (cores), :1009-1055 (pass), :268-383 (Bvh::build), :739 (media Vec), :1116 (cores - 1), :920-930 (flat triangles); compare src/geometry.rs instancing in the GPU's BLAS path",
+"plan": "Thread use is sound. Measured, preset 0, 640x400, 32 spp, taskset: 9.0 s on 1 logical CPU, 3.0 s on 4, 1.5 s on 8, 0.5 s on 28 (the timer rounds to 0.1 s, so the last ratio is rough, about 18x). Rows are handed out dynamically and each row has its own mutex, so no false sharing to fix. Gaps: (1) Scene setup is single threaded and large: at 1 spp, 64x64 with 8 runs in parallel, forest-2 took 16.5 s, forest-1 7.8 s, crowd-2 1.9 s, nearly all setup since the tracing is tiny. Instrument geometry vs. BVH, then parallelise the BVH's upper splits with thread::scope down to 2^4 subtrees, keeping node order deterministic by concatenating in subtree order. `slots: Vec<Option<Tri>>` (:281) can become an index permutation applied at the end. (2) Live's setup is not cancellable: Progressive::new has no cancel check, so a drag on a big scene stacks full BVH builds on threads. Pass `&AtomicBool` into Scene::new and bail between geometry and each subtree, and keep at most one running job in Live. (3) Priority: Live leaves one core (:1116) yet competes on low-core machines; lower the pool's priority (SetThreadPriority BELOW_NORMAL on Windows, nice via libc on Linux, both only for Live, not the CLI). On machines with 4 or fewer cores in CPU mode also keep cores-1. (4) Per-path allocation: `media` Vec (:739) allocates on the first glass hit; the stack is at most 4 deep by the shader's rule, so a fixed `[(u32,u32);4]` plus a length removes it; same results. (5) Memory: Tri is 76 bytes and geometry() flattens instances; the forest scenes flatten everything. A two-level BVH mirroring TLAS/BLAS is the real fix, large; do it only if the measured numbers after (1) still bite; texture and other groups' UV additions enlarge Tri further. (6) SIMD: Vec3 not Vec3A; packet or wide-BVH traversal only after profiling; the 4-wide BVH is an option, not a requirement. All except (5) must keep `passes_match_one_render` bits, and (1) must keep BVH traversal results equal, not node layout.",
+"how_to_test": "tools-free: `time --reference 32` on preset 0, and `--reference 1 --width 64 --height 64 --scene forest-2` alone, before and after, at 1, 4, 8, 28 CPUs via taskset. Cargo test the_bvh_finds_the_nearest_triangle, passes_match_one_render. oracle.py default list still passes.",
+"size": "M"
+},
+{
+"feature": "Interactive use of the CPU viewport (camera moves, previews, edits)",
+"status": "partial",
+"gpu_code": "src/main.rs:1772-1795 (restart after 150 ms settle), src/reference.rs:1097-1140 (Live::start passes); src/gpu/capture.rs:7 (upload needs output size)",
+"plan": "Restarts are debounced at 150 ms, so engine-notes line 890's `a camera drag restarts it every frame` is out of date; fix that note. While dragging the image goes back to the GPU (split shows GPU) and in no-RT mode that is black. In CPU mode: (1) keep showing the old image while pending instead of clearing reference_valid at main.rs:1780. (2) Add a preview stage to Live: first pass at 1/4 resolution, 1 spp (a `Progressive` of [w/4,h/4]), upscaled by nearest or bilinear to output size for upload, then the full-size Progressive starts, keeping seeds and bits of the full render unchanged since the preview is discarded. Use only when the first full pass would exceed 100 ms, measured from the previous run. (3) To avoid BVH rebuilds on camera-only moves, reuse Scene if geometry_key and material_key are equal (same Progressive::reset as in the video item); only eye, inverse_vp and camera_media change. Reduces the restart on large scenes from seconds to nothing. Display-only edits already skip restarts through transport_key.",
+"how_to_test": "Self-test: yaw change in CPU mode, assert the Scene pointer or a build counter stays the same and samples restart. Manual: orbit on forest-1 in --cpu and see a low-res image follow within a second.",
+"size": "M"
+},
+{
+"feature": "Self-test and automated coverage of the CPU renderer",
+"status": "partial",
+"gpu_code": "src/selftest.rs:180-195 and :205-232 (frames 169-172), docs/claude/testing.md:30; tools/oracle.py; src/reference.rs:1220-1290 (four unit tests)",
+"plan": "Frames 169-172 check only that a first pass arrived (samples>0, compare set, reference_valid), or if unsupported(s) is non-empty that an error appeared. Which branch runs depends on the settings the earlier frames left (130-140 live edits plus randomize), so a scene change earlier can silently turn it into the refusal test, and image content is never checked. Add: (1) Pin the state: at 169 save settings in a Box and load preset 0, restore at 172. (2) Content: at 172, split=1, read_floats(18) (needs the linear_output fix), assert mean within 25% of the GPU's mean and no NaN. (3) A forced refusal on a free frame: physical_sky on, assert error names it. Free frames by a scan of the match arms, confirm against the map: 129, 138, 144, 148, 209, 214, 224, 235, 236, 239, 244, 245, 249, 250, 252, 255, 267, 274, 275. (4) Save and full view from their items on 214, 224. (5) Statistical oracle in-process: cargo test comparing nothing GPU; put the GPU comparison on a free frame: 256x160, preset 0, `samples` 64 raw on GPU and CPU, the mean's z from oracle.py under 6 and ratio within 2%; expect this to add seconds, so keep it small. (6) A separate `--self-test --cpu` frame list guarded by cpu_mode: open scene, full view, each view, save PNG/EXR, high-res still, turntable 2 frames, plus edit-restart; no tracer may be dispatched, D3D12 warnings fail. (7) New Rust tests: display twin per tone map; lenient vs. strict bits; flag conflicts of `--reference`; `the_flashlight_is_in_the_cli_scene`. (8) testing.md and verify.ps1: add `CAUSTICA_NO_RT=1 --self-test --cpu`. Long runs go to the verifier agent per CLAUDE.md.",
+"how_to_test": "Deliberately break upload_reference (write zeros) and confirm frame 172 fails; deliberately drop add_flashlight and confirm the new test fails; a full `--self-test` plus `--self-test --cpu` pass with zero warnings.",
+"size": "M"
+}
+]
+}
+],
+"critic": {
+"missed": [
+{
+"feature": "Refusal holes: scenes the CPU renders wrong without saying so",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "src/render.rs:596-612 and 652-657 (floor and wall texture sets; flag bits 8, 16 and 64 are set only here); src/reference.rs:61 and 66-78",
+"plan": "In reference::unsupported: (1) add s.floor.texture and s.walls.texture, which line 61 skips because it only checks objects. (2) Replace the bit-8 and bit-64 checks: lighting::materials never sets those bits, so the alpha cutout and emissive map refusals can never fire. Inspect crate::mesh::maps(o) instead. (3) Use mesh::has_maps(o) in place of mesh_has_maps, because the latter ignores Object::maps_from. (4) Refuse s.battle, which is ignored silently today. Add a table test: one Settings per feature, each must be refused. Remove each refusal as its feature lands.",
+"how_to_test": "Unit test on unsupported(): preset 0 with floor.texture set, and with walls.texture set, must be refused. Oracle: rerun the default scenes and expect no change.",
+"size": "S"
+},
+{
+"feature": "Time-driven scene state in the CLI path (animation at the playhead, per-frame script, physics, cloth)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "src/main.rs:1054-1067 (timeline.update, step_physics each frame); src/main.rs:721-725 (--reference returns before any of it); src/anim.rs:270 (Animation::apply)",
+"plan": "Add reference::prepare(s: &Settings, t: f32) -> Settings, used only by the CLI path: s.animation.apply(s, t), which also runs the per-frame script, then the flashlight and beam rods. Add --time T (default 0). For physics, step physics::Sim with a fixed 1/60 s to t, which also publishes cloth meshes. GPU headless steps by real dt, so its physics is not repeatable: the oracle must either set physics.enabled=false on both sides or gain a fixed-step headless flag. This is the shared base of the team's video and timeline item.",
+"how_to_test": "lava-lamp and orrery (tracks), newtons-cradle and festival-banners (physics, cloth): oracle with physics off and t = 0. Unit test: prepare at t equals Animation::apply at t.",
+"size": "M"
+},
+{
+"feature": "Laser puzzle beam rods on the CLI reference",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "src/main.rs:1198-1201; src/laser.rs:108 (trace), src/laser.rs:222 (beam_objects)",
+"plan": "The viewport already passes the frame copy (main.rs:1227), so only the CLI lacks them. In reference::prepare, when puzzle.enabled && puzzle.beam: let (segments, _) = laser::trace(&s); s.objects.extend(laser::beam_objects(&s, &segments)). Same trace order as add_flashlight in main.rs:1196. Note the GPU app's segments come from its own running Laser state, so compare with a settled scene.",
+"how_to_test": "No builtin scene enables the puzzle, so use a laser.rs unit test fixture saved to a file with --reference. Assert the rod material id gets radiance. Oracle on that file.",
+"size": "S"
+},
+{
+"feature": "Open GPU and CPU disagreements: shape-material-matrix blocks, coplanar dielectric contacts",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "docs/engine-notes.md section CPU reference renderer, Measured; shaders/pathtrace.hlsl:1443-1456 (false-hit loop); src/reference.rs:754-784",
+"plan": "Two separate items. (1) shape-material-matrix: two blocks at 0.93, about 3.5 standard errors, still open. Bisect by rendering that block with tools/reference_compare.py --heat and removing materials one at a time, before any new feature lands on top. (2) cornell-water-tank and glass-of-water differ 3-6% because the water's grounded bottom face is coplanar with the floor, and DXR hit order for equal t differs from the CPU BVH. Matching DXR order is not possible, so this needs an owner decision: lift those scenes 1 cm (measured to agree to 0.04%), or add a grounded-dielectric offset in geometry that both renderers read. Do not tune the CPU to match.",
+"how_to_test": "tools/oracle.py --scenes shape-material-matrix,cornell-water-tank,glass-of-water passes both the mean and block tests at 1024 spp.",
+"size": "M"
+},
+{
+"feature": "Two-level BVH with shared mesh trees (instancing)",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "shaders/common.hlsli:59 (Instance); src/render.rs instance records; src/reference.rs:920-935 (flattens geometry::geometry)",
+"plan": "Split src/reference/bvh.rs into per-mesh BLAS (the existing binned SAH Bvh, in object space, cached by the mesh key in geometry::object_source) and a TLAS over instances holding the world-to-object matrix. Transform the ray at the TLAS leaf and return the hit in world space. Static geometry stays one world-space BLAS. Every object sharing a mesh reuses it, so a Scene::new after one object's edit rebuilds only the TLAS, which the team's interactive item needs. SDF instances plug in as a second leaf kind, so build this before the SDF work. Emissive triangles still enumerate per instance. Overlaps the team's performance item, which should stay about threads and SIMD.",
+"how_to_test": "Unit test: flat and two-level traversal return the same nearest hit on 1e5 random rays over stylised-forest. Oracle unchanged. Log peak memory and build time for stylised-forest and beautiful-game before and after.",
+"size": "M"
+},
+{
+"feature": "Light painting: scene changes keep the accumulation (also what motion blur is built on)",
+"status": "missing",
+"affects_converged_image": true,
+"gpu_code": "src/render.rs:150-151; src/ui/windows.rs:400; src/video.rs:911-917 (motion blur sets g.painting = true per pass)",
+"plan": "Add Progressive::set_scene(&mut self, s: &Settings), which rebuilds Scene and keeps sums and the sample counter, so seeds keep advancing. Live gets a painting flag: on a key change it swaps the scene instead of restarting (main.rs:1776-1786). Motion blur is then: for each pass, Animation::apply at t = frame_time + (u - 0.5) * shutter, u = fract(pass * 0.618034), set_scene, pass(1 spp). Implement before the team's motion blur item, which depends on it.",
+"how_to_test": "Unit test: two half-count passes with light A then B give the same image as the mean of separate A and B renders. Self-test frames around 242 run with the CPU renderer.",
+"size": "S"
+},
+{
+"feature": "Light sampling mode (Settings::mis_mode: NEE only, BSDF only)",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "shaders/common.hlsli:22 (scene_info.w bits 4-5); shaders/pathtrace.hlsl:1434-1436, 1506, the emitted-weight line after 1584, the NEE divisor mis==1?pl:pl+pdf",
+"plan": "In radiance(): mis = s.mis_mode. mis==2: skip sample_light, hit weight 1. mis==1: NEE divides by pl alone, and a BSDF-found emitter has weight 0 unless previous_delta. mis==0: as today. Silently ignored today, which is harmless for the mean but makes the CPU useless for checking those GPU modes. The same three-way rule applies to every later strategy: suns, HDRI, SDF emitters, fog scatter NEE. So put it in a small MisMode helper in lights.rs from the start.",
+"how_to_test": "tools/oracle.py --scenes veach-mis --set mis_mode=1 and --set mis_mode=2. Unit test: the three CPU modes agree in their mean within noise on preset 0.",
+"size": "S"
+},
+{
+"feature": "Accumulation precision (f32 per-pixel sums)",
+"status": "partial",
+"affects_converged_image": true,
+"gpu_code": "src/reference.rs:990 and 1003 (sums: Vec<Vec3>); docs/engine-notes.md, CPU reference renderer, Not done",
+"plan": "Change sums to Vec<[f64; 3]> and convert at image(). Adding a sample to an f32 sum loses low bits past tens of thousands of samples, which matters because this is the ground-truth renderer. Each LPE and AOV buffer later uses the same type, so do it before those exist. Memory doubles at 8192 x 8192, which is acceptable.",
+"how_to_test": "passes_match_one_render stays bit-identical. New unit test: add 1e6 samples of 1e-3 alongside one of 1e3 and check the mean to 1e-9.",
+"size": "S"
+},
+{
+"feature": "Material ball thumbnails without a GPU",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "src/balls.rs:208-244 (spawns a headless copy of the app)",
+"plan": "When the machine has no ray tracing device, the spawned process cannot render, so the editor's balls stay empty. Team's thumbnail item covers scene thumbnails only. Spawn the same exe with --reference at 128 x 128 with about 64 spp over balls::SCENE and write the PNG through the CPU display transform. Needs that transform first, and each preset's material feature before its ball is right, so refused materials should show a placeholder rather than an error.",
+"how_to_test": "Run with the no-GPU path forced; assert PNGs land in dirs::cache()/materials and match the GPU balls' mean within 2%.",
+"size": "S"
+},
+{
+"feature": "Script, console and critique on the CPU renderer (frames(n), capture, --script, text-to-scene critique)",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "src/script.rs:96 and 102; src/main.rs:1795-1800 (video::save_current(g, ...))",
+"plan": "Define frames(n) in CPU mode as n passes of s.spp samples each, replying when Progressive reaches them. Route capture and the critique's PNG through the same save path as the team's Save the current image item, not video::save_current. Depends on CPU mode and the display transform.",
+"how_to_test": "A .rhai script with set, frames(4), capture under --cpu headless writes the file with the expected sample count. Self-test console frames with the CPU renderer.",
+"size": "S"
+},
+{
+"feature": "Viewport tools reading GPU buffers, not in the team's list: selection and hover silhouettes, Freeze reference A/B",
+"status": "missing",
+"affects_converged_image": false,
+"gpu_code": "shaders/gui.hlsl:7-10 (object_id u19); src/main.rs:1749-1757 (capture_reference); texture 13 (reference_image), which upload_reference also fills",
+"plan": "Silhouettes: the first-hit material id + 1 from the CPU id AOV (the team's AOV item), uploaded to u19 on each pass. Freeze: texture 13 is the only reference slot and the CPU image occupies it when it is the renderer, so CPU mode needs a second upload slot or a CPU-side blend of the frozen image and the running mean using settings.split. Prefer the CPU-side blend: no shader change, and a display-only Gpu stays simple.",
+"how_to_test": "--cpu with --ui-select object:0 --capture-ui shows the outline. Self-test: freeze, change a light, assert both sides of the split differ.",
+"size": "S"
+}
+],
+"order": "SCOPE NOTES. Static read only: nothing was run, including the oracle, and no files were edited. The relayed user request is about something else (\"extended flashlight config when it's enabled\", last attempt \"too big\"). This audit did not address it. It still needs doing as UI work after this, compactly: Flashlight fields exist in src/scene.rs:682-713 and the Scene tab already shows them under the checkbox per the notes, so please clarify with the owner what \"extended\" should add.\n\nCOVERAGE CHECK. Every material flag bit (1, 2, 4, 8, 16, 32, 64, bits 8-10, 2048, 4096, 8192, 16384), every cbuffer Frame field and every Settings, Material, Fog, Flashlight, AreaLight and Object field is either in the team's list, display-only, physics-only or added above, apart from these gaps: scene_info bits 4-5 (mis_mode), and flags that exist but are not reachable from reference (bits 8 and 64, the refusal hole). Team statuses I would keep: stars and moon are not-needed because sky.rs bakes them into the map (no HLSL reference), so they arrive with the atmosphere map, though they do change the image. Tilt-shift (projection 4) is inside the DoF item. Biggest theme missed: the refusal list has holes and the CLI skips time-driven state, so a scene can render wrong with no error, which undermines every parity claim until fixed.\n\nSTRUCTURE. Do the split first as pure moves in a separate commit, with no behaviour change (passes_match_one_render and oracle identical). src/reference/mod.rs: public API, unsupported, run. progressive.rs: Progressive, Live. prepare.rs: settings to frame copy. bsdf.rs: eval_bsdf, fresnel, GGX, later coat, sheen, anisotropy, film, grating. bvh.rs: BLAS and TLAS. scene.rs: Scene::new, Surface, visibility rules. lights.rs: emitter list, sample_light, MisMode. camera.rs: dispatcher. textures.rs. env.rs: HDRI, sky, split sun, ground, catcher. media.rs: dielectric stack, fog, tracking. sdf.rs. spectral.rs. integrators/{path, bdpt, photon, battle}.rs. aov.rs: LPE and AOVs. display.rs: CPU display transform. One feature per commit, each removing its refusal, adding oracle coverage and a notes line. Each integrator takes a Scene and shares a Vertex-level shade function, so BDPT and photons do not get their own copies of the BSDF rules.\n\nORDER.\n0. Trust: refusal holes; reference::prepare (time state, flashlight, rods); f64 sums; resolve the shape-material-matrix block; owner decision on coplanar contacts.\n1. Split into modules (pure move).\n2. Foundations: hit frame; two-level BVH; emitter list semantics and one-sided and hidden rules; MisMode; camera dispatcher; map of integrator rules.\n3. Cheap image features on those: firefly clamp, projections, DoF, sphere and sun lights, IES, flashlight, portals, beam splitters, real lens and dispersion.\n4. Materials: texture store, box mapping, mesh UVs and tangents, all maps, alpha and blend, ray-cone LOD decision, then coat, sheen, anisotropy, thin film, RGB gratings.\n5. Environment: HDRI, importance sampling, split sun, ground, catcher, physical sky map and sun.\n6. Volumes: fog box, shadow transmittance, object media, chromatic, heterogeneous, equiangular, nested and camera medium finish. Then SDF infrastructure (as a TLAS leaf kind), fields, metaballs, exact shapes, SDF emitters.\n7. Spectral core, hero and dispersion, spectral film and gratings, measured spectra. After 4 and 6, since it touches every BSDF and medium.\n8. Other estimators and outputs: AOVs and LPE, BDPT plus splats, photon mapping, battle mode.\n9. App: display transform, light painting then motion blur, save and export, denoiser, no-RT D3D12 device and display-only Gpu, then Vulkan, --cpu mode and fallback, interactive use, script and critique, silhouettes and freeze, ball and scene thumbnails, convergence graph, self-test coverage throughout.\n\nReasons for the less obvious placements: two-level BVH comes before SDF and interactive work; light painting comes before motion blur; AOVs before LPE since they share the buffers; display transform before every file and thumbnail item."
+}
+}

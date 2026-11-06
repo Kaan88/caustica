@@ -102,6 +102,9 @@ impl App {
                     self.ui.critique_scene = Some(outcome.settings);
                     self.ui.toast("The critique is in the Scene tab");
                 } else {
+                    if let Some(st) = &mut self.stats {
+                        st.mark("wordsmith");
+                    }
                     let who = self.ui.prefs.ai.who();
                     let title = self.apply_ai_scene(outcome.settings, mode == AiMode::New);
                     let verb = if mode == AiMode::New {
@@ -119,7 +122,7 @@ impl App {
     /// entry that was open (Ctrl+S must not overwrite that file because the titles happen to
     /// match); an edit keeps them. Returns the title.
     pub(super) fn apply_ai_scene(&mut self, mut loaded: Settings, fresh: bool) -> String {
-        self.ui.checkpoint(&self.settings);
+        self.ui.checkpoint_scene(&self.settings);
         self.laser = crate::laser::Laser::default();
         self.physics = None;
         self.ui.selection = Selection::Stage;
@@ -138,6 +141,7 @@ impl App {
         let title = loaded.scene_name.clone();
         self.settings = loaded;
         self.reset_baseline = self.settings.clone();
+        self.ui.search.clear();
         title
     }
     /// Menu > Text-to-scene model: the backend, its endpoint and key (the model and the
@@ -155,7 +159,7 @@ impl App {
                 ui.label("Endpoint");
                 ui.add(
                     egui::TextEdit::singleline(&mut ai.base_url)
-                        .hint_text("http://localhost:11434/v1")
+                        .hint_text(field_hint("http://localhost:11434/v1"))
                         .desired_width(220.),
                 )
                 .on_hover_text("Ollama: http://localhost:11434/v1 · LM Studio: http://localhost:1234/v1 · llama.cpp: http://localhost:8080/v1");
@@ -176,7 +180,7 @@ impl App {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui.ai_key)
                         .password(true)
-                        .hint_text(hint)
+                        .hint_text(field_hint(hint))
                         .desired_width(220.),
                 )
                 .on_hover_text("Kept for this session only, never saved");
@@ -270,7 +274,7 @@ impl App {
             };
             ui.add(
                 egui::TextEdit::singleline(&mut self.ui.prefs.ai.model)
-                    .hint_text(hint)
+                    .hint_text(field_hint(hint))
                     .desired_width(170.),
             );
             let mut names: Vec<String> = provider
@@ -369,7 +373,7 @@ impl App {
                 };
                 ui.add(
                     egui::TextEdit::multiline(&mut self.ui.describe)
-                        .hint_text(hint)
+                        .hint_text(field_hint(hint))
                         .desired_rows(3)
                         .desired_width(f32::INFINITY),
                 );
@@ -407,6 +411,7 @@ impl App {
                             "Sends it to {}. The result is undoable (Ctrl+Z). Change the backend in Menu > Text-to-scene model",
                             self.ui.prefs.ai.provider.label()
                         ))
+                        .on_disabled_hover_text(missing.as_deref().unwrap_or("Describe what you want first"))
                         .clicked()
                     {
                         if mode == AiMode::Critique {
@@ -419,9 +424,7 @@ impl App {
                     match &missing {
                         Some(why) => ui.label(egui::RichText::new(why).small()),
                         None => ui.label(
-                            egui::RichText::new(self.ui.prefs.ai.provider.label())
-                                .small()
-                                .weak(),
+                            egui::RichText::new(self.ui.prefs.ai.provider.label()).small(),
                         ),
                     };
                 });

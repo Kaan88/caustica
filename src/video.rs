@@ -137,6 +137,11 @@ impl ImageFormat {
         matches!(self, ImageFormat::HdrPng | ImageFormat::Jxr)
     }
 }
+/// Whether saving twice under this name template lands on the same file: only `{time}` and
+/// `{spp}` change between two saves of one view.
+pub fn name_repeats(template: &str) -> bool {
+    !template.contains("{time}") && !template.contains("{spp}")
+}
 /// Export file names from a template (wave 3; Export → *File name*): `{scene}`, `{date}`
 /// (YYYY-MM-DD) and `{time}` (HH-MM-SS, local), `{spp}` (samples so far), `{w}` and `{h}` (the
 /// image size). Characters Windows forbids in names become `_`; an empty result is "caustica".
@@ -1093,6 +1098,13 @@ pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<Stri
 mod tests {
     use super::*;
 
+    #[test]
+    fn name_templates_that_repeat() {
+        assert!(name_repeats("caustica"));
+        assert!(name_repeats("{scene}-{date}-{w}x{h}"));
+        assert!(!name_repeats("{scene}-{time}"));
+        assert!(!name_repeats("caustica-{spp}"));
+    }
     #[test]
     fn name_templates_expand_and_stay_valid() {
         let n = expand_name("{scene}-{spp}spp-{w}x{h}", "Cornell: box?", 64, 640, 360);

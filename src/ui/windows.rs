@@ -1,6 +1,38 @@
 //! Context menu, shortcut sheet, Scenes window and the tool windows (scopes, convergence graph, remote, stats).
 use super::*;
 
+/// The browser's arrow keys, with no modifier (Shift+Left and Right step the timeline frame): Up
+/// and Down, and in the search box they alone, as Left and Right move its cursor.
+fn scene_step(ui: &mut egui::Ui, keys_free: bool, in_search: bool) -> i32 {
+    if !(keys_free || in_search) || !ui.input(|i| i.modifiers.is_none()) {
+        return 0;
+    }
+    ui.input_mut(|i| {
+        let mut key = |key| i.consume_key(egui::Modifiers::NONE, key) as i32;
+        let down = key(egui::Key::ArrowDown) - key(egui::Key::ArrowUp);
+        if in_search {
+            down
+        } else {
+            down + key(egui::Key::ArrowRight) - key(egui::Key::ArrowLeft)
+        }
+    })
+}
+/// The card `step` on from the highlighted one among those the filters show, stopping at the ends.
+/// A highlight the filters hide starts from the first card.
+fn step_card(visible: &[usize], selected: Option<usize>, step: i32) -> Option<usize> {
+    let at = selected.and_then(|s| visible.iter().position(|v| *v == s));
+    let next = match at {
+        Some(at) => (at as i32 + step).clamp(0, visible.len() as i32 - 1) as usize,
+        None => 0,
+    };
+    visible.get(next).copied()
+}
+/// Enter in the search box: the highlighted card if the filters show it, else the first.
+fn enter_card(visible: &[usize], selected: Option<usize>) -> Option<usize> {
+    selected
+        .filter(|s| visible.contains(s))
+        .or(visible.first().copied())
+}
 impl App {
     /// The viewport's right-click menu, kept open at its position until a click elsewhere.
     pub(super) fn context_menu(&mut self, ctx: &egui::Context) {
@@ -29,7 +61,7 @@ impl App {
                         _ => None,
                     };
                     if let Some(name) = name {
-                        ui.label(egui::RichText::new(name).small().weak());
+                        ui.label(egui::RichText::new(name).small());
                     }
                     chosen = context_items(ui, selected);
                     ui.separator();
@@ -63,18 +95,22 @@ impl App {
             .resizable(false)
             .collapsible(false)
             .show(ctx, |ui| {
-                // Three groups side by side, so the sheet fits a laptop screen.
+                // Three columns side by side, so the sheet fits a laptop screen.
                 ui.horizontal_top(|ui| {
-                    for (group, keys) in SHORTCUTS {
+                    for column in SHORTCUT_COLUMNS {
                         ui.vertical(|ui| {
-                            section(ui, group);
-                            grid(group).show(ui, |ui| {
-                                for (k, what) in *keys {
-                                    ui.label(egui::RichText::new(*k).strong());
-                                    ui.label(*what);
-                                    ui.end_row();
-                                }
-                            });
+                            for &i in column {
+                                let (group, keys) = SHORTCUTS[i];
+                                section(ui, group);
+                                // Long rows wrap: the sheet must fit a 1280 wide window.
+                                grid(group).max_col_width(200.).show(ui, |ui| {
+                                    for (k, what) in keys {
+                                        ui.label(egui::RichText::new(*k).strong());
+                                        ui.label(*what);
+                                        ui.end_row();
+                                    }
+                                });
+                            }
                         });
                         ui.add_space(12.);
                     }
@@ -93,10 +129,11 @@ impl App {
         let Some(e) = self.ui.scenes.get(index).cloned() else {
             return;
         };
-        self.ui.checkpoint(&self.settings);
+        self.ui.checkpoint_scene(&self.settings);
         self.laser = crate::laser::Laser::default();
         match crate::scenes::load_into(&mut self.settings, &e.path) {
             Ok(()) => {
+                self.ui.mark_clean(&self.settings);
                 self.ui.selection = Selection::Stage;
                 self.ui.scene_selected = Some(index);
                 self.ui.loaded_file = Some((e.path.clone(), self.settings.scene_name.clone()));
@@ -167,9 +204,13 @@ impl App {
         }
     }
     pub(super) fn scenes_window(&mut self, ctx: &egui::Context) {
+        let opened = self.ui.show_scenes && !self.ui.scenes_were_open;
+        self.ui.scenes_were_open = self.ui.show_scenes;
         if !self.ui.show_scenes {
             return;
         }
+        // The arrows and Enter drive the cards unless another text field has them.
+        let keys_free = !self.text_focus && self.ui.transform.is_none();
         // Headless runs (captures, self-test) never spawn renders.
         if !self.ui.thumbnails_requested && !self.hidden {
             self.request_thumbnails(false);
@@ -178,6 +219,7 @@ impl App {
         let mut open = self.ui.show_scenes;
         let mut load = None;
         let mut rerender = false;
+        let mut close = false;
         egui::Window::new("Scenes")
             .open(&mut open)
             .default_size([760., 640.])
@@ -185,8 +227,28 @@ impl App {
             .collapsible(false)
             .show(ctx, |ui| {
                 let state = &mut self.ui;
+                let search_id = ui.make_persistent_id("scene search");
+                let in_search = ui.memory(|m| m.has_focus(search_id));
+                // Before the box: it would take Up and Down for the start and end of its text.
+                let step = scene_step(ui, keys_free, in_search);
+                let mut enter = false;
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut state.scene_search).hint_text("Search scenes…").desired_width(220.));
+                    let r = ui.add(egui::TextEdit::singleline(&mut state.scene_search).id(search_id).hint_text(field_hint("Search scenes…")).desired_width(220.));
+                    if opened {
+                        r.request_focus();
+                    }
+                    // A single line gives the focus up on Enter and Esc.
+                    if r.lost_focus() {
+                        enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                            if state.scene_search.is_empty() {
+                                close = true;
+                            } else {
+                                state.scene_search.clear();
+                                r.request_focus();
+                            }
+                        }
+                    }
                     if ui.button("Refresh").on_hover_text("Read the scenes folder again").clicked() {
                         state.scenes = crate::scenes::list();
                         state.scene_selected = None;
@@ -242,6 +304,15 @@ impl App {
                 if state.scene_list == 2 {
                     visible.sort_by_key(|i| state.prefs.recency(&state.scenes[*i].path));
                 }
+                let move_card = step != 0;
+                if move_card {
+                    state.scene_selected = step_card(&visible, state.scene_selected, step).or(state.scene_selected);
+                }
+                if enter {
+                    load = enter_card(&visible, state.scene_selected);
+                } else if keys_free && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    load = state.scene_selected.filter(|i| visible.contains(i));
+                }
                 if visible.is_empty() && state.scene_list > 0 {
                     note(ui, if state.scene_list == 1 { "No favourites yet: tick Favorite on a scene." } else { "No scenes opened yet." });
                 }
@@ -261,6 +332,9 @@ impl App {
                                 let r = card(ui, e, texture, state.scene_selected == Some(i));
                                 if r.clicked() {
                                     state.scene_selected = Some(i);
+                                }
+                                if move_card && state.scene_selected == Some(i) {
+                                    r.scroll_to_me(None);
                                 }
                                 if r.double_clicked() {
                                     load = Some(i);
@@ -288,7 +362,7 @@ impl App {
                             ui.horizontal_wrapped(|ui| {
                                 license_badge(ui, &e.license);
                                 for t in &e.tags {
-                                    ui.label(egui::RichText::new(t).small().weak());
+                                    ui.label(egui::RichText::new(t).small());
                                 }
                             });
                             if !e.license.attribution.is_empty() {
@@ -351,10 +425,11 @@ impl App {
                     let family = crate::generators::FAMILIES[state.gen_family].0;
                     match crate::generators::generate(family, state.gen_seed) {
                         Ok(mut g) => {
-                            state.checkpoint(&self.settings);
+                            state.checkpoint_scene(&self.settings);
                             g.keep_output(&self.settings);
                             self.settings = g;
                             state.selection = Selection::Stage;
+                            state.mark_clean(&self.settings);
                         }
                         Err(e) => state.error(format!("{e:#}")),
                     }
@@ -373,8 +448,8 @@ impl App {
                 ui.separator();
                 ui.label(egui::RichText::new("Save the current scene").strong());
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut state.save_title).hint_text("Title").desired_width(180.));
-                    ui.add(egui::TextEdit::singleline(&mut state.save_description).hint_text("Description").desired_width(260.));
+                    ui.add(egui::TextEdit::singleline(&mut state.save_title).hint_text(field_hint("Title")).desired_width(180.));
+                    ui.add(egui::TextEdit::singleline(&mut state.save_description).hint_text(field_hint("Description")).desired_width(260.));
                     if ui.button("Save to scenes/user").clicked() {
                         match crate::scenes::save_user(&self.settings, &state.save_title, &state.save_description) {
                             Ok(path) => {
@@ -388,7 +463,7 @@ impl App {
                     }
                 });
             });
-        self.ui.show_scenes = open;
+        self.ui.show_scenes = open && !close;
         if rerender {
             self.request_thumbnails(true);
         }
@@ -406,6 +481,15 @@ impl App {
             "Light painting off"
         });
     }
+    /// T: the flashlight on or off, also while walking.
+    pub fn toggle_flashlight(&mut self) {
+        self.settings.flashlight = !self.settings.flashlight;
+        self.ui.toast(if self.settings.flashlight {
+            "Flashlight on (T)"
+        } else {
+            "Flashlight off (T)"
+        });
+    }
     /// `: walk mode on or off.
     pub fn toggle_walk(&mut self) {
         if self.walking.take().is_some() {
@@ -414,7 +498,7 @@ impl App {
         } else {
             self.walking = Some(crate::walk::Walk::enter(&mut self.settings));
             self.ui.toast(
-                "Walk mode: WASD, Space jump, C crouch, Shift run, F fly, wheel body size, drag to look, Esc to stop",
+                "Walk mode: WASD, Space jump, C crouch, Shift run, F fly, T flashlight, wheel body size, drag to look, Esc to stop",
             );
         }
     }
@@ -717,7 +801,8 @@ impl App {
                     let n = PRESETS.len() as i64;
                     self.preset =
                         ((self.preset as i64 + value.as_i64().unwrap_or(1)).rem_euclid(n)) as usize;
-                    self.settings.preset(self.preset);
+                    let preset = self.preset;
+                    self.switch_scene("Scene", |s| s.preset(preset));
                 }
                 "restart" => self.actions.reset = true,
                 _ => {
@@ -748,6 +833,7 @@ impl App {
         }
         let Some(pad) = &mut self.gamepad else { return };
         use gilrs::{Axis, Button, EventType};
+        let mut switch = false;
         while let Some(ev) = pad.next_event() {
             if let EventType::ButtonPressed(button, _) = ev.event {
                 match button {
@@ -762,7 +848,7 @@ impl App {
                                 n - 1
                             })
                             % n;
-                        self.settings.preset(self.preset);
+                        switch = true;
                     }
                     Button::DPadUp => {
                         self.settings.exposure = (self.settings.exposure * 1.25).min(10.)
@@ -773,6 +859,11 @@ impl App {
                 }
             }
         }
+        if switch {
+            let preset = self.preset;
+            self.switch_scene("Scene", |s| s.preset(preset));
+        }
+        let Some(pad) = &mut self.gamepad else { return };
         let Some((_, g)) = pad.gamepads().find(|(_, g)| g.is_connected()) else {
             return;
         };
@@ -983,26 +1074,83 @@ impl App {
                         ),
                         ("Scene files opened", s.scenes_seen.len().to_string()),
                         ("Shader hot reloads", s.hot_reloads.to_string()),
+                        ("Videos exported", s.videos_exported.to_string()),
+                        ("Laser levels solved", s.puzzles_solved.len().to_string()),
+                        ("Distance walked", format!("{:.0} units", s.walked)),
                     ] {
                         ui.label(label);
                         ui.monospace(value);
                         ui.end_row();
                     }
                 });
-                section(ui, "Achievements");
-                for (id, title, how) in crate::stats::ACHIEVEMENTS {
-                    ui.horizontal(|ui| match s.achievements.get(id) {
-                        Some(date) => {
-                            ui.label(egui::RichText::new(title).color(ACCENT).strong());
-                            note(ui, &format!("{how} · {date}"));
-                        }
-                        None => {
-                            ui.label(egui::RichText::new(title).weak());
-                            note(ui, how);
+                let done = crate::stats::ACHIEVEMENTS
+                    .iter()
+                    .filter(|a| s.achievements.contains_key(a.id))
+                    .count();
+                section(
+                    ui,
+                    &format!(
+                        "Achievements ({done} / {})",
+                        crate::stats::ACHIEVEMENTS.len()
+                    ),
+                );
+                egui::ScrollArea::vertical()
+                    .max_height(420.)
+                    .show(ui, |ui| {
+                        for group in crate::stats::GROUPS {
+                            ui.label(egui::RichText::new(group).strong());
+                            for a in crate::stats::ACHIEVEMENTS
+                                .iter()
+                                .filter(|a| a.group == group)
+                            {
+                                match s.achievements.get(a.id) {
+                                    Some(date) => {
+                                        ui.label(
+                                            egui::RichText::new(a.title).color(ACCENT).strong(),
+                                        );
+                                        note(ui, &format!("{} · {date}", a.how));
+                                    }
+                                    None => {
+                                        ui.label(a.title);
+                                        note(ui, a.how);
+                                        let (now, goal) = s.progress(a.goal);
+                                        if goal > 1. {
+                                            ui.add(
+                                                egui::ProgressBar::new((now / goal).min(1.) as f32)
+                                                    .desired_height(4.),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            ui.add_space(6.);
                         }
                     });
-                }
             });
         self.ui.show_stats = open;
+    }
+}
+
+#[cfg(test)]
+mod scene_browser_tests {
+    use super::{enter_card, step_card};
+    #[test]
+    fn arrows_walk_the_visible_cards_and_stop_at_the_ends() {
+        let visible = [3, 7, 9];
+        assert_eq!(step_card(&visible, Some(3), 1), Some(7));
+        assert_eq!(step_card(&visible, Some(7), -1), Some(3));
+        assert_eq!(step_card(&visible, Some(3), -1), Some(3));
+        assert_eq!(step_card(&visible, Some(9), 1), Some(9));
+        // Filtered away or nothing yet: the first card.
+        assert_eq!(step_card(&visible, Some(5), 1), Some(3));
+        assert_eq!(step_card(&visible, None, 1), Some(3));
+        assert_eq!(step_card(&[], Some(5), 1), None);
+    }
+    #[test]
+    fn enter_never_loads_a_scene_the_search_hides() {
+        assert_eq!(enter_card(&[3, 7], Some(7)), Some(7));
+        assert_eq!(enter_card(&[3, 7], Some(5)), Some(3));
+        assert_eq!(enter_card(&[3, 7], None), Some(3));
+        assert_eq!(enter_card(&[], Some(5)), None);
     }
 }

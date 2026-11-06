@@ -180,8 +180,10 @@ impl App {
                     row(ui, "Camera", "Orbit turns the camera around its target; Timeline plays the scene's keyframes (camera, objects, lights, materials), with motion blur when the timeline's shutter is open.", |ui| {
                         ui.selectable_value(&mut o.timeline, false, "Orbit");
                         ui.add_enabled_ui(!animation.is_empty() || simulated, |ui| {
-                            ui.selectable_value(&mut o.timeline, true, "Timeline")
-                                .on_disabled_hover_text("The scene has no keyframes (I keys the selection).");
+                            crate::ui::why_disabled(
+                                ui.selectable_value(&mut o.timeline, true, "Timeline"),
+                                "The scene has no keyframes (I keys the selection).",
+                            );
                         });
                     });
                 });
@@ -283,6 +285,16 @@ impl App {
                 ui.add_sized([380., 380. * h as f32 / w as f32], egui::Spinner::new());
             }
             ui.add(egui::ProgressBar::new(progress).show_percentage());
+            if self
+                .ui
+                .close_armed
+                .is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(6))
+            {
+                ui.colored_label(
+                    crate::ui::WARN,
+                    "Closing cancels this export and deletes the unfinished file. Close again to do that.",
+                );
+            }
             ui.label(format!(
                 "Frame {} of {} · {} / {} spp",
                 (job.frame + 1).min(o.frames),

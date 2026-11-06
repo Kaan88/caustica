@@ -290,13 +290,14 @@ impl App {
         if targets.iter().any(|t| {
             matches!(t, Selection::Object(i) if self.settings.objects.get(*i).is_some_and(|o| o.locked))
         }) {
-            self.ui.toast("Locked: this object can't be moved");
+            self.ui.toast("Locked: unlock it under More");
             return false;
         }
-        if targets.is_empty()
-            || !gizmo::allows(&targets, mode)
-            || gizmo::frame(&self.settings, targets[0]).is_none()
-        {
+        if !targets.is_empty() && !gizmo::allows(&targets, mode) {
+            self.ui.toast("The main light only moves and scales");
+            return false;
+        }
+        if targets.is_empty() || gizmo::frame(&self.settings, targets[0]).is_none() {
             return false;
         }
         // A body held by the mouse (physics) is let go (release also drops its grab mass): the

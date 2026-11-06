@@ -45,7 +45,7 @@ pub fn object_source(o: &Object) -> (String, Source) {
     }
 }
 /// Local scale (size · 0.35 · per-axis factors) and rotation of an object.
-fn scale_rotation(o: &Object) -> (Vec3, Mat4) {
+pub(crate) fn scale_rotation(o: &Object) -> (Vec3, Mat4) {
     (
         Vec3::new(o.scale_xz[0], o.stretch, o.scale_xz[1]) * o.size * 0.35,
         Mat4::from_euler(

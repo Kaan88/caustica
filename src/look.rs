@@ -119,9 +119,15 @@ pub fn color_wheel(
             egui::Stroke::new(1_f32, egui::Color32::BLACK),
         );
         ui.spacing_mut().slider_width = size - 30.;
-        changed |= ui
-            .add(crate::slider(&mut level, -range..=range).fixed_decimals(2))
-            .changed();
+        let r = ui.add(crate::slider(&mut level, -range..=range).fixed_decimals(2));
+        // The level is a local, so the double-click reset is done here.
+        if crate::slider_double_clicked(ui, &r) {
+            point = egui::Vec2::ZERO;
+            level = 0.;
+            changed = true;
+        } else {
+            changed |= r.changed();
+        }
     });
     if changed {
         // Screen y is down, so the second axis flips.

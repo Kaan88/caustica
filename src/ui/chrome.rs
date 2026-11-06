@@ -114,6 +114,18 @@ impl App {
                         ui.close_menu();
                     }
                     ui.separator();
+                    if self.ui.edits_live
+                        && ui
+                            .add_enabled(
+                                self.ui.session_offer.is_some(),
+                                egui::Button::new("Restore last session"),
+                            )
+                            .on_disabled_hover_text("No unsaved work was left by the last session")
+                            .clicked()
+                    {
+                        self.restore_session();
+                        ui.close_menu();
+                    }
                     if ui.button("Open scene… (Ctrl+O)").clicked() {
                         self.open_scene_dialog();
                         ui.close_menu();
@@ -139,10 +151,11 @@ impl App {
                         ui.close_menu();
                     }
                     if ui.button("Reset everything to defaults").clicked() {
-                        self.ui.checkpoint(&self.settings);
+                        self.ui.checkpoint_scene(&self.settings);
                         self.settings = Settings::default();
                         self.preset = 0;
                         self.ui.selection = Selection::Stage;
+                        self.ui.mark_clean(&self.settings);
                         self.ui.toast("Reset to the default scene and settings");
                         ui.close_menu();
                     }
@@ -183,9 +196,9 @@ impl App {
                     for line in [
                         "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom",
                         "Click: select an object or light · Delete: remove it · Esc: deselect",
-                        "G / R / S: move, rotate, scale · then X / Y / Z, a value, Enter",
+                        "G / R / S over the viewport: move, rotate, scale · then X / Y / Z, a value, Enter",
                         "Ctrl+Z / Ctrl+Y: undo / redo · Ctrl+S / Ctrl+O: save / open",
-                        "Space: pause · R: restart (nothing selected) · F: frame · A: auto orbit",
+                        "Space: pause · R: restart (no object or light selected) · F: frame · A: auto orbit",
                         "D: native denoiser · C: freeze A/B reference · 1–8: views",
                         "F12: save PNG · Tab: hide panels · Ctrl +/−: UI size · F1: all keys",
                     ] {
@@ -213,6 +226,11 @@ impl App {
                 } else {
                     "Custom scene".to_string()
                 };
+                let current = if self.ui.scene_dirty {
+                    format!("{current} *")
+                } else {
+                    current
+                };
                 egui::ComboBox::from_id_salt("scene picker")
                     .selected_text(current)
                     .width(175.)
@@ -227,14 +245,16 @@ impl App {
                                     .clicked()
                                 {
                                     self.preset = i;
-                                    self.settings.preset(i);
+                                    self.switch_scene("Scene", |s| s.preset(i));
                                 }
                             }
                             ui.separator();
                         }
                     })
                     .response
-                    .on_hover_text("Pick a scene. Picking the current one again restores it.");
+                    .on_hover_text(
+                        "Pick a scene. Picking the current one again restores it. A * marks unsaved changes.",
+                    );
                 if ui
                     .button("▶")
                     .on_hover_text("Next scene (Page Down)")
@@ -247,7 +267,7 @@ impl App {
                         self.ui.show_scenes,
                         format!("Scenes ({})", self.ui.scenes.len()),
                     )
-                    .on_hover_text("Browse the scene files in scenes/")
+                    .on_hover_text("Browse the scene files in scenes/ (Ctrl+P)")
                     .clicked()
                 {
                     self.ui.show_scenes = !self.ui.show_scenes;
@@ -271,7 +291,7 @@ impl App {
                         .unwrap_or_default()
                         .subsec_nanos()
                         | 1;
-                    self.settings.randomize(seed);
+                    self.switch_scene("Random scene", |s| s.randomize(seed));
                 }
                 if ui
                     .button("Today")
@@ -280,9 +300,7 @@ impl App {
                     )
                     .clicked()
                 {
-                    self.settings.randomize(seed_of_the_day());
-                    let name = self.settings.scene_name.clone();
-                    self.ui.toast(format!("Seed of the day: {name}"));
+                    self.switch_scene("Seed of the day", |s| s.randomize(seed_of_the_day()));
                 }
                 ui.separator();
                 self.quality_combo(ui);
@@ -317,10 +335,10 @@ impl App {
                 }
                 if ui
                     .button("Frame")
-                    .on_hover_text("Fit the camera to the scene (F)")
+                    .on_hover_text("Fit the camera to the selected object, or the whole scene (F)")
                     .clicked()
                 {
-                    self.actions.frame_scene = true;
+                    self.frame_selection();
                 }
                 if ui
                     .selectable_label(self.painting, "Paint light")
@@ -334,7 +352,7 @@ impl App {
                 if ui
                     .selectable_label(self.walking.is_some(), "Walk")
                     .on_hover_text(
-                        "Walk mode (`): WASD, Space jump, C or Ctrl crouch, Shift run, F fly                          (Q / E down / up), B head bob, wheel body size, drag to look",
+                        "Walk mode (`): WASD, Space jump, C or Ctrl crouch, Shift run, F fly                          (Q / E down / up), B head bob, T flashlight, wheel body size, drag to look",
                     )
                     .clicked()
                 {
@@ -342,8 +360,13 @@ impl App {
                 }
                 if ui
                     .selectable_label(
-                        self.ui.show_timeline || !self.settings.animation.is_empty(),
-                        "Timeline",
+                        self.ui.show_timeline,
+                        // Closed on a scene with keys: there is something in there.
+                        if !self.ui.show_timeline && !self.settings.animation.is_empty() {
+                            "Timeline •"
+                        } else {
+                            "Timeline"
+                        },
                     )
                     .on_hover_text(
                         "Keyframes: I keys the selection (the camera when nothing is selected), K plays",
@@ -355,12 +378,20 @@ impl App {
                 ui.separator();
                 for (tool, label, tip) in [
                     (gizmo::Tool::Select, "Select", "Click to select, no handles"),
-                    (gizmo::Tool::Move, "Move", "Arrows and planes. Key: G"),
-                    (gizmo::Tool::Rotate, "Rotate", "Rings. Key: R"),
+                    (
+                        gizmo::Tool::Move,
+                        "Move",
+                        "Handles for dragging: arrows and planes. G starts a keyboard move",
+                    ),
+                    (
+                        gizmo::Tool::Rotate,
+                        "Rotate",
+                        "Handles for dragging: rings. R starts a keyboard rotation",
+                    ),
                     (
                         gizmo::Tool::Scale,
                         "Scale",
-                        "Axis handles; the circle scales evenly. Key: S",
+                        "Handles for dragging; the circle scales evenly. S starts a keyboard scale",
                     ),
                 ] {
                     ui.selectable_value(&mut self.ui.tool, tool, label)
@@ -396,6 +427,13 @@ impl App {
                     .response
                     .on_hover_text("Hold Ctrl while transforming. Increment: 0.1 units, 15°, 0.1×. Surface / Vertex / Edge: a move goes to what is under the pointer");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .selectable_label(self.ui.show_shortcuts, "?")
+                        .on_hover_text("Keyboard and mouse (F1)")
+                        .clicked()
+                    {
+                        self.ui.show_shortcuts = !self.ui.show_shortcuts;
+                    }
                     let label = if self.ui.panel_hidden {
                         "Show panel"
                     } else {
@@ -430,7 +468,8 @@ impl App {
                 ui.painter().circle_filled(dot.center(), 4., color);
                 ui.label(state);
                 ui.separator();
-                ui.monospace(format!("{} / {} spp", g.samples, s.max_samples));
+                ui.monospace(format!("{} / {} spp", g.samples, s.max_samples))
+                    .on_hover_text("Samples per pixel: more is cleaner. Rendering stops at the cap.");
                 ui.add(
                     egui::ProgressBar::new((g.samples as f32 / s.max_samples as f32).min(1.))
                         .desired_width(80.)
@@ -449,12 +488,8 @@ impl App {
                 }
                 if !converged && !self.paused && *rate > 0. {
                     let left = (s.max_samples - g.samples.min(s.max_samples)) as f32 / *rate;
-                    ui.monospace(if left < 90. {
-                        format!("~{left:.0} s")
-                    } else {
-                        format!("~{:.0} min", left / 60.)
-                    })
-                    .on_hover_text("Time until the sample cap at the current speed");
+                    ui.monospace(time_left(left))
+                        .on_hover_text("Time until the sample cap at the current speed");
                 }
                 ui.separator();
                 let [trace, rebuild, display, gui] = g.pass_ms;
@@ -479,7 +514,7 @@ impl App {
                 // What the denoiser is doing right now (Advanced): reprojecting, integrating,
                 // or starting over after an edit.
                 if self.ui.advanced && !g.denoiser_activity.is_empty() {
-                    ui.label(egui::RichText::new(g.denoiser_activity).weak());
+                    ui.label(g.denoiser_activity);
                 }
                 ui.separator();
                 if g.rw == g.width {
@@ -510,19 +545,46 @@ impl App {
                         .small(),
                     );
                 }
+                // Last and truncated: it gives way to everything above in a narrow window.
+                if !self.ui.targets().is_empty() {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new("G R S move · F frame · H hide · Del delete")
+                                    .small()
+                                    .weak(),
+                            )
+                            .truncate(),
+                        );
+                    });
+                }
             });
         });
     }
     pub(super) fn toasts(&mut self, ctx: &egui::Context) {
         let now = Instant::now();
         self.ui.toasts.retain(|t| t.until > now);
-        if self.ui.toasts.is_empty() {
+        let offer = self.ui.session_prompt().then(|| {
+            let session = self.ui.session_offer.as_ref();
+            session.map_or(String::new(), |s| s.settings.scene_name.clone())
+        });
+        if self.ui.toasts.is_empty() && offer.is_none() {
             return;
         }
+        let (mut restore, mut dismiss) = (false, false);
         egui::Area::new(egui::Id::new("toasts"))
             .anchor(egui::Align2::RIGHT_BOTTOM, [-16., -40.])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
+                if let Some(name) = &offer {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("Unsaved work from last time: {name}"));
+                            restore = ui.button("Restore last session").clicked();
+                            dismiss = ui.small_button("×").on_hover_text("Discard it").clicked();
+                        });
+                    });
+                }
                 for t in self.ui.toasts.iter().rev() {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
                         ui.horizontal(|ui| {
@@ -540,12 +602,17 @@ impl App {
                     });
                 }
             });
+        if restore {
+            self.restore_session();
+        } else if dismiss {
+            self.ui.session_offer = None;
+        }
         ctx.request_repaint_after(Duration::from_millis(250));
     }
     pub(super) fn side_panel(&mut self, ctx: &egui::Context, known: bool) {
-        egui::SidePanel::right("side panel")
+        let panel = egui::SidePanel::right("side panel")
             .resizable(true)
-            .default_width(370.)
+            .default_width(self.ui.prefs.panel_width)
             .width_range(320. ..=560.)
             .show(ctx, |ui| {
                 ui.add_space(4.);
@@ -564,7 +631,9 @@ impl App {
                     }
                 });
                 ui.separator();
+                // Each tab keeps its own offset: a short tab would clamp a shared one.
                 egui::ScrollArea::vertical()
+                    .id_salt(self.ui.tab as u8)
                     .auto_shrink([false; 2])
                     .show(ui, |ui| match self.ui.tab {
                         Tab::Scene => self.scene_tab(ui, known),
@@ -573,6 +642,11 @@ impl App {
                         Tab::Export => self.export_tab(ui),
                     });
             });
+        // Only the user's drag counts: the panel also widens to fit wide content.
+        if ctx.is_being_dragged(egui::Id::new("side panel").with("__resize")) {
+            self.ui.panel_resized = true;
+        }
+        self.ui.panel_width = panel.response.rect.width();
     }
 }
 

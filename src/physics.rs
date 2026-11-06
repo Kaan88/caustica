@@ -1455,7 +1455,9 @@ impl crate::App {
             update_strings(&mut self.settings);
         }
         if !self.settings.physics.enabled {
-            self.physics = None;
+            if self.physics.take().is_some() {
+                self.ui.sim_ended(&self.settings);
+            }
             self.finish_recording();
             return;
         }

@@ -354,7 +354,7 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
         current_vp: vp.to_cols_array(),
         previous_vp: x.previous_vp.to_cols_array(),
         world_view: view.to_cols_array(),
-        eye: [eye.x, eye.y, eye.z, 1.],
+        eye: [eye.x, eye.y, eye.z, 0.],
         dimensions: [st.rw, st.rh, st.width, st.height],
         sampling: [st.samples, n, s.bounces, st.frame],
         lights: [
@@ -719,4 +719,41 @@ pub fn halton(mut index: u32, base: u32) -> f32 {
         index /= base;
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// gui.hlsl reads a positive eye.w as HDR paper white and linearises egui's sRGB colours for
+    /// it. On SDR's UNORM targets nothing re-encodes them, so the whole UI would draw too dark;
+    /// a machine with HDR on hides this, since only SDR output keeps the value set here.
+    #[test]
+    fn sdr_constants_leave_the_gui_in_srgb() {
+        let c = constants(
+            &crate::scene::Settings::default(),
+            &GpuState::default(),
+            &FrameInputs {
+                view: glam::Mat4::IDENTITY,
+                proj: glam::Mat4::IDENTITY,
+                eye: glam::Vec3::ONE,
+                previous_vp: glam::Mat4::IDENTITY,
+                n: 1,
+                reset: false,
+                flags: 0,
+                jitter: [0.; 2],
+                sequence_base: 0,
+                lut_size: 0,
+                present_count: 0,
+                env_scale: 1.,
+                env_inv_norm: 1.,
+                env_sun: None,
+                env: (1., 0., true),
+                lens_surfaces: 0,
+                glare_grid: 0,
+                restir: 0,
+            },
+        );
+        assert_eq!(c.eye, [1., 1., 1., 0.]);
+    }
 }

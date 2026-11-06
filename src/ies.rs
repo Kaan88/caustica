@@ -94,27 +94,84 @@ pub fn parse(text: &str) -> anyhow::Result<Vec<f32>> {
     Ok(raw.iter().map(|v| (v / peak) as f32).collect())
 }
 
+/// A flashlight's beam instead of a file: `beam:` half angle, corona, spill (`beam_spec`).
+const BEAM: &str = "beam:";
+pub fn beam_spec(half_angle: f32, corona: f32, spill: f32) -> String {
+    format!("{BEAM}{half_angle},{corona},{spill}")
+}
+/// A reflector's beam: a Gaussian hot spot that falls to half at the half angle, the slight ring
+/// a smooth reflector leaves round it, a corona 2.5 times as wide, and flat spill from the bare
+/// LED that the bezel cuts off.
+fn beam(spec: &str) -> Option<Vec<f32>> {
+    let mut v = spec.split(',').map(|t| t.parse::<f32>().ok());
+    let (half, corona, spill) = (v.next()??, v.next()??, v.next()??);
+    let sigma = half / 1.1774;
+    let wide = 2.5 * half;
+    let cut = (4. * half).max(25.);
+    let gauss = |a: f32, c: f32, s: f32| (-0.5 * ((a - c) / s).powi(2)).exp();
+    let at = |a: f32| {
+        let edge = ((cut + 5. - a) / 5.).clamp(0., 1.);
+        (1. - corona - spill).max(0.) * gauss(a, 0., sigma)
+            + 0.03 * gauss(a, 1.7 * half, 0.3 * half)
+            + corona * gauss(a, 0., wide / 1.1774)
+            + spill * edge * edge * (3. - 2. * edge)
+    };
+    let raw: Vec<f32> = (0..SAMPLES)
+        .map(|i| at(90. * i as f32 / (SAMPLES - 1) as f32))
+        .collect();
+    let peak = raw.iter().cloned().fold(0., f32::max);
+    (peak > 0.).then(|| raw.iter().map(|v| v / peak).collect())
+}
+
 static CACHE: LazyLock<Mutex<HashMap<PathBuf, Option<Vec<f32>>>>> = LazyLock::new(Default::default);
+/// Why the files with no profile in `CACHE` could not be read, for the UI.
+static ERRORS: LazyLock<Mutex<HashMap<PathBuf, String>>> = LazyLock::new(Default::default);
 
 /// The profile of the file at `path` (resolved like mesh paths), cached; None if it can't be
 /// read (the light then shines without one).
 pub fn profile(path: &str) -> Option<Vec<f32>> {
+    if let Some(spec) = path.strip_prefix(BEAM) {
+        return beam(spec);
+    }
     let full = crate::mesh::resolve(path);
     let mut cache = CACHE.lock().ok()?;
     cache
         .entry(full.clone())
         .or_insert_with(|| {
-            let text = std::fs::read_to_string(&full).ok()?;
-            parse(&text)
-                .inspect_err(|e| eprintln!("{}: {e:#}", full.display()))
-                .ok()
+            let parsed = std::fs::read_to_string(&full)
+                .map_err(anyhow::Error::from)
+                .and_then(|text| parse(&text));
+            match parsed {
+                Ok(profile) => Some(profile),
+                Err(e) => {
+                    eprintln!("{}: {e:#}", full.display());
+                    if let Ok(mut errors) = ERRORS.lock() {
+                        errors.insert(full.clone(), format!("{e:#}"));
+                    }
+                    None
+                }
+            }
         })
         .clone()
+}
+/// Why `path` has no profile, or None when it has one.
+pub fn load_error(path: &str) -> Option<String> {
+    if profile(path).is_some() {
+        return None;
+    }
+    let known = ERRORS
+        .lock()
+        .ok()
+        .and_then(|errors| errors.get(&crate::mesh::resolve(path)).cloned());
+    Some(known.unwrap_or_else(|| "Not a usable light profile".into()))
 }
 /// Forgets cached profiles (a file was replaced on disk).
 pub fn clear_cache() {
     if let Ok(mut c) = CACHE.lock() {
         c.clear();
+    }
+    if let Ok(mut e) = ERRORS.lock() {
+        e.clear();
     }
 }
 
@@ -132,6 +189,22 @@ pub fn pack(profile: &[f32]) -> [f32; 20] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_beam_has_a_hot_spot_a_corona_and_an_end() {
+        let p = profile(&beam_spec(5., 0.1, 0.006)).unwrap();
+        let at = |deg: f32| p[(deg / 90. * (SAMPLES - 1) as f32).round() as usize];
+        assert_eq!(p.len(), SAMPLES);
+        assert!((p[0] - 1.).abs() < 1e-4);
+        assert!(
+            (0.4..0.65).contains(&at(5.)),
+            "half at the half angle: {}",
+            at(5.)
+        );
+        assert!((0.01..0.1).contains(&at(15.)), "corona: {}", at(15.));
+        assert!(at(24.) < 0.02 && at(24.) > 0., "spill: {}", at(24.));
+        assert!(at(40.) < 1. / 510., "past the bezel: {}", at(40.));
+        assert!(beam("x,1,2").is_none());
+    }
     #[test]
     fn parses_a_type_c_file() {
         // A downlight: full intensity to 30°, half at 45°, none from 60°; two horizontal planes

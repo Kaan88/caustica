@@ -1,4 +1,4 @@
-"""Compare a GPU render with the CPU reference (reference.rs) of the same scene.
+"""Compare a GPU render with the CPU reference (src/reference/) of the same scene.
 
     python tools/reference_compare.py gpu.exr cpu.exr [--blocks N] [--heat out.png]
 

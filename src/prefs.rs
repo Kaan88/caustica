@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 /// How many recent scenes are remembered.
 pub const RECENT: usize = 12;
+/// The default file name of quick saves: two saves never land on the same file.
+const DEFAULT_NAME: &str = "{scene}-{date}-{time}";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(default)]
@@ -27,12 +29,21 @@ pub struct Prefs {
     pub puzzle_best: std::collections::BTreeMap<String, u32>,
     /// File name of quick saves and high-resolution stills (`video::expand_name`).
     pub name_template: String,
+    /// The old default template ("caustica", which overwrote every save) was replaced once.
+    pub name_template_migrated: bool,
     /// Windows: render with Vulkan instead of D3D12 (Menu → Renderer; from the next start).
     pub vulkan: bool,
     /// Look for a new release at startup (update.rs).
     pub update_check: bool,
     /// The version the user chose to skip.
     pub update_skip: String,
+    /// Where the UI was left: tab, gizmo tool, Local axes, pivot, snap target, panel width.
+    pub tab: crate::ui::Tab,
+    pub tool: crate::gizmo::Tool,
+    pub local: bool,
+    pub pivot: crate::gizmo::Pivot,
+    pub snap_to: crate::snap::Target,
+    pub panel_width: f32,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -45,10 +56,17 @@ impl Default for Prefs {
             ai: Default::default(),
             ai_profiles: Vec::new(),
             puzzle_best: Default::default(),
-            name_template: "caustica".into(),
+            name_template: DEFAULT_NAME.into(),
+            name_template_migrated: false,
             vulkan: false,
             update_check: true,
             update_skip: String::new(),
+            tab: crate::ui::Tab::Scene,
+            tool: crate::gizmo::Tool::Move,
+            local: false,
+            pivot: crate::gizmo::Pivot::Median,
+            snap_to: crate::snap::Target::Increment,
+            panel_width: 370.,
         }
     }
 }
@@ -70,8 +88,22 @@ impl Prefs {
         } else {
             1.
         };
+        p.panel_width = if p.panel_width.is_finite() {
+            p.panel_width.clamp(320., 560.)
+        } else {
+            370.
+        };
         p.recent.truncate(RECENT);
+        p.migrate();
         p
+    }
+    /// A file from before the dated default still says "caustica". Once only: someone who types
+    /// that name later keeps it.
+    fn migrate(&mut self) {
+        if !self.name_template_migrated && self.name_template == "caustica" {
+            self.name_template = DEFAULT_NAME.into();
+        }
+        self.name_template_migrated = true;
     }
     pub fn save(&self) {
         if let Some(p) = path() {
@@ -106,6 +138,41 @@ impl Prefs {
         self.recent.iter().position(|r| *r == k)
     }
 }
+/// What Restore last session brings back: the scene, and the file Ctrl+S targets.
+#[derive(Serialize, Deserialize)]
+pub struct Session<S = crate::scene::Settings> {
+    pub settings: S,
+    #[serde(default)]
+    pub loaded_file: Option<(PathBuf, String)>,
+}
+/// last-session.json beside the preferences (interactive runs only).
+pub fn session_path() -> Option<PathBuf> {
+    app_dir().map(|d| d.join("last-session.json"))
+}
+/// Written beside the file and renamed over it, so a crash mid-write leaves the last good one.
+pub fn write_session(
+    path: &Path,
+    settings: &crate::scene::Settings,
+    loaded_file: &Option<(PathBuf, String)>,
+) -> anyhow::Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let session = Session {
+        settings,
+        loaded_file: loaded_file.clone(),
+    };
+    let temp = path.with_extension("json.tmp");
+    std::fs::write(&temp, serde_json::to_vec(&session)?)?;
+    std::fs::rename(&temp, path)?;
+    Ok(())
+}
+/// The saved session, when it parses and passes the same checks as a settings file.
+pub fn read_session(path: &Path) -> Option<Session> {
+    let mut session: Session = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    session.settings.validate().ok()?;
+    Some(session)
+}
 /// A scene file's key: relative to the scenes folder when inside it, so a moved install keeps
 /// its favourites.
 pub fn key(scene: &Path) -> String {
@@ -138,5 +205,52 @@ mod tests {
         // Unknown fields and missing ones are fine: older and newer files load.
         let p: Prefs = serde_json::from_str(r#"{"zoom": 1.5, "future": 1}"#).unwrap();
         assert_eq!((p.zoom, p.favorites.len()), (1.5, 0));
+    }
+    #[test]
+    fn the_old_default_name_migrates_once() {
+        // A file from before the marker, with the old default saved in it.
+        let mut p: Prefs = serde_json::from_str(r#"{"name_template": "caustica"}"#).unwrap();
+        p.migrate();
+        assert_eq!(p.name_template, DEFAULT_NAME);
+        // Typed afterwards, it stays, also through a save and load.
+        p.name_template = "caustica".into();
+        let mut p: Prefs = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        p.migrate();
+        assert_eq!(p.name_template, "caustica");
+        // Another name is never touched.
+        let mut p: Prefs = serde_json::from_str(r#"{"name_template": "shot-{spp}"}"#).unwrap();
+        p.migrate();
+        assert_eq!(p.name_template, "shot-{spp}");
+        // Where the UI was left survives the file, and older files load without it.
+        let mut p = Prefs::default();
+        (p.tool, p.tab, p.pivot) = (
+            crate::gizmo::Tool::Rotate,
+            crate::ui::Tab::Look,
+            crate::gizmo::Pivot::Cursor,
+        );
+        let back: Prefs = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        assert_eq!(back, p);
+        assert_eq!(Prefs::default().tool, crate::gizmo::Tool::Move);
+    }
+    #[test]
+    fn a_session_round_trips_and_a_bad_one_is_ignored() {
+        let dir = std::env::temp_dir().join(format!("caustica-session-{}", std::process::id()));
+        let path = dir.join("last-session.json");
+        let mut s = crate::scene::Settings::default();
+        s.exposure = 2.5;
+        let file = Some((PathBuf::from("scenes/user/a.json"), "a".to_string()));
+        write_session(&path, &s, &file).unwrap();
+        let back = read_session(&path).unwrap();
+        assert!(back.settings == s);
+        assert_eq!(back.loaded_file, file);
+        assert!(!path.with_extension("json.tmp").exists());
+        // A second write replaces the first (Windows' rename too).
+        s.exposure = 3.;
+        write_session(&path, &s, &None).unwrap();
+        assert_eq!(read_session(&path).unwrap().settings.exposure, 3.);
+        std::fs::write(&path, "{ not json").unwrap();
+        assert!(read_session(&path).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(read_session(&path).is_none());
     }
 }

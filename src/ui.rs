@@ -15,7 +15,7 @@ use stage::*;
 use std::time::{Duration, Instant};
 
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(96, 202, 216);
-const WARN: egui::Color32 = egui::Color32::from_rgb(232, 176, 72);
+pub(crate) const WARN: egui::Color32 = egui::Color32::from_rgb(232, 176, 72);
 const VIEWS: [&str; 13] = [
     "Beauty",
     "Normals",
@@ -134,7 +134,7 @@ type ThumbnailJobs = (
     usize,
     usize,
 );
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Tab {
     Scene,
     Render,
@@ -147,6 +147,8 @@ pub enum Selection {
     Stage,
     Camera,
     MainLight,
+    /// Only its inspector: it rides with the camera, so nothing to move or key.
+    Flashlight,
     Light(usize),
     Object(usize),
 }
@@ -157,15 +159,58 @@ struct Toast {
     /// A saved file: the toast offers Show in folder.
     file: Option<std::path::PathBuf>,
 }
+/// One undo step: the settings on the other side, and whether stepping there takes the camera
+/// along. Whole-scene steps and Camera inspector edits do; every other edit leaves the view
+/// where it is, so undoing a material never swings the camera.
+struct UndoStep {
+    settings: Settings,
+    camera: bool,
+}
+type Camera = (f32, f32, f32, [f32; 3]);
+/// The free camera: what orbiting, panning and zooming change (the field of view is an edit).
+fn camera_of(s: &Settings) -> Camera {
+    (s.yaw, s.pitch, s.distance, s.target)
+}
+fn set_camera(s: &mut Settings, c: Camera) {
+    (s.yaw, s.pitch, s.distance, s.target) = c;
+}
+/// `a == b`, whatever their free cameras (`a` only lends its camera for the comparison).
+/// Gives `base` the poses a simulation wrote to `s` (and the strings they pull). With objects
+/// added or removed since, indices don't match: the difference is an edit anyway.
+fn follow_poses(base: &mut Settings, s: &Settings, moving: &[usize]) {
+    if base.objects.len() != s.objects.len() {
+        return;
+    }
+    for &i in moving {
+        let (Some(b), Some(o)) = (base.objects.get_mut(i), s.objects.get(i)) else {
+            continue;
+        };
+        b.grounded = o.grounded;
+        b.position = o.position;
+        b.elevation = o.elevation;
+        b.rotation = o.rotation;
+        b.tilt = o.tilt;
+        b.mesh.clone_from(&o.mesh);
+    }
+    crate::physics::update_strings(base);
+}
+fn same_but_camera(a: &mut Settings, b: &Settings) -> bool {
+    let camera = camera_of(a);
+    set_camera(a, camera_of(b));
+    let same = *a == *b;
+    set_camera(a, camera);
+    same
+}
 pub struct UiState {
     pub tab: Tab,
     pub advanced: bool,
     /// Tab cycles: everything → top bar only → nothing (screenshot mode).
     pub panel_hidden: bool,
     pub selection: Selection,
-    /// + Mesh imports stand Z-up files upright (scans, CAD exports).
+    /// Mesh imports stand Z-up files upright (scans, CAD exports).
     pub mesh_z_up: bool,
-    pub add_shape: Shape,
+    /// A viewport pick: the Scene tab brings the inspector into view once.
+    pub scroll_to_inspector: bool,
     pub search: String,
     pub export_scale: u32,
     pub export_samples: u32,
@@ -180,6 +225,8 @@ pub struct UiState {
     pub jpeg_quality: u32,
     /// Scenes window: the scene files found on disk, filters, selection and the save form.
     pub show_scenes: bool,
+    /// It was drawn last frame: opening it gives the search box the keyboard.
+    pub scenes_were_open: bool,
     /// The Assets window (item 6, browser.rs).
     pub assets: crate::browser::Browser,
     /// Look tools (roadmap 5b).
@@ -258,12 +305,16 @@ pub struct UiState {
     pub hovered: Option<usize>,
     /// Status bar: when samples were last counted, how many, and samples per second.
     sample_rate: (Instant, u32, f32),
+    /// Why the HDRI or the LUT did not load, for their rows (the toast is gone in seconds).
+    pub environment_error: Option<String>,
+    pub lut_error: Option<String>,
     /// The right-click menu's position in the viewport, while it is open.
     pub context_menu: Option<egui::Pos2>,
     /// The keyboard and mouse sheet (F1).
     pub show_shortcuts: bool,
-    /// The timeline strip (track 8); it also shows whenever the scene has keys.
+    /// The timeline strip (track 8); it opens when the scene gains keys, and can then be closed.
     pub show_timeline: bool,
+    pub timeline_had_keys: bool,
     /// Track 17: physics poses are being keyed into the timeline, and the simulated time so far.
     pub physics_record: bool,
     /// A scene file to open after this frame's UI (the puzzle level menu).
@@ -276,8 +327,47 @@ pub struct UiState {
     pub transform: Option<gizmo::Transform>,
     pub header: String,
     /// Snapshots for Ctrl+Z / Ctrl+Y, taken before each edit that the UI makes.
-    undo: Vec<Settings>,
-    redo: Vec<Settings>,
+    undo: Vec<UndoStep>,
+    redo: Vec<UndoStep>,
+    /// Interactive runs only: panel edits become undo steps, the scene gets its unsaved mark
+    /// and last-session.json is kept. Headless runs, the self-test, scripted and frame-limited
+    /// runs and the screensaver stay out of all of it.
+    pub edits_live: bool,
+    /// The command line chose the tab or tool: the saved prefs don't replace them.
+    pub tab_from_args: bool,
+    pub tool_from_args: bool,
+    /// The settings when `watch_edits` last looked (the free camera follows every frame).
+    edit_base: Settings,
+    /// A settled frame should compare: input arrived since the last comparison.
+    edit_check: bool,
+    /// Something other than an edit wrote settings (keys, a recording, a script, walking).
+    edit_foreign: bool,
+    /// The objects a running simulation moves: their poses are not edits, so the bases follow
+    /// them when compared, and panel edits go on making steps while it runs.
+    sim_objects: Vec<usize>,
+    /// The keys applied next belong to the scene just loaded, not to an edit of them.
+    keys_follow_load: bool,
+    /// The Camera inspector moved the camera: this one step takes the camera with it.
+    pub camera_edit: bool,
+    /// The state of the last load or save, and whether the scene has moved away from it.
+    clean_base: Settings,
+    pub scene_dirty: bool,
+    /// `scene_dirty` must be worked out again, whatever `edit_base` says (undo, redo).
+    dirty_check: bool,
+    /// last-session.json, in interactive runs. Edited since it was written, and when it was.
+    session_file: Option<std::path::PathBuf>,
+    session_stale: bool,
+    session_saved: Instant,
+    /// The session found at startup, until it is restored or dismissed, and how long the
+    /// prompt stays up (Menu → Restore last session stays after that).
+    pub session_offer: Option<crate::prefs::Session>,
+    session_prompt_until: Instant,
+    /// The first close during an export: a second one soon after cancels it.
+    pub close_armed: Option<Instant>,
+    /// The side panel's width, for the preferences.
+    pub panel_width: f32,
+    /// The user dragged the panel's edge; saved when the drag ends.
+    panel_resized: bool,
     /// Track 19 text-to-scene: the description, and the request running in the background.
     pub describe: String,
     /// A key typed in Menu → Text-to-scene model, for this session only.
@@ -310,7 +400,7 @@ impl Default for UiState {
             panel_hidden: false,
             selection: Selection::Stage,
             mesh_z_up: false,
-            add_shape: Shape::Sphere,
+            scroll_to_inspector: false,
             search: String::new(),
             export_scale: 2,
             export_samples: 128,
@@ -331,6 +421,7 @@ impl Default for UiState {
             export_format: crate::video::ImageFormat::Png,
             jpeg_quality: crate::video::JPEG_QUALITY,
             show_scenes: false,
+            scenes_were_open: false,
             assets: Default::default(),
             zebras: false,
             show_scopes: false,
@@ -383,9 +474,12 @@ impl Default for UiState {
             also_counts: (0, 0),
             hovered: None,
             sample_rate: (Instant::now(), 0, 0.),
+            environment_error: None,
+            lut_error: None,
             context_menu: None,
             show_shortcuts: false,
             show_timeline: false,
+            timeline_had_keys: false,
             physics_record: false,
             open_pending: None,
             physics_record_time: 0.,
@@ -395,6 +489,26 @@ impl Default for UiState {
             header: String::new(),
             undo: Vec::new(),
             redo: Vec::new(),
+            edits_live: false,
+            sim_objects: Vec::new(),
+            keys_follow_load: false,
+            tab_from_args: false,
+            tool_from_args: false,
+            edit_base: Settings::default(),
+            edit_check: false,
+            edit_foreign: false,
+            camera_edit: false,
+            clean_base: Settings::default(),
+            scene_dirty: false,
+            dirty_check: false,
+            session_file: None,
+            session_stale: false,
+            session_saved: Instant::now(),
+            session_offer: None,
+            session_prompt_until: Instant::now(),
+            close_armed: None,
+            panel_width: 370.,
+            panel_resized: false,
             describe: String::new(),
             ai_key: String::new(),
             describe_job: None,
@@ -414,7 +528,12 @@ impl UiState {
         if self.fixed_names {
             return "caustica".into();
         }
-        crate::video::expand_name(&self.prefs.name_template, &s.scene_name, samples, w, h)
+        // No leading "-" from a scene without a name.
+        let scene = match s.scene_name.trim() {
+            "" => "caustica",
+            name => name,
+        };
+        crate::video::expand_name(&self.prefs.name_template, scene, samples, w, h)
     }
     pub fn toast(&mut self, text: impl Into<String>) {
         self.push(text.into(), false, None);
@@ -449,10 +568,33 @@ impl UiState {
             self.prefs.save();
         }
     }
-    /// Remembers `s` for undo, before an edit.
+    /// Remembers `s` for undo, before an edit. The camera stays where it is on undo.
     pub fn checkpoint(&mut self, s: &Settings) {
-        if self.undo.last() != Some(s) {
-            self.undo.push(s.clone());
+        self.push_undo(s, false);
+    }
+    /// `checkpoint` before the whole scene changes: undo brings back the old scene as it was
+    /// framed.
+    pub fn checkpoint_scene(&mut self, s: &Settings) {
+        self.push_undo(s, true);
+    }
+    fn push_undo(&mut self, s: &Settings, camera: bool) {
+        let top = self.undo.last_mut();
+        // An edit's step ignores the camera, so an orbit between the action's checkpoint and
+        // the watcher's does not make two steps of one edit.
+        let same = top.is_some_and(|top| {
+            let same = if camera {
+                top.settings == *s
+            } else {
+                same_but_camera(&mut top.settings, s)
+            };
+            top.camera |= same && camera;
+            same
+        });
+        if !same {
+            self.undo.push(UndoStep {
+                settings: s.clone(),
+                camera,
+            });
             if self.undo.len() > 100 {
                 self.undo.remove(0);
             }
@@ -460,18 +602,212 @@ impl UiState {
         self.redo.clear();
     }
     pub fn undo(&mut self, s: &mut Settings) -> bool {
-        let Some(previous) = self.undo.pop() else {
+        let Some(step) = self.undo.pop() else {
             return false;
         };
-        self.redo.push(std::mem::replace(s, previous));
+        let back = self.take_step(s, step);
+        self.redo.push(back);
         true
     }
     pub fn redo(&mut self, s: &mut Settings) -> bool {
-        let Some(next) = self.redo.pop() else {
+        let Some(step) = self.redo.pop() else {
             return false;
         };
-        self.undo.push(std::mem::replace(s, next));
+        let back = self.take_step(s, step);
+        self.undo.push(back);
         true
+    }
+    /// Puts `step` in place and returns the step that leads back.
+    fn take_step(&mut self, s: &mut Settings, step: UndoStep) -> UndoStep {
+        let mut settings = step.settings;
+        if !step.camera {
+            set_camera(&mut settings, camera_of(s));
+        }
+        let back = UndoStep {
+            settings: std::mem::replace(s, settings),
+            camera: step.camera,
+        };
+        if self.edits_live {
+            // Not an edit for the watcher (it would clear the redo list), but maybe unsaved.
+            self.edit_base = s.clone();
+            self.dirty_check = true;
+            self.edit_check = true;
+            self.session_stale = true;
+        }
+        back
+    }
+    /// Undo for panel edits, once per frame after the UI: when input has come in and nothing
+    /// is held (a drag, a focused text field), a difference from the last look becomes one
+    /// step. Actions with their own checkpoint merge with it (`push_undo`). A full comparison
+    /// only runs on those frames, so a large scene does not pay for it while idle. `foreign`:
+    /// something other than the user writes settings now; what it wrote makes no step.
+    pub fn watch_edits(&mut self, s: &Settings, input: bool, settled: bool, foreign: bool) {
+        if !self.edits_live {
+            return;
+        }
+        if foreign {
+            // What still waits for its field came before these writes.
+            self.flush_pending(s);
+            self.edit_foreign = true;
+            return;
+        }
+        if std::mem::take(&mut self.edit_foreign) {
+            self.rebase_edits(s);
+            // Keys a recording left are unsaved work, though no step.
+            self.dirty_check = true;
+        }
+        self.edit_check |= input || self.dirty_check;
+        if !self.camera_edit {
+            set_camera(&mut self.edit_base, camera_of(s));
+        }
+        // finish_transform records the transform's own step.
+        if self.edit_check && settled && self.transform.is_none() {
+            self.flush_edits(s);
+        }
+    }
+    /// What `s` holds now is not an edit (timeline keys applied, a simulation ended).
+    pub fn rebase_edits(&mut self, s: &Settings) {
+        if self.edits_live {
+            self.edit_base = s.clone();
+            self.camera_edit = false;
+        }
+    }
+    /// A comparison `watch_edits` still owes (a field holds the keyboard), run now because
+    /// something else is about to write settings.
+    pub fn flush_pending(&mut self, s: &Settings) {
+        if self.edits_live && self.edit_check && !self.edit_foreign && self.transform.is_none() {
+            self.flush_edits(s);
+        }
+    }
+    /// After `Timeline::update`. Keys applied for the playhead or a load are not an edit, and
+    /// a clean scene stays clean under them. Keys applied because the keys were edited are
+    /// that edit's result: the next comparison takes them with it.
+    pub fn keys_applied(&mut self, s: &Settings, applied: bool, keys_edited: bool) {
+        let loaded = std::mem::take(&mut self.keys_follow_load);
+        if !self.edits_live || !applied || (keys_edited && !loaded) {
+            return;
+        }
+        if !self.scene_dirty {
+            self.clean_base = s.clone();
+        }
+        self.rebase_edits(s);
+    }
+    /// The simulation stopped with `s` as its last poses.
+    pub fn sim_ended(&mut self, s: &Settings) {
+        self.follow_sim(s);
+        self.sim_objects.clear();
+    }
+    /// Takes the simulated poses into what `s` is compared with.
+    fn follow_sim(&mut self, s: &Settings) {
+        if !self.sim_objects.is_empty() {
+            follow_poses(&mut self.edit_base, s, &self.sim_objects);
+            follow_poses(&mut self.clean_base, s, &self.sim_objects);
+        }
+    }
+    /// The comparison of `watch_edits`; also run on closing, whatever is held.
+    fn flush_edits(&mut self, s: &Settings) {
+        self.edit_check = false;
+        self.follow_sim(s);
+        let camera = std::mem::take(&mut self.camera_edit);
+        if !camera {
+            set_camera(&mut self.edit_base, camera_of(s));
+        }
+        let changed = self.edit_base != *s;
+        if changed {
+            let base = std::mem::replace(&mut self.edit_base, s.clone());
+            self.push_undo(&base, camera);
+        }
+        if std::mem::take(&mut self.dirty_check) || changed {
+            self.refresh_dirty(s);
+            self.session_stale = true;
+        }
+    }
+    /// Whether the scene differs from its last load or save. The camera and what the viewer
+    /// chose to look through don't count: an orbit is not unsaved work.
+    fn refresh_dirty(&mut self, s: &Settings) {
+        let base = &mut self.clean_base;
+        set_camera(base, camera_of(s));
+        base.keep_output(s);
+        base.view = s.view;
+        (base.compare, base.split) = (s.compare, s.split);
+        (base.rotate, base.rotate_speed) = (s.rotate, s.rotate_speed);
+        self.scene_dirty = *base != *s;
+    }
+    /// `s` was just loaded or saved: nothing to warn about, and nothing for the next start to
+    /// offer (a session still on offer keeps its file until it is answered).
+    pub fn mark_clean(&mut self, s: &Settings) {
+        if !self.edits_live {
+            return;
+        }
+        self.clean_base = s.clone();
+        self.edit_base = s.clone();
+        self.keys_follow_load = true;
+        self.scene_dirty = false;
+        self.session_stale = false;
+        if self.session_offer.is_none() {
+            self.remove_session();
+        }
+    }
+    /// An interactive run starts: `s` is the clean state, and a session left by the last run
+    /// goes on offer.
+    pub fn start_edit_tracking(&mut self, s: &Settings) {
+        self.edits_live = true;
+        self.keys_follow_load = true;
+        self.edit_base = s.clone();
+        self.clean_base = s.clone();
+        self.session_file = crate::prefs::session_path();
+        self.session_offer = self
+            .session_file
+            .as_deref()
+            .and_then(crate::prefs::read_session);
+        self.session_saved = Instant::now();
+        self.session_prompt_until = Instant::now() + Duration::from_secs(30);
+    }
+    /// While the prompt for the last session should be drawn.
+    pub fn session_prompt(&self) -> bool {
+        self.session_offer.is_some() && Instant::now() < self.session_prompt_until
+    }
+    /// Writes last-session.json at most once a minute while there is unsaved work.
+    pub fn autosave_session(&mut self, s: &Settings) {
+        if self.scene_dirty
+            && self.session_stale
+            && self.session_saved.elapsed() >= Duration::from_secs(60)
+        {
+            self.write_session(s);
+        }
+    }
+    /// On closing: unsaved work goes to last-session.json; with none, the file goes too.
+    pub fn close_session(&mut self, s: &Settings) {
+        if !self.edits_live {
+            return;
+        }
+        // Whatever a running simulation or script wrote makes no step, as in `watch_edits`.
+        if !self.edit_foreign {
+            self.flush_edits(s);
+        }
+        if !self.scene_dirty {
+            if self.session_offer.is_none() {
+                self.remove_session();
+            }
+        } else if self.session_stale {
+            self.write_session(s);
+        }
+    }
+    fn write_session(&mut self, s: &Settings) {
+        self.session_saved = Instant::now();
+        let Some(path) = &self.session_file else {
+            return;
+        };
+        match crate::prefs::write_session(path, s, &self.loaded_file) {
+            Ok(()) => self.session_stale = false,
+            Err(e) => eprintln!("Saving the session: {e:#}"),
+        }
+    }
+    /// Nothing unsaved to bring back.
+    fn remove_session(&self) {
+        if let Some(path) = &self.session_file {
+            let _ = std::fs::remove_file(path);
+        }
     }
     /// Every selected item that can be transformed, the active one first.
     pub fn targets(&self) -> Vec<Selection> {
@@ -736,6 +1072,11 @@ pub fn theme(ctx: &egui::Context) {
     style.visuals.selection.bg_fill = ACCENT.gamma_multiply(0.45);
     style.visuals.hyperlink_color = ACCENT;
     style.visuals.panel_fill = egui::Color32::from_rgba_unmultiplied(24, 26, 30, 250);
+    // Text fields stand out from the panel, and at rest widgets have an outline (the default
+    // near-black field reads as a static label).
+    style.visuals.extreme_bg_color = egui::Color32::from_gray(38);
+    style.visuals.widgets.inactive.bg_stroke =
+        egui::Stroke::new(1_f32, egui::Color32::from_gray(70));
     style.spacing.item_spacing = egui::vec2(8., 6.);
     style.spacing.interact_size.y = 22.;
     style.spacing.button_padding = egui::vec2(8., 3.);
@@ -750,14 +1091,171 @@ pub fn theme(ctx: &egui::Context) {
     .into();
     ctx.set_style(style);
 }
-/// A labelled row in a two-column property grid. The label carries the tooltip.
-pub fn row(ui: &mut egui::Ui, label: &str, tip: &str, add: impl FnOnce(&mut egui::Ui)) {
-    ui.label(label).on_hover_text(tip);
-    ui.horizontal(|ui| {
+/// What the controls of the `row` being drawn tell it (the context's temp data).
+#[derive(Clone, Copy, Default)]
+struct RowState {
+    active: bool,
+    /// A slider leaves its reset hint to the row's tooltip.
+    slider: bool,
+    /// A control is showing a tooltip of its own, where the row's would land on top of it.
+    quiet: bool,
+}
+fn row_state(ctx: &egui::Context) -> RowState {
+    ctx.data(|d| d.get_temp(egui::Id::new("row state")))
+        .unwrap_or_default()
+}
+fn set_row_state(ctx: &egui::Context, state: RowState) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("row state"), state));
+}
+/// For `Slider`: true when a row shows its reset hint.
+pub(crate) fn slider_in_row(ctx: &egui::Context) -> bool {
+    let state = row_state(ctx);
+    if state.active {
+        set_row_state(
+            ctx,
+            RowState {
+                slider: true,
+                ..state
+            },
+        );
+    }
+    state.active
+}
+/// The row's tooltip stands aside while the pointer is on `r`, which has its own.
+pub(crate) fn row_tip_yields(r: &egui::Response) {
+    let state = row_state(&r.ctx);
+    if state.active && r.ctx.rect_contains_pointer(r.layer_id, r.rect) {
+        set_row_state(
+            &r.ctx,
+            RowState {
+                quiet: true,
+                ..state
+            },
+        );
+    }
+}
+/// A tooltip of its own for a control in a `row`.
+pub(crate) fn own_tip(r: egui::Response, text: impl Into<egui::WidgetText>) -> egui::Response {
+    row_tip_yields(&r);
+    r.on_hover_text(text)
+}
+/// Why a control is disabled, in a `row` or not.
+pub(crate) fn why_disabled(r: egui::Response, text: impl Into<egui::WidgetText>) -> egui::Response {
+    if !r.enabled() {
+        row_tip_yields(&r);
+    }
+    r.on_disabled_hover_text(text)
+}
+/// The controls column of a row, and the tooltip over the whole row: a hover-only widget on top
+/// of the label and controls, which still get their clicks and drags.
+fn row_controls<R>(
+    ui: &mut egui::Ui,
+    label: egui::Response,
+    tip: &str,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let outer = row_state(ui.ctx());
+    set_row_state(
+        ui.ctx(),
+        RowState {
+            active: true,
+            ..Default::default()
+        },
+    );
+    let controls = ui.horizontal(|ui| {
         ui.spacing_mut().slider_width = 130.;
-        add(ui);
+        add(ui)
     });
+    let state = row_state(ui.ctx());
+    set_row_state(ui.ctx(), outer);
+    if !state.quiet && !tip.is_empty() {
+        let hover = ui.interact(
+            label.rect.union(controls.response.rect),
+            ui.auto_id_with("row tip"),
+            egui::Sense::hover(),
+        );
+        if state.slider {
+            hover.on_hover_text(format!("{tip}\n\nDouble-click the slider to reset."));
+        } else {
+            hover.on_hover_text(tip);
+        }
+    }
     ui.end_row();
+    controls.inner
+}
+/// A labelled row in a two-column property grid, with the tooltip over the whole row.
+pub fn row(ui: &mut egui::Ui, label: &str, tip: &str, add: impl FnOnce(&mut egui::Ui)) {
+    let label = ui.label(label);
+    row_controls(ui, label, tip, add);
+}
+/// A row whose control is a checkbox: clicking the label toggles it too. Returns the checkbox's
+/// response (`changed()` covers both).
+pub fn check_row(ui: &mut egui::Ui, label: &str, tip: &str, on: &mut bool) -> egui::Response {
+    check_row_with(ui, label, tip, on, None, |_, _| {})
+}
+/// `check_row` with more controls after the checkbox (`extra` gets its state), disabled with
+/// the reason when `idle` says why it does nothing right now.
+pub fn check_row_with(
+    ui: &mut egui::Ui,
+    label: &str,
+    tip: &str,
+    on: &mut bool,
+    idle: Option<&str>,
+    extra: impl FnOnce(&mut egui::Ui, bool),
+) -> egui::Response {
+    // As plain a colour as any other row's label; a clickable one would be brighter.
+    let color = ui.visuals().text_color();
+    let text = egui::Label::new(egui::RichText::new(label).color(color))
+        .sense(egui::Sense::click())
+        .selectable(false);
+    let label = ui.add_enabled(idle.is_none(), text);
+    let flipped = label.clicked();
+    if flipped {
+        *on = !*on;
+    }
+    row_controls(ui, label, tip, |ui| {
+        let mut checkbox = ui.add_enabled(idle.is_none(), egui::Checkbox::without_text(on));
+        if flipped {
+            checkbox.mark_changed();
+        }
+        if let Some(idle) = idle {
+            checkbox = why_disabled(checkbox, idle);
+        }
+        extra(ui, *on);
+        checkbox
+    })
+}
+/// A file row's mark for a file that did not load; the error is its tooltip.
+pub(crate) fn cant_load(ui: &mut egui::Ui, error: &str) {
+    own_tip(
+        ui.label(egui::RichText::new("can't load").color(WARN)),
+        error,
+    );
+}
+/// What a click or B says where picking needs a plain perspective camera.
+pub(crate) const PICKING_OFF: &str = "Picking is off with this camera: select in the outliner";
+/// Time left, as the status bar and the Export tab word it.
+pub(crate) fn time_left(seconds: f32) -> String {
+    if seconds < 90. {
+        format!("~{seconds:.0} s")
+    } else {
+        format!("~{:.0} min", seconds / 60.)
+    }
+}
+/// A value with at most four significant digits and no trailing zeros, for a logarithmic
+/// slider whose range spans many decades: 0, 0.012, 0.0004321. Small values keep their digits,
+/// so clicking into the field and out does not round them away.
+pub(crate) fn short_number(v: f64) -> String {
+    if v == 0. {
+        return "0".into();
+    }
+    let decimals = (3 - v.abs().log10().floor() as i32).clamp(0, 12) as usize;
+    let text = format!("{v:.decimals$}");
+    if text.contains('.') {
+        text.trim_end_matches('0').trim_end_matches('.').to_string()
+    } else {
+        text
+    }
 }
 /// Advanced rows: shown inline with "Show advanced settings", otherwise under "More".
 pub fn more(
@@ -793,7 +1291,8 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
     edit.resize(lpe::SLOTS, String::new());
     let shown = s.view == 12;
     // The field takes what the radio and the Presets button leave.
-    let width = (ui.available_width() - 120.).max(80.);
+    // Room for the radio, the button and their spacing, or the row widens the panel every frame.
+    let width = (ui.available_width() - 140.).max(80.);
     for (k, text) in edit.iter_mut().enumerate() {
         let current = s.lpe.get(k).cloned().unwrap_or_default();
         let mut error = None;
@@ -808,7 +1307,7 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
             }
             let field = ui.add(
                 egui::TextEdit::singleline(text)
-                    .hint_text("e.g. C D L")
+                    .hint_text(field_hint("e.g. C D L"))
                     .desired_width(width),
             );
             let mut set = None;
@@ -859,7 +1358,12 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
     }
 }
 pub(crate) fn note(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).small().weak());
+    ui.label(egui::RichText::new(text).small());
+}
+/// A text field's placeholder. egui's default is the weak text colour, about 2:1 on the field;
+/// this is the plain label grey, still dimmer than typed text.
+pub(crate) fn field_hint(text: impl Into<String>) -> egui::RichText {
+    egui::RichText::new(text).color(egui::Color32::from_gray(140))
 }
 fn rr_model(id: u32) -> &'static str {
     match id {
@@ -1064,8 +1568,10 @@ impl App {
         self.poll_describe(ctx);
         // Double-click resets: the scene as it was when it got its name (loaded, preset,
         // generated or randomized), each object and light by index, and default UI values.
+        // A search from the last scene would hide this one's objects too.
         if self.reset_baseline.scene_name != self.settings.scene_name {
             self.reset_baseline = self.settings.clone();
+            self.ui.search.clear();
         }
         static OBJECT: std::sync::LazyLock<scene::Object> =
             std::sync::LazyLock::new(Default::default);
@@ -1083,6 +1589,71 @@ impl App {
         self.ui.tidy_selection(&self.settings);
         self.draw_ui(ctx);
         crate::clear_reset_sources();
+        self.track_edits(ctx);
+    }
+    /// Panel edits become undo steps, and unsaved work reaches last-session.json.
+    fn track_edits(&mut self, ctx: &egui::Context) {
+        if !self.ui.edits_live {
+            return;
+        }
+        let (input, down) = ctx.input(|i| {
+            (
+                i.pointer.any_released()
+                    || i.events
+                        .iter()
+                        .any(|e| matches!(e, egui::Event::Key { .. })),
+                i.pointer.any_down(),
+            )
+        });
+        let settled = !down && !ctx.wants_keyboard_input();
+        match &self.physics {
+            Some(sim) => self.ui.sim_objects = sim.moving_objects(),
+            None => self.ui.sim_objects.clear(),
+        }
+        let foreign = self.edits_foreign();
+        self.ui.watch_edits(&self.settings, input, settled, foreign);
+        self.ui.autosave_session(&self.settings);
+    }
+    /// Something other than the user writes more than poses now (a simulation's poses are
+    /// `sim_objects`). Keys applied at a still playhead rebase where that happens (main.rs).
+    pub(crate) fn edits_foreign(&self) -> bool {
+        self.timeline.playing
+            || self.ui.physics_record
+            || !self.ui.physics_recorded.is_empty()
+            || self.script.is_some()
+            || self.walking.is_some()
+    }
+    /// Replaces the scene from a UI control (scene picker, ◀ ▶, Randomize, Today, gamepad,
+    /// phone remote): undoable, with the old selection gone. Not for the screensaver, the
+    /// self-test or headless runs, which call `Settings::preset` directly.
+    pub fn switch_scene(&mut self, label: &str, change: impl FnOnce(&mut Settings)) {
+        self.ui.checkpoint_scene(&self.settings);
+        self.laser = crate::laser::Laser::default();
+        change(&mut self.settings);
+        self.ui.select(Selection::Stage);
+        self.ui.mark_clean(&self.settings);
+        self.ui
+            .toast(format!("{label}: {}", self.settings.scene_name));
+    }
+    /// Menu → Restore last session, or the prompt at startup: loads like opening a scene, so
+    /// undo goes back to what was on screen. It stays marked unsaved.
+    pub fn restore_session(&mut self) {
+        let Some(session) = self.ui.session_offer.take() else {
+            return;
+        };
+        self.ui.checkpoint_scene(&self.settings);
+        self.laser = crate::laser::Laser::default();
+        self.physics = None;
+        self.settings = session.settings;
+        // Its values stay as they were saved; the keys apply once the playhead moves.
+        self.timeline.settle(&self.settings);
+        self.ui.rebase_edits(&self.settings);
+        self.ui.select(Selection::Stage);
+        self.ui.loaded_file = session.loaded_file;
+        self.ui.scene_selected = self.scene_entry();
+        self.ui.scene_dirty = true;
+        self.ui
+            .toast(format!("Restored {}", self.settings.scene_name));
     }
     fn draw_ui(&mut self, ctx: &egui::Context) {
         // Loaded and randomized settings carry their preset by name.
@@ -1117,7 +1688,8 @@ impl App {
             None => {
                 let n = PRESETS.len() as isize;
                 self.preset = (self.preset as isize + delta).rem_euclid(n) as usize;
-                self.settings.preset(self.preset);
+                let preset = self.preset;
+                self.switch_scene("Scene", |s| s.preset(preset));
             }
         }
     }
@@ -1139,10 +1711,11 @@ impl App {
         match self.ui.scenes.iter().position(|e| same(&e.path)) {
             Some(i) => self.load_scene_file(i),
             None => {
-                self.ui.checkpoint(&self.settings);
+                self.ui.checkpoint_scene(&self.settings);
                 self.laser = crate::laser::Laser::default();
                 match crate::scenes::load_into(&mut self.settings, path) {
                     Ok(()) => {
+                        self.ui.mark_clean(&self.settings);
                         self.ui.selection = Selection::Stage;
                         self.ui.loaded_file =
                             Some((path.to_path_buf(), self.settings.scene_name.clone()));
@@ -1206,6 +1779,7 @@ impl App {
                 self.settings.scene_name = title.clone();
                 self.ui.loaded_file = Some((path.clone(), title));
                 self.reset_baseline = self.settings.clone();
+                self.ui.mark_clean(&self.settings);
                 self.ui.scenes = crate::scenes::list();
                 self.ui.scene_selected = self.scene_entry();
                 self.ui.prefs.opened(&path);
@@ -1227,6 +1801,24 @@ impl App {
         if (zoom - p.zoom).abs() > 1e-3 || self.ui.advanced != p.advanced {
             p.zoom = zoom;
             p.advanced = self.ui.advanced;
+            self.ui.save_prefs();
+        }
+        // Where the UI was left. The panel's width waits for its drag to end.
+        let p = &mut self.ui.prefs;
+        let layout = (
+            self.ui.tab,
+            self.ui.tool,
+            self.ui.local,
+            self.ui.pivot,
+            self.ui.snap_to,
+        );
+        let panel_moved = self.ui.panel_resized && !ctx.input(|i| i.pointer.any_down());
+        if panel_moved {
+            self.ui.panel_resized = false;
+            p.panel_width = self.ui.panel_width;
+        }
+        if panel_moved || layout != (p.tab, p.tool, p.local, p.pivot, p.snap_to) {
+            (p.tab, p.tool, p.local, p.pivot, p.snap_to) = layout;
             self.ui.save_prefs();
         }
         if self.ui.prefs_live && !self.ui.prefs.hint_seen {
@@ -1309,9 +1901,7 @@ impl App {
                     Command::Rotate => gizmo::Mode::Rotate,
                     _ => gizmo::Mode::Scale,
                 };
-                if !self.start_transform(mode, None) {
-                    self.ui.toast("The main light only moves and scales");
-                }
+                self.start_transform(mode, None);
             }
         }
     }
@@ -1363,6 +1953,8 @@ const FILM_STOCKS: &[(&str, f32, u32, f32)] = &[
     ("Kodak Portra 800 pushed", 0.55, 1, 0.12),
     ("Ilford Delta 3200 (grain only)", 0.85, 2, 0.),
 ];
+/// Which groups of `SHORTCUTS` stack in each column of the sheet.
+const SHORTCUT_COLUMNS: [&[usize]; 3] = [&[0, 2], &[1], &[3]];
 const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
     (
         "Camera",
@@ -1376,10 +1968,12 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("Ctrl+click", "Focus the lens there"),
             ("A", "Auto orbit"),
             ("`", "Walk mode (WASD, Esc to leave)"),
+            ("T", "Flashlight on or off (also while walking)"),
             (
                 "Walking",
                 "Space jump, C crouch, Shift run, F fly, B head bob, wheel body size",
             ),
+            ("While walking", "F12, F1, Tab, Ctrl+Z / Y / O also work"),
         ],
     ),
     (
@@ -1391,10 +1985,8 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("Ctrl+A / Alt+A", "Select all / none"),
             ("Right-click", "Menu"),
             ("Shift+right-click", "Place the 3D cursor"),
-            (
-                "G / R / S",
-                "Move / rotate / scale (then X Y Z, a value, Enter)",
-            ),
+            ("G / R / S", "Over the viewport: move / rotate / scale"),
+            ("Then", "X Y Z, a value, Enter"),
             ("Ctrl+D", "Duplicate"),
             ("Shift+D / Alt+drag a handle", "Duplicate and move"),
             (
@@ -1404,15 +1996,28 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("Tab while moving", "Next axis of a typed vector"),
             ("H / Alt+H", "Hide or show / show all"),
             ("Del", "Delete"),
-            ("Esc", "Deselect"),
-            ("Ctrl+Z / Ctrl+Y", "Undo / redo"),
+            ("Esc", "Deselect (or close Scenes)"),
+            ("Ctrl+Z / Ctrl+Y", "Undo / redo (also Ctrl+Shift+Z)"),
+        ],
+    ),
+    (
+        "Files and windows",
+        &[
+            ("Ctrl+S / Ctrl+Shift+S", "Save the scene / save as"),
+            ("Ctrl+O", "Open a scene file"),
+            ("Ctrl+P", "Scenes: type, arrows, Enter loads, Esc closes"),
+            ("Ctrl + / −", "UI size"),
+            (
+                "E / N",
+                "Physics: explode / drop a sphere (Shift+N: a cube)",
+            ),
         ],
     ),
     (
         "Render and view",
         &[
             ("Space", "Pause"),
-            ("R", "Restart (nothing selected)"),
+            ("R", "Restart, unless an object or light is selected"),
             ("D", "Native denoiser"),
             ("1 – 8", "Debug views"),
             ("C", "Freeze an A/B reference"),
@@ -1421,7 +2026,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
                 "P / Alt+click",
                 "Path visualizer / trace the paths of a pixel",
             ),
-            ("F12", "Save caustica.png"),
+            ("F12", "Save the image as PNG"),
             (
                 "I / Shift+I / Alt+I",
                 "Key the selection / key every edit / delete its keys",
@@ -1435,6 +2040,35 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
     ),
 ];
 
+/// Tab belongs to the app (the panel cycle, a typed vector's next axis): given to egui, it would
+/// put a button in focus. Only from one text field to the next does egui get it.
+pub fn keep_tab_for_app(input: &mut egui::RawInput, text_field_tab: bool) {
+    if !text_field_tab {
+        input.events.retain(|e| {
+            !matches!(
+                e,
+                egui::Event::Key {
+                    key: egui::Key::Tab,
+                    ..
+                }
+            )
+        });
+    }
+}
+/// After a frame: whether a text field holds the keyboard. egui's own `wants_keyboard_input` means
+/// any focus, and the mark of an editable focused TextEdit (a DragValue being typed in too) is its
+/// IME output. Any other focus goes, or Space and Enter would click that widget as well as run
+/// their shortcuts; it gets a frame, because a DragValue's field appears the frame after its click.
+pub fn settle_focus(ctx: &egui::Context, editing: bool, seen: &mut Option<egui::Id>) -> bool {
+    let focused = ctx.memory(|m| m.focused());
+    if !editing && focused.is_some() && focused == *seen {
+        ctx.memory_mut(|m| m.stop_text_input());
+        *seen = None;
+    } else {
+        *seen = if editing { None } else { focused };
+    }
+    editing
+}
 /// Opens Explorer with `file` selected (or the folder itself).
 pub fn show_in_folder(file: &std::path::Path) {
     // A file that is not there (a cancelled still) shows its folder instead.
@@ -1557,5 +2191,645 @@ impl Bundle {
         if self == Bundle::NativeFast {
             s.upscaler = upscaler;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// One frame of `ui`, with `events`, as `redraw` runs it: Tab filtered, focus settled after.
+    fn focus_frame(
+        ctx: &egui::Context,
+        text_focus: &mut bool,
+        seen: &mut Option<egui::Id>,
+        transform: bool,
+        events: Vec<egui::Event>,
+        mut ui: impl FnMut(&mut egui::Ui),
+    ) {
+        let mut input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800., 600.),
+            )),
+            events,
+            ..Default::default()
+        };
+        keep_tab_for_app(&mut input, *text_focus && !transform);
+        let output = ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |u| ui(u));
+        });
+        *text_focus = settle_focus(ctx, output.platform_output.ime.is_some(), seen);
+    }
+    fn key(key: egui::Key) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Default::default(),
+        }
+    }
+    #[test]
+    fn tab_never_puts_a_button_in_focus() {
+        let ctx = egui::Context::default();
+        let (mut text, mut seen) = (false, None);
+        for _ in 0..4 {
+            focus_frame(
+                &ctx,
+                &mut text,
+                &mut seen,
+                false,
+                vec![key(egui::Key::Tab)],
+                |ui| {
+                    let _ = ui.button("Menu");
+                },
+            );
+            assert_eq!(ctx.memory(|m| m.focused()), None);
+            assert!(!text && seen.is_none(), "the shortcuts stay alive");
+        }
+    }
+    #[test]
+    fn text_fields_keep_the_keyboard_and_tab_between_them() {
+        let ctx = egui::Context::default();
+        let (mut text, mut seen) = (false, None);
+        let (mut a, mut b) = (String::new(), String::new());
+        let (a_id, b_id) = (egui::Id::new("a"), egui::Id::new("b"));
+        let mut go = |text: &mut bool, seen: &mut _, transform, events, focus| {
+            focus_frame(&ctx, text, seen, transform, events, |ui| {
+                let ra = ui.add(egui::TextEdit::singleline(&mut a).id(a_id));
+                if focus {
+                    ra.request_focus();
+                }
+                ui.add(egui::TextEdit::singleline(&mut b).id(b_id));
+            });
+        };
+        go(&mut text, &mut seen, false, vec![], true);
+        go(&mut text, &mut seen, false, vec![], false);
+        assert!(text, "a focused text field holds the keyboard");
+        go(
+            &mut text,
+            &mut seen,
+            false,
+            vec![egui::Event::Text("x".into())],
+            false,
+        );
+        go(
+            &mut text,
+            &mut seen,
+            false,
+            vec![key(egui::Key::Tab)],
+            false,
+        );
+        go(&mut text, &mut seen, false, vec![], false);
+        assert_eq!(ctx.memory(|m| m.focused()), Some(b_id));
+        assert!(text, "Tab went on to the next field");
+        // During a transform Tab is the transform's.
+        go(&mut text, &mut seen, true, vec![key(egui::Key::Tab)], false);
+        assert_eq!(ctx.memory(|m| m.focused()), Some(b_id));
+        // Esc lets go, and the shortcuts are back.
+        go(
+            &mut text,
+            &mut seen,
+            false,
+            vec![key(egui::Key::Escape)],
+            false,
+        );
+        go(&mut text, &mut seen, false, vec![], false);
+        assert!(!text && seen.is_none());
+        assert_eq!(a, "x");
+    }
+    #[test]
+    fn a_drag_value_can_still_be_typed_in() {
+        let ctx = egui::Context::default();
+        let (mut text, mut seen) = (false, None);
+        let mut value = 1.0f32;
+        let mut rect = egui::Rect::NOTHING;
+        let mut go = |text: &mut bool, seen: &mut _, events| {
+            focus_frame(&ctx, text, seen, false, events, |ui| {
+                rect = ui.add(egui::DragValue::new(&mut value)).rect;
+            });
+            rect.center()
+        };
+        let at = go(&mut text, &mut seen, vec![]);
+        go(&mut text, &mut seen, vec![egui::Event::PointerMoved(at)]);
+        let click = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        go(&mut text, &mut seen, vec![click(true)]);
+        go(&mut text, &mut seen, vec![click(false)]);
+        assert!(seen.is_some(), "the shortcuts wait for the field");
+        go(&mut text, &mut seen, vec![]);
+        assert!(text, "the click opened its field, which holds the keyboard");
+        go(&mut text, &mut seen, vec![egui::Event::Text("7".into())]);
+        go(&mut text, &mut seen, vec![key(egui::Key::Enter)]);
+        go(&mut text, &mut seen, vec![]);
+        assert_eq!(value, 7.);
+        assert!(!text && seen.is_none(), "Enter gives the keys back");
+    }
+
+    use super::*;
+    /// A live state with no session file, so tests touch nothing on disk.
+    fn live(s: &Settings) -> UiState {
+        let mut ui = UiState::default();
+        ui.edits_live = true;
+        ui.edit_base = s.clone();
+        ui.clean_base = s.clone();
+        ui
+    }
+    /// A frame with a release or key: nothing held, nothing else writing.
+    fn released(ui: &mut UiState, s: &Settings) {
+        ui.watch_edits(s, true, true, false);
+    }
+    #[test]
+    fn one_drag_is_one_undo_step_and_undo_keeps_the_camera() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        let before = s.exposure;
+        // During the drag: the pointer is down, so nothing is recorded.
+        for i in 1..5 {
+            s.exposure = before + i as f32 * 0.1;
+            ui.watch_edits(&s, false, false, false);
+        }
+        assert!(ui.undo.is_empty());
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1);
+        let after = s.exposure;
+        // Orbiting makes no step, and undo leaves the view alone.
+        s.yaw += 40.;
+        s.target[0] += 1.;
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1);
+        let camera = camera_of(&s);
+        assert!(ui.undo(&mut s));
+        assert_eq!(s.exposure, before);
+        assert_eq!(camera_of(&s), camera);
+        // The watcher does not see undo as an edit: redo survives it.
+        released(&mut ui, &s);
+        assert!(ui.redo(&mut s));
+        assert_eq!(s.exposure, after);
+        assert_eq!(camera_of(&s), camera);
+        assert!(ui.undo.len() == 1 && ui.redo.is_empty());
+    }
+    #[test]
+    fn an_action_with_its_own_checkpoint_stays_one_step() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        // Orbit first: the action's snapshot and the watcher's base differ only in camera.
+        s.yaw += 10.;
+        ui.watch_edits(&s, false, true, false);
+        ui.checkpoint(&s);
+        s.objects.pop();
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1);
+        // A held text field waits, and the later settled frame picks it up.
+        s.scene_name = "Renamed".into();
+        ui.watch_edits(&s, true, false, false);
+        assert_eq!(ui.undo.len(), 1);
+        ui.watch_edits(&s, false, true, false);
+        assert_eq!(ui.undo.len(), 2);
+    }
+    #[test]
+    fn a_scene_step_brings_its_own_camera_back() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        s.exposure = 3.;
+        s.yaw = 25.;
+        released(&mut ui, &s);
+        let old = s.clone();
+        ui.checkpoint_scene(&s);
+        s.preset(12);
+        s.yaw = 99.;
+        // The watcher's own look at the load merges with the load's step.
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 2);
+        assert!(ui.undo(&mut s));
+        assert!(s == old, "the old scene, framed as it was");
+        assert!(ui.redo(&mut s));
+        assert_eq!(s.yaw, 99.);
+    }
+    #[test]
+    fn a_camera_inspector_edit_is_undone_with_its_camera() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        let yaw = s.yaw;
+        ui.watch_edits(&s, false, true, false);
+        s.yaw = yaw + 30.;
+        ui.camera_edit = true;
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1);
+        assert!(ui.undo(&mut s));
+        assert_eq!(s.yaw, yaw);
+    }
+    #[test]
+    fn what_keys_physics_and_transforms_write_makes_no_step() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        // A simulation or playback runs, and ends with no input.
+        s.objects[0].position[0] += 1.;
+        ui.watch_edits(&s, true, true, true);
+        s.objects[0].position[0] += 1.;
+        ui.watch_edits(&s, false, true, false);
+        released(&mut ui, &s);
+        assert!(ui.undo.is_empty());
+        // Keys applied after the UI.
+        s.exposure += 1.;
+        ui.rebase_edits(&s);
+        released(&mut ui, &s);
+        assert!(ui.undo.is_empty());
+        // The next real edit counts.
+        s.exposure += 1.;
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1);
+    }
+    #[test]
+    fn panel_edits_make_steps_while_a_simulation_moves_objects() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        ui.sim_objects = vec![0];
+        // The simulation's poses alone: no step, and nothing unsaved, a viewer choice included.
+        s.objects[0].position[0] += 1.;
+        s.view = 2;
+        released(&mut ui, &s);
+        assert!(ui.undo.len() == 1 && !ui.scene_dirty, "the view is a step");
+        ui.undo.clear();
+        s.objects[0].position[0] += 1.;
+        released(&mut ui, &s);
+        assert!(ui.undo.is_empty() && !ui.scene_dirty);
+        // A panel edit counts.
+        s.objects[0].position[0] += 1.;
+        s.exposure += 1.;
+        released(&mut ui, &s);
+        assert!(ui.undo.len() == 1 && ui.scene_dirty);
+        assert_eq!(ui.undo[0].settings.exposure + 1., s.exposure);
+        // It stopped: what it left is no edit either.
+        s.objects[0].position[0] += 1.;
+        ui.sim_ended(&s);
+        released(&mut ui, &s);
+        assert!(ui.undo.len() == 1 && ui.sim_objects.is_empty());
+    }
+    #[test]
+    fn a_recording_is_unsaved_but_no_step() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        s.animation.key("exposure", 0., 1.);
+        ui.watch_edits(&s, false, true, true);
+        released(&mut ui, &s);
+        assert!(ui.undo.is_empty() && ui.scene_dirty);
+    }
+    #[test]
+    fn keys_applied_for_a_load_or_the_playhead_leave_a_clean_scene_clean() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        // A load: the keys' first values are no work of the user's.
+        ui.mark_clean(&s);
+        s.exposure += 1.;
+        ui.keys_applied(&s, true, true);
+        s.view = 2;
+        released(&mut ui, &s);
+        assert!(!ui.scene_dirty);
+        // A scrub, then a viewer choice.
+        s.exposure += 1.;
+        ui.keys_applied(&s, true, false);
+        s.view = 3;
+        released(&mut ui, &s);
+        assert!(!ui.scene_dirty);
+        // A real edit, and its undo after another scrub: not clean by accident.
+        ui.undo.clear();
+        s.gamma += 0.5;
+        released(&mut ui, &s);
+        assert!(ui.scene_dirty);
+        s.exposure += 1.;
+        ui.keys_applied(&s, true, false);
+        assert!(ui.scene_dirty);
+    }
+    #[test]
+    fn an_edit_of_the_keys_stays_an_edit() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        // Its action's checkpoint, then the applied keys, a button keeping the focus.
+        ui.checkpoint(&s);
+        s.animation.key("exposure", 0., 3.);
+        s.exposure = 3.;
+        ui.watch_edits(&s, true, false, false);
+        ui.keys_applied(&s, true, true);
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1, "one step");
+        assert!(ui.scene_dirty);
+    }
+    #[test]
+    fn an_edit_in_a_field_survives_the_playhead_moving() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        s.gamma += 0.5;
+        ui.watch_edits(&s, true, false, false);
+        assert!(ui.undo.is_empty());
+        ui.flush_pending(&s);
+        s.exposure += 1.;
+        ui.keys_applied(&s, true, false);
+        released(&mut ui, &s);
+        assert_eq!(ui.undo.len(), 1);
+        assert!(ui.scene_dirty);
+        // Nor does playback starting swallow one.
+        s.gamma += 0.5;
+        ui.watch_edits(&s, true, false, false);
+        ui.watch_edits(&s, true, true, true);
+        assert_eq!(ui.undo.len(), 2);
+    }
+    #[test]
+    fn nothing_is_watched_outside_interactive_runs() {
+        let mut s = Settings::default();
+        let mut ui = UiState::default();
+        s.exposure += 1.;
+        ui.watch_edits(&s, true, true, false);
+        assert!(ui.undo.is_empty() && !ui.scene_dirty);
+        ui.close_session(&s);
+        ui.mark_clean(&s);
+        assert!(ui.edit_base != s, "no clones for headless runs either");
+    }
+    #[test]
+    fn the_unsaved_mark_ignores_the_camera_and_viewer_choices() {
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        s.yaw += 5.;
+        s.view = 2;
+        s.rr = !s.rr;
+        released(&mut ui, &s);
+        assert!(!ui.scene_dirty);
+        s.exposure += 1.;
+        released(&mut ui, &s);
+        assert!(ui.scene_dirty);
+        // Undo back: clean again. Saving or loading clears it.
+        assert!(ui.undo(&mut s));
+        assert!(ui.undo(&mut s));
+        released(&mut ui, &s);
+        assert!(!ui.scene_dirty);
+        s.exposure += 1.;
+        released(&mut ui, &s);
+        assert!(ui.scene_dirty);
+        ui.mark_clean(&s);
+        assert!(!ui.scene_dirty);
+        released(&mut ui, &s);
+        assert!(!ui.scene_dirty);
+    }
+    #[test]
+    fn closing_writes_unsaved_work_and_clears_the_file_otherwise() {
+        let dir = std::env::temp_dir().join(format!("caustica-close-{}", std::process::id()));
+        let path = dir.join("last-session.json");
+        let mut s = Settings::default();
+        let mut ui = live(&s);
+        ui.session_file = Some(path.clone());
+        // A value still in a focused field at close counts.
+        s.exposure = 2.5;
+        ui.watch_edits(&s, true, false, false);
+        ui.close_session(&s);
+        assert_eq!(
+            crate::prefs::read_session(&path).unwrap().settings.exposure,
+            2.5
+        );
+        // Saved since: nothing left to offer.
+        ui.mark_clean(&s);
+        assert!(!path.exists());
+        // But an unanswered offer keeps its file through a clean close.
+        crate::prefs::write_session(&path, &s, &None).unwrap();
+        ui.session_offer = crate::prefs::read_session(&path);
+        ui.close_session(&s);
+        assert!(path.exists());
+        ui.session_offer = None;
+        ui.close_session(&s);
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    #[test]
+    fn a_nameless_scene_gets_no_leading_dash() {
+        let mut ui = UiState::default();
+        ui.prefs.name_template = "{scene}-x".into();
+        let mut s = Settings::default();
+        s.scene_name = " ".into();
+        assert_eq!(ui.export_stem(&s, 1, 1, 1), "caustica-x");
+    }
+
+    /// One headless egui frame of `add` in a grid, with `events` as this frame's input.
+    fn frame(
+        ctx: &egui::Context,
+        events: Vec<egui::Event>,
+        add: &mut dyn FnMut(&mut egui::Ui),
+    ) -> egui::FullOutput {
+        let time = ctx.input(|i| i.time) + 0.05;
+        let input = egui::RawInput {
+            time: Some(time),
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800., 600.),
+            )),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                egui::Grid::new("test")
+                    .num_columns(2)
+                    .show(ui, |ui| add(ui));
+            });
+        })
+    }
+    fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        }
+    }
+    /// Moves there and clicks, one input per frame.
+    fn click(ctx: &egui::Context, pos: egui::Pos2, add: &mut dyn FnMut(&mut egui::Ui)) {
+        frame(ctx, vec![egui::Event::PointerMoved(pos)], add);
+        frame(ctx, vec![button(pos, true)], add);
+        frame(ctx, vec![button(pos, false)], add);
+    }
+    /// Every piece of text painted in a frame, tooltips included.
+    fn painted(output: &egui::FullOutput) -> String {
+        fn walk(shape: &egui::Shape, text: &mut String) {
+            match shape {
+                egui::Shape::Text(t) => {
+                    text.push_str(t.galley.text());
+                    text.push('\n');
+                }
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, text)),
+                _ => {}
+            }
+        }
+        let mut text = String::new();
+        output.shapes.iter().for_each(|c| walk(&c.shape, &mut text));
+        text
+    }
+    /// A context whose tooltips show at once, and what a few frames hovering `pos` paint.
+    fn hover(pos: egui::Pos2, add: &mut dyn FnMut(&mut egui::Ui)) -> String {
+        let ctx = egui::Context::default();
+        ctx.style_mut(|s| s.interaction.tooltip_delay = 0.);
+        frame(&ctx, vec![], add);
+        frame(&ctx, vec![egui::Event::PointerMoved(pos)], add);
+        for _ in 0..3 {
+            frame(&ctx, vec![], add);
+        }
+        painted(&frame(&ctx, vec![], add))
+    }
+    #[test]
+    fn a_rows_label_toggles_its_checkbox_and_reports_the_change() {
+        let ctx = egui::Context::default();
+        let mut on = false;
+        let box_rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut changed = 0;
+        let mut add = |ui: &mut egui::Ui| {
+            let r = check_row(ui, "Spectral", "tip", &mut on);
+            box_rect.set(r.rect);
+            changed += r.changed() as u32;
+        };
+        frame(&ctx, vec![], &mut add);
+        let label = egui::pos2(box_rect.get().left() - 25., box_rect.get().center().y);
+        click(&ctx, label, &mut add);
+        drop(add);
+        assert!(on, "a click on the label toggles");
+        assert_eq!(changed, 1, "and changed() fires once");
+    }
+    #[test]
+    fn the_row_tooltip_does_not_take_a_controls_clicks() {
+        let ctx = egui::Context::default();
+        let mut on = false;
+        let box_rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut add = |ui: &mut egui::Ui| {
+            box_rect.set(check_row(ui, "Spectral", "tip", &mut on).rect);
+        };
+        frame(&ctx, vec![], &mut add);
+        let center = box_rect.get().center();
+        click(&ctx, center, &mut add);
+        drop(add);
+        assert!(on, "the box itself still toggles");
+    }
+    #[test]
+    fn a_disabled_check_row_ignores_its_label_and_says_why() {
+        let ctx = egui::Context::default();
+        let mut on = false;
+        let box_rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut add = |ui: &mut egui::Ui| {
+            box_rect.set(
+                check_row_with(
+                    ui,
+                    "Denoiser",
+                    "the row tip",
+                    &mut on,
+                    Some("the reason"),
+                    |_, _| {},
+                )
+                .rect,
+            );
+        };
+        frame(&ctx, vec![], &mut add);
+        let (center, label) = (
+            box_rect.get().center(),
+            egui::pos2(box_rect.get().left() - 25., box_rect.get().center().y),
+        );
+        click(&ctx, label, &mut add);
+        click(&ctx, center, &mut add);
+        drop(add);
+        assert!(!on);
+        let mut on = false;
+        let text = hover(center, &mut |ui: &mut egui::Ui| {
+            check_row_with(
+                ui,
+                "Denoiser",
+                "the row tip",
+                &mut on,
+                Some("the reason"),
+                |_, _| {},
+            );
+        });
+        assert!(text.contains("the reason"), "{text}");
+        assert!(!text.contains("the row tip"), "only one tooltip: {text}");
+    }
+    #[test]
+    fn the_row_tooltip_shows_over_the_control_and_takes_the_slider_hint() {
+        let ctx = egui::Context::default();
+        let mut v = 0.5_f32;
+        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut add = |ui: &mut egui::Ui| {
+            row(ui, "Level", "What the level does.", |ui| {
+                rect.set(ui.add(crate::slider(&mut v, 0. ..=1.)).rect);
+            });
+        };
+        frame(&ctx, vec![], &mut add);
+        drop(add);
+        let text = hover(rect.get().center(), &mut |ui: &mut egui::Ui| {
+            row(ui, "Level", "What the level does.", |ui| {
+                ui.add(crate::slider(&mut v, 0. ..=1.));
+            });
+        });
+        assert!(text.contains("What the level does."), "{text}");
+        assert!(text.contains("Double-click the slider to reset."), "{text}");
+    }
+    #[test]
+    fn a_controls_own_tooltip_replaces_the_rows() {
+        let ctx = egui::Context::default();
+        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut add = |ui: &mut egui::Ui| {
+            row(ui, "HDRI", "the row tip", |ui| {
+                rect.set(own_tip(ui.label("file.hdr"), "the path").rect);
+            });
+        };
+        frame(&ctx, vec![], &mut add);
+        let text = hover(rect.get().center(), &mut |ui: &mut egui::Ui| {
+            row(ui, "HDRI", "the row tip", |ui| {
+                own_tip(ui.label("file.hdr"), "the path");
+            });
+        });
+        assert!(text.contains("the path"), "{text}");
+        assert!(!text.contains("the row tip"), "{text}");
+    }
+    #[test]
+    fn the_revert_dot_restores_a_group_of_values() {
+        let reference = [1_f32, 2., 3.];
+        let mut live = [1_f32, 5., 3.];
+        crate::clear_reset_sources();
+        crate::reset_source(&live, &reference);
+        let ctx = egui::Context::default();
+        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut add = |ui: &mut egui::Ui| {
+            rect.set(ui.max_rect());
+            crate::revert_dot(ui, &mut live);
+        };
+        frame(&ctx, vec![], &mut add);
+        let dot = rect.get().min + egui::vec2(4., 8.);
+        click(&ctx, dot, &mut add);
+        drop(add);
+        crate::clear_reset_sources();
+        assert_eq!(live, reference);
+    }
+    #[test]
+    fn double_clicking_a_wheels_level_slider_resets_the_wheel() {
+        let ctx = egui::Context::default();
+        let mut value = [0.1_f32, 0.05, 0.05];
+        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut add = |ui: &mut egui::Ui| {
+            crate::look::color_wheel(ui, "Lift", &mut value, 0., 0.15);
+            rect.set(ui.min_rect());
+        };
+        frame(&ctx, vec![], &mut add);
+        // Under the label and the 84-point wheel.
+        let slider = egui::pos2(rect.get().left() + 30., rect.get().top() + 113.);
+        click(&ctx, slider, &mut add);
+        click(&ctx, slider, &mut add);
+        frame(&ctx, vec![], &mut add);
+        drop(add);
+        assert!(value.iter().all(|v| v.abs() < 1e-6), "{value:?}");
+    }
+    #[test]
+    fn short_numbers_drop_what_says_nothing() {
+        assert_eq!(short_number(0.), "0");
+        assert_eq!(short_number(0.012), "0.012");
+        assert_eq!(short_number(0.00043216), "0.0004322");
+        assert_eq!(short_number(1.5), "1.5");
+        assert_eq!(short_number(10.), "10");
+        assert_eq!(short_number(0.1 + 0.2), "0.3");
     }
 }

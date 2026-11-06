@@ -721,6 +721,18 @@ impl Timeline {
             }
         }
     }
+    /// The keys differ from the ones last applied or settled (or nothing was applied yet).
+    pub fn keys_changed(&self, s: &Settings) -> bool {
+        self.applied.as_ref().is_none_or(|(_, a, path, script)| {
+            *a != s.animation.tracks
+                || *path != s.animation.camera_path
+                || *script != s.animation.script
+        })
+    }
+    /// The playhead left the time last applied or settled.
+    pub fn playhead_moved(&self) -> bool {
+        self.applied.as_ref().is_some_and(|(t, ..)| *t != self.time)
+    }
     /// Applies the animation when the playhead or the keys changed since the last time; edits
     /// at a still playhead stay until it moves (as in Blender), so they can be keyed.
     pub fn update(&mut self, s: &mut Settings) -> bool {
@@ -728,13 +740,7 @@ impl Timeline {
         if s.animation.is_empty() {
             self.rest = None;
         }
-        let fresh = self.applied.as_ref().is_none_or(|(t, a, path, script)| {
-            *t != self.time
-                || *a != s.animation.tracks
-                || *path != s.animation.camera_path
-                || *script != s.animation.script
-        });
-        if !fresh {
+        if !self.keys_changed(s) && !self.playhead_moved() {
             // Objects or lights added or removed since: their indices no longer match `rest`.
             if let Some(r) = &self.rest
                 && (r.objects.len() != s.objects.len() || r.lights.len() != s.lights.len())
@@ -853,6 +859,8 @@ pub fn entity(selection: crate::ui::Selection) -> (String, &'static [&'static st
         Selection::Object(i) => (format!("objects/{i}"), OBJECT),
         Selection::Light(i) => (format!("lights/{i}"), LIGHT),
         Selection::MainLight => (String::new(), MAIN),
+        // It has no keys; without this it would fall through to the camera's.
+        Selection::Flashlight => (String::new(), &[]),
         _ => (String::new(), CAMERA),
     }
 }
@@ -1065,6 +1073,16 @@ mod tests {
         assert_eq!(a.times(&["objects/1".to_string()]), vec![1.]);
         assert_eq!(a.copy_keys("objects/0", "objects/1"), 1);
         assert_eq!(a.track("objects/1/size").unwrap().keys.len(), 2);
+    }
+    #[test]
+    fn the_flashlight_keys_nothing_rather_than_the_camera() {
+        use crate::ui::Selection;
+        let mut s = Settings::default();
+        let mut tl = Timeline::default();
+        tl.update(&mut s);
+        assert_eq!(key_selection(&mut s, &tl, Selection::Flashlight), 0);
+        assert!(s.animation.tracks.is_empty());
+        assert!(prefixes(Selection::Flashlight).is_empty());
     }
     #[test]
     fn keying_a_selection_and_removing_an_object() {

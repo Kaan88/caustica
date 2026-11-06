@@ -1,13 +1,21 @@
 //! The timeline strip (track 8): transport, playhead, key markers, keying and the animation's
-//! length, frame rate and shutter. Drawn above the status bar while it is shown or the scene has
-//! keys.
+//! length, frame rate and shutter. Drawn above the status bar while it is shown; a scene gaining
+//! keys opens it, and it can then be closed.
 use crate::App;
 use crate::anim::{self, Interp, Timeline};
 use crate::ui::{ACCENT, Selection};
 
+/// True on the frame the scene goes from no keys to some.
+fn gained_keys(had: &mut bool, has: bool) -> bool {
+    !std::mem::replace(had, has) && has
+}
 impl App {
     /// I: key the selection (the camera when nothing is selected); Shift+I: every edited value.
     pub fn key_selection(&mut self, changed: bool) {
+        if !changed && self.ui.selection == Selection::Flashlight {
+            self.ui.toast("The flashlight can't be keyed");
+            return;
+        }
         self.ui.checkpoint(&self.settings);
         let n = if changed {
             anim::key_changed(&mut self.settings, &self.timeline)
@@ -61,7 +69,11 @@ impl App {
             Timeline::snap(a, self.timeline.time + frames as f32 / a.fps.max(1) as f32);
     }
     pub(crate) fn timeline_panel(&mut self, ctx: &egui::Context) {
-        if !self.ui.show_timeline && self.settings.animation.is_empty() {
+        // In one place, not in each of the paths that replace the settings (file, generators, AI,
+        // undo, startup). From one keyed scene to the next it stays as left.
+        let keys = !self.settings.animation.is_empty();
+        self.ui.show_timeline |= gained_keys(&mut self.ui.timeline_had_keys, keys);
+        if !self.ui.show_timeline {
             return;
         }
         let prefixes = anim::prefixes(self.ui.selection);
@@ -184,7 +196,8 @@ impl App {
                         }
                     })
                     .response
-                    .on_hover_text("Move, stretch or copy the selection's keys");
+                    .on_hover_text("Move, stretch or copy the selection's keys")
+                    .on_disabled_hover_text("Select something with keyframes");
                 });
                 if let Some((scale, offset)) = retime {
                     self.ui.checkpoint(&self.settings);
@@ -312,7 +325,7 @@ impl App {
                     egui::Align2::LEFT_TOP,
                     format!("{:.*}", if step < 1. { 1 } else { 0 }, i as f32 * step),
                     egui::FontId::proportional(10.),
-                    v.weak_text_color(),
+                    v.text_color(),
                 );
             }
             i += 1;
@@ -331,7 +344,7 @@ impl App {
         };
         let mid = rect.center().y + 3.;
         for t in a.times(&[]) {
-            diamond(egui::pos2(x_of(t), mid), 3.5, v.weak_text_color());
+            diamond(egui::pos2(x_of(t), mid), 3.5, v.text_color());
         }
         if !a.is_empty() {
             for t in a.times(prefixes) {
@@ -401,7 +414,7 @@ impl App {
                 egui::Align2::CENTER_CENTER,
                 "No animated values on the selection",
                 egui::FontId::proportional(12.),
-                visuals.weak_text_color(),
+                visuals.text_color(),
             );
         }
         let range = |tr: &anim::Track| {
@@ -529,6 +542,22 @@ fn selection_name(s: Selection) -> String {
         Selection::Object(i) => format!("object {}", i + 1),
         Selection::Light(i) => format!("light {}", i + 1),
         Selection::MainLight => "the main light".into(),
+        Selection::Flashlight => "the flashlight".into(),
         _ => "the camera".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn only_gaining_keys_opens_the_timeline() {
+        let mut had = false;
+        // Empty scene, then a keyed one: opens once, so it can then stay closed.
+        assert!(!super::gained_keys(&mut had, false));
+        assert!(super::gained_keys(&mut had, true));
+        assert!(!super::gained_keys(&mut had, true));
+        // Keys cleared and added again: opens again.
+        assert!(!super::gained_keys(&mut had, false));
+        assert!(super::gained_keys(&mut had, true));
     }
 }

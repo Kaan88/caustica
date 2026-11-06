@@ -58,7 +58,7 @@ impl App {
         });
         more(ui, "look more", advanced, |ui| {
             grid("look advanced").show(ui, |ui| {
-                row(ui, "Gamma", "Display gamma for the SDR image.", |ui| {
+                row(ui, "Display gamma", "Display gamma for the SDR image.", |ui| {
                     ui.add(crate::slider(&mut s.gamma, 0.1..=4.));
                 });
                 row(ui, "Direct light", "Relight: scale light that reached the surface straight from a light. Approximate on denoised output.", |ui| {
@@ -124,16 +124,18 @@ impl App {
                 "Film grain, strongest in the midtones.",
                 |ui| {
                     ui.add(crate::slider(&mut s.grain, 0. ..=1.));
-                    egui::ComboBox::from_id_salt("grain size")
-                        .selected_text(["Fine", "Medium", "Coarse"][s.grain_size.min(2) as usize])
-                        .width(80.)
-                        .show_ui(ui, |ui| {
-                            for (i, n) in ["Fine", "Medium", "Coarse"].iter().enumerate() {
-                                ui.selectable_value(&mut s.grain_size, i as u32, *n);
-                            }
-                        });
                 },
             );
+            row(ui, "Grain size", "How coarse the grain is.", |ui| {
+                egui::ComboBox::from_id_salt("grain size")
+                    .selected_text(["Fine", "Medium", "Coarse"][s.grain_size.min(2) as usize])
+                    .width(80.)
+                    .show_ui(ui, |ui| {
+                        for (i, n) in ["Fine", "Medium", "Coarse"].iter().enumerate() {
+                            ui.selectable_value(&mut s.grain_size, i as u32, *n);
+                        }
+                    });
+            });
             row(ui, "Vignette", "Darkens toward the corners.", |ui| {
                 ui.add(crate::slider(&mut s.vignette, 0. ..=1.));
             });
@@ -146,7 +148,7 @@ impl App {
         });
         note(
             ui,
-            "Drag a wheel to tint, the slider for the level; double-click resets.",
+            "Drag a wheel to tint, the slider for the level; double-click either to reset.",
         );
         grid("lut").show(ui, |ui| {
             row(
@@ -156,7 +158,7 @@ impl App {
                 |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut s.lut_path)
-                            .hint_text("path to .cube")
+                            .hint_text(field_hint("path to .cube"))
                             .desired_width(170.),
                     );
                     if ui.small_button("Browse…").clicked()
@@ -171,6 +173,12 @@ impl App {
                     }
                 },
             );
+            // A row of its own: this one already fills the panel.
+            if !s.lut_path.is_empty()
+                && let Some(e) = &self.ui.lut_error
+            {
+                row(ui, "", "", |ui| cant_load(ui, e));
+            }
             if !s.lut_path.is_empty() {
                 row(
                     ui,
@@ -268,7 +276,8 @@ impl App {
             ui.add_enabled(
                 g.reference_valid,
                 egui::Checkbox::new(&mut s.compare, "Show split"),
-            );
+            )
+            .on_disabled_hover_text("Freeze a reference (C) or render one on CPU first");
         });
         if let Some(st) = &cpu {
             match &st.error {
@@ -310,7 +319,7 @@ impl App {
             row(
                 ui,
                 "File name",
-                "Of quick saves and high-resolution stills (which add -high-res), in the output folder. {scene}, {date}, {time}, {spp}, {w} and {h} are filled in.",
+                "Of quick saves and high-resolution stills (which add -high-res), in the folder named below. {scene}, {date}, {time}, {spp}, {w} and {h} are filled in.",
                 |ui| {
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut self.ui.prefs.name_template)
@@ -325,6 +334,21 @@ impl App {
         let stem = self
             .ui
             .export_stem(&self.settings, g.samples, g.width, g.height);
+        note(
+            ui,
+            &format!(
+                "Saves the view as it is now: {} samples, {} × {}",
+                g.samples, g.width, g.height
+            ),
+        );
+        let (state, refining) = save_state(
+            g.samples,
+            self.settings.max_samples,
+            self.paused,
+            self.ui.sample_rate.2,
+        );
+        let state = egui::RichText::new(state).small();
+        ui.label(if refining { state.color(WARN) } else { state });
         ui.horizontal_wrapped(|ui| {
             for format in ImageFormat::ALL {
                 if format.needs_hdr() && !g.hdr_active {
@@ -345,11 +369,48 @@ impl App {
                 }
             }
         });
+        grid("export_quality").show(ui, |ui| {
+            row(
+                ui,
+                "JPEG quality",
+                "Used by every JPEG save: 100 is the largest file and the fewest artefacts.",
+                |ui| {
+                    ui.add(crate::slider(&mut self.ui.jpeg_quality, 50..=100));
+                },
+            );
+        });
+        // The folder as a real path: the output folder is empty in development and portable runs.
+        let dir = crate::dirs::output_dir();
+        let folder = if dir.as_os_str().is_empty() {
+            std::env::current_dir().unwrap_or_default()
+        } else {
+            std::path::absolute(&dir).unwrap_or(dir)
+        };
+        ui.label(
+            egui::RichText::new(format!("Saves as {stem}.png in {}", folder.display())).small(),
+        );
+        if ui
+            .button("Open folder")
+            .on_hover_text("Show the folder images are saved to")
+            .clicked()
+        {
+            let _ = std::fs::create_dir_all(&folder);
+            show_in_folder(&folder);
+        }
+        if crate::video::name_repeats(&self.ui.prefs.name_template) {
+            ui.label(
+                egui::RichText::new(
+                    "Saving again overwrites the last file: add {time} to the name to keep both.",
+                )
+                .small()
+                .color(WARN),
+            );
+        }
+        section(ui, "High-resolution render");
         note(
             ui,
-            "Files are written to the working folder and overwrite earlier ones.",
+            "Renders the same camera again from scratch, at the size and samples set here; the view keeps its own progress.",
         );
-        section(ui, "High-resolution render");
         grid("export").show(ui, |ui| {
             row(
                 ui,
@@ -388,21 +449,21 @@ impl App {
                         });
                 },
             );
+            if self.ui.export_format == ImageFormat::Jpeg {
+                row(
+                    ui,
+                    "JPEG quality",
+                    "Used by every JPEG save: 100 is the largest file and the fewest artefacts.",
+                    |ui| {
+                        ui.add(crate::slider(&mut self.ui.jpeg_quality, 50..=100));
+                    },
+                );
+            }
         });
         // HDR output may have been turned off since the format was picked.
         if self.ui.export_format.needs_hdr() && !g.hdr_active {
             self.ui.export_format = ImageFormat::Png;
         }
-        grid("export_quality").show(ui, |ui| {
-            row(
-                ui,
-                "JPEG quality",
-                "Used by every JPEG save: 100 is the largest file and the fewest artefacts.",
-                |ui| {
-                    ui.add(crate::slider(&mut self.ui.jpeg_quality, 50..=100));
-                },
-            );
-        });
         let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
         let name = {
             let (w, h) = (
@@ -430,16 +491,34 @@ impl App {
         section(ui, "Video");
         let o = &self.ui.video;
         let [w, h] = o.size();
-        note(
-            ui,
-            &format!(
+        let animation = &self.settings.animation;
+        // As the export dialog decides: keys set the rate and the length.
+        let text = if o.timeline && !animation.is_empty() {
+            format!(
+                "Plays the timeline: {} at {w}×{h}, {:.2} s at {} fps, {} spp each.",
+                o.format.label(),
+                animation.length,
+                animation.fps,
+                o.spp
+            )
+        } else if o.timeline && self.settings.physics.enabled {
+            format!(
+                "Runs the simulation: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
+                o.format.label(),
+                o.frames,
+                o.fps,
+                o.spp
+            )
+        } else {
+            format!(
                 "An orbit around the target: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
                 o.format.label(),
                 o.frames,
                 o.fps,
                 o.spp
-            ),
-        );
+            )
+        };
+        note(ui, &text);
         if ui.button("Export video…").clicked() {
             self.open_video_dialog();
         }
@@ -455,5 +534,49 @@ impl App {
                 self.actions.load = settings_dialog(false);
             }
         });
+    }
+}
+/// The state of the image a quick save would write, as the status bar judges it, and whether
+/// it is still getting cleaner. `rate` is in samples per second, 0 until it is known.
+fn save_state(samples: u32, cap: u32, paused: bool, rate: f32) -> (String, bool) {
+    if samples >= cap {
+        ("Converged".into(), false)
+    } else if paused {
+        (format!("Paused at {samples} of {cap} samples"), false)
+    } else if rate > 0. {
+        let left = (cap - samples) as f32 / rate;
+        (
+            format!("Still refining, {} to the cap", time_left(left)),
+            true,
+        )
+    } else {
+        ("Still refining".into(), true)
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::save_state;
+    #[test]
+    fn a_quick_save_says_what_state_the_image_is_in() {
+        assert_eq!(
+            save_state(4096, 4096, false, 50.),
+            ("Converged".into(), false)
+        );
+        assert_eq!(
+            save_state(4096, 4096, true, 0.),
+            ("Converged".into(), false)
+        );
+        assert_eq!(
+            save_state(20, 4096, true, 50.),
+            ("Paused at 20 of 4096 samples".into(), false)
+        );
+        assert_eq!(
+            save_state(20, 4096, false, 0.),
+            ("Still refining".into(), true)
+        );
+        assert_eq!(
+            save_state(96, 4096, false, 100.),
+            ("Still refining, ~40 s to the cap".into(), true)
+        );
     }
 }

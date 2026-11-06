@@ -55,7 +55,9 @@ Ordered. Each step ends with verify, review, snapshot, then a commit when the ow
 `tools/oracle.py` renders scenes on the GPU (raw) and with the CPU reference and tests agreement statistically (engine-notes "Oracle and the pixel-filter finding"). All 8 default scenes pass for path tracing (within 0.6%, |z| < 3.5). Findings:
 - **The BDPT / photon "biases" were the pixel filter.** BDPT and photon mapping always use a box filter; the path tracer's default Blackman-Harris doesn't sum to 1 over the pixel grid, so image means at sharp bright lights moved by ±0.6% (Cornell, sign flipping with light size) up to 10% (a sub-pixel sun). With a 1-px box on both sides: Cornell BDPT 0.9999, photons 0.9993; measured-cornell 0.9996 / 0.9988 (closes "+0.9%"); sky-garden-dusk BDPT/PT 0.9956 and BSDF-only/MIS 1.002 (closes the dusk gap and "PT disagrees with itself"). The oracle and `integrator_sweep.py` now compare with matched box filters.
 - **BSDF-only vs light sampling at the bounce limit:** BSDF-only renders 0.4% darker at 6 bounces (light sampling at the last vertex adds one path length BSDF sampling doesn't); equal at 32. A convention, not a bug.
-- **shape-material-matrix's 0.93 blocks:** gone under the oracle's test (worst block 0.978, z −4.2). Closed.
+- **shape-material-matrix's 0.93 blocks:** gone under the oracle's test (worst block 0.978, z −4.2). Explained 2026-11-06: the blocks are grounded glass, a coplanar contact (engine-notes "CPU reference renderer").
+- [keep] **GPU ReSTIR small excess, untraced:** fairy-lights 1.0010 (z 5.7) at 2048 spp, 1.0005 (z 6.4) at 8192, and 1.0002 with it off; preset 0's worst block unsteady, down to 0.993 (z -10.7). Shrinks with samples, under the oracle's floor (engine-notes "CPU reference renderer").
+- **Coplanar dielectric contacts (owner's decision):** cornell-water-tank, glass-of-water, aquarium, stained-glass-hall (8.5%, the worst, block 1.42), glass-stack, layered-cocktail and the matrix's grounded glass are the six oracle fails left in a sweep of every renderable built-in scene (2026-11-06; the matrix passes, with a block at 0.98). Two faces meet at equal t, which DXR and the CPU BVH order differently. Separated (by about 1 cm; 6 mm per column for the hall's panes) all of them agree. Either lift those scenes or add a grounded-dielectric offset in geometry that both renderers read; don't tune the CPU to match.
 
 Still open:
 - [keep] Integrator sweep rerun in full with matched filters (2026-11-04, 400 spp, 240 × 135, `captures/sweep-2026-11-04`): 15 of 174 comparisons beyond 5%. To trace, largest first: sunset-tank BDPT 112% / photon 57% (colour shifts, not noise-like), optics-bench 72% / 71% (slow PT caustic), birthday-cake photon 23%, underwater BDPT 17%, lava-lamp photon 11%, shape-material-matrix photon 11%, sunlit-room-day-cycle photon 10.5%, snow-globe photon 10%, bigger-on-the-inside 8% (portals), gem-display photon 7%. dark-side (553% / 214%) is near-black (means ~1e-4), not meaningful at this spp. Next: rerun the flagged scenes at 4096 spp before reading anything into them.
@@ -76,6 +78,7 @@ Work the [keep] items in "Open tails" below, grouped by area, smallest first. An
 
 - Rework and expand the achievements: some fall far too fast ("billions" takes a couple of seconds).
 - Offset the flashlight from the camera: it shoots straight from the eye, so its shadows are barely visible.
+- Proper first-person view in walk mode (2026-11-07): see your own legs when looking down and your reflection in mirrors and glass. An avatar of a few blocks is enough, in the spirit of a blocky game character but our own design, posed from the walker's stride, visible to reflections and to the camera below the neck.
 
 ### Self-update, open items
 
