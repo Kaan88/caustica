@@ -81,7 +81,7 @@ Work the [keep] items in "Open tails" below, grouped by area, smallest first. An
 
 Built 2026-11-06 (engine-notes "Self-update"). Open:
 - The repo went public on 2026-11-06 with these licence questions open, for the owner: Sponza's CRYENGINE terms, FFmpeg's licence for the bundled build, Stanford's non-commercial terms, the licence of the app's own code (the repo has no `LICENSE`), and the releases up to v0.10.1, which ship no notices.
-- The Windows path has never run (the list is in the handover report); the first release with `SHA256SUMS` must be installed by hand.
+- On real Windows, not yet run: the D3D12 renderer with these changes (the releases were built under Wine); an all-users update's relaunch, with its UAC prompt; the *Updated to* toast after a setup; `tools/release.ps1`'s `SHA256SUMS` and `make_installer.ps1`'s licence copy; Vulkan with DLSS after the extension change.
 - Later, if wanted: resuming an interrupted download; slim updates without the 700 MB of assets; signing, since `SHA256SUMS` doesn't protect against a compromised account.
 
 ### d. Vulkan backend
