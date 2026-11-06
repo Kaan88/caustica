@@ -1,6 +1,30 @@
 //! Top bar, status bar, toasts and the side panel frame.
 use super::*;
 
+/// Menu → About: each vendor's own logo (nvidia-settings, the FSR SDK's and XeSS SDK's docs), its
+/// credit, and whether only Windows ships that component.
+const LOGOS: [(&[u8], &str, bool); 3] = [
+    (
+        include_bytes!("../../assets/nvidia-logo.png"),
+        "This application uses the NVIDIA DLSS SDK.\nNVIDIA RTX\u{2122}",
+        false,
+    ),
+    (
+        include_bytes!("../../assets/amd-fsr-logo.png"),
+        "Uses the AMD FSR SDK.",
+        true,
+    ),
+    (
+        include_bytes!("../../assets/intel-logo.jpg"),
+        "Uses Intel XeSS.",
+        true,
+    ),
+];
+/// Whether this platform shows the logo: the upscalers it doesn't ship stay out.
+fn logo_shown(windows_only: bool) -> bool {
+    !windows_only || cfg!(windows)
+}
+
 impl App {
     /// D3D12 or Vulkan, saved in the prefs and used from the next start (the renderer can't be
     /// swapped under a running scene). `--vulkan` / `--d3d12` override it for one run.
@@ -125,7 +149,30 @@ impl App {
                     ui.menu_button("About", |ui| {
                         ui.label(format!("Caustica {}", crate::VERSION));
                         ui.label("MIT license. Third-party components keep their own terms.");
-                        ui.label("Uses the NVIDIA DLSS SDK. NVIDIA and DLSS are trademarks of NVIDIA Corporation.");
+                        if self.ui.logos.is_empty() {
+                            for (i, (bytes, ..)) in LOGOS.iter().enumerate() {
+                                let rgba = image::load_from_memory(bytes)
+                                    .expect("an embedded logo")
+                                    .to_rgba8();
+                                let size = [rgba.width() as usize, rgba.height() as usize];
+                                self.ui.logos.push(ui.ctx().load_texture(
+                                    format!("logo-{i}"),
+                                    egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()),
+                                    egui::TextureOptions::LINEAR,
+                                ));
+                            }
+                        }
+                        for (logo, (_, credit, windows_only)) in self.ui.logos.iter().zip(&LOGOS) {
+                            if logo_shown(*windows_only) {
+                                ui.horizontal(|ui| {
+                                    // The same height, each at its own proportions.
+                                    let [w, h] = logo.size().map(|v| v as f32);
+                                    ui.image((logo.id(), egui::vec2(40. * w / h, 40.)));
+                                    ui.label(*credit);
+                                });
+                            }
+                        }
+                        ui.label("NVIDIA, NVIDIA RTX and DLSS are trademarks of NVIDIA Corporation.");
                         ui.hyperlink_to(
                             "Third-party notices",
                             "https://github.com/Kaan88/caustica/blob/main/THIRD-PARTY-NOTICES.md",
@@ -526,5 +573,19 @@ impl App {
                         Tab::Export => self.export_tab(ui),
                     });
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The About box unwraps these, so a bad file must fail here and not in the menu.
+    #[test]
+    fn logos_decode() {
+        for (bytes, ..) in super::LOGOS {
+            let logo = image::load_from_memory(bytes).unwrap();
+            assert!(logo.width() > 0 && logo.height() > 0);
+        }
+        assert!(super::logo_shown(false));
+        assert_eq!(super::logo_shown(true), cfg!(windows));
     }
 }

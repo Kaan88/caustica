@@ -33,7 +33,8 @@ unsigned caustica_ngx_init(ID3D12Device* device, Ngx** result) {
     wchar_t path[MAX_PATH]; GetModuleFileNameW(nullptr,path,MAX_PATH);
     wchar_t* end=wcsrchr(path,L'\\'); if(end)*end=0;
     const wchar_t* paths[]={path}; NVSDK_NGX_FeatureCommonInfo info={};info.PathListInfo.Path=paths;info.PathListInfo.Length=1;
-    // Stable local development identity; replace with your registered project ID for distribution.
+    // The app's own identifier: without an application ID from NVIDIA, the DLSS guide (5.2.1) has
+    // the app supply one here, GUID-like, for the custom engine type.
     auto r=NVSDK_NGX_D3D12_Init_with_ProjectID("e9641daa-48c9-4e65-a593-c3a11259bb40",NVSDK_NGX_ENGINE_TYPE_CUSTOM,"0.1.0",path,device,&info);
     if(NVSDK_NGX_FAILED(r)){delete n;return r;} n->initialized=true;
     r=NVSDK_NGX_D3D12_GetCapabilityParameters(&n->params);

@@ -6,6 +6,8 @@
 *.bat text eol=crlf
 *.iss text eol=crlf
 *.png binary
+*.jpg binary
+*.jpeg binary
 *.ico binary
 *.exr binary
 *.hdr binary

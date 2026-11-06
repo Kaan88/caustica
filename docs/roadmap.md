@@ -7,7 +7,7 @@ Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-res
 ## Ground rules from the owner
 
 - **Public since 2026-11-06, under MIT for the code.** Models, textures, HDRIs and SDKs keep their own terms; `THIRD-PARTY-NOTICES.md` lists them, and anything new that ships goes in it.
-- **Licence risks the owner has accepted (2026-11-06), and will act on if raised:** Sponza stays bundled, though the CRYENGINE agreement covers games built with CRYENGINE; the GPLv3 FFmpeg stays bundled without published sources; releases up to v0.10.1 stay up without notices. Research-only and NC assets such as the Stanford scans are fine only while the app stays free.
+- **Licence risks the owner has accepted (2026-11-06), and will act on if raised:** Sponza stays bundled, though the CRYENGINE agreement covers games built with CRYENGINE; the GPLv3 FFmpeg stays bundled without published sources; releases up to v0.10.1 stay up without notices; the About box shows the NVIDIA logo, plus on Windows the AMD FSR and Intel logos, though the DLSS licence only grants word marks and Intel's bars promotional use of its name. Research-only and NC assets such as the Stanford scans are fine only while the app stays free. If it is ever sold: those assets go, and NVIDIA must be notified first (DLSS licence, exhibit section 4).
 - **Performance work never lowers quality** (owner rule, 2026-11-02). The defaults stay as they are (spp, bounces, sample cap, DLAA render scale, RR preset), and no "performance mode" or lower-quality option is added. Speed has to come from doing the same work more efficiently. A change that alters the image has to be justified as unbiased, or as equal under the convergence measurement.
 
 ## Done
@@ -184,7 +184,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 
 ### Scripting and tools
 - [drop] Text-to-scene: smaller prompt for local models, streaming, Codex and OpenAI live tests (not installed here), per-profile keys, whole-scene replace on edit.
-- [keep] NGX project GUID is a development one. It was moot while the project was unpublished; check what NVIDIA expects now that releases are public.
+- [drop] NGX project GUID: settled 2026-11-06. It is the app's own identifier, which the DLSS guide (5.2.1) prescribes when NVIDIA has issued no application ID; nothing to register.
 - [drop] Gamepad untested: no controller here.
 
 ### Performance

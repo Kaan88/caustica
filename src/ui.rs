@@ -222,6 +222,8 @@ pub struct UiState {
     pub restart: bool,
     /// The update window asked to install the verified download.
     pub install_update: bool,
+    /// The About box's logos (`chrome::LOGOS`), once it has been opened.
+    pub logos: Vec<egui::TextureHandle>,
     /// The scene file last loaded or saved and the scene name it had: Ctrl+S overwrites it
     /// while the name is unchanged (never by title alone).
     pub loaded_file: Option<(std::path::PathBuf, String)>,
@@ -360,6 +362,7 @@ impl Default for UiState {
             prefs_live: false,
             restart: false,
             install_update: false,
+            logos: Vec::new(),
             loaded_file: None,
             scene_selected: None,
             gen_family: 0,

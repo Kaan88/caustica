@@ -8,7 +8,11 @@ By installing or using Caustica you agree that the third-party components it inc
 
 ## NVIDIA DLSS
 
-Caustica uses the NVIDIA DLSS SDK. NVIDIA and DLSS are trademarks of NVIDIA Corporation. DLSS needs an NVIDIA GPU.
+This application uses the NVIDIA DLSS SDK. NVIDIA RTX(TM). NVIDIA, NVIDIA RTX and DLSS are trademarks of NVIDIA Corporation. DLSS needs an NVIDIA GPU.
+
+## Logos
+
+The logos in the About box (`assets/nvidia-logo.png`, `assets/amd-fsr-logo.png`, `assets/intel-logo.jpg`) belong to NVIDIA Corporation, Advanced Micro Devices, Inc. and Intel Corporation. The AMD and Intel logos show on Windows only, where those components ship. They are not covered by Caustica's MIT license and don't imply that any of them endorses Caustica.
 
 ## Upscaler and runtime components
 

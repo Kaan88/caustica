@@ -126,7 +126,7 @@ unsigned caustica_ngxvk_init(VkInstance instance, VkPhysicalDevice phys, VkDevic
     NgxVk* n = new NgxVk; n->device = device;
     wchar_t path[MAX_PATH]; exe_dir(path);
     const wchar_t* paths[] = {path}; NVSDK_NGX_FeatureCommonInfo info = {}; info.PathListInfo.Path = paths; info.PathListInfo.Length = 1;
-    // The same development identity as the D3D12 bridge.
+    // The app's own identifier, the same as the D3D12 bridge's.
     auto r = NVSDK_NGX_VULKAN_Init_with_ProjectID("e9641daa-48c9-4e65-a593-c3a11259bb40", NVSDK_NGX_ENGINE_TYPE_CUSTOM, "0.1.0", path, instance, phys, device, gipa, gdpa, &info, NVSDK_NGX_Version_API);
     if (NVSDK_NGX_FAILED(r)) { delete n; return r; } n->initialized = true;
     r = NVSDK_NGX_VULKAN_GetCapabilityParameters(&n->params);
