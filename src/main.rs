@@ -54,6 +54,7 @@ mod textscene;
 mod texture;
 mod timeline_ui;
 mod ui;
+mod update;
 mod video;
 mod video_ui;
 mod vulkan;
@@ -162,6 +163,9 @@ struct App {
     reset_baseline: Settings,
     ui_defaults: Box<ui::UiState>,
     hwnd: Option<platform::HWND>,
+    updater: update::Updater,
+    /// `--update-from`: a local file or URL to offer as the newest version.
+    update_from: Option<String>,
     /// The monitor under the window, re-read when it moves or Windows changes the display setup.
     monitor: Option<display::Monitor>,
     display_dirty: bool,
@@ -408,6 +412,9 @@ impl App {
         let mut self_test = false;
         let mut reference: Option<u32> = None;
         let mut selected_preset = 0;
+        let mut update_from = None;
+        let mut update_yes = false;
+        let mut update_cancel_at = None;
         let mut size = [1440, 900];
         // --preset and --settings replace the whole scene, so apply them before every other
         // switch: the command line then means the same in any order.
@@ -585,6 +592,19 @@ impl App {
                 // Overrides Menu → Renderer for one run.
                 "--d3d12" => d3d12 = true,
                 "--headless" => hidden = true,
+                // Debug: update from a local file or URL, without publishing a release.
+                "--update-from" => {
+                    update_from = Some(args.next().context("--update-from needs a file or URL")?)
+                }
+                // Debug: click through the update, and cancel its download after N bytes.
+                "--update-yes" => update_yes = true,
+                "--update-cancel-at" => {
+                    update_cancel_at = Some(
+                        args.next()
+                            .context("--update-cancel-at needs bytes")?
+                            .parse()?,
+                    )
+                }
                 "--capture-ui" => capture_ui = true,
                 // A Rhai script that drives the app (see src/script.rs).
                 "--script" => {
@@ -771,6 +791,8 @@ impl App {
                 interface
             },
             hwnd: None,
+            updater: update::Updater::new(update_yes, update_cancel_at),
+            update_from,
             monitor: None,
             display_dirty: true,
             hdr_note: String::new(),
@@ -2268,6 +2290,25 @@ impl ApplicationHandler for App {
                 self.ui.advanced |= self.ui.prefs.advanced;
                 self.egui.set_zoom_factor(self.ui.prefs.zoom);
                 self.gamepad = gilrs::Gilrs::new().ok();
+                if let Some(from) = std::env::var_os(update::UPDATED_FROM) {
+                    println!("UPDATED from {} to {VERSION}", from.to_string_lossy());
+                    self.ui.toast(format!("Updated to {VERSION}"));
+                    // A later Menu → Restart must not announce it again.
+                    unsafe { std::env::remove_var(update::UPDATED_FROM) };
+                }
+                // Only interactive, installed runs ever look: not a build from source, a
+                // headless, scripted or frame-limited run, the screensaver or the self-test.
+                if let Some(source) = &self.update_from {
+                    self.updater.offer_from(source);
+                } else if self.ui.prefs.update_check
+                    && self.frames.is_none()
+                    && self.script.is_none()
+                    && self.saver.is_none()
+                    && dirs::mode() == dirs::Mode::Installed
+                    && !VERSION.contains('-')
+                {
+                    self.updater.check();
+                }
             }
             let input = egui_winit::State::new(
                 self.egui.clone(),
@@ -2287,6 +2328,21 @@ impl ApplicationHandler for App {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        if std::mem::take(&mut self.ui.install_update) {
+            // Saved before the new process can read them; it stays running if that can't start.
+            let stats = self.stats.take();
+            if let Some(st) = &stats {
+                st.save();
+            }
+            match self.updater.install() {
+                Ok(()) => self.shut_down(event_loop),
+                Err(e) => {
+                    self.stats = stats;
+                    self.updater.install_failed(format!("{e:#}"));
+                }
+            }
+            return;
+        }
         if std::mem::take(&mut self.ui.restart) {
             // Menu → Renderer → Restart now: the same command line, started fresh.
             // The same cleanup as closing the window (stats, a running export), then the child.
@@ -2879,7 +2935,8 @@ impl ApplicationHandler for App {
         // Shader hot reload is polled in redraw: an edit while paused or converged reloads too.
         // (Only when idle: a rendering loop redraws, and polls, anyway.)
         let shaders = !active && self.hot.as_ref().is_some_and(|h| h.changed());
-        if (active || cpu || shaders)
+        // The update window follows its background work, also when the render is idle.
+        if (active || cpu || shaders || self.updater.busy() || self.ui.install_update)
             && let Some(w) = &self.window
         {
             w.request_redraw();

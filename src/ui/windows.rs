@@ -796,6 +796,170 @@ impl App {
             s.light_intensity = (s.light_intensity * (light * 1.5 * dt).exp()).clamp(0.01, 2000.);
         }
     }
+    /// The update offer, then its download (update.rs). `--update-yes` clicks through.
+    pub(super) fn update_window(&mut self, ctx: &egui::Context) {
+        use crate::update::{Phase, Target};
+        if self.updater.poll() {
+            println!("UPDATE_CANCELLED");
+            self.ui.toast("Update cancelled");
+        }
+        if let Phase::Available(r) = &self.updater.phase
+            && r.version == self.ui.prefs.update_skip
+        {
+            self.updater.phase = Phase::Idle;
+        }
+        enum Do {
+            Nothing,
+            Close,
+            Skip(String),
+            Download(crate::update::Release),
+            Page(String),
+        }
+        let mut action = Do::Nothing;
+        let yes = self.updater.yes;
+        let target = self.updater.target.clone();
+        let mut install = false;
+        let mut check = self.ui.prefs.update_check;
+        let window = egui::Window::new("Update")
+            .default_pos([300., 140.])
+            .default_width(420.)
+            .collapsible(false);
+        match &self.updater.phase {
+            Phase::Idle => return,
+            Phase::Available(r) => {
+                let can_update = r.asset.is_some() && !matches!(target, Target::Page(_));
+                if yes {
+                    if can_update {
+                        println!("UPDATE_START {}", r.version);
+                        action = Do::Download(r.clone());
+                    } else {
+                        println!("UPDATE_PAGE {target:?}");
+                        std::process::exit(4);
+                    }
+                }
+                window.show(ctx, |ui| {
+                    ui.heading(format!(
+                        "Caustica {} is available",
+                        r.version.trim_start_matches('v')
+                    ));
+                    ui.label(format!("You have {}.", crate::VERSION));
+                    if let Some(a) = &r.asset
+                        && a.size > 0
+                    {
+                        ui.label(format!("Download: {} MB", a.size >> 20));
+                    }
+                    egui::ScrollArea::vertical()
+                        .max_height(200.)
+                        .show(ui, |ui| ui.label(&r.notes));
+                    if let Target::Page(why) = &target {
+                        ui.colored_label(ui.visuals().warn_fg_color, *why);
+                    }
+                    ui.horizontal(|ui| {
+                        if can_update {
+                            if ui.button("Update").clicked() {
+                                action = Do::Download(r.clone());
+                            }
+                        } else if ui.button("Open release page").clicked() {
+                            action = Do::Page(r.page.clone());
+                        }
+                        if ui.button("Skip this version").clicked() {
+                            action = Do::Skip(r.version.clone());
+                        }
+                        if ui.button("Later").clicked() {
+                            action = Do::Close;
+                        }
+                    });
+                    ui.checkbox(&mut check, "Check for updates at startup");
+                });
+            }
+            Phase::Downloading {
+                release, progress, ..
+            } => {
+                use std::sync::atomic::Ordering;
+                let done = progress.done.load(Ordering::Relaxed);
+                let total = progress.total.load(Ordering::Relaxed);
+                if self.updater.cancel_at.is_some_and(|at| done >= at) {
+                    progress.cancel.store(true, Ordering::Relaxed);
+                }
+                window.show(ctx, |ui| {
+                    ui.label(format!(
+                        "Downloading Caustica {}",
+                        release.version.trim_start_matches('v')
+                    ));
+                    let share = if total > 0 {
+                        done as f32 / total as f32
+                    } else {
+                        0.
+                    };
+                    ui.add(egui::ProgressBar::new(share).text(format!(
+                        "{} / {} MB",
+                        done >> 20,
+                        total >> 20
+                    )));
+                    if ui.button("Cancel").clicked() {
+                        progress.cancel.store(true, Ordering::Relaxed);
+                    }
+                });
+            }
+            Phase::Ready { release, .. } => {
+                if yes {
+                    println!("UPDATE_READY {}", release.version);
+                    install = true;
+                }
+                window.show(ctx, |ui| {
+                    ui.label(format!(
+                        "Caustica {} is downloaded and verified.",
+                        release.version.trim_start_matches('v')
+                    ));
+                    ui.horizontal(|ui| {
+                        if ui.button("Restart and install").clicked() {
+                            install = true;
+                        }
+                        if ui.button("Later").clicked() {
+                            action = Do::Close;
+                        }
+                    });
+                });
+            }
+            Phase::Failed { release, error } => {
+                if yes {
+                    println!("UPDATE_FAILED {error}");
+                    std::process::exit(3);
+                }
+                window.show(ctx, |ui| {
+                    ui.colored_label(ui.visuals().error_fg_color, "The update didn't finish.");
+                    ui.label(error);
+                    ui.horizontal(|ui| {
+                        if !release.page.is_empty() && ui.button("Open release page").clicked() {
+                            action = Do::Page(release.page.clone());
+                        }
+                        if ui.button("Close").clicked() {
+                            action = Do::Close;
+                        }
+                    });
+                });
+            }
+        }
+        if check != self.ui.prefs.update_check {
+            self.ui.prefs.update_check = check;
+            self.ui.save_prefs();
+        }
+        self.ui.install_update |= install;
+        match action {
+            Do::Nothing => {}
+            Do::Close => self.updater.phase = Phase::Idle,
+            Do::Skip(version) => {
+                self.ui.prefs.update_skip = version;
+                self.ui.save_prefs();
+                self.updater.phase = Phase::Idle;
+            }
+            Do::Download(release) => self.updater.download(release),
+            Do::Page(url) => {
+                crate::platform::open_url(&url);
+                self.updater.phase = Phase::Idle;
+            }
+        }
+    }
     pub(super) fn stats_window(&mut self, ctx: &egui::Context) {
         let mut open = self.ui.show_stats;
         egui::Window::new("Statistics")

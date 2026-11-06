@@ -72,6 +72,18 @@ Pure code moves, the self-test passing unchanged: the self-test script and check
 
 Work the [keep] items in "Open tails" below, grouped by area, smallest first. Anything left [drop] stays closed.
 
+### Owner requests, to order with the owner (2026-11-06)
+
+- Rework and expand the achievements: some fall far too fast ("billions" takes a couple of seconds).
+- Offset the flashlight from the camera: it shoots straight from the eye, so its shadows are barely visible.
+
+### Self-update, open items
+
+Built 2026-11-06 (engine-notes "Self-update"). Open:
+- The repo went public on 2026-11-06 with these licence questions open, for the owner: Sponza's CRYENGINE terms, FFmpeg's licence for the bundled build, Stanford's non-commercial terms, the licence of the app's own code (the repo has no `LICENSE`), and the releases up to v0.10.1, which ship no notices.
+- The Windows path has never run (the list is in the handover report); the first release with `SHA256SUMS` must be installed by hand.
+- Later, if wanted: resuming an interrupted download; slim updates without the 700 MB of assets; signing, since `SHA256SUMS` doesn't protect against a compromised account.
+
 ### d. Vulkan backend
 
 Portability: Linux, and AMD / Intel drivers where Vulkan RT is stronger. The upscaler SDKs already ship Vulkan paths: NGX (`nvsdk_ngx_vk.h`, `nvsdk_ngx_helpers_vk.h`, `nvsdk_ngx_helpers_dlssd_vk.h`, all in `vendor/dlss/include`), XeSS (`xess_vk.h`) and FSR (the FidelityFX API has a VK backend).

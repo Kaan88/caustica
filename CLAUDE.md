@@ -19,7 +19,7 @@ The owner wants routine work on cheaper models, without wasting tokens. Every su
 ## Project
 
 - Caustica, a Windows-only path tracer (it began as a Cornell box): Rust 2024, D3D12 with DXR 1.1 inline `RayQuery`, HLSL compiled by DXC in build.rs, egui 0.31, C++ bridges to NGX (DLSS RR/SR), FSR and XeSS.
-- Personal project, never published: license terms don't limit assets or SDK use.
+- Personal project, public since 2026-11-06 (the app's self-update needs anonymous access to releases). What ships must respect each licence: `THIRD-PARTY-NOTICES.md` lists them, and new SDKs or assets go in it.
 - Git: `main` is the verified state. Commit and push only when the user asks. CI is manual-only (it costs money): releases are built and uploaded from this machine with `tools/release.ps1 -Version X.Y.Z -AppImage -Upload` after the tag is pushed (installer via `tools/make_installer.ps1` and Inno Setup 7, zip, AppImage built on the VM by `tools/appimage.sh`, `gh release create`). Never trigger CI runs. Tag when a feature is complete or a fix warrants it (say so, and bump `Cargo.toml` to the tagged version in the same push); don't tag routine commits. The icon is `assets/caustica.ico` from `tools/make_icon.py`, embedded by build.rs with rc.exe.
 - Write each new feature's notes in `docs/engine-notes.md`. Record open items in `docs/roadmap.md`.
 

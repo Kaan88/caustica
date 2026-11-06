@@ -62,6 +62,15 @@ if ($AppImage) {
     "APPIMAGE dist/$image"
 }
 
+# SHA256SUMS over everything above: the app refuses an update without it (src/update.rs).
+# Plain LF and no BOM, in the format of sha256sum.
+$sums = ($files | ForEach-Object {
+    "$((Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLowerInvariant())  $(Split-Path -Leaf $_)"
+}) -join "`n"
+[IO.File]::WriteAllText((Join-Path $root 'dist/SHA256SUMS'), "$sums`n", (New-Object Text.UTF8Encoding $false))
+$files += 'dist/SHA256SUMS'
+"SHA256SUMS dist/SHA256SUMS"
+
 if ($Upload) {
     # Notes: every commit subject since the previous release tag.
     $previous = git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>$null

@@ -63,6 +63,12 @@ impl App {
                         self.ui.show_stats = true;
                         ui.close_menu();
                     }
+                    if ui
+                        .checkbox(&mut self.ui.prefs.update_check, "Check for updates at startup")
+                        .changed()
+                    {
+                        self.ui.save_prefs();
+                    }
                     ui.menu_button("Text-to-scene model", |ui| self.ai_menu(ui));
                     #[cfg(windows)]
                     ui.menu_button("Renderer", |ui| self.renderer_menu(ui));

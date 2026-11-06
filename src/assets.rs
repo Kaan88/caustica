@@ -97,11 +97,11 @@ static AGENT: LazyLock<Result<ureq::Agent, String>> = LazyLock::new(|| {
         .timeout_read(std::time::Duration::from_secs(60))
         .build())
 });
-fn get(url: &str) -> Result<ureq::Response> {
+pub(crate) fn get(url: &str) -> Result<ureq::Response> {
     let agent = AGENT.as_ref().map_err(|e| anyhow::anyhow!("TLS: {e}"))?;
     agent.get(url).call().with_context(|| format!("GET {url}"))
 }
-fn get_json(url: &str) -> Result<Value> {
+pub(crate) fn get_json(url: &str) -> Result<Value> {
     let mut text = String::new();
     get(url)?
         .into_reader()
@@ -126,7 +126,6 @@ fn hex(bytes: &[u8]) -> String {
 }
 /// Streams a URL into `dest` (through `dest.partial`) and returns its SHA-256.
 fn download(url: &str, dest: &Path, progress: &Progress) -> Result<String> {
-    use sha2::Digest;
     let response = get(url)?;
     if let Some(n) = response
         .header("Content-Length")
@@ -134,6 +133,12 @@ fn download(url: &str, dest: &Path, progress: &Progress) -> Result<String> {
     {
         progress.total.fetch_add(n, Ordering::Relaxed);
     }
+    save_stream(response.into_reader(), dest, progress)
+}
+/// Streams `reader` into `dest` (through `dest.partial`, removed on an error or a cancel) and
+/// returns its SHA-256.
+pub(crate) fn save_stream(reader: impl Read, dest: &Path, progress: &Progress) -> Result<String> {
+    use sha2::Digest;
     if let Some(dir) = dest.parent() {
         std::fs::create_dir_all(dir)?;
     }
@@ -141,23 +146,27 @@ fn download(url: &str, dest: &Path, progress: &Progress) -> Result<String> {
     let mut file = std::fs::File::create(&partial)
         .with_context(|| format!("Creating {}", partial.display()))?;
     let mut hasher = sha2::Sha256::new();
-    let mut reader = response.into_reader().take(4 << 30);
+    let mut reader = reader.take(4 << 30);
     let mut buffer = vec![0u8; 1 << 16];
-    loop {
-        if progress.cancel.load(Ordering::Relaxed) {
-            drop(file);
-            let _ = std::fs::remove_file(&partial);
-            bail!("Cancelled");
+    let copied = (|| -> Result<()> {
+        loop {
+            if progress.cancel.load(Ordering::Relaxed) {
+                bail!("Cancelled");
+            }
+            let n = reader.read(&mut buffer)?;
+            if n == 0 {
+                return Ok(());
+            }
+            file.write_all(&buffer[..n])?;
+            hasher.update(&buffer[..n]);
+            progress.done.fetch_add(n as u64, Ordering::Relaxed);
         }
-        let n = reader.read(&mut buffer)?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buffer[..n])?;
-        hasher.update(&buffer[..n]);
-        progress.done.fetch_add(n as u64, Ordering::Relaxed);
-    }
+    })();
     drop(file);
+    if let Err(e) = copied {
+        let _ = std::fs::remove_file(&partial);
+        return Err(e);
+    }
     std::fs::rename(&partial, dest)?;
     Ok(hex(&hasher.finalize()))
 }

@@ -29,6 +29,10 @@ pub struct Prefs {
     pub name_template: String,
     /// Windows: render with Vulkan instead of D3D12 (Menu → Renderer; from the next start).
     pub vulkan: bool,
+    /// Look for a new release at startup (update.rs).
+    pub update_check: bool,
+    /// The version the user chose to skip.
+    pub update_skip: String,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -43,6 +47,8 @@ impl Default for Prefs {
             puzzle_best: Default::default(),
             name_template: "caustica".into(),
             vulkan: false,
+            update_check: true,
+            update_skip: String::new(),
         }
     }
 }

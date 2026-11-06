@@ -29,6 +29,18 @@ Get-ChildItem $release -File | Where-Object { $_.Name -eq 'caustica.exe' -or $_.
 # The D3D12 Agility SDK runtime (Shader Model 6.9, SER), which the exe loads from .\D3D12\.
 if (Test-Path (Join-Path $release 'D3D12')) { Copy-Item -Recurse (Join-Path $release 'D3D12') (Join-Path $dist 'D3D12') }
 Copy-Item (Join-Path $root 'README.md') $dist
+Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') $dist
+# The licence texts THIRD-PARTY-NOTICES.md points at. A missing one stops the build.
+$licenses = Join-Path $dist 'licenses'
+New-Item -ItemType Directory -Force $licenses | Out-Null
+foreach ($l in @(
+        @('vendor\dlss\LICENSE.txt', 'NVIDIA-DLSS.txt'),
+        @('vendor\fsr\Kits\FidelityFX\docs\license.md', 'AMD-FSR.md'),
+        @('vendor\xess\LICENSE.txt', 'Intel-XeSS.txt'),
+        @('vendor\agility\LICENSE.txt', 'Microsoft-Agility.txt'),
+        @('vendor\ffmpeg\LICENSE', 'FFmpeg.txt'))) {
+    Copy-Item -LiteralPath (Join-Path $root $l[0]) -Destination (Join-Path $licenses $l[1])
+}
 Push-Location $root
 try {
     $files = @(git ls-files scenes) + @(Get-ChildItem scenes\models, scenes\hdri, scenes\textures -Recurse -File |

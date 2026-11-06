@@ -220,6 +220,8 @@ pub struct UiState {
     pub prefs_live: bool,
     /// Menu → Renderer → Restart now: the app starts itself again and exits.
     pub restart: bool,
+    /// The update window asked to install the verified download.
+    pub install_update: bool,
     /// The scene file last loaded or saved and the scene name it had: Ctrl+S overwrites it
     /// while the name is unchanged (never by title alone).
     pub loaded_file: Option<(std::path::PathBuf, String)>,
@@ -357,6 +359,7 @@ impl Default for UiState {
             prefs: Default::default(),
             prefs_live: false,
             restart: false,
+            install_update: false,
             loaded_file: None,
             scene_selected: None,
             gen_family: 0,
@@ -1097,6 +1100,7 @@ impl App {
         self.overlay(ctx);
         self.context_menu(ctx);
         self.shortcuts_window(ctx);
+        self.update_window(ctx);
         self.sync_prefs(ctx);
         self.toasts(ctx);
     }
@@ -1444,13 +1448,23 @@ pub fn show_in_folder(file: &std::path::Path) {
         .to_string_lossy()
         .trim_start_matches(r"\\?\")
         .to_string();
-    let mut c = std::process::Command::new("explorer");
-    if path.is_dir() {
-        c.arg(&text);
-    } else {
-        c.arg(format!("/select,{text}"));
+    #[cfg(windows)]
+    {
+        let mut c = std::process::Command::new("explorer");
+        if path.is_dir() {
+            c.arg(&text);
+        } else {
+            c.arg(format!("/select,{text}"));
+        }
+        let _ = c.spawn();
     }
-    let _ = c.spawn();
+    // xdg-open can't select a file: it shows the folder.
+    #[cfg(not(windows))]
+    crate::platform::open_url(if path.is_dir() {
+        &text
+    } else {
+        text.rsplit_once('/').map_or(".", |(dir, _)| dir)
+    });
 }
 
 /// Quality bundles (UI plan 5.1): each writes `rr`, `scale`, `denoise`, `native_aa` and, for

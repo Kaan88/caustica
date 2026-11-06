@@ -19,6 +19,20 @@ pub fn no_window(cmd: &mut Command) -> &mut Command {
     cmd
 }
 
+/// Opens a web page (or on Linux a folder) with whatever the desktop uses for it.
+pub fn open_url(url: &str) {
+    #[cfg(windows)]
+    let mut command = {
+        // Not `cmd /c start`, which would read & and | in the URL as commands.
+        let mut c = Command::new("rundll32");
+        c.arg("url.dll,FileProtocolHandler");
+        c
+    };
+    #[cfg(not(windows))]
+    let mut command = Command::new("xdg-open");
+    let _ = command.arg(url).spawn();
+}
+
 /// Local wall-clock time as (year, month, day, hour, minute, second).
 pub fn local_time() -> [u32; 6] {
     #[cfg(windows)]

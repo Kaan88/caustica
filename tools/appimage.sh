@@ -41,7 +41,9 @@ for d in models hdri textures; do
     [ -d "scenes/$d" ] || { echo "scenes/$d is missing: copy the fetched assets (tools/fetch_assets.ps1)" >&2; exit 1; }
 done
 cp -r scenes "$app/usr/bin/scenes"
-cp README.md "$app/usr/bin/"
+cp README.md THIRD-PARTY-NOTICES.md "$app/usr/bin/"
+mkdir -p "$app/usr/bin/licenses"
+cp vendor/dlss/LICENSE.txt "$app/usr/bin/licenses/NVIDIA-DLSS.txt"
 cp assets/caustica.png "$app/caustica.png"
 cat > "$app/caustica.desktop" <<'EOF'
 [Desktop Entry]

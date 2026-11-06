@@ -64,8 +64,16 @@ Type: filesandordirs; Name: "{localappdata}\Caustica"
 
 [Run]
 Filename: "{app}\caustica.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Caustica}"; Flags: nowait postinstall skipifsilent
+; A silent update from the app (update.rs: /relaunch=1) starts the new version itself.
+Filename: "{app}\caustica.exe"; WorkingDir: "{app}"; Flags: nowait runasoriginaluser; Check: IsUpdate
 
 [Code]
+// /relaunch=1 on the setup's command line, as the app's self-update passes it.
+function IsUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
+
 // The per-user folder holds the user's own scenes, downloads and captures: ask before removing.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
