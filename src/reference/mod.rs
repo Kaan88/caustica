@@ -40,11 +40,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
             out.push(what.to_string());
         }
     };
-    // The physical sky's sun is an analytic sun light (`lighting::analytic`).
-    need(
-        s.physical_sky.on && s.physical_sky.sun().is_some(),
-        "the physical sky's sun above the horizon (sun lights)",
-    );
     // The fog box renders grey and uniform; `Fog::equiangular` only changes the GPU's sampling.
     need(
         s.fog.density > 0. && s.fog.extinction != [1.; 3],
@@ -74,12 +69,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
     need(
         s.objects.iter().any(|o| o.visible && !o.sdf.is_none()),
         "procedural (SDF) objects",
-    );
-    need(
-        s.lights
-            .iter()
-            .any(|l| l.enabled && l.kind == crate::scene::LightKind::Sun),
-        "sun lights",
     );
     // What `Gpu::attach_maps` binds: a texture set wins over the mesh's own maps (`mesh::maps`:
     // the glTF's or `maps_from`, when the material takes them), and the walls and the floor have

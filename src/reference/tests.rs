@@ -102,21 +102,12 @@ fn every_missing_feature_is_refused() {
         f(&mut s.objects[0].material);
         s
     };
-    let light = |kind| {
-        let mut s = Settings::default();
-        s.lights.push(crate::scene::AreaLight {
-            kind,
-            ..Default::default()
-        });
-        s
-    };
     let edit = |f: &dyn Fn(&mut Settings)| {
         let mut s = Settings::default();
         f(&mut s);
         s
     };
     let cases: Vec<(&str, Settings)> = vec![
-        ("physical sky's sun", edit(&|s| s.physical_sky.on = true)),
         (
             "heterogeneous fog",
             edit(&|s| {
@@ -130,7 +121,6 @@ fn every_missing_feature_is_refused() {
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
         ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
-        ("sun light", light(LightKind::Sun)),
         ("IES", light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006))),
         (
             "SDF",
@@ -751,4 +741,57 @@ fn a_camera_inside_a_sphere_light_stays_finite() {
     let image = render(&s, [8, 8], 4, &|_| {}).unwrap();
     assert!(image.iter().all(|v| v.is_finite()));
     assert!(image.iter().any(|v| *v > 0.));
+}
+/// A sun outdoors: light sampling in its disc alone, BSDF sampling alone (meeting the disc on a
+/// miss) and MIS agree; its table radiance is `AreaLight::radiance`'s (intensity 1 lights a
+/// white surface facing it to 1); a hidden sun is seen from bounce 1 on only.
+#[test]
+fn a_sun_lights_as_defined() {
+    use super::scene::Light;
+    let mut s = Settings::default();
+    s.cornell_room = false;
+    s.bounces = 4;
+    s.lights.clear();
+    s.lights.push(crate::scene::AreaLight {
+        kind: crate::scene::LightKind::Sun,
+        rotation: [30., 20., 0.],
+        // Wide enough for BSDF sampling to find it in a test-sized render.
+        angle: 12.,
+        intensity: 1.,
+        ..Default::default()
+    });
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    let scene = Scene::new(&s, [8, 8]);
+    let Some(&Light::Sun { d, om, le, hidden }) = scene.lights.first() else {
+        panic!("no sun entry: {:?}", scene.lights);
+    };
+    assert!(!hidden);
+    assert!((le.x * om * (2. - om) - 1.).abs() < 1e-3, "{le} {om}");
+    assert!((d + s.lights[0].direction()).length() < 1e-5);
+    assert_eq!(scene.suns(d, 0, |_| 1.), le);
+    assert_eq!(scene.suns(-d, 1, |_| 1.), Vec3::ZERO);
+    let mut r = Rng::new(3, 4);
+    let (ld, l, pl, limit) = scene.sample_light(Vec3::ZERO, &mut r).unwrap();
+    assert!(d.cross(ld).length_squared() <= om * (2. - om) * 1.001 && l == le);
+    let pick = (1. - scene.p_env) * scene.cdf[0];
+    assert!(
+        (pl * 2. * PI * om / pick - 1.).abs() < 1e-4 && limit > 1e3,
+        "{pl} {pick}"
+    );
+    let mean = |mis_mode| {
+        let mut s = s.clone();
+        s.mis_mode = mis_mode;
+        let image = render(&s, [32, 24], 256, &|_| {}).unwrap();
+        image.iter().map(|v| *v as f64).sum::<f64>() / image.len() as f64
+    };
+    let both = mean(0);
+    for mis_mode in [1, 2] {
+        let one = mean(mis_mode);
+        assert!((one / both - 1.).abs() < 0.03, "{mis_mode}: {one} {both}");
+    }
+    assert!(both > 0.01, "{both}");
+    s.lights[0].visible = false;
+    let scene = Scene::new(&s, [8, 8]);
+    assert_eq!(scene.suns(d, 0, |_| 1.), Vec3::ZERO);
+    assert_eq!(scene.suns(d, 1, |_| 1.), le);
 }

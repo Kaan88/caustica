@@ -67,6 +67,29 @@ impl Scene<'_> {
         let c = ng.dot(d.normalize()).abs();
         p * d.length_squared() / (Self::area(t) * c).max(1e-12)
     }
+    /// What the suns add along `d`, a ray that left the scene: each one whose disc holds `d`
+    /// (tested by sin², from a cross product: a float cosine can't resolve a 0.05° sun), times
+    /// `weight` of its light-sampling pdf. Hidden suns only from the first bounce on.
+    pub(super) fn suns(&self, d: Vec3, bounce: u32, weight: impl Fn(f32) -> f32) -> Vec3 {
+        let mut sum = Vec3::ZERO;
+        for (k, l) in self.lights.iter().enumerate() {
+            let Light::Sun {
+                d: c,
+                om,
+                le,
+                hidden,
+            } = *l
+            else {
+                continue;
+            };
+            let x = d.cross(c);
+            if d.dot(c) <= 0. || x.dot(x) > om * (2. - om) || bounce == 0 && hidden {
+                continue;
+            }
+            sum += le * weight(self.pick(k) / (2. * PI * om));
+        }
+        sum
+    }
     /// One light sample: direction, radiance arriving, solid-angle pdf, shadow-ray length.
     pub(super) fn sample_light(&self, x: Vec3, r: &mut Rng) -> Option<(Vec3, Vec3, f32, f32)> {
         if let Some(env) = &self.env
@@ -85,6 +108,11 @@ impl Scene<'_> {
             .min(self.lights.len() - 1);
         let tri = match self.lights[k] {
             Light::Tri(tri) => tri,
+            // A direction in its disc; the shadow ray leaves the scene.
+            Light::Sun { d, om, le, .. } => {
+                let (ld, pc) = cone_sample(d, om, r);
+                return Some((ld, le, self.pick(k) * pc, 1e4 - 0.0006));
+            }
             // A direction in the cone the sphere covers, and a shadow ray up to its true surface
             // (the inscribed mesh lies beyond it). From inside, no sample.
             Light::Sphere { c, r: radius, le } => {

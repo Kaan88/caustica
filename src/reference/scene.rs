@@ -19,7 +19,7 @@ pub(super) struct Scene<'a> {
     pub(super) s: &'a Settings,
     pub(super) bvh: Bvh,
     pub(super) materials: Vec<PackedMaterial>,
-    /// The emitters (spheres first, then emissive triangles) and their power CDF.
+    /// The emitters (suns and spheres first, then emissive triangles) and their power CDF.
     pub(super) lights: Vec<Light>,
     pub(super) cdf: Vec<f32>,
     /// Per BVH triangle, its entry in `lights` + 1, or 0: a sphere light's mesh maps to the
@@ -43,6 +43,15 @@ pub(super) enum Light {
     /// A sphere light: centre, radius and flat emission. Sampled in the cone it covers; rays
     /// meet its inscribed mesh (`geometry::geometry`), which is two-sided and unlit.
     Sphere { c: Vec3, r: f32, le: Vec3 },
+    /// A sun: the unit direction towards it, 1 − cos of its angular radius, its radiance, and
+    /// whether the camera can't see it (flag 2). It has no geometry: rays that miss the scene
+    /// inside its disc meet it.
+    Sun {
+        d: Vec3,
+        om: f32,
+        le: Vec3,
+        hidden: bool,
+    },
 }
 pub(super) struct Surface {
     pub(super) p: Vec3,
@@ -132,12 +141,30 @@ impl<'a> Scene<'a> {
             .filter(|t| (t.material as usize) < materials.len())
             .collect();
         let bvh = Bvh::build(tris);
-        // Sphere lights first, by their surface's power (4πr² × luminance), as `emitter_table`.
+        // Suns and sphere lights first, as `emitter_table`: a sphere by its surface's power
+        // (4πr² × luminance), a sun by its irradiance (L·π·sin² of its radius) over the area of
+        // the scene it lights (`Analytic::area`).
         let lum = |c: Vec3| 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z;
         let mut lights = vec![];
         let mut weights = vec![];
         let mut sphere_entry = std::collections::HashMap::new();
         for a in crate::lighting::analytic(s) {
+            if a.kind == crate::scene::LightKind::Sun {
+                let m = &materials[a.material as usize];
+                let le = crate::lighting::emitted(m);
+                let om = a.extent;
+                let w = lum(le) * std::f32::consts::PI * om * (2. - om) * a.area;
+                if w > 0. {
+                    lights.push(Light::Sun {
+                        d: a.at.normalize(),
+                        om,
+                        le,
+                        hidden: m.lobes[3] as u32 & 2 != 0,
+                    });
+                    weights.push(w);
+                }
+                continue;
+            }
             if a.kind != crate::scene::LightKind::Sphere {
                 continue;
             }

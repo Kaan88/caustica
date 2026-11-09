@@ -109,6 +109,19 @@ impl Scene<'_> {
                 }
             }
             let Some(h) = hit else {
+                // Suns: seen inside their disc, weighted against light sampling.
+                radiance += throughput
+                    * self.suns(direction, bounce, |pl| {
+                        if bounce == 0 || previous_delta {
+                            1.
+                        } else {
+                            match mis {
+                                1 => 0.,
+                                2 => 1.,
+                                _ => previous_pdf / (previous_pdf + pl),
+                            }
+                        }
+                    });
                 let Some(env) = &self.env else {
                     // The sky gradient over the background colour (no HDRI).
                     radiance += throughput * self.plain_sky(direction);
