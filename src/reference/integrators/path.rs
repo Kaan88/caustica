@@ -1,10 +1,14 @@
 //! The path tracer.
 use crate::lighting::PackedMaterial;
 use crate::reference::bsdf::{
-    coat_probability, emitted, eval_bsdf, flags, fresnel_dielectric, material_at, spec_probability,
+    GRATING_ORDER, aniso_alpha, aniso_frame, coat_probability, emitted, eval_bsdf, flags,
+    fresnel_dielectric, grating, grating_move, grating_wavelength, material_at, order_shares,
+    prepare_film, spec_probability,
 };
-use crate::reference::media::{hg_pdf, hg_sample, push, remove, top};
-use crate::reference::sampling::{Rng, cosine_sample, ggx_sample, reflect, refract};
+use crate::reference::media::{flight, hg_pdf, hg_sample, push, remove, top};
+use crate::reference::sampling::{
+    Rng, cosine_sample, ggx_sample, ggx_sample_aniso, reflect, refract,
+};
 use crate::reference::scene::{Ray, Scene};
 use glam::{Vec3, Vec4};
 
@@ -52,19 +56,21 @@ impl Scene<'_> {
             };
             // False hits on nested dielectrics (`medium_top`): the ray goes on unbent.
             let hit = loop {
-                let Some(h) = self
-                    .bvh
-                    .intersect(origin, direction, 1e4, &self.accept(kind), false)
-                else {
+                let Some(h) = self.intersect(
+                    origin,
+                    direction,
+                    1e4,
+                    &self.accept(kind, origin, direction),
+                    false,
+                ) else {
                     break None;
                 };
-                let t = &self.bvh.tris[h.tri];
-                let m = &self.materials[t.material as usize];
+                let m = &self.materials[h.material as usize];
                 if false_hits >= 32 || m.lobes[2] <= 0. {
                     break Some(h);
                 }
-                let sf = self.surface(&h, direction);
-                let entry = ((flags(m) >> 8) & 7, t.material);
+                let sf = self.surface(&h, origin, direction);
+                let entry = ((flags(m) >> 8) & 7, h.material);
                 let skip = if sf.front {
                     top(&media).is_some_and(|top| entry.0 < top.0)
                 } else {
@@ -83,30 +89,44 @@ impl Scene<'_> {
                 false_hits += 1;
                 origin = sf.p - sf.ng * 0.0003;
             };
-            // The fog box fills the space outside every object: a free flight through it may
-            // scatter before the surface (or the background), with light sampling by the phase.
-            if media.is_empty()
-                && let Some((t0, t1)) =
-                    self.fog_interval(origin, direction, hit.as_ref().map_or(1e4, |h| h.t))
-            {
-                let f = &s.fog;
-                let ts = t0 - (1. - r.f()).ln() / f.density;
+            // A free flight through the medium the path is in may scatter before the surface (or
+            // the background), with light sampling by the phase. Inside a scattering object it
+            // fills the segment; the fog box fills the space outside every object. The segment
+            // after false hits only (those before them were absorbed alone, as on the GPU).
+            let tmax = hit.as_ref().map_or(1e4, |h| h.t);
+            let medium = if media.is_empty() {
+                self.fog_interval(origin, direction, tmax).map(|(t0, t1)| {
+                    let f = &s.fog;
+                    let (ts, w) = self.fog_flight(origin, direction, t0, t1, r);
+                    (ts, t1, w, Vec3::from(f.color), f.phase)
+                })
+            } else {
+                self.object_medium(&media).map(|(sigma, albedo, g)| {
+                    let (ts, w) = flight(sigma, 0., tmax, r);
+                    (ts, tmax, w, albedo, g)
+                })
+            };
+            if let Some((ts, t1, w, albedo, g)) = medium {
+                throughput *= w;
                 if ts < t1 {
-                    throughput *= Vec3::from(f.color);
+                    // The dielectric's colour absorbs up to the scatter.
+                    throughput *= self.transmittance(&media, ts) * albedo;
                     let x = origin + direction * ts;
                     if mis != 2
                         && let Some((ld, le, pl, limit)) = self.sample_light(x, r)
                         && self
-                            .bvh
-                            .intersect(x, ld, limit, &self.accept(Ray::Shadow), true)
+                            .intersect(x, ld, limit, &self.accept(Ray::Shadow, x, ld), true)
                             .is_none()
                     {
-                        let pp = hg_pdf(direction.dot(ld), f.phase);
+                        let pp = hg_pdf(direction.dot(ld), g);
                         let density = if mis == 1 { pl } else { pl + pp };
-                        radiance += throughput * self.fog_transmittance(x, ld, limit) * pp * le
+                        radiance += throughput
+                            * self.shadow_transmittance(&media, x, ld, limit, r)
+                            * pp
+                            * le
                             / density.max(1e-8);
                     }
-                    let (d, pp) = hg_sample(direction, f.phase, r);
+                    let (d, pp) = hg_sample(direction, g, r);
                     previous_pdf = pp;
                     previous_delta = false;
                     previous_position = x;
@@ -162,7 +182,7 @@ impl Scene<'_> {
                 break;
             };
             throughput *= self.transmittance(&media, h.t);
-            let sf = self.surface(&h, direction);
+            let mut sf = self.surface(&h, origin, direction);
             // Shadow catcher: the floor is the background behind it, and the path ends there.
             if s.shadow_catcher && sf.material == 3 {
                 radiance += throughput * self.catcher(&sf, direction, bounce, camera_chain, r);
@@ -186,7 +206,7 @@ impl Scene<'_> {
                 previous_delta = true;
                 continue;
             }
-            let m = material_at(&self.materials[sf.material as usize], sf.p);
+            let mut m = material_at(&self.materials[sf.material as usize], sf.p);
             // Beam splitters: a thin partial mirror, a delta event either way, sharing the
             // portals' crossing budget (past it the sheet shades as an ordinary material). A back
             // face (leaving a closed splitter) passes untinted, so a thin box splits once, not
@@ -204,24 +224,58 @@ impl Scene<'_> {
                 origin = sf.p + direction * 0.0005;
                 continue;
             }
-            let le = emitted(&m, sf.front, sf.emission_cos(direction));
+            let colour = self.emission_colour(&m, h.tri, h.b);
+            let le = emitted(&m, colour, sf.front, sf.emission_cos(direction));
+            // Maps after emission, as the GPU: an emitter keeps its unmapped colour.
+            self.apply_maps(&mut m, &h, &mut sf.n);
             if le.max_element() > 0. {
                 let weight = if bounce == 0 || previous_delta {
                     1.
                 } else {
                     match mis {
-                        // Light sampling found this emitter already. Every emissive triangle is
-                        // in the light table (`Scene::new`).
+                        // Light sampling found this emitter already. Every emissive triangle and
+                        // procedural object is in a light table (`Scene::new`).
                         1 => 0.,
                         2 => 1.,
                         _ => {
-                            let pl = self.light_pdf(h.tri, previous_position, sf.p);
+                            let pl = match h.sdf {
+                                Some(i) => self.sdf_light_pdf(i, previous_position),
+                                None => self.light_pdf(h.tri, previous_position, sf.p),
+                            };
                             previous_pdf / (previous_pdf + pl)
                         }
                     }
                 };
                 radiance += throughput * le * weight;
             }
+            // A thin film, between the media on both sides of a dielectric, else over an opaque base.
+            if m.surface_scale[2] > 0. {
+                let (outside, base) = if m.lobes[2] > 0. {
+                    let (n1, n2, _) = self.interface(&media, &m, sf.material, sf.front);
+                    (n1, n2)
+                } else {
+                    (1., 0.)
+                };
+                prepare_film(&mut m, (-direction).dot(sf.n).clamp(0., 1.), outside, base);
+            }
+            // The brushing direction, from the raw record as the GPU's hit reads it; a procedural
+            // hit's is fixed by its normal, as `intersect` gives it.
+            let mut tangent = self.tangent(sf.material, sf.p);
+            if h.sdf.is_some() && tangent != Vec3::ZERO {
+                let up = if sf.n.y.abs() < 0.99 {
+                    Vec3::Y
+                } else {
+                    Vec3::X
+                };
+                tangent = sf.n.cross(up).normalize();
+            }
+            // A grating hit's wavelength, shared by light sampling and the BSDF sample here, from
+            // its own stream so the path's draws stay as they were.
+            let lambda = if grating(&m).is_some() {
+                grating_wavelength(&mut r.fork(0x6772_6174 ^ bounce as u64))
+            } else {
+                0.
+            };
             // Unlit: emission only.
             if flags(&m) & 1 != 0 {
                 break;
@@ -236,26 +290,22 @@ impl Scene<'_> {
             if let Some((ld, le, pl, limit)) = sample {
                 let nl = sf.n.dot(ld);
                 if nl > 0. {
-                    let (f, pdf) = eval_bsdf(&m, sf.n, v, ld);
+                    let (f, pdf) = eval_bsdf(&m, sf.n, tangent, v, ld, lambda);
                     if f.max_element() > 0.
                         && self
-                            .bvh
                             .intersect(
                                 sf.p + sf.ng * 0.0003,
                                 ld,
                                 limit,
-                                &self.accept(Ray::Shadow),
+                                &self.accept(Ray::Shadow, sf.p, ld),
                                 true,
                             )
                             .is_none()
                     {
                         let density = if mis == 1 { pl } else { pl + pdf };
-                        let fog = if media.is_empty() {
-                            self.fog_transmittance(sf.p, ld, limit)
-                        } else {
-                            1.
-                        };
-                        radiance += throughput * f * nl * le * fog / density.max(1e-8);
+                        let tr =
+                            self.shadow_transmittance(&media, sf.p + sf.ng * 0.0003, ld, limit, r);
+                        radiance += throughput * f * nl * le * tr / density.max(1e-8);
                     }
                 }
             }
@@ -264,25 +314,29 @@ impl Scene<'_> {
             let mut delta = false;
             let mut bsdf_pdf = 0.;
             if r.f() < m.lobes[2] {
-                let entry = ((flags(&m) >> 8) & 7, sf.material);
-                let ior = |e: Option<&(u32, u32)>| {
-                    e.map_or(1., |e| self.materials[e.1 as usize].optical[0])
-                };
-                let mut after = media.clone();
-                if sf.front {
-                    push(&mut after, entry);
-                } else {
-                    remove(&mut after, entry);
-                }
-                let (n1, n2) = if sf.front {
-                    (ior(top(&media)), m.optical[0])
-                } else {
-                    (m.optical[0], ior(top(&after)))
-                };
+                let (n1, n2, after) = self.interface(&media, &m, sf.material, sf.front);
                 let eta = n1 / n2;
                 let ci = v.dot(sf.n).clamp(0., 1.);
-                let fr = fresnel_dielectric(ci, eta);
+                let mut fr = fresnel_dielectric(ci, eta);
+                // A film colours the reflection and, by what it leaves, the transmission: the
+                // choice goes by the mean, the weight per channel.
+                let film = m.surface_scale[2];
+                let mut frc = Vec3::splat(fr);
+                if film > 0. && fr < 1. {
+                    frc = frc.lerp(
+                        Vec3::new(m.base_scale[0], m.base_scale[1], m.base_scale[2]),
+                        film,
+                    );
+                    fr = (frc.element_sum() / 3.).clamp(1e-4, 1. - 1e-4);
+                }
                 let reflected = r.f() < fr;
+                if film > 0. {
+                    throughput *= if reflected {
+                        frc / fr
+                    } else {
+                        (Vec3::ONE - frc) / (1. - fr)
+                    };
+                }
                 let mut d = if reflected {
                     reflect(direction, sf.n)
                 } else {
@@ -307,14 +361,42 @@ impl Scene<'_> {
                     ggx_sample(sf.n, direction, (cr * cr).max(0.001), r)
                 } else if r.f() < ps {
                     let rough = m.color_rough[3];
-                    ggx_sample(sf.n, direction, (rough * rough).max(0.001), r)
+                    let a = (rough * rough).max(0.001);
+                    // A grating's order (`order_shares`): the isotropic sample moved across the
+                    // grooves; one moved past the horizon ends the path.
+                    let mut order = None;
+                    if let Some((share, spacing)) = grating(&m) {
+                        let (_, b) = aniso_frame(sf.n, tangent, m.sheen[3]);
+                        let k = lambda / spacing;
+                        let w = order_shares(share, k, sf.n, b, v);
+                        let u = r.f();
+                        let mut c = 0.;
+                        order = (0..4)
+                            .find(|&o| {
+                                c += w[o];
+                                u < c
+                            })
+                            .map(|o| (GRATING_ORDER[o] * k, b));
+                    }
+                    if let Some((shift, b)) = order {
+                        let d = ggx_sample(sf.n, direction, a, r);
+                        match grating_move(sf.n, b, d, shift).filter(|_| sf.n.dot(d) > 0.) {
+                            Some(d) => d,
+                            None => break,
+                        }
+                    } else if m.layers[3] > 0. {
+                        let (t, b) = aniso_frame(sf.n, tangent, m.sheen[3]);
+                        ggx_sample_aniso(sf.n, t, b, direction, aniso_alpha(&m), r)
+                    } else {
+                        ggx_sample(sf.n, direction, a, r)
+                    }
                 } else {
                     cosine_sample(sf.n, r)
                 };
                 if sf.n.dot(d) <= 0. {
                     break;
                 }
-                let (f, pdf) = eval_bsdf(&m, sf.n, v, d);
+                let (f, pdf) = eval_bsdf(&m, sf.n, tangent, v, d, lambda);
                 throughput *= f * sf.n.dot(d).abs() / pdf.max(1e-7);
                 bsdf_pdf = pdf;
                 next = d;
@@ -343,6 +425,29 @@ impl Scene<'_> {
             radiance.max(Vec3::ZERO)
         } else {
             Vec3::ZERO
+        }
+    }
+    /// The IORs on the near and far side of dielectric `material` hit from `front`, and the
+    /// media stack beyond it: entering, the current medium's and its own; leaving, its own and
+    /// the one the stack falls back to (air when empty).
+    fn interface(
+        &self,
+        media: &[(u32, u32)],
+        m: &crate::lighting::PackedMaterial,
+        material: u32,
+        front: bool,
+    ) -> (f32, f32, Vec<(u32, u32)>) {
+        let entry = ((flags(m) >> 8) & 7, material);
+        let ior =
+            |e: Option<&(u32, u32)>| e.map_or(1., |e| self.materials[e.1 as usize].optical[0]);
+        let mut after = media.to_vec();
+        if front {
+            push(&mut after, entry);
+            (ior(top(media)), m.optical[0], after)
+        } else {
+            remove(&mut after, entry);
+            let n2 = ior(top(&after));
+            (m.optical[0], n2, after)
         }
     }
     /// The sky gradient over the background colour, without an environment map.
@@ -388,12 +493,11 @@ impl Scene<'_> {
             let w = crate::environment::luminance(le.to_array()) * c / pl;
             all += w;
             let blocked = self
-                .bvh
                 .intersect(
                     sf.p + sf.ng * 0.0003,
                     ld,
                     limit,
-                    &self.accept(Ray::Shadow),
+                    &self.accept(Ray::Shadow, sf.p, ld),
                     true,
                 )
                 .is_some();

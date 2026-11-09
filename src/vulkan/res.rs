@@ -66,10 +66,15 @@ impl Device {
     ) -> Result<Buffer> {
         unsafe {
             let size = size.max(16);
-            let usage = usage
-                | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                | vk::BufferUsageFlags::TRANSFER_DST
-                | vk::BufferUsageFlags::TRANSFER_SRC;
+            // Addresses feed only acceleration-structure builds, so a display-only device
+            // (no bufferDeviceAddress) makes buffers without them.
+            let usage =
+                usage | vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::TRANSFER_SRC;
+            let usage = if self.ray_tracing {
+                usage | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+            } else {
+                usage
+            };
             let handle = self.device.create_buffer(
                 &vk::BufferCreateInfo::default().size(size).usage(usage),
                 None,
@@ -82,17 +87,21 @@ impl Device {
             };
             let mut address_flag = vk::MemoryAllocateFlagsInfo::default()
                 .flags(vk::MemoryAllocateFlags::DEVICE_ADDRESS);
-            let memory = self.device.allocate_memory(
-                &vk::MemoryAllocateInfo::default()
-                    .allocation_size(req.size)
-                    .memory_type_index(self.memory_type(req.memory_type_bits, flags)?)
-                    .push_next(&mut address_flag),
-                None,
-            )?;
+            let mut info = vk::MemoryAllocateInfo::default()
+                .allocation_size(req.size)
+                .memory_type_index(self.memory_type(req.memory_type_bits, flags)?);
+            if self.ray_tracing {
+                info = info.push_next(&mut address_flag);
+            }
+            let memory = self.device.allocate_memory(&info, None)?;
             self.device.bind_buffer_memory(handle, memory, 0)?;
-            let address = self
-                .device
-                .get_buffer_device_address(&vk::BufferDeviceAddressInfo::default().buffer(handle));
+            let address = if self.ray_tracing {
+                self.device.get_buffer_device_address(
+                    &vk::BufferDeviceAddressInfo::default().buffer(handle),
+                )
+            } else {
+                0
+            };
             let mapped = if host {
                 self.device
                     .map_memory(memory, 0, vk::WHOLE_SIZE, vk::MemoryMapFlags::empty())?

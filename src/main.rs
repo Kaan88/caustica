@@ -85,6 +85,8 @@ use winit::{
 #[derive(Default)]
 struct Actions {
     reset: bool,
+    /// With `reset`: the GPU's render only, the CPU's goes on (it became the graph's reference).
+    keep_cpu: bool,
     /// Settings JSON to write or read (the quick buttons use settings.json in `dirs::output_dir`).
     save: Option<PathBuf>,
     load: Option<PathBuf>,
@@ -212,6 +214,8 @@ struct App {
     turntable_cli: Option<video::Options>,
     /// The running video export (item 6): rendered a pass at a time in `redraw`.
     export: Option<video::Job>,
+    /// The same on the CPU renderer, in the software view: a thread, with its own progress.
+    cpu_export: Option<video::CpuExport>,
     /// Phone remote (off by default) and when its page state was last refreshed.
     remote: Option<remote::Remote>,
     remote_synced: Instant,
@@ -233,6 +237,8 @@ struct App {
     cpu_reference: Option<reference::Live>,
     /// The software view: the viewport shows the CPU's render (`--cpu`, Menu, top bar, Render tab).
     cpu_view: bool,
+    /// The software view's denoiser (`--cpu-denoise`, Render tab), off by default.
+    cpu_denoise: bool,
     /// An image went up after this frame's render: the next frame shows it.
     cpu_uploaded: bool,
     /// The self-test's image from before a camera move.
@@ -444,6 +450,8 @@ impl App {
         let mut hidden = false;
         let mut capture_ui = false;
         let mut cpu_view = false;
+        let mut cpu_denoise = false;
+        let mut reference_lenient = false;
         let mut script_path: Option<PathBuf> = None;
         let mut interface = ui::UiState::default();
         let mut self_test = false;
@@ -665,6 +673,8 @@ impl App {
                 }
                 "--capture-ui" => capture_ui = true,
                 "--cpu" => cpu_view = true,
+                // The CPU's denoiser: the software view's, or `--reference`'s for its PNG or JPEG.
+                "--cpu-denoise" => cpu_denoise = true,
                 // A Rhai script that drives the app (see src/script.rs).
                 "--script" => {
                     script_path = Some(PathBuf::from(args.next().context("--script needs a file")?))
@@ -751,6 +761,9 @@ impl App {
                             .context("--reference needs a sample count")?,
                     )
                 }
+                // With --reference: render what it can of a scene it would refuse, and print what
+                // it left out (scene thumbnails on the CPU).
+                "--reference-lenient" => reference_lenient = true,
                 "--version" => {
                     println!("Caustica {VERSION}");
                     std::process::exit(0);
@@ -758,7 +771,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -797,13 +810,33 @@ impl App {
             s.validate()?;
         }
         if let Some(spp) = reference {
-            let path = capture.context("--reference needs --capture out.exr")?;
             anyhow::ensure!(spp > 0, "--reference needs at least one sample");
+            // A turntable or timeline export on the CPU, with no device: `--reference` gives
+            // its samples per frame and the window size its frame size.
+            if let Some(mut t) = turntable_cli.take() {
+                anyhow::ensure!(
+                    capture.is_none(),
+                    "--reference with --turntable writes no --capture"
+                );
+                anyhow::ensure!(
+                    reference_time.is_none(),
+                    "--reference-time renders one frame, not a --turntable"
+                );
+                [t.width, t.height, t.spp] = [size[0], size[1], spp];
+                [t.pitch, t.distance] = [s.pitch, s.distance];
+                let text =
+                    video::render_cpu(&s, t, &std::sync::atomic::AtomicBool::new(false), &|f| {
+                        println!("REFERENCE_PROGRESS {:.0}%", f * 100.)
+                    })?;
+                println!("TURNTABLE {text}");
+                std::process::exit(0);
+            }
+            let path = capture.context("--reference needs --capture out.exr|out.png")?;
             let moments = match reference_time {
                 Some(t) => reference::exposure(&s, t)?,
                 None => vec![reference::prepare(&s, 0.)],
             };
-            reference::run(&moments, size, spp, &path)?;
+            reference::run(&moments, size, spp, &path, cpu_denoise, reference_lenient)?;
             std::process::exit(0);
         }
         anyhow::ensure!(frames != Some(0), "--frames must be positive");
@@ -899,6 +932,7 @@ impl App {
             saver: screensaver.then(saver::Saver::new),
             turntable_cli,
             export: None,
+            cpu_export: None,
             remote: None,
             remote_synced: Instant::now(),
             gamepad: None,
@@ -910,6 +944,7 @@ impl App {
             audio: None,
             cpu_reference: None,
             cpu_view,
+            cpu_denoise,
             cpu_uploaded: false,
             cpu_view_image: None,
         })
@@ -1028,15 +1063,18 @@ impl App {
                     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
                         let _ = std::fs::create_dir_all(dir);
                     }
-                    done(match self.gpu.as_mut() {
-                        Some(g) => unsafe { g.capture(&path, hdr, false) }
+                    done(match (self.cpu_capture(&path), self.gpu.as_mut()) {
+                        (Some(cpu), _) => cpu,
+                        (None, Some(g)) => unsafe { g.capture(&path, hdr, false) }
                             .and_then(|_| video::tag_capture(&path, g.width, g.height)),
-                        None => Err(anyhow::anyhow!("no GPU yet")),
+                        (None, None) => Err(anyhow::anyhow!("no GPU yet")),
                     })
                 }
-                Request::Samples => {
-                    Reply::Number(self.gpu.as_ref().map_or(0, |g| g.samples as i64))
-                }
+                // The software view's samples are the CPU's (its GPU traces one pass).
+                Request::Samples => Reply::Number(match &self.cpu_reference {
+                    Some(live) if live.view => live.latest().map_or(0, |l| l.2 as i64),
+                    _ => self.gpu.as_ref().map_or(0, |g| g.samples as i64),
+                }),
                 Request::Get(key) => match script::get(&self.settings, &key) {
                     Ok(t) => Reply::Text(t),
                     Err(e) => done(Err(e)),
@@ -1074,6 +1112,42 @@ impl App {
             }
             let _ = tx.send(reply);
         }
+    }
+    /// A capture in the software view: the CPU's finished render, not the GPU's one pass. A PNG
+    /// or JPEG goes through the CPU display transform as `--reference` writes it, an EXR keeps
+    /// the plain mean (never the denoised one). None outside the software view.
+    fn cpu_capture(&self, path: &std::path::Path) -> Option<Result<()>> {
+        let live = self.cpu_reference.as_ref().filter(|l| l.view)?;
+        let format = video::ImageFormat::from_path(path).filter(|f| {
+            matches!(
+                f,
+                video::ImageFormat::Exr | video::ImageFormat::Png | video::ImageFormat::Jpeg
+            )
+        });
+        let Some(format) = format else {
+            return Some(Err(anyhow::anyhow!(
+                "The software view captures .png, .jpg or .exr: layers and HDR images come from the GPU's render"
+            )));
+        };
+        let Some((shown, plain, _)) = live.latest() else {
+            return Some(Err(anyhow::anyhow!(
+                "The CPU render has no finished pass yet: call frames(n) until samples() grows"
+            )));
+        };
+        let [w, h] = live.size;
+        Some(if format == video::ImageFormat::Exr {
+            video::save_linear(path, &plain, w, h)
+        } else {
+            video::write_cpu_image(
+                &self.settings,
+                path,
+                format,
+                video::JPEG_QUALITY,
+                shown.to_vec(),
+                [w, h],
+                0,
+            )
+        })
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
         eprintln!("ERROR: {error:#}");
@@ -1137,7 +1211,7 @@ impl App {
         let output = ctx.run(input, |ctx| {
             // During an export only its progress window is drawn (and takes input): the scene
             // must not change under it.
-            if self.export.is_some() {
+            if self.export.is_some() || self.cpu_export.is_some() {
                 self.export_window(ctx);
             } else if self.show_ui {
                 self.ui(ctx);
@@ -1491,13 +1565,19 @@ impl App {
         if self.actions.reset {
             g.reset(true);
             self.actions.reset = false;
-            // Restart means the CPU's render too.
-            if let Some(live) = &mut self.cpu_reference {
+            // Restart means the CPU's render too, unless it is what the GPU is measured against.
+            if let Some(live) = self
+                .cpu_reference
+                .as_mut()
+                .filter(|_| !std::mem::take(&mut self.actions.keep_cpu))
+            {
                 live.key.clear();
             }
         }
         // The software view traces one GPU pass per restart, for what clicks read (object ids,
         // depth) and the albedo under the light meter; the picture is the CPU's.
+        // A display-only GPU has only the software view.
+        self.cpu_view |= !g.ray_tracing;
         let draw = if self.cpu_view {
             g.samples == 0
         } else {
@@ -1606,6 +1686,9 @@ impl App {
         }
         if self.actions.cancel_export {
             self.actions.cancel_export = false;
+            if let Some(job) = &self.cpu_export {
+                job.cancel();
+            }
             if let Some(job) = self.export.take() {
                 let out = job.options.output();
                 let text = unsafe { job.finish(g, s, true)? };
@@ -1695,6 +1778,23 @@ impl App {
             }
         }
         self.ui.hovered = None;
+        // A display-only device runs no probe pass: clicks, the 3D cursor, focus and the
+        // light meter read a CPU pick and the software view instead.
+        if !g.ray_tracing {
+            let raw = self
+                .cpu_reference
+                .as_ref()
+                .filter(|l| l.view)
+                .and_then(|l| l.raw());
+            g.probe_result = g.probe.map(|at| {
+                gizmo::cpu_probe(
+                    &self.settings,
+                    at,
+                    [g.width, g.height],
+                    raw.as_deref().map(|v| v.as_slice()),
+                )
+            });
+        }
         let point = self.pick_point.take();
         let frame_pick = std::mem::take(&mut self.frame_pick);
         if let (Some(point), Some(p)) = (point, g.probe_result) {
@@ -1780,7 +1880,16 @@ impl App {
             && let Some((rw, rh, reference)) = &self.ui.reference
             && (*rw, *rh) == (g.width, g.height)
         {
-            if g.samples < self.ui.graph.last().map_or(0, |p| p.0) {
+            // The software view measures the CPU's render, which is what it shows.
+            let cpu = self.cpu_reference.as_ref().filter(|l| l.view).map(|l| {
+                let pixels = g.width as usize * g.height as usize;
+                l.latest().filter(|l| l.1.len() == pixels * 4)
+            });
+            let samples = match &cpu {
+                Some(latest) => latest.as_ref().map_or(0, |l| l.2),
+                None => g.samples,
+            };
+            if samples < self.ui.graph.last().map_or(0, |p| p.0) {
                 self.ui.graph.clear();
             }
             // Battle mode: per quadrant, error against the GPU time it has spent.
@@ -1806,13 +1915,16 @@ impl App {
                 }
             }
             let last = self.ui.graph.last().map_or(0, |p| p.0);
-            if !s.battle && g.samples > 0 && (last == 0 || g.samples as f64 >= last as f64 * 1.25) {
-                let image = unsafe { g.read_floats(18)? };
+            if !s.battle && samples > 0 && (last == 0 || samples as f64 >= last as f64 * 1.25) {
+                let image = match cpu {
+                    Some(Some((_, plain, _))) => plain,
+                    _ => std::sync::Arc::new(unsafe { g.read_floats(18)? }),
+                };
                 let sums = error_sums(&image, reference, g.width as usize, g.height as usize);
                 let (sum, n) = sums.iter().fold((0., 0), |a, q| (a.0 + q.0, a.1 + q.1));
                 self.ui
                     .graph
-                    .push((g.samples, (sum / n.max(1) as f64).sqrt() * 1000.));
+                    .push((samples, (sum / n.max(1) as f64).sqrt() * 1000.));
             }
         }
         // Lifetime statistics and achievements.
@@ -1907,6 +2019,7 @@ impl App {
             if let Some(live) = &mut self.cpu_reference {
                 live.set_paused(self.paused);
                 live.set_painting(self.painting);
+                live.set_denoise(self.cpu_denoise, s.denoise_strength);
                 if live.key != self.last_key || live.size != size {
                     live.follow(s.clone(), self.last_key.clone(), size);
                     // The old image no longer matches; the split shows the GPU until the first
@@ -1971,6 +2084,14 @@ impl App {
                 Err(anyhow::anyhow!(
                     "The software view has no layers to save: they come from the GPU's render"
                 ))
+            } else if let Some(raw) = self
+                .cpu_reference
+                .as_ref()
+                .filter(|l| l.view && format == video::ImageFormat::Exr)
+                .and_then(|l| l.raw())
+            {
+                // The view shows the denoised mean; the EXR keeps the plain one.
+                video::save_linear(&path, &raw, g.width, g.height)
             } else {
                 unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) }
             };
@@ -2035,8 +2156,37 @@ impl App {
             self.actions.export_video = false;
             self.ui.video_pending = Some(self.ui.video.clone());
         }
-        if self.export.is_some() && self.ui.video_pending.take().is_some() {
+        if (self.export.is_some() || self.cpu_export.is_some())
+            && self.ui.video_pending.take().is_some()
+        {
             self.ui.toast("An export is already running");
+        }
+        if self.cpu_export.as_ref().is_some_and(|j| j.finished()) {
+            let job = self.cpu_export.take().unwrap();
+            let out = job.options.output();
+            if let Some(live) = &self.cpu_reference {
+                live.set_paused(false);
+            }
+            match job.join() {
+                Ok(text) => {
+                    println!("EXPORT {text}");
+                    self.ui.toast_file(text, out);
+                }
+                Err(e) => self.ui.error(format!("Export: {e:#}")),
+            }
+        }
+        // The software view exports on the CPU renderer (its own thread), the viewport's
+        // render paused meanwhile so the two don't share the cores.
+        if self.cpu_view
+            && let Some(options) = self.ui.video_pending.take()
+        {
+            self.drag = None;
+            self.keys_down.clear();
+            self.ui.video_preview = None;
+            if let Some(live) = &self.cpu_reference {
+                live.set_paused(true);
+            }
+            self.cpu_export = Some(video::CpuExport::start(s, options));
         }
         if let Some(options) = self.ui.video_pending.take() {
             match unsafe { video::Job::start(g, s, options) } {
@@ -2161,6 +2311,12 @@ impl App {
                 }
                 _ => (0., 0., 0., [0.; 4]),
             };
+            // The software view's EXR is the CPU's mean: the GPU's accumulation holds its one pass.
+            let cpu_exr = self
+                .capture
+                .as_deref()
+                .filter(|p| video::ImageFormat::from_path(p) == Some(video::ImageFormat::Exr))
+                .and_then(|p| self.cpu_capture(p));
             let g = self.gpu.as_mut().unwrap();
             if let Some(path) = &self.capture {
                 let hdr = path.extension().is_some_and(|v| v == "exr");
@@ -2173,7 +2329,9 @@ impl App {
                 } else {
                     None
                 };
-                let result = if let Some((suffix, format)) = hdr_screen {
+                let result = if let Some(saved) = cpu_exr {
+                    saved
+                } else if let Some((suffix, format)) = hdr_screen {
                     if g.hdr_active {
                         unsafe { video::save_current(g, format, video::JPEG_QUALITY, path) }
                     } else {
@@ -2412,7 +2570,7 @@ impl ApplicationHandler for App {
         let result = (|| -> Result<()> {
             let window = Arc::new(
                 event_loop.create_window(
-                    Window::default_attributes()
+                    platform::with_app_id(Window::default_attributes())
                         .with_title(format!("Caustica {VERSION}"))
                         // The icon build.rs linked in (resource 1); none if rc.exe was missing.
                         .with_window_icon(app_icon(None))
@@ -2484,6 +2642,22 @@ impl ApplicationHandler for App {
                 Gpu::new(&window, size.width, size.height, &self.settings, self.debug)?
             });
             gpu.keep_ui_frame = self.capture_ui;
+            // A GPU that can't ray trace still displays: the CPU renders the view.
+            if !gpu.ray_tracing {
+                let why = if vulkan::rt_disabled() {
+                    "CAUSTICA_NO_RT=1 forces the display-only path: the view renders on the CPU \
+                     (software)"
+                        .to_string()
+                } else {
+                    format!(
+                        "{} can't ray trace: the view renders on the CPU (software)",
+                        gpu.adapter_name
+                    )
+                };
+                eprintln!("{why}");
+                self.ui.toast(why);
+                self.cpu_view = true;
+            }
             // Windowed runs start drawing while DLSS starts; headless runs, the self-test and
             // --require-rr need it from the first frame.
             if self.hidden || self.self_test || self.require_rr {
@@ -3176,6 +3350,7 @@ impl ApplicationHandler for App {
                 || (self.cpu_view && g.samples == 0)
                 || self.frames.is_some()
                 || self.export.is_some()
+                || self.cpu_export.is_some()
                 || self.timeline.playing
                 || self.settings.rotate
                 || self.script.is_some()
@@ -3401,14 +3576,16 @@ fn run() -> Result<()> {
         saver::preview(parent);
         return Ok(());
     }
-    // Renders the missing scene thumbnails (each one a headless run of this exe) and exits.
+    // Renders the missing scene thumbnails (each one a headless run of this exe, on the CPU
+    // renderer with --cpu) and exits.
     if std::env::args().any(|a| a == "--make-thumbnails") {
+        let cpu = std::env::args().any(|a| a == "--cpu");
         let missing: Vec<_> = scenes::list()
             .into_iter()
             .filter(|e| e.thumbnail().is_some_and(|t| !t.is_file()))
             .collect();
         println!("{} thumbnails to render", missing.len());
-        for result in scenes::render_thumbnails(missing) {
+        for result in scenes::render_thumbnails(missing, cpu) {
             match result {
                 Ok(path) => println!("THUMBNAIL {}", path.display()),
                 Err(title) => println!("THUMBNAIL FAILED {title}"),

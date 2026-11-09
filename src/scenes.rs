@@ -336,10 +336,40 @@ pub fn save_to(path: &Path, s: &Settings, title: &str, description: &str) -> Res
     Ok(())
 }
 
+/// A thumbnail run's arguments before the scene's path. On the CPU each run already takes every
+/// core, so they stay one at a time; 64 samples keep the noise near the GPU's 32 frames, which
+/// RR denoises. Lenient: a scene the CPU can't render in full still gets its picture.
+fn thumbnail_args(cpu: bool) -> &'static [&'static str] {
+    if cpu {
+        &[
+            "--reference",
+            "64",
+            "--reference-lenient",
+            "--width",
+            "320",
+            "--height",
+            "200",
+            "--scene",
+        ]
+    } else {
+        &[
+            "--headless",
+            "--frames",
+            "32",
+            "--width",
+            "320",
+            "--height",
+            "200",
+            "--scene",
+        ]
+    }
+}
 /// Renders the given scenes' thumbnails one after another on a background thread, by running
-/// this exe headless (320 x 200, 32 frames). Each finished thumbnail path is sent back.
+/// this exe at 320 x 200: headless on the GPU, or with `cpu` on the CPU renderer (`--reference`,
+/// which needs no ray tracing GPU, nor any device). Each finished thumbnail path is sent back.
 pub fn render_thumbnails(
     entries: Vec<Entry>,
+    cpu: bool,
 ) -> std::sync::mpsc::Receiver<Result<PathBuf, String>> {
     let (send, receive) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -351,16 +381,7 @@ pub fn render_thumbnails(
             let _ = std::fs::create_dir_all(out.parent().unwrap_or(Path::new(".")));
             let partial = out.with_extension("partial.png");
             let mut command = std::process::Command::new(&exe);
-            command.args([
-                "--headless",
-                "--frames",
-                "32",
-                "--width",
-                "320",
-                "--height",
-                "200",
-                "--scene",
-            ]);
+            command.args(thumbnail_args(cpu));
             command.arg(&e.path).arg("--capture").arg(&partial);
             command
                 .stdout(std::process::Stdio::null())
@@ -398,6 +419,15 @@ pub fn render_thumbnails(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// The CPU's thumbnail runs need no device and don't fail on what they can't render.
+    #[test]
+    fn cpu_thumbnails_render_without_a_device() {
+        let cpu = thumbnail_args(true);
+        assert!(cpu.contains(&"--reference") && cpu.contains(&"--reference-lenient"));
+        assert!(!cpu.contains(&"--headless"));
+        assert_eq!(cpu.last(), Some(&"--scene"));
+        assert_eq!(thumbnail_args(false).last(), Some(&"--scene"));
+    }
     #[test]
     fn slugs_are_file_safe() {
         assert_eq!(slug("Stonehenge at dusk"), "stonehenge-at-dusk");

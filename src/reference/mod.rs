@@ -18,6 +18,8 @@ use anyhow::{Context, Result};
 mod bsdf;
 mod bvh;
 mod camera;
+mod denoise;
+mod display;
 mod environment;
 mod integrators;
 mod lights;
@@ -26,9 +28,12 @@ mod prepare;
 mod progressive;
 mod sampling;
 mod scene;
+mod sdf;
 #[cfg(test)]
 mod tests;
+mod textures;
 
+pub use display::display;
 pub use prepare::{SHUTTER_MOMENTS, at_time, exposure, prepare};
 pub use progressive::{Live, LiveState, Progressive, render};
 
@@ -40,12 +45,7 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
             out.push(what.to_string());
         }
     };
-    // The fog box renders grey and uniform; `Fog::equiangular` only changes the GPU's sampling.
-    need(
-        s.fog.density > 0. && s.fog.extinction != [1.; 3],
-        "chromatic fog",
-    );
-    need(s.fog.density > 0. && s.fog.noise > 0., "heterogeneous fog");
+    // `Fog::equiangular` only changes the GPU's sampling; the CPU ignores it.
     need(s.spectral, "spectral rendering");
     // At the last bounce MIS keeps only its share of a light sample, the BSDF sample that would
     // make up the rest not being traced; ReSTIR's first hit keeps all of it. With a bounce to
@@ -64,86 +64,80 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         s.lpe.iter().any(|e| !e.is_empty()),
         "light path expressions (LPE AOVs)",
     );
-    need(
-        s.objects.iter().any(|o| o.visible && !o.sdf.is_none()),
-        "procedural (SDF) objects",
-    );
-    // What `Gpu::attach_maps` binds: a texture set wins over the mesh's own maps (`mesh::maps`:
-    // the glTF's or `maps_from`, when the material takes them), and the walls and the floor have
-    // sets too. Alpha cutouts and emissive maps come with these; their flag bits are set there,
-    // never in `lighting::materials`, so they can't be read from the records below.
-    need(
-        s.objects.iter().any(|o| {
-            o.visible && (!o.material.texture.is_empty() || crate::mesh::maps(o).is_some())
-        }) || !s.floor.texture.is_empty()
-            || s.cornell_room && !s.walls.texture.is_empty(),
-        "texture maps (with their alpha cutouts and emissive maps)",
-    );
-    let mats = material_records(s);
-    // An IES profile fills these fields of its light's record (`ies::pack`): not a coat or a sheen.
-    let mats: Vec<_> = mats
-        .into_iter()
-        .filter(|m| m.lobes[3] as u32 & 16384 == 0)
-        .collect();
-    need(mats.iter().any(|m| m.layers[3] > 0.), "anisotropy");
-    need(mats.iter().any(|m| m.surface_scale[2] > 0.), "thin films");
-    need(
-        mats.iter().any(|m| m.optical[3] < 0.),
-        "diffraction gratings",
-    );
-    need(
-        mats.iter().any(|m| m.medium[3] > 0.),
-        "participating media in objects",
-    );
     // Measured spectra and blackbodies render as their RGB colour outside spectral mode, as on
     // the GPU.
     out
 }
 
-/// The records of `lighting::materials` that describe surfaces: without the portal maps (flag 4
-/// points at them), whose rows are a matrix, not flags or lobes.
-fn material_records(s: &Settings) -> Vec<crate::lighting::PackedMaterial> {
-    let all = crate::lighting::materials(s);
-    let maps: std::collections::HashSet<usize> = all
-        .iter()
-        .filter(|m| m.lobes[3] as u32 & 4 != 0)
-        .map(|m| m.secondary[3] as usize)
-        .collect();
-    all.into_iter()
-        .enumerate()
-        .filter(|(i, _)| !maps.contains(i))
-        .map(|(_, m)| m)
-        .collect()
-}
 /// `--reference SPP`: renders `moments` (one scene, `prepare`d, or a motion-blurred frame's,
-/// `exposure`) and writes a linear EXR (or a PNG of the clamped values).
-pub fn run(moments: &[Settings], size: [u32; 2], spp: u32, path: &std::path::Path) -> Result<()> {
+/// `exposure`) and writes a linear EXR, or a PNG or JPEG through the display transform
+/// (`display`), as the GPU's capture does. `denoise` (`--cpu-denoise`) filters the mean first
+/// (`denoise`); the oracle never asks for it. `lenient` renders the first moment alone.
+pub fn run(
+    moments: &[Settings],
+    size: [u32; 2],
+    spp: u32,
+    path: &std::path::Path,
+    denoise: bool,
+    lenient: bool,
+) -> Result<()> {
     let start = std::time::Instant::now();
-    let mut p = Progressive::over(moments, size)?;
+    let format = crate::video::ImageFormat::from_path(path)
+        .filter(|f| {
+            matches!(
+                f,
+                crate::video::ImageFormat::Exr
+                    | crate::video::ImageFormat::Png
+                    | crate::video::ImageFormat::Jpeg
+            )
+        })
+        .context("--reference writes .exr, .png or .jpg")?;
+    anyhow::ensure!(!moments.is_empty(), "No scene to render");
+    let mut moments = moments.to_vec();
+    let progress = |f: f32| println!("REFERENCE_PROGRESS {:.0}%", f * 100.);
+    // Lenient (thumbnails): what it knows of the scene, as the software view shows it, with what
+    // it left out printed (glare too, which the CPU display transform lacks); never for measuring.
+    if lenient {
+        let frame = &mut moments[0];
+        let mut missing = unsupported(frame);
+        if format != crate::video::ImageFormat::Exr && frame.glare > 0. {
+            frame.glare = 0.;
+            missing.push("glare".into());
+        }
+        if !missing.is_empty() {
+            println!("REFERENCE_MISSING {}", missing.join(", "));
+        }
+    }
+    let frame = &moments[0];
+    let mut p = if lenient {
+        Progressive::partial(frame, size)
+    } else {
+        Progressive::over(&moments, size)?
+    };
+    if denoise {
+        p.keep_guides();
+    }
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     p.pass(
         spp,
-        std::thread::available_parallelism().map_or(4, |n| n.get()),
+        threads,
         &std::sync::atomic::AtomicBool::new(false),
-        &|f| println!("REFERENCE_PROGRESS {:.0}%", f * 100.),
+        &progress,
     );
-    let rgba = p.image();
-    let rgb: Vec<f32> = rgba
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .flat_map(|p| [p[0], p[1], p[2]])
-        .collect();
-    let image = image::Rgb32FImage::from_raw(size[0], size[1], rgb).context("image size")?;
-    if path
-        .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("exr"))
-    {
-        image.save(path)?;
+    let rgba = if denoise {
+        p.denoised(frame.denoise_strength, threads)
     } else {
-        image::DynamicImage::ImageRgb32F(image)
-            .to_rgb8()
-            .save(path)?;
-    }
+        p.image()
+    };
+    crate::video::write_cpu_image(
+        frame,
+        path,
+        format,
+        crate::video::JPEG_QUALITY,
+        rgba,
+        size,
+        0,
+    )?;
     println!(
         "REFERENCE_OK spp={spp} size={}x{} seconds={:.1}",
         size[0],

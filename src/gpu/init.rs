@@ -714,6 +714,8 @@ impl Gpu {
                 fence_wait_ms: 0.,
                 pass_ms: [0.; 4],
                 adapter_name,
+                // DXR 1.1 is required above; the display-only D3D12 path is not built yet.
+                ray_tracing: true,
                 denoiser_activity: "",
                 reference_valid: false,
             },

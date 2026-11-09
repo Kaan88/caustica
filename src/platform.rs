@@ -85,3 +85,19 @@ impl WindowAttributesExtWindows for winit::window::WindowAttributes {
         self
     }
 }
+
+/// The app id / window class desktop rules match ("caustica"): the Wayland
+/// xdg app id and the X11 WM_CLASS. Other platforms have no such name.
+pub const APP_ID: &str = "caustica";
+
+/// Tags a window with [`APP_ID`] for whichever Linux backend winit picks.
+#[cfg(target_os = "linux")]
+pub fn with_app_id(attrs: winit::window::WindowAttributes) -> winit::window::WindowAttributes {
+    use winit::platform::{wayland::WindowAttributesExtWayland, x11::WindowAttributesExtX11};
+    let attrs = WindowAttributesExtWayland::with_name(attrs, APP_ID, APP_ID);
+    WindowAttributesExtX11::with_name(attrs, APP_ID, APP_ID)
+}
+#[cfg(not(target_os = "linux"))]
+pub fn with_app_id(attrs: winit::window::WindowAttributes) -> winit::window::WindowAttributes {
+    attrs
+}

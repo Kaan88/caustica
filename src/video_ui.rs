@@ -251,6 +251,50 @@ impl App {
     }
     /// Drawn instead of the whole UI while an export runs.
     pub fn export_window(&mut self, ctx: &egui::Context) {
+        if let Some(job) = &self.cpu_export {
+            let o = &job.options;
+            let [w, h] = o.size();
+            let progress = job.progress();
+            let mut cancel = false;
+            egui::Window::new(if o.still {
+                "Rendering image (CPU)"
+            } else {
+                "Exporting video (CPU)"
+            })
+            .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
+            .resizable(false)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.set_width(380.);
+                ui.add(egui::ProgressBar::new(progress).show_percentage());
+                let elapsed = job.started.elapsed().as_secs();
+                let left = if progress > 0.01 {
+                    format!(
+                        "about {} left",
+                        clock((elapsed as f32 * (1. - progress) / progress) as u64)
+                    )
+                } else {
+                    "estimating".into()
+                };
+                note(
+                    ui,
+                    &format!(
+                        "{} · {w}×{h} · {} spp · {} elapsed, {left}",
+                        o.format.label(),
+                        o.spp,
+                        clock(elapsed)
+                    ),
+                );
+                if ui.button("Cancel").clicked() {
+                    cancel = true;
+                }
+            });
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            if cancel {
+                self.actions.cancel_export = true;
+            }
+            return;
+        }
         let Some(job) = &mut self.export else {
             return;
         };

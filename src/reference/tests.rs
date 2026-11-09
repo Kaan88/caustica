@@ -2,7 +2,7 @@ use super::bsdf::{eval_bsdf, ggx_albedo, ggx_table};
 use super::bvh::{Bvh, Hit, Tri};
 use super::lights::shadow_limit;
 use super::sampling::{Rng, cosine_sample};
-use super::scene::{Scene, Surface, interpolation_normal};
+use super::scene::{Ray, Scene, Surface, interpolation_normal};
 use super::*;
 use crate::lighting::PackedMaterial;
 use glam::{Mat4, Vec2, Vec3};
@@ -24,12 +24,150 @@ fn the_albedo_table_parses_and_a_white_furnace_conserves() {
     for _ in 0..k {
         let l = cosine_sample(n, &mut r);
         // Cosine samples: f cos / (cos / pi).
-        let (f, _) = eval_bsdf(&m, n, v, l);
+        let (f, _) = eval_bsdf(&m, n, Vec3::X, v, l, 0.);
         sum += f * PI;
     }
     let mean = sum / k as f32;
     // The GPU's model: a white rough dielectric with f0 = 0 (IOR 1) keeps about all light.
     assert!((mean.x - 1.).abs() < 0.06, "{mean}");
+}
+/// With a vanishing strength the anisotropic lobe is the isotropic one: same D, G1 and pdf
+/// up to the pdf's form (visible normals against D·nh), and the same value.
+#[test]
+fn anisotropy_reduces_to_isotropic() {
+    use super::bsdf::{aniso_frame, g1, g1_aniso, ggx_d, ggx_d_aniso};
+    let a = glam::Vec2::splat(0.3);
+    let (n, t) = (Vec3::Y, Vec3::new(1., 0.2, 0.));
+    let (tt, bb) = aniso_frame(n, t, 0.7);
+    assert!(tt.dot(n).abs() < 1e-6 && bb.dot(tt).abs() < 1e-6);
+    let h = Vec3::new(0.3, 0.9, -0.2).normalize();
+    let local = Vec3::new(h.dot(tt), h.dot(bb), h.dot(n));
+    assert!((ggx_d_aniso(local, a) / ggx_d(h.y, 0.3) - 1.).abs() < 1e-4);
+    assert!((g1_aniso(local, a) / g1(h.y, 0.3) - 1.).abs() < 1e-4);
+    let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
+    m.color_rough = [0.9, 0.6, 0.3, 0.55];
+    m.optical[0] = 1.5;
+    m.lobes[0] = 1.;
+    let v = Vec3::new(0.5, 0.7, 0.1).normalize();
+    let l = Vec3::new(-0.4, 0.8, 0.3).normalize();
+    let (fi, _) = eval_bsdf(&m, n, t, v, l, 0.);
+    m.layers[3] = 1e-4;
+    let (fa, _) = eval_bsdf(&m, n, t, v, l, 0.);
+    assert!(
+        (fa / fi - Vec3::ONE).abs().max_element() < 0.03,
+        "{fa} vs {fi}"
+    );
+}
+/// A white anisotropic metal in a furnace keeps its light at every view azimuth: visible-normal
+/// samples weighted by f·cos / pdf average 1 (the albedo table's compensation), and the
+/// sampler's directions are the ones eval_bsdf's pdf describes.
+#[test]
+fn anisotropic_white_metal_furnace() {
+    use super::bsdf::{aniso_alpha, aniso_frame, spec_probability};
+    use super::sampling::{cosine_sample, ggx_sample_aniso};
+    let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
+    m.color_rough = [1., 1., 1., 0.5];
+    m.optical[0] = 1.5;
+    m.lobes[0] = 1.;
+    m.layers[3] = 0.8;
+    m.sheen[3] = 0.4;
+    let (n, t) = (Vec3::Y, Vec3::X);
+    let (tt, bb) = aniso_frame(n, t, m.sheen[3]);
+    let ps = spec_probability(&m);
+    for (nv, phi) in [(0.9f32, 0.), (0.5, 0.8), (0.3, 1.6), (0.6, 2.5)] {
+        let s = (1. - nv * nv).sqrt();
+        let v = Vec3::new(s * f32::cos(phi), nv, s * f32::sin(phi));
+        let mut r = Rng::new(7, 8);
+        let mut sum = 0.;
+        let k = 100000;
+        for _ in 0..k {
+            let l = if r.f() < ps {
+                ggx_sample_aniso(n, tt, bb, -v, aniso_alpha(&m), &mut r)
+            } else {
+                cosine_sample(n, &mut r)
+            };
+            if l.dot(n) <= 0. {
+                continue;
+            }
+            let (f, pdf) = eval_bsdf(&m, n, t, v, l, 0.);
+            sum += f.x * l.dot(n) / pdf.max(1e-7);
+        }
+        let mean = sum / k as f32;
+        assert!((mean - 1.).abs() < 0.03, "nv {nv}, azimuth {phi}: {mean}");
+    }
+}
+/// A white metal grating in a furnace keeps its light: the order and mirror samples weighted by
+/// f·cos / pdf average 1 over wavelengths (no order evanescent at this spacing and view), and
+/// the pdf integrates to 1 over the hemisphere. A Blu-ray's 320 nm grooves at a normal view have
+/// no order leaving, so all the light stays in the mirror.
+#[test]
+fn grating_white_metal_furnace_and_evanescent_orders() {
+    use super::bsdf::{
+        GRATING_ORDER, aniso_frame, grating, grating_move, grating_wavelength, order_shares,
+        spec_probability,
+    };
+    use super::sampling::{cosine_sample, ggx_sample};
+    let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
+    m.color_rough = [1., 1., 1., 0.3];
+    m.optical[0] = 1.5;
+    m.lobes[0] = 1.;
+    m.optical[3] = -(800. * 16384. + 4000.);
+    assert_eq!(grating(&m), Some((0.8, 4000.)));
+    let (n, t) = (Vec3::Y, Vec3::X);
+    let (_, b) = aniso_frame(n, t, 0.);
+    let a = 0.09;
+    let ps = spec_probability(&m);
+    let v = Vec3::new(0.3, 0.954, 0.).normalize();
+    let mut r = Rng::new(5, 6);
+    let (mut sum, mut mass, mut lost) = (Vec3::ZERO, 0., 0);
+    let k = 200000;
+    for _ in 0..k {
+        let lambda = grating_wavelength(&mut r.fork(1));
+        let (share, spacing) = grating(&m).unwrap();
+        let w = order_shares(share, lambda / spacing, n, b, v);
+        assert!((w.iter().sum::<f32>() - 0.8).abs() < 1e-5);
+        // The pdf over the hemisphere, by uniform directions.
+        let (u, phi) = (r.f(), 2. * PI * r.f());
+        let s = (1. - u * u).sqrt();
+        let lu = Vec3::new(s * phi.cos(), u, s * phi.sin());
+        mass += eval_bsdf(&m, n, t, v, lu, lambda).1 * 2. * PI;
+        let l = if r.f() < ps {
+            let u = r.f();
+            let mut c = 0.;
+            let o = (0..4).find(|&o| {
+                c += w[o];
+                u < c
+            });
+            let d = ggx_sample(n, -v, a, &mut r);
+            match o {
+                Some(o) => match grating_move(n, b, d, GRATING_ORDER[o] * lambda / spacing) {
+                    Some(d) if n.dot(d) > 0. => d,
+                    _ => {
+                        lost += 1;
+                        continue;
+                    }
+                },
+                None => d,
+            }
+        } else {
+            cosine_sample(n, &mut r)
+        };
+        if l.dot(n) <= 0. {
+            continue;
+        }
+        let (f, pdf) = eval_bsdf(&m, n, t, v, l, lambda);
+        sum += f * l.dot(n) / pdf.max(1e-7);
+    }
+    let (mean, mass) = (sum / k as f32, mass / k as f32);
+    for c in 0..3 {
+        assert!((mean[c] - 1.).abs() < 0.03, "{mean}, {lost} lost");
+    }
+    assert!((mass - 1.).abs() < 0.03, "pdf integrates to {mass}");
+    // A Blu-ray at a normal view: k = 550 / 320 > 1, every order evanescent.
+    assert_eq!(order_shares(1., 550. / 320., n, b, n), [0.; 4]);
+    // At normal view a 1600 nm grating's first order leaves at sin θ = λ / d.
+    let l1 = grating_move(n, b, n, 550. / 1600.).unwrap();
+    assert!((l1.dot(b) - 550. / 1600.).abs() < 1e-6 && (l1.length() - 1.).abs() < 1e-6);
 }
 /// A white base under a full sheen and a clear coat keeps at most the light it gets (each layer
 /// dims what lies below by what it takes), and the pdf of the sampling mix integrates to
@@ -52,7 +190,7 @@ fn coat_and_sheen_layers_conserve_energy() {
             let (u, phi) = (r.f(), 2. * PI * r.f());
             let s = (1. - u * u).sqrt();
             let l = Vec3::new(s * phi.cos(), u, s * phi.sin());
-            let (f, pdf) = eval_bsdf(&m, n, v, l);
+            let (f, pdf) = eval_bsdf(&m, n, Vec3::X, v, l, 0.);
             albedo += f * u * 2. * PI;
             mass += pdf * 2. * PI;
         }
@@ -71,6 +209,7 @@ fn coat_and_sheen_layers_conserve_energy() {
 #[test]
 fn the_bvh_finds_the_nearest_triangle() {
     let tri = |z: f32, m| Tri {
+        uv: [glam::Vec2::ZERO; 3],
         p: [
             Vec3::new(-1., -1., z),
             Vec3::new(1., -1., z),
@@ -81,15 +220,15 @@ fn the_bvh_finds_the_nearest_triangle() {
     };
     let bvh = Bvh::build((0..20).map(|i| tri(-(i as f32) - 1., i)).collect());
     let h = bvh
-        .intersect(Vec3::ZERO, -Vec3::Z, 1e4, &|_| true, false)
+        .intersect(Vec3::ZERO, -Vec3::Z, 1e4, &|_, _, _| true, false)
         .unwrap();
     assert_eq!(bvh.tris[h.tri].material, 0);
     let h = bvh
-        .intersect(Vec3::ZERO, -Vec3::Z, 1e4, &|m| m >= 5, false)
+        .intersect(Vec3::ZERO, -Vec3::Z, 1e4, &|m, _, _| m >= 5, false)
         .unwrap();
     assert_eq!(bvh.tris[h.tri].material, 5);
     assert!(
-        bvh.intersect(Vec3::ZERO, Vec3::Z, 1e4, &|_| true, false)
+        bvh.intersect(Vec3::ZERO, Vec3::Z, 1e4, &|_, _, _| true, false)
             .is_none()
     );
 }
@@ -97,59 +236,16 @@ fn the_bvh_finds_the_nearest_triangle() {
 #[test]
 fn every_missing_feature_is_refused() {
     use crate::scene::{LightKind, Object};
-    let with_material = |f: &dyn Fn(&mut crate::scene::Material)| {
-        let mut s = Settings::default();
-        f(&mut s.objects[0].material);
-        s
-    };
     let edit = |f: &dyn Fn(&mut Settings)| {
         let mut s = Settings::default();
         f(&mut s);
         s
     };
     let cases: Vec<(&str, Settings)> = vec![
-        (
-            "heterogeneous fog",
-            edit(&|s| {
-                s.fog.density = 0.1;
-                s.fog.noise = 0.5;
-            }),
-        ),
         ("spectral", edit(&|s| s.spectral = true)),
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
-        (
-            "SDF",
-            edit(&|s| {
-                s.objects.push(Object {
-                    sdf: crate::scene::Sdf::Mandelbulb,
-                    ..Object::default()
-                })
-            }),
-        ),
-        (
-            "object texture set",
-            with_material(&|m| m.texture = "set".into()),
-        ),
-        (
-            "floor texture set",
-            edit(&|s| s.floor.texture = "set".into()),
-        ),
-        (
-            "wall texture set",
-            edit(&|s| s.walls.texture = "set".into()),
-        ),
-        ("anisotropy", with_material(&|m| m.anisotropy = 0.5)),
-        ("thin film", with_material(&|m| m.iridescence = 1.)),
-        ("grating", with_material(&|m| m.grating = 1.)),
-        (
-            "object medium",
-            with_material(&|m| {
-                m.transmission = 1.;
-                m.density = 1.;
-            }),
-        ),
     ];
     for (what, s) in &cases {
         assert!(!unsupported(s).is_empty(), "{what} was not refused");
@@ -157,16 +253,57 @@ fn every_missing_feature_is_refused() {
     // A profile's numbers in its light's record don't read as materials.
     let ies = light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006));
     assert!(unsupported(&ies).is_empty(), "{:?}", unsupported(&ies));
-    // Walls that aren't there need no texture.
-    let mut s = Settings::default();
-    s.cornell_room = false;
-    s.walls.texture = "set".into();
-    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
 }
-/// A mesh's own maps are refused, and maps borrowed from another file (`maps_from`), unless
-/// the material leaves them off, when the GPU doesn't bind them either.
+/// Box-mapped colour and roughness maps render, bound as the GPU binds them (`attach_maps`:
+/// slot, flag 16, value / average), on an object or the floor.
 #[test]
-fn a_meshs_maps_are_refused_unless_turned_off() {
+fn colour_and_roughness_sets_bind_as_the_gpus() {
+    let dir = std::env::temp_dir().join(format!("caustica_sets_{}", std::process::id()));
+    let plain = dir.join("plain");
+    let rough = dir.join("rough");
+    for d in [&plain, &rough] {
+        std::fs::create_dir_all(d).unwrap();
+        image::RgbaImage::from_fn(2, 2, |x, _| {
+            image::Rgba([if x == 0 { 64 } else { 192 }, 128, 128, 255])
+        })
+        .save(d.join("set_color.png"))
+        .unwrap();
+    }
+    image::RgbaImage::from_pixel(2, 2, image::Rgba([128, 128, 128, 255]))
+        .save(rough.join("set_roughness.png"))
+        .unwrap();
+    let colour = plain.join("set_color.png").to_string_lossy().into_owned();
+    let with_rough = rough.join("set_color.png").to_string_lossy().into_owned();
+    let mut s = Settings::default();
+    s.floor.texture = colour.clone();
+    s.objects[0].material.texture = colour.clone();
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    let mut materials = crate::lighting::materials(&s);
+    let textures = super::textures::Textures::new(&s, &mut materials);
+    assert_eq!(textures.maps.len(), 1);
+    for i in [3, 5] {
+        let m = &materials[i];
+        assert_eq!(m.maps[0], 1);
+        assert!(m.lobes[3] as u32 & 16 != 0 && m.lobes[3] as u32 & 8 == 0);
+        let average = textures.maps[0].average;
+        for k in 0..3 {
+            assert!((m.base_scale[k] * average[k] - m.color_rough[k]).abs() < 1e-5);
+        }
+    }
+    // A roughness map renders too, scaled by value / average (G = 128).
+    s.floor.texture = with_rough;
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    let mut materials = crate::lighting::materials(&s);
+    let textures = super::textures::Textures::new(&s, &mut materials);
+    let floor = &materials[3];
+    assert_ne!(floor.maps[2], 0);
+    let average = textures.maps[floor.maps[2] as usize - 1].average[1];
+    assert!((floor.surface_scale[0] * average - floor.color_rough[3]).abs() < 1e-5);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+/// A mesh's own maps with an alpha cutout render, and borrowed ones (`maps_from`).
+#[test]
+fn a_meshs_cutout_renders() {
     let dir = std::env::temp_dir().join(format!("caustica_ref_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("quad.gltf");
@@ -175,13 +312,40 @@ fn a_meshs_maps_are_refused_unless_turned_off() {
     let mut s = Settings::default();
     s.objects = vec![quad.clone()];
     assert!(crate::mesh::maps(&quad).is_some());
-    assert!(!unsupported(&s).is_empty());
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    // Its UVs reach the triangles and give a tangent frame, as the GPU's instance vertices.
+    let scene = super::scene::Scene::new(&s, [8, 8]);
+    let i = (scene.bvh.tris.iter())
+        .position(|t| t.material == 5)
+        .unwrap();
+    let uvs = crate::mesh::uvs(&quad).unwrap();
+    assert!(
+        scene.bvh.tris[i]
+            .uv
+            .iter()
+            .all(|uv| uvs.contains(&uv.to_array()))
+    );
+    assert!(
+        scene.bvh.tris[i]
+            .uv
+            .iter()
+            .any(|uv| *uv != glam::Vec2::ZERO)
+    );
+    let hit = super::bvh::Hit {
+        t: 1.,
+        tri: i,
+        b: glam::Vec2::splat(0.25),
+        material: scene.bvh.tris[i].material,
+        sdf: None,
+    };
+    let (_, tangent) = scene.map_frame(&hit).unwrap();
+    assert!(tangent.w.abs() == 1. && tangent.truncate().length() > 0.);
     s.objects[0].material.textures = false;
     assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
     quad.maps_from = quad.mesh.clone();
     quad.mesh = String::new();
     s.objects = vec![quad];
-    assert!(!unsupported(&s).is_empty());
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
     let _ = std::fs::remove_dir_all(&dir);
 }
 /// A light's packed profile reads back as the profile: its samples at their angles, linear in
@@ -318,6 +482,7 @@ fn at_time_turns_the_camera_and_freezes_it() {
 #[test]
 fn a_grazing_shadow_ray_stops_short_of_its_own_emitter() {
     let bvh = Bvh::build(vec![Tri {
+        uv: [glam::Vec2::ZERO; 3],
         p: [
             Vec3::new(-10., 0., -10.),
             Vec3::new(10., 0., -10.),
@@ -331,7 +496,10 @@ fn a_grazing_shadow_ray_stops_short_of_its_own_emitter() {
     let d = point - x;
     let (dist, ld) = (d.length(), d.normalize());
     let origin = x + ng * 0.0003;
-    let hits = |limit| bvh.intersect(origin, ld, limit, &|_| true, true).is_some();
+    let hits = |limit| {
+        bvh.intersect(origin, ld, limit, &|_, _, _| true, true)
+            .is_some()
+    };
     assert!(hits(dist - 2e-3), "the case the fixed margin got wrong");
     assert!(!hits(shadow_limit(dist, Vec3::Y.dot(ld))));
     // Square on, the stop is 0.6 mm; a nearby point keeps half its distance.
@@ -381,6 +549,7 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
     // Facing +z; the interpolated normal leans over so a ray along -z + x sees its back.
     let n = Vec3::new(0.9, 0., 0.436).normalize();
     let t = Tri {
+        uv: [glam::Vec2::ZERO; 3],
         p: [
             Vec3::new(0., 0., 0.),
             Vec3::new(1., 0., 0.),
@@ -397,10 +566,13 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
     let scene = Scene {
         s: &s,
         bvh,
+        sdfs: vec![],
         materials: vec![bytemuck::Zeroable::zeroed()],
         lights: vec![],
         tri_light: vec![],
         cdf: vec![],
+        sdf_lights: vec![],
+        sdf_share: 0.,
         eye: Vec3::ZERO,
         inverse_vp: Mat4::IDENTITY,
         frame: Default::default(),
@@ -409,13 +581,16 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         size: [1, 1],
         env: None,
         p_env: 0.,
+        textures: Default::default(),
     };
     let hit = Hit {
         t: 1.,
         tri: 0,
         b: Vec2::splat(0.25),
+        material: 0,
+        sdf: None,
     };
-    let sf = scene.surface(&hit, d);
+    let sf = scene.surface(&hit, Vec3::ZERO, d);
     assert!(sf.front, "from the side the face looks at");
     assert_eq!(sf.ng, Vec3::Z);
     assert!(d.dot(sf.n) < 0., "the shading normal still faces the ray");
@@ -545,11 +720,18 @@ fn the_view_follows_the_camera_and_the_scene() {
     let image = live.image(false).unwrap();
     assert_eq!(*image, render(&s, size, 3, &|_| {}).unwrap());
     assert!(live.image(false).is_none());
+    // Taken or not, the finished image stays readable for a capture or the graph.
+    let (shown, plain, samples) = live.latest().unwrap();
+    assert_eq!(
+        (*shown == *image, *plain == *image, samples),
+        (true, true, 3)
+    );
     // A new camera at a new size: the old image is no use at that size, and the new one is exact.
     let mut moved = s.clone();
     moved.yaw += 0.5;
     live.follow(moved.clone(), "b".into(), [12, 10]);
     assert!(live.running());
+    assert!(live.latest().is_none());
     finish(&live);
     let image = live.image(true).unwrap();
     assert_eq!(*image, render(&moved, [12, 10], 3, &|_| {}).unwrap());
@@ -715,6 +897,7 @@ fn henyey_greenstein_is_normalised_and_sampled() {
 #[test]
 fn a_spots_cosine_is_the_same_hit_or_sampled() {
     let t = Tri {
+        uv: [glam::Vec2::ZERO; 3],
         p: [
             Vec3::new(-1., -1., 0.),
             Vec3::new(1., -1., 0.),
@@ -1079,4 +1262,708 @@ fn an_open_shutter_blurs_the_frame_over_its_moments() {
     // The simulation isn't replayed.
     s.physics.enabled = true;
     assert!(exposure(&s, 0.5).is_err());
+}
+/// An emissive map (flag 64) emits its texel at the mesh UV times its mean colour over the
+/// map's mean, on BSDF hits and light samples alike, and the light table weighs it by that mean.
+/// Lantern.glb is the local model with an emissiveTexture; skipped where the scenes are absent.
+#[test]
+fn an_emissive_map_emits_its_texel_over_its_mean() {
+    use super::scene::Light;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scenes/models/Lantern.glb");
+    if !path.exists() {
+        eprintln!("skipped: no {}", path.display());
+        return;
+    }
+    let mut lantern = crate::mesh::import_objects(&path).unwrap().remove(0);
+    lantern.material.emission = 4.;
+    let mut s = Settings::default();
+    s.objects = vec![lantern];
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    let scene = Scene::new(&s, [8, 8]);
+    let raw = &scene.materials[5];
+    assert!(super::bsdf::flags(raw) & 64 != 0);
+    let map = &scene.textures.maps[raw.secondary[0] as usize - 1];
+    let i = (scene.bvh.tris.iter())
+        .position(|t| t.material == 5 && t.uv.iter().any(|uv| *uv != Vec2::ZERO))
+        .unwrap();
+    assert!(scene.lights.contains(&Light::Tri(i)));
+    let t = &scene.bvh.tris[i];
+    let b = Vec2::new(0.2, 0.3);
+    let uv = t.uv[0] * 0.5 + t.uv[1] * 0.2 + t.uv[2] * 0.3;
+    let want = Vec3::from_slice(&raw.secondary[1..4])
+        * super::textures::bilinear(map, uv).truncate()
+        * Vec3::from_slice(&raw.medium[..3]);
+    let got = scene.emission_colour(raw, i, b);
+    assert!((got - want).length() < 1e-6, "{got} {want}");
+    // The mean colour times the map's mean over itself is the mean colour.
+    let mean = Vec3::from_slice(&map.average) * Vec3::from_slice(&raw.medium[..3]);
+    assert!((mean - Vec3::ONE).abs().max_element() < 1e-3, "{mean}");
+    // The light table's power is the emitter table's (`lighting::emitted`, the mean colour).
+    // The table is normalised; this scene has triangle lights only.
+    let k = scene
+        .lights
+        .iter()
+        .position(|&l| l == Light::Tri(i))
+        .unwrap();
+    let c = crate::lighting::emitted(raw);
+    let w = Scene::area(t) * (0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z);
+    let before = if k == 0 { 0. } else { scene.cdf[k - 1] };
+    let total: f32 = (scene.lights.iter())
+        .map(|l| {
+            let Light::Tri(l) = *l else {
+                panic!("{l:?} is not a triangle")
+            };
+            let c = crate::lighting::emitted(&scene.materials[scene.bvh.tris[l].material as usize]);
+            Scene::area(&scene.bvh.tris[l]) * (0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z).max(1e-6)
+        })
+        .sum();
+    assert!(((scene.cdf[k] - before) * total / w - 1.).abs() < 1e-3);
+    // Without the flag, the material's own colour.
+    let plain = (scene.bvh.tris.iter())
+        .position(|t| t.material != 5)
+        .unwrap();
+    let m = &scene.materials[scene.bvh.tris[plain].material as usize];
+    assert_eq!(
+        scene.emission_colour(m, plain, b),
+        super::bsdf::rgb(m.color_rough)
+    );
+}
+
+/// The test quad's map has one transparent texel (uv around (0.75, 0.75)) under MASK at 0.5:
+/// every ray type passes through it and stops on the opaque ones. As BLEND with the factor's
+/// alpha 0.8, an opaque texel stops 80% of rays, each ray deciding once.
+#[test]
+fn alpha_cutouts_and_stochastic_blend() {
+    use super::scene::Ray;
+    let dir = std::env::temp_dir().join(format!("caustica_ref_alpha_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("quad.gltf");
+    crate::mesh::write_test_gltf(&path).unwrap();
+    let quad = crate::mesh::import_objects(&path).unwrap().remove(0);
+    let mut s = Settings::default();
+    s.objects = vec![quad];
+    let mut scene = super::scene::Scene::new(&s, [8, 8]);
+    assert_ne!(super::bsdf::flags(&scene.materials[5]) & 8, 0);
+    // The triangle and barycentrics at `uv`.
+    let at = |scene: &super::scene::Scene, uv: Vec2| {
+        (0..scene.bvh.tris.len())
+            .filter(|&i| scene.bvh.tris[i].material == 5)
+            .find_map(|i| {
+                let t = &scene.bvh.tris[i];
+                let (e1, e2, r) = (t.uv[1] - t.uv[0], t.uv[2] - t.uv[0], uv - t.uv[0]);
+                let det = e1.perp_dot(e2);
+                let b = Vec2::new(r.perp_dot(e2), e1.perp_dot(r)) / det;
+                (b.min_element() >= 0. && b.x + b.y <= 1.).then_some((i, b))
+            })
+            .unwrap()
+    };
+    let (hole, solid) = (at(&scene, Vec2::splat(0.75)), at(&scene, Vec2::splat(0.25)));
+    for kind in [Ray::Camera, Ray::Bounce, Ray::Shadow] {
+        let accept = scene.accept(kind, Vec3::ZERO, Vec3::Z);
+        assert!(!accept(5, hole.0, hole.1));
+        assert!(accept(5, solid.0, solid.1));
+    }
+    scene.materials[5].maps[3] = (-0.8f32).to_bits();
+    let n = 20000;
+    let mut r = super::sampling::Rng::new(7, 0);
+    let blocked = (0..n)
+        .filter(|_| {
+            let o = Vec3::new(r.f(), r.f(), r.f());
+            let accept = scene.accept(Ray::Shadow, o, Vec3::Z);
+            let first = accept(5, solid.0, solid.1);
+            // The same ray decides the same way again.
+            assert_eq!(first, accept(5, solid.0, solid.1));
+            first
+        })
+        .count() as f64;
+    let (p, sd) = (0.8, (0.8f64 * 0.2 / n as f64).sqrt());
+    assert!((blocked / n as f64 - p).abs() < 4. * sd, "{blocked}");
+    let accept = scene.accept(Ray::Shadow, Vec3::ZERO, Vec3::Z);
+    assert!(!accept(5, hole.0, hole.1));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn thin_film_decodes_and_stays_in_range() {
+    use super::bsdf::{film_decode, film_fresnel, fresnel, prepare_film, spec_fresnel};
+    // lighting.rs packs thickness + 2048 × IOR in hundredths.
+    assert_eq!(film_decode(400. + 2048. * 133.), (400., 1.33));
+    assert_eq!(film_decode(0. + 2048. * 100.), (0., 1.));
+    // No thickness: the film fades to the outside, leaving the base's Fresnel at normal
+    // incidence (away from it, Schlick's r12 of an index-matched film is not 0, as on the GPU).
+    let eta3 = Vec3::new(1.5, 2., 3.);
+    // The Airy terms keep ~0.007 from r123's 1e-5 floor.
+    {
+        let c = 1f32;
+        let f = film_fresnel(c, 1.33, eta3, 0.);
+        let want = eta3.map(|e| {
+            let f0 = ((e - 1.) / (e + 1.)).powi(2);
+            f0 + (1. - f0) * (1. - c).powi(5)
+        });
+        assert!((f - want).abs().max_element() < 1e-2, "{f} vs {want}");
+    }
+    // Any film, any angle: a reflectance, and coloured at a soap-bubble thickness.
+    for t in [50f32, 300., 700., 1500.] {
+        for c in [0.05f32, 0.4, 0.9, 1.] {
+            let f = film_fresnel(c, 1.33, Vec3::ONE, t);
+            assert!(
+                f.min_element() >= 0. && f.max_element() <= 1.,
+                "{t} {c}: {f}"
+            );
+        }
+    }
+    let f = film_fresnel(1., 1.33, Vec3::ONE, 300.);
+    assert!(f.max_element() - f.min_element() > 0.02, "no colour: {f}");
+    // Strength blends the base Fresnel toward the film; 0 strength leaves it alone.
+    let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
+    m.optical[0] = 1.5;
+    m.surface_scale = [0., 0., 0.5, 300. + 2048. * 133.];
+    prepare_film(&mut m, 0.8, 1., 0.);
+    let f0 = Vec3::splat(0.04);
+    let film = Vec3::new(m.base_scale[0], m.base_scale[1], m.base_scale[2]);
+    let want = fresnel(0.8, f0).lerp(film, 0.5);
+    assert!((spec_fresnel(&m, 0.8, f0) - want).abs().max_element() < 1e-6);
+    m.surface_scale[2] = 0.;
+    assert_eq!(spec_fresnel(&m, 0.8, f0), fresnel(0.8, f0));
+}
+/// Chromatic free flight is unbiased per channel: the weight of the flights that pass the
+/// segment averages to its transmittance, and a scatter's weight to the probability of
+/// scattering anywhere in it, 1 − T. The tint reads back as packed, and grey keeps w = 1.
+#[test]
+fn chromatic_flight_is_unbiased_per_channel() {
+    use super::media::{flight, tint_of};
+    let t = tint_of(crate::lighting::pack_tint([0.4, 0.7, 1.]));
+    assert!(
+        (t - Vec3::new(0.4, 0.7, 1.)).abs().max_element() < 3e-3,
+        "{t}"
+    );
+    assert_eq!(tint_of(crate::lighting::pack_tint([2.; 3])), Vec3::ONE);
+    let mut r = Rng::new(11, 5);
+    let (_, w) = flight(Vec3::splat(0.5), 0., 1., &mut r);
+    assert_eq!(w, Vec3::ONE);
+    let sigma = Vec3::new(0.3, 1.2, 2.5);
+    let (t0, t1) = (0.5f32, 2.);
+    let n = 200_000;
+    let (mut pass, mut pass2, mut scatter) = (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO);
+    for _ in 0..n {
+        let (ts, w) = flight(sigma, t0, t1, &mut r);
+        if ts >= t1 {
+            pass += w;
+            pass2 += w * w;
+        } else {
+            assert!(ts >= t0);
+            scatter += w;
+        }
+    }
+    let tr = (-sigma * (t1 - t0)).exp();
+    let mean = pass / n as f32;
+    let se = ((pass2 / n as f32 - mean * mean) / n as f32)
+        .max(Vec3::splat(1e-12))
+        .powf(0.5);
+    assert!(
+        ((mean - tr).abs() / se).max_element() < 4.,
+        "{mean} {tr} se {se}"
+    );
+    let s = scatter / n as f32;
+    assert!(
+        (s - (Vec3::ONE - tr)).abs().max_element() < 0.01,
+        "{s} {tr}"
+    );
+}
+
+#[test]
+fn heterogeneous_fog_tracking_matches_the_integrated_density() {
+    use super::media::{delta_tracking, fog_density, ratio_tracking};
+    let (noise, size) = (0.75, 0.3);
+    // The density is non-negative, below the majorant's 1 + noise, and about 1 on average.
+    let mut r = Rng::new(3, 9);
+    let mut sum = 0.;
+    for _ in 0..20_000 {
+        let p = Vec3::new(r.f(), r.f(), r.f()) * 20. - 10.;
+        let k = fog_density(p, noise, size);
+        assert!((0. ..=1. + noise).contains(&k), "{k}");
+        sum += k;
+    }
+    assert!((sum / 20_000. - 1.).abs() < 0.05, "{}", sum / 20_000.);
+    // Along a fixed ray, both estimators against exp(-∫σ·k) in 4096 steps.
+    let sigma = Vec3::new(0.4, 0.7, 1.) * 1.3;
+    let (o, d) = (
+        Vec3::new(-1., 0.2, 0.3),
+        Vec3::new(0.8, 0.1, -0.3).normalize(),
+    );
+    let (t0, t1) = (0.2f32, 2.5);
+    let steps = 4096;
+    let h = (t1 - t0) / steps as f32;
+    let optical: f32 = (0..steps)
+        .map(|i| fog_density(o + d * (t0 + (i as f32 + 0.5) * h), noise, size) * h)
+        .sum();
+    let tr = (-sigma * optical).exp();
+    let n = 200_000;
+    let (mut ratio, mut ratio2, mut pass, mut pass2, mut scatter) =
+        (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO);
+    for _ in 0..n {
+        let x = ratio_tracking(sigma, noise, size, o, d, t0, t1, &mut r);
+        ratio += x;
+        ratio2 += x * x;
+        let (ts, w) = delta_tracking(sigma, noise, size, o, d, t0, t1, &mut r);
+        if ts >= t1 {
+            pass += w;
+            pass2 += w * w;
+        } else {
+            assert!(ts >= t0);
+            scatter += w;
+        }
+    }
+    let check = |s: Vec3, s2: Vec3| {
+        let mean = s / n as f32;
+        let se = ((s2 / n as f32 - mean * mean) / n as f32)
+            .max(Vec3::splat(1e-12))
+            .powf(0.5);
+        assert!(
+            ((mean - tr).abs() / se).max_element() < 4.,
+            "{mean} {tr} se {se}"
+        );
+    };
+    check(ratio, ratio2);
+    check(pass, pass2);
+    let s = scatter / n as f32;
+    assert!(
+        (s - (Vec3::ONE - tr)).abs().max_element() < 0.01,
+        "{s} {tr}"
+    );
+}
+
+/// An object's extinction is its density times its tint, grey where phase.w is not a tint.
+#[test]
+fn an_objects_extinction_reads_its_tint() {
+    let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
+    m.medium[3] = 2.;
+    assert_eq!(super::media::extinction(&m), Vec3::splat(2.));
+    m.phase[3] = crate::lighting::pack_tint([1., 0.5, 0.]);
+    let e = super::media::extinction(&m);
+    assert!(
+        (e - Vec3::new(2., 2. * 128. / 255., 0.))
+            .abs()
+            .max_element()
+            < 1e-6,
+        "{e}"
+    );
+    // A blackbody's or the measured light's phase.w is a scale.
+    for spectrum in [-3000., 4.] {
+        m.phase[2] = spectrum;
+        assert_eq!(super::media::extinction(&m), Vec3::splat(2.));
+    }
+}
+/// A shadow ray inside a scattering object loses its extinction and its colour's absorption up
+/// to the first surface; inside clear glass, and outside without fog, nothing.
+#[test]
+fn shadows_through_an_objects_medium() {
+    let mut s = Settings::default();
+    let m = &mut s.objects[0].material;
+    m.transmission = 1.;
+    m.color = [1., 0.8, 0.6];
+    m.density = 3.;
+    m.extinction = [1., 0.5, 0.25];
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    let scene = Scene::new(&s, [32, 24]);
+    let own: Vec<_> = scene.bvh.tris.iter().filter(|t| t.material == 5).collect();
+    let centre = own.iter().map(|t| t.p[0]).sum::<Vec3>() / own.len() as f32;
+    let entry = (scene.materials[5].lobes[3] as u32 >> 8 & 7, 5);
+    let mut r = Rng::new(1, 1);
+    let d = Vec3::new(0.3, 1., 0.2).normalize();
+    let exit = scene
+        .intersect(centre, d, 10., &|_, _, _| true, false)
+        .unwrap()
+        .t;
+    let sigma = 3. * Vec3::new(1., 128. / 255., 64. / 255.);
+    let want = (-sigma * exit).exp() * Vec3::new(1., 0.8, 0.6).powf(exit);
+    let got = scene.shadow_transmittance(&[entry], centre, d, 10., &mut r);
+    assert!((got - want).abs().max_element() < 1e-4, "{got} {want}");
+    assert_eq!(
+        scene.shadow_transmittance(&[], centre, d, 10., &mut r),
+        Vec3::ONE
+    );
+    s.objects[0].material.density = 0.;
+    let clear = Scene::new(&s, [32, 24]);
+    assert_eq!(
+        clear.shadow_transmittance(&[entry], centre, d, 10., &mut r),
+        Vec3::ONE
+    );
+}
+/// A scattering object renders, and a denser one lets less of the room through.
+#[test]
+fn a_scattering_object_renders() {
+    let mean = |density: f32| {
+        let mut s = Settings::default();
+        s.bounces = 6;
+        let m = &mut s.objects[0].material;
+        m.transmission = 1.;
+        m.ior = 1.;
+        m.density = density;
+        m.scatter_color = [0.2, 0.2, 0.2];
+        let img = render(&s, [32, 24], 8, &|_| {}).unwrap();
+        assert!(img.iter().all(|v| v.is_finite()));
+        img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>()
+    };
+    let (thin, dense) = (mean(0.01), mean(30.));
+    assert!(dense < thin * 0.98, "{dense} {thin}");
+}
+/// A camera inside a dielectric starts in its medium: a tinted box around the eye darkens the
+/// image, and a scattering one renders finite and darker still.
+#[test]
+fn the_camera_starts_in_the_medium_around_it() {
+    let base = Settings::default();
+    let own: Vec<_> = Scene::new(&base, [8, 6])
+        .bvh
+        .tris
+        .iter()
+        .filter(|t| t.material == 5)
+        .flat_map(|t| t.p)
+        .collect();
+    let centre = own.iter().sum::<Vec3>() / own.len() as f32;
+    let mean = |color: [f32; 3], density: f32| {
+        let mut s = base.clone();
+        s.target = centre.into();
+        s.distance = 0.02;
+        let m = &mut s.objects[0].material;
+        m.transmission = 1.;
+        m.ior = 1.;
+        m.color = color;
+        m.density = density;
+        assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+        assert_eq!(Scene::new(&s, [8, 6]).camera_media, vec![(0, 5)]);
+        let img = render(&s, [32, 24], 8, &|_| {}).unwrap();
+        assert!(img.iter().all(|v| v.is_finite()));
+        img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>()
+    };
+    let clear = mean([1.; 3], 0.);
+    let tinted = mean([0.2; 3], 0.);
+    let foggy = mean([0.2; 3], 20.);
+    assert!(tinted < clear * 0.9, "{tinted} {clear}");
+    assert!(foggy < tinted, "{foggy} {tinted}");
+}
+
+/// A stretched, turned and moved exact sphere is an ellipsoid: the hit and the normal against
+/// the ellipsoid's own equation, from outside and from inside (a refraction's exit).
+#[test]
+fn an_exact_sphere_under_a_transform_is_an_ellipsoid() {
+    use super::sdf::{SPHERE, SdfObject};
+    let (scale, turn, at) = (
+        Vec3::new(2., 0.5, 1.),
+        glam::Quat::from_rotation_z(0.6) * glam::Quat::from_rotation_x(0.3),
+        Vec3::new(0.3, -0.2, 0.1),
+    );
+    let o2w = Mat4::from_scale_rotation_translation(scale, turn, at);
+    let sdf = SdfObject::new(SPHERE, 5, o2w);
+    // Points x with |S⁻¹ R⁻¹ (x − at)| = 1; the gradient of that, for the normal.
+    let local = |x: Vec3| (turn.inverse() * (x - at)) / scale;
+    let grad = |x: Vec3| (turn * (local(x) / scale)).normalize();
+    for (o, d) in [
+        (Vec3::new(-5., 0.3, 0.2), Vec3::new(1., 0.05, -0.02)),
+        (Vec3::new(0.2, 4., -1.), Vec3::new(0.1, -1., 0.3)),
+        (at, Vec3::new(0.3, 0.8, -0.5)),
+    ] {
+        let d = d.normalize();
+        let t = sdf.hit(o, d, 1e-4, 1e4).expect("a hit");
+        let x = o + d * t;
+        assert!((local(x).length() - 1.).abs() < 1e-4, "on the surface");
+        // No nearer crossing: the ray's points before t are on one side.
+        let before = local(o + d * (t * 0.5)).length() - 1.;
+        assert!(before * (local(o).length() - 1.) > 0.);
+        let n = sdf.normal(o, d, t);
+        assert!(n.dot(grad(x)) > 0.9999, "{n} vs {}", grad(x));
+    }
+    assert!(
+        sdf.hit(Vec3::new(-5., 3., 0.), Vec3::X, 1e-4, 1e4)
+            .is_none()
+    );
+}
+
+/// The closed-form cylinder and cone agree with sphere tracing their exact distance fields, and
+/// their normals with the fields' gradients away from the rims.
+#[test]
+fn the_exact_cylinder_and_cone_agree_with_their_fields() {
+    use super::sdf::{CONE, CYLINDER, field, hit, normal};
+    let mut r = super::sampling::Rng::new(3, 0);
+    for kind in [CYLINDER, CONE] {
+        // The same shape, but marched (the generic path keys on kinds it doesn't solve).
+        let marched = |o: Vec3, d: Vec3| {
+            let mut s = 1e-4f32;
+            for _ in 0..4000 {
+                let h = field(kind, o + d * s).abs();
+                if h < 1e-5 {
+                    return Some(s);
+                }
+                s += h;
+                if s > 20. {
+                    break;
+                }
+            }
+            None
+        };
+        let mut hits = 0;
+        for _ in 0..2000 {
+            let o = Vec3::new(r.f() - 0.5, r.f() - 0.5, r.f() - 0.5) * 6.;
+            let d = (Vec3::new(r.f() - 0.5, r.f() - 0.5, r.f() - 0.5) * 2. - o * 0.2)
+                .normalize_or(Vec3::X);
+            if field(kind, o).abs() < 0.01 {
+                continue;
+            }
+            let exact = hit(kind, o, d, 1e-4, 1e4);
+            let traced = marched(o, d);
+            match (exact, traced) {
+                (Some(a), Some(b)) => {
+                    assert!(
+                        (a - b).abs() < 1e-3,
+                        "kind {kind} at {o} along {d}: {a} vs {b}"
+                    );
+                    let p = o + d * a;
+                    let rim = (p.y.abs() - 1.).abs() < 0.01
+                        || (p.x * p.x + p.z * p.z).sqrt() > 0.98 && p.y < -0.98;
+                    if !rim {
+                        let e = 1e-3;
+                        let g = Vec3::new(
+                            field(kind, p + Vec3::X * e) - field(kind, p - Vec3::X * e),
+                            field(kind, p + Vec3::Y * e) - field(kind, p - Vec3::Y * e),
+                            field(kind, p + Vec3::Z * e) - field(kind, p - Vec3::Z * e),
+                        );
+                        let n = normal(kind, p).normalize();
+                        assert!(
+                            n.dot(g.normalize()) > 0.99,
+                            "kind {kind} at {p}: {n} vs {g}"
+                        );
+                    }
+                    hits += 1;
+                }
+                (None, None) => {}
+                // Grazing rays can split the two by a hair.
+                (a, b) => assert!(
+                    a.or(b).is_some_and(|t| field(kind, o + d * t).abs() < 1e-3
+                        && (o + d * t).y.abs() > 0.99
+                        || glam::Vec3Swizzles::xz(o + d * t).length() > 0.97),
+                    "kind {kind} at {o} along {d}: {a:?} vs {b:?}"
+                ),
+            }
+        }
+        assert!(hits > 100, "kind {kind}: {hits} hits");
+    }
+}
+
+/// From inside an exact shape the ray finds the exit, and a scene's rays see procedural objects
+/// with the same visibility rules as triangles.
+#[test]
+fn procedural_objects_are_hit_with_the_triangles_rules() {
+    use crate::scene::Sdf;
+    for sdf in [Sdf::Sphere, Sdf::Cylinder, Sdf::Cone] {
+        let t = super::sdf::hit(sdf.id(0., 0.), Vec3::new(0., -0.5, 0.), Vec3::X, 1e-4, 1e4)
+            .expect("the exit");
+        let want = match sdf {
+            Sdf::Sphere => 0.75f32.sqrt(),
+            Sdf::Cylinder => 1.,
+            _ => 0.75,
+        };
+        assert!((t - want).abs() < 1e-5, "{sdf:?}: {t}");
+    }
+    let mut s = Settings::default();
+    s.objects.clear();
+    s.objects.push(crate::scene::Object {
+        sdf: Sdf::Sphere,
+        ..crate::scene::Object::default()
+    });
+    let scene = Scene::new(&s, [8, 6]);
+    assert_eq!(scene.sdfs.len(), 1);
+    let o = scene.sdfs[0].w2o.inverse().transform_point3(Vec3::ZERO) + Vec3::new(0., 0., 20.);
+    let h = scene
+        .intersect(
+            o,
+            Vec3::NEG_Z,
+            1e4,
+            &scene.accept(Ray::Camera, o, Vec3::NEG_Z),
+            false,
+        )
+        .expect("the sphere");
+    assert_eq!((h.sdf, h.material), (Some(0), 5));
+    let sf = scene.surface(&h, o, Vec3::NEG_Z);
+    assert!(sf.front && sf.n.dot(Vec3::Z) > 0.999 && sf.ng == sf.n);
+    // Clear glass: shadow rays pass it unless glass casts shadows, other rays stop.
+    s.objects[0].material.transmission = 1.;
+    for glass_shadow in [false, true] {
+        s.glass_shadow = glass_shadow;
+        let scene = Scene::new(&s, [8, 6]);
+        let shadow = scene.intersect(
+            o,
+            Vec3::NEG_Z,
+            1e4,
+            &scene.accept(Ray::Shadow, o, Vec3::NEG_Z),
+            false,
+        );
+        assert_eq!(shadow.and_then(|h| h.sdf).is_some(), glass_shadow);
+        let bounce = scene.intersect(
+            o,
+            Vec3::NEG_Z,
+            1e4,
+            &scene.accept(Ray::Bounce, o, Vec3::NEG_Z),
+            false,
+        );
+        assert_eq!(bounce.and_then(|h| h.sdf), Some(0));
+    }
+}
+
+/// The torus, Mandelbulb, Menger sponge and metaballs fields, at points whose distance or sign
+/// is known, and marched by a scene ray.
+#[test]
+fn procedural_fields_match_their_shapes() {
+    use super::sdf::{MANDELBULB, MENGER, METABALLS, TORUS, field, hit};
+    use crate::scene::Sdf;
+    use glam::Vec3Swizzles;
+    let id = |sdf: Sdf, detail: f32| sdf.id(0., detail);
+    // Torus: exact distance to the tube of radius r about the ring of radius 1 − r.
+    let mut r = super::sampling::Rng::new(5, 0);
+    for detail in [0., 0.28, 0.1, 0.5] {
+        let tube = if detail > 0. { detail } else { 0.28 };
+        for _ in 0..200 {
+            let p = Vec3::new(r.f() - 0.5, r.f() - 0.5, r.f() - 0.5) * 3.;
+            let rho = (p.x * p.x + p.z * p.z).sqrt();
+            let want = ((rho - (1. - tube)).powi(2) + p.y * p.y).sqrt() - tube;
+            let got = field(id(Sdf::Torus, detail), p);
+            assert!((got - want).abs() < 1e-5, "torus {detail} at {p}");
+        }
+    }
+    assert_eq!(id(Sdf::Torus, 0.) & 255, TORUS);
+    // Detail 0 is each kind's default.
+    for (sdf, default) in [(Sdf::Mandelbulb, 8.), (Sdf::Menger, 5.)] {
+        let p = Vec3::new(0.3, -0.4, 0.55);
+        assert_eq!(field(id(sdf, 0.), p), field(id(sdf, default), p));
+    }
+    // Menger, one level: the cube with its centre crosses removed. The centre lies a third
+    // inside a removed tunnel's wall, a face centre is open, a corner cube is solid.
+    let m1 = id(Sdf::Menger, 1.);
+    assert_eq!(m1 & 255, MENGER);
+    assert!((field(m1, Vec3::ZERO) - 1. / 3.).abs() < 1e-6);
+    assert!(field(m1, Vec3::new(0., 0., 0.9)) > 0.);
+    assert!((field(m1, Vec3::splat(2. / 3.)) + 1. / 3.).abs() < 1e-6);
+    assert!((field(m1, Vec3::new(2., 0.8, 0.8)) - 1.).abs() < 1e-6);
+    // Deeper levels only remove material.
+    for _ in 0..200 {
+        let p = Vec3::new(r.f(), r.f(), r.f()) * 2. - 1.;
+        assert!(field(id(Sdf::Menger, 3.), p) >= field(m1, p) - 1e-6);
+    }
+    // Mandelbulb: power 8's polynomial form and power 8.001's spherical one find the same
+    // surface along rays from outside (shape checks, about 1%), once x and z swap: the
+    // polynomial form measures its azimuth from z (Quilez's atan(x, z)), the spherical from x.
+    let poly = id(Sdf::Mandelbulb, 8.);
+    let polar = id(Sdf::Mandelbulb, 8.001);
+    assert_eq!(poly & 255, MANDELBULB);
+    assert!(field(poly, Vec3::new(0.1, 0.05, 0.12)) < 0. && field(poly, Vec3::splat(0.95)) > 0.);
+    let mut both = 0;
+    for _ in 0..200 {
+        let d = (Vec3::new(r.f(), r.f(), r.f()) * 2. - 1.).normalize_or(Vec3::X);
+        let o = -d * 3.;
+        if let (Some(a), Some(b)) = (
+            hit(poly, o, d, 1e-4, 1e4),
+            hit(polar, o.zyx(), d.zyx(), 1e-4, 1e4),
+        ) && (a - b).abs() < 0.01 * a
+        {
+            both += 1;
+        }
+    }
+    assert!(both > 180, "{both} of 200 rays agree");
+    // Metaballs: inside the bottom pool, outside at the cube's corner; the phase moves blobs.
+    let wax = Sdf::Metaballs.id(0., 0.);
+    assert_eq!(wax & 255, METABALLS);
+    assert!(field(wax, Vec3::new(0., -1.1, 0.)) < 0.);
+    assert!(field(wax, Vec3::ONE) > 0.);
+    let moved = Sdf::Metaballs.id(3.7, 0.);
+    assert!((0..50).any(|i| {
+        let p = Vec3::new(0., i as f32 / 25. - 1., 0.);
+        (field(wax, p) - field(moved, p)).abs() > 0.01
+    }));
+    // A torus seen from above along its tube's centre line.
+    let t = hit(
+        id(Sdf::Torus, 0.),
+        Vec3::new(0.72, 3., 0.),
+        Vec3::NEG_Y,
+        1e-4,
+        1e4,
+    );
+    assert!(t.is_some_and(|t| (t - 2.72).abs() < 2e-4), "{t:?}");
+}
+
+/// Light sampling of an emissive procedural object leaves the mean where hits alone put it and
+/// cuts the noise: the floor under an emissive torus, direct light only, beside the room's
+/// area light (so the two share the samples).
+#[test]
+fn sdf_emitter_light_sampling() {
+    use crate::scene::Sdf;
+    let mut s = Settings::default();
+    s.objects.clear();
+    s.objects.push(crate::scene::Object {
+        sdf: Sdf::Torus,
+        ..crate::scene::Object::default()
+    });
+    s.objects[0].material.emission = 8.;
+    s.bounces = 2;
+    let mut scene = Scene::new(&s, [8, 6]);
+    assert_eq!(scene.sdf_lights.len(), 1);
+    assert_eq!(scene.sdf_lights[0].cdf, 1.);
+    assert_eq!(
+        scene.sdf_share,
+        if scene.lights.is_empty() { 1. } else { 0.5 }
+    );
+    let l = &scene.sdf_lights[0];
+    // Beside the torus, looking down at the floor it lights.
+    let o = l.centre + Vec3::new(l.radius * 0.8, 0., l.radius * 0.3);
+    let d = Vec3::new(0.2, -1., 0.).normalize();
+    assert!(
+        scene
+            .intersect(o, d, 1e4, &scene.accept(Ray::Camera, o, d), false)
+            .is_some_and(|h| h.sdf.is_none()),
+        "the fixture sees the floor"
+    );
+    let run = |scene: &Scene| {
+        let n = 20000;
+        let (mut sum, mut sq) = (0f64, 0f64);
+        for i in 0..n {
+            let mut r = Rng::new(11, i);
+            let v = scene
+                .radiance(o, d, Vec3::ONE, &mut r)
+                .dot(Vec3::splat(1. / 3.)) as f64;
+            sum += v;
+            sq += v * v;
+        }
+        let mean = sum / n as f64;
+        (mean, (sq / n as f64 - mean * mean).max(0.) / n as f64)
+    };
+    let (with, var_with) = run(&scene);
+    let sdf_share = scene.sdf_share;
+    let off = std::mem::take(&mut scene.sdf_lights);
+    scene.sdf_share = 0.;
+    let (hits, var_hits) = run(&scene);
+    let z = (with - hits) / (var_with + var_hits).sqrt();
+    assert!(with > 0. && z.abs() < 4., "{with} vs {hits}: z {z}");
+    assert!(var_with < var_hits, "{var_with} vs {var_hits}");
+    // The hit side's weight agrees with the sample's pdf.
+    scene.sdf_lights = off;
+    scene.sdf_share = sdf_share;
+    assert!(scene.sdf_light_pdf(0, o) > 0. && scene.sdf_light_pdf(1, o) == 0.);
+}
+#[test]
+fn the_denoisers_inputs_leave_the_sums_alone() {
+    let mut s = Settings::default();
+    s.bounces = 3;
+    let stop = AtomicBool::new(false);
+    let mut p = Progressive::new(&s, [24, 16]).unwrap();
+    p.keep_guides();
+    assert!(p.pass(4, 2, &stop, &|_| {}));
+    assert_eq!(p.image(), render(&s, [24, 16], 4, &|_| {}).unwrap());
+    let d = p.denoised(0.5, 2);
+    assert_eq!(d.len(), p.image().len());
+    assert!(d.iter().all(|v| v.is_finite() && *v >= 0.));
+    // Filtering moves the pixels but not the overall level much.
+    let mean = |i: &[f32]| i.iter().sum::<f32>() / i.len() as f32;
+    assert!(d != p.image());
+    assert!((mean(&d) / mean(&p.image()) - 1.).abs() < 0.1);
+    // Without guides it is the plain mean.
+    p.drop_guides();
+    assert_eq!(p.denoised(0.5, 2), p.image());
 }

@@ -84,6 +84,10 @@ impl Map {
         (r - 0.5).abs() < 0.15 && (g - 0.5).abs() < 0.15 && b > 0.6 && b > r + 0.15
     }
 }
+/// An 8-bit sRGB value in linear (the table's exact decode).
+pub fn srgb_decode(v: u8) -> f32 {
+    srgb_tables().0[v as usize]
+}
 /// sRGB decoding of each 8-bit value, and encoding of linear values quantized to 1/65535 (fine
 /// enough that the darkest sRGB steps, ~3e-4 apart, round as the exact formula would).
 fn srgb_tables() -> &'static ([f32; 256], Vec<u8>) {

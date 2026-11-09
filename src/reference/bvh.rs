@@ -4,6 +4,8 @@ use glam::{Vec2, Vec3};
 pub(super) struct Tri {
     pub(super) p: [Vec3; 3],
     pub(super) n: [Vec3; 3],
+    /// Texture coordinates: a mesh's own where its material maps them (flag 16), else zero.
+    pub(super) uv: [Vec2; 3],
     pub(super) material: u32,
 }
 impl Tri {
@@ -33,8 +35,12 @@ pub(super) struct Bvh {
 #[derive(Clone, Copy)]
 pub(super) struct Hit {
     pub(super) t: f32,
+    /// The triangle (unused for a procedural hit).
     pub(super) tri: usize,
     pub(super) b: Vec2,
+    pub(super) material: u32,
+    /// The procedural object (an index into `Scene::sdfs`) when the hit is one.
+    pub(super) sdf: Option<usize>,
 }
 impl Bvh {
     pub(super) fn build(tris: Vec<Tri>) -> Self {
@@ -161,13 +167,14 @@ impl Bvh {
         let far = t0.max(t1).min_element().min(tmax);
         (near <= far).then_some(near)
     }
-    /// Closest accepted hit in (1e-4, tmax): Möller–Trumbore, both sides.
+    /// Closest accepted hit in (1e-4, tmax): Möller–Trumbore, both sides. `accept` sees each
+    /// candidate in range as (material, triangle index, barycentrics), as an any-hit shader would.
     pub(super) fn intersect(
         &self,
         o: Vec3,
         d: Vec3,
         tmax: f32,
-        accept: &dyn Fn(u32) -> bool,
+        accept: &dyn Fn(u32, usize, Vec2) -> bool,
         any: bool,
     ) -> Option<Hit> {
         if self.nodes.is_empty() {
@@ -205,12 +212,14 @@ impl Bvh {
                         continue;
                     }
                     let tt = e2.dot(qv) * id;
-                    if tt > 1e-4 && tt < limit && accept(t.material) {
+                    if tt > 1e-4 && tt < limit && accept(t.material, i, Vec2::new(u, v)) {
                         limit = tt;
                         best = Some(Hit {
                             t: tt,
                             tri: i,
                             b: Vec2::new(u, v),
+                            material: t.material,
+                            sdf: None,
                         });
                         if any {
                             return best;

@@ -54,6 +54,9 @@ struct Scene {
     tlas: Option<super::res::Tlas>,
 }
 
+/// The pipelines a display-only device creates: no ray queries in them.
+const DISPLAY_PIPES: [&str; 3] = ["filter", "display", "glare"];
+
 pub struct Gpu {
     pub st: GpuState,
     swap: Swapchain,
@@ -272,7 +275,7 @@ impl Gpu {
             let layout = Layout::new(&device)?;
             // Compiled in parallel: NVIDIA's SPIR-V compiler takes seconds per tracer when its
             // cache is cold (a new driver or new shaders), about a minute in a row.
-            let list = [
+            let all = [
                 ("trace", spv!("trace"), c"trace"),
                 ("trace_maps", spv!("trace_maps"), c"trace"),
                 ("trace_lean", spv!("trace_lean"), c"trace"),
@@ -308,6 +311,11 @@ impl Gpu {
                 ("display", spv!("display"), c"display"),
                 ("glare", spv!("glare"), c"glare_pass"),
             ];
+            // A display-only device can't create the tracers (they declare ray queries).
+            let list: Vec<_> = all
+                .into_iter()
+                .filter(|(name, ..)| device.ray_tracing || DISPLAY_PIPES.contains(name))
+                .collect();
             // NGX takes over a second to start, so it starts beside the pipelines. NGX and XeSS
             // get the device only, not our queue, so the progress frames' submits don't race them.
             struct Threaded(upscale::Upscalers);
@@ -446,6 +454,7 @@ impl Gpu {
             }
             let st = GpuState {
                 adapter_name: device.name.clone(),
+                ray_tracing: device.ray_tracing,
                 denoiser_activity: "",
                 hdr_levels: [203., 1000.],
                 ..Default::default()
@@ -551,6 +560,11 @@ impl Gpu {
         unsafe {
             self.device.device.device_wait_idle()?;
             self.bounds_valid = false;
+            if !self.device.ray_tracing {
+                // No acceleration structures to build: only the tables the display reads.
+                self.st.triangle_count = 0;
+                return self.update_materials(s);
+            }
             let (d, fns, sc) = (&self.device, &self.accel_fns, &mut self.scene);
             let packed = crate::lighting::materials(s);
             let (groups, statics) = plan::static_layout(s, &packed);
@@ -811,7 +825,7 @@ impl Gpu {
             self.prepare_aux(s)?;
             let sr = self.decide_upscaler(s);
             let (jitter, accumulating) = self.upscale_jitter(sr, draw);
-            let n = if draw {
+            let n = if draw && self.device.ray_tracing {
                 s.spp.min(s.max_samples.saturating_sub(self.st.samples))
             } else {
                 0
@@ -897,7 +911,7 @@ impl Gpu {
                     .write(&self.constants, 0, bytemuck::bytes_of(&c))?;
                 None
             };
-            if path_request.is_some() {
+            if path_request.is_some() && self.device.ray_tracing {
                 // Writes only the path records, so it may run before this frame's trace.
                 self.dispatch("trace_paths", 0, [1, 1, 1]);
             }
@@ -982,7 +996,7 @@ impl Gpu {
             self.device
                 .device
                 .wait_for_fences(&[self.frame.fence], true, u64::MAX)?;
-            self.collect(s, n, path_request.is_some());
+            self.collect(s, n, path_request.is_some() && self.device.ray_tracing);
             self.present_count = self.present_count.wrapping_add(1);
             if n > 0 {
                 self.st.frame = self.st.frame.wrapping_add(1);
@@ -1510,7 +1524,11 @@ impl Gpu {
         ];
         unsafe {
             let mut built = vec![];
+            let rt = self.device.ray_tracing;
             for (name, code, entry) in list {
+                if !rt && !DISPLAY_PIPES.contains(&name) {
+                    continue;
+                }
                 match self.layout.compute(
                     &self.device,
                     code,

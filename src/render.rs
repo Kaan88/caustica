@@ -185,6 +185,9 @@ pub struct GpuState {
     /// upscaler), display, UI.
     pub pass_ms: [f64; 4],
     pub adapter_name: String,
+    /// The device traces. Without it the GPU only displays (and draws the UI): the CPU
+    /// renderer fills the view, and `render` traces nothing.
+    pub ray_tracing: bool,
     /// What the denoiser did on the last frame, in words (the status bar, Advanced on).
     pub denoiser_activity: &'static str,
     pub reference_valid: bool,

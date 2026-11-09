@@ -21,6 +21,7 @@ const LOGOS: [(&[u8], &str, bool); 3] = [
     ),
 ];
 pub(super) const CPU_VIEW_HELP: &str = "Show the software path tracer: every ray on the CPU, through the same exposure, tone map and look. A rough preview while the camera moves, then it refines. The GPU only displays the image.";
+pub(super) const NO_RT_HELP: &str = "This GPU can't ray trace (no ray query support), so it only displays: the CPU renders the view.";
 /// What the software view's image leaves out, or why there is none; empty when it is all there.
 pub(super) fn cpu_view_text(st: &crate::reference::LiveState) -> String {
     match &st.error {
@@ -87,8 +88,13 @@ impl App {
                     ui.weak(format!("Caustica {}", crate::VERSION));
                     ui.separator();
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
-                    ui.checkbox(&mut self.cpu_view, "Render on the CPU (software)")
-                        .on_hover_text(CPU_VIEW_HELP);
+                    let traces = self.gpu.as_ref().is_some_and(|g| g.ray_tracing);
+                    ui.add_enabled(
+                        traces,
+                        egui::Checkbox::new(&mut self.cpu_view, "Render on the CPU (software)"),
+                    )
+                    .on_hover_text(CPU_VIEW_HELP)
+                    .on_disabled_hover_text(NO_RT_HELP);
                     if ui.button("Phone remote…").clicked() {
                         self.ui.show_remote = true;
                         ui.close_menu();
@@ -225,8 +231,12 @@ impl App {
                         &format!("{} · Rust, Direct3D 12, DXR 1.1", g.adapter_name),
                     );
                 });
-                ui.selectable_value(&mut self.cpu_view, false, "GPU")
-                    .on_hover_text("The viewport shows the GPU's path tracer");
+                let traces = self.gpu.as_ref().is_some_and(|g| g.ray_tracing);
+                ui.add_enabled_ui(traces, |ui| {
+                    ui.selectable_value(&mut self.cpu_view, false, "GPU")
+                        .on_hover_text("The viewport shows the GPU's path tracer")
+                        .on_disabled_hover_text(NO_RT_HELP);
+                });
                 ui.selectable_value(&mut self.cpu_view, true, "CPU")
                     .on_hover_text(CPU_VIEW_HELP);
                 ui.separator();

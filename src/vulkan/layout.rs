@@ -62,7 +62,11 @@ impl Layout {
             let mut set0: Vec<_> = (0..32)
                 .map(|i| b(i, vk::DescriptorType::STORAGE_IMAGE))
                 .collect();
-            set0.push(b(100, vk::DescriptorType::ACCELERATION_STRUCTURE_KHR));
+            // The TLAS: a display-only device has no such descriptor type, and the shaders it
+            // runs (display, filter, glare, UI) don't declare it.
+            if d.ray_tracing {
+                set0.push(b(100, vk::DescriptorType::ACCELERATION_STRUCTURE_KHR));
+            }
             set0.extend(SET0_BUFFERS.map(|i| b(i, vk::DescriptorType::STORAGE_BUFFER)));
             set0.push(b(102, vk::DescriptorType::SAMPLED_IMAGE));
             set0.push(b(200, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC));
@@ -100,14 +104,10 @@ impl Layout {
                 &vk::PipelineLayoutCreateInfo::default().set_layouts(&sets),
                 None,
             )?;
-            let sizes = [
+            let mut sizes = vec![
                 vk::DescriptorPoolSize {
                     ty: vk::DescriptorType::STORAGE_IMAGE,
                     descriptor_count: 32,
-                },
-                vk::DescriptorPoolSize {
-                    ty: vk::DescriptorType::ACCELERATION_STRUCTURE_KHR,
-                    descriptor_count: 1,
                 },
                 vk::DescriptorPoolSize {
                     ty: vk::DescriptorType::STORAGE_BUFFER,
@@ -126,6 +126,12 @@ impl Layout {
                     descriptor_count: 2,
                 },
             ];
+            if d.ray_tracing {
+                sizes.push(vk::DescriptorPoolSize {
+                    ty: vk::DescriptorType::ACCELERATION_STRUCTURE_KHR,
+                    descriptor_count: 1,
+                });
+            }
             let pool = dev.create_descriptor_pool(
                 &vk::DescriptorPoolCreateInfo::default()
                     .max_sets(3)

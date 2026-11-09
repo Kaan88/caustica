@@ -34,8 +34,11 @@ impl App {
         let advanced = self.ui.advanced;
         section(ui, "Renderer");
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.cpu_view, false, "GPU")
-                .on_hover_text("The viewport shows the GPU's path tracer");
+            ui.add_enabled_ui(g.ray_tracing, |ui| {
+                ui.selectable_value(&mut self.cpu_view, false, "GPU")
+                    .on_hover_text("The viewport shows the GPU's path tracer")
+                    .on_disabled_hover_text(chrome::NO_RT_HELP);
+            });
             ui.selectable_value(&mut self.cpu_view, true, "CPU (software)")
                 .on_hover_text(chrome::CPU_VIEW_HELP);
         });
@@ -53,6 +56,12 @@ impl App {
                 if !text.is_empty() {
                     ui.label(egui::RichText::new(text).small().color(WARN));
                 }
+            }
+            ui.checkbox(&mut self.cpu_denoise, "Denoise the CPU view")
+                .on_hover_text("The native denoiser's spatial passes on the CPU's mean, for looking at only: saved EXRs keep the plain mean. Turning it on starts the render over.");
+            if self.cpu_denoise {
+                ui.add(crate::slider(&mut s.denoise_strength, 0. ..=1.))
+                    .on_hover_text("How strongly the denoiser smooths.");
             }
             note(
                 ui,

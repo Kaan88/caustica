@@ -159,7 +159,11 @@ impl App {
                 self.ui.thumbnails.clear();
             }
             let total = missing.len();
-            self.ui.thumbnail_jobs = Some((crate::scenes::render_thumbnails(missing), total, 0));
+            self.ui.thumbnail_jobs = Some((
+                crate::scenes::render_thumbnails(missing, self.cpu_view),
+                total,
+                0,
+            ));
         }
     }
     /// Collects finished renders and loads thumbnail files into textures, a few per frame.
@@ -657,7 +661,13 @@ impl App {
     pub(super) fn graph_window(&mut self, ctx: &egui::Context) {
         let mut open = self.ui.show_graph;
         let mut use_current = false;
+        let mut use_cpu = false;
         let mut load = false;
+        // The CPU's finished render: the software view's own image, or Look → Compare's reference.
+        let cpu = self
+            .cpu_reference
+            .as_ref()
+            .and_then(|l| l.latest().map(|i| (l.view, i.1, i.2)));
         egui::Window::new("Convergence").open(&mut open).default_pos([140., 120.]).default_width(420.).show(ctx, |ui| {
             let g = self.gpu.as_ref().unwrap();
             match &self.ui.reference {
@@ -673,7 +683,16 @@ impl App {
                     load = true;
                 }
                 load |= ui.button("Load EXR").clicked();
-                use_current = ui.button("Use current image").on_hover_text(format!("{} spp now", g.samples)).clicked();
+                match &cpu {
+                    Some((true, _, n)) => use_cpu = ui.button("Use current image").on_hover_text(format!("The CPU's render, {n} spp now")).clicked(),
+                    None if self.cpu_view => {
+                        ui.add_enabled(false, egui::Button::new("Use current image")).on_disabled_hover_text("Waiting for the CPU's first pass");
+                    }
+                    _ => use_current = ui.button("Use current image").on_hover_text(format!("{} spp now", g.samples)).clicked(),
+                }
+                if let Some((false, _, n)) = &cpu {
+                    use_cpu = ui.button("Use the CPU render").on_hover_text(format!("Look → Compare's CPU reference, {n} spp now: measure the GPU against it")).clicked();
+                }
             });
             let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(300.), 200.), egui::Sense::hover());
             let painter = ui.painter_at(rect);
@@ -730,6 +749,21 @@ impl App {
                 }
                 Err(e) => self.ui.error(format!("{e:#}")),
             }
+        }
+        if use_cpu
+            && let Some((view, image, _)) = cpu
+            && image.len() == g.width as usize * g.height as usize * 4
+        {
+            self.ui.reference = Some((g.width, g.height, (*image).clone()));
+            self.ui.graph.clear();
+            self.actions.reset = true;
+            // Measuring the GPU against the CPU: the CPU's render must go on, not restart.
+            self.actions.keep_cpu = !view;
+            self.ui.toast(if view {
+                "Reference set; the CPU render restarts to measure against it"
+            } else {
+                "The CPU render is the reference; the GPU's restarts to measure against it"
+            });
         }
         if load {
             match image::open(&self.ui.reference_path) {

@@ -3,6 +3,7 @@
 //! vectors, snapping (increments, or other surfaces, vertices and edges) and cancel. Several
 //! items transform together around a pivot (median, active, individual origins, 3D cursor).
 //! All math is in physical pixels; egui drawing converts to points.
+use crate::gpu::Probe;
 use crate::scene::{LightKind, Settings};
 use crate::snap;
 use crate::ui::Selection;
@@ -1266,6 +1267,33 @@ mod tests {
         assert_eq!(hull.len(), 4, "{hull:?}");
         assert!(!hull.contains(&Vec2::new(1., 1.)));
     }
+    #[test]
+    fn the_cpu_probe_selects_what_the_gpu_probe_would() {
+        let s = Settings::default();
+        let size = [160, 120];
+        let linear = vec![0.5; 160 * 120 * 4];
+        let mut found = 0;
+        for y in (0..120).step_by(6) {
+            for x in (0..160).step_by(6) {
+                let at = [x as f32 + 0.5, y as f32 + 0.5];
+                let p = cpu_probe(&s, [x, y], size, Some(&linear));
+                assert_eq!(p.linear, [0.5; 4]);
+                match s.pick_object_hit(at, size) {
+                    Some((i, t)) => {
+                        found += 1;
+                        let sel = pick_from_probe(&s, at, size, p.id, p.depth);
+                        assert_eq!(sel, Some(Selection::Object(i)));
+                        let view = View::new(&s, size);
+                        let (o, d) = view.ray(Vec2::from(at));
+                        let c = view.surface_point(at, p.id, p.depth).unwrap();
+                        assert!(c.distance(o + d * t) < 1e-3 * t.max(1.));
+                    }
+                    None => assert_eq!((p.id, p.depth), (0, 0.)),
+                }
+            }
+        }
+        assert!(found > 0, "the default scene shows objects");
+    }
     fn setup() -> (Settings, View) {
         let s = Settings::default();
         let v = View::new(&s, [1280, 720]);
@@ -1514,5 +1542,44 @@ mod tests {
             s.objects[0].elevation, before.objects[0].elevation,
             "Y stayed"
         );
+    }
+}
+
+/// What a display-only device's probe would read back, found on the CPU: the nearest visible
+/// object's id and view depth (`pick_object_hit`), its diffuse albedo, and the software view's
+/// linear colour at the pixel (`linear`, row-major RGBA at `size`). The room's walls, floor and
+/// emissive panels aren't objects, so a click there reads as a miss.
+pub fn cpu_probe(s: &Settings, pixel: [u32; 2], size: [u32; 2], linear: Option<&[f32]>) -> Probe {
+    let at = [pixel[0] as f32 + 0.5, pixel[1] as f32 + 0.5];
+    let texel = linear
+        .filter(|_| pixel[0] < size[0] && pixel[1] < size[1])
+        .and_then(|l| {
+            let i = (pixel[1] as usize * size[0] as usize + pixel[0] as usize) * 4;
+            l.get(i..i + 4).map(|c| [c[0], c[1], c[2], c[3]])
+        })
+        .unwrap_or_default();
+    let Some((i, t)) = s.pick_object_hit(at, size) else {
+        return Probe {
+            linear: texel,
+            albedo: [0.; 4],
+            depth: 0.,
+            id: 0,
+        };
+    };
+    let view = View::new(s, size);
+    let (_, d) = view.ray(Vec2::from(at));
+    let m = &s.objects[i].material;
+    let diffuse = 1. - m.metallic.clamp(0., 1.);
+    Probe {
+        linear: texel,
+        albedo: [
+            m.color[0] * diffuse,
+            m.color[1] * diffuse,
+            m.color[2] * diffuse,
+            1.,
+        ],
+        depth: t * d.dot(view.forward()),
+        // Material ids: 0..4 are the room and the main light, objects follow (`pick_from_probe`).
+        id: i as u32 + 6,
     }
 }

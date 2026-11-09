@@ -189,6 +189,11 @@ impl Upscalers {
             sr_reset: true,
             sr_fresh: 0,
         };
+        if !d.ray_tracing {
+            // They reconstruct traced frames; a display-only device has none.
+            up.reasons = std::array::from_fn(|_| "this GPU can't trace (CPU view)".into());
+            return up;
+        }
         #[cfg(upscalers)]
         unsafe {
             let (instance, phys, device) = (d.instance.handle(), d.phys, d.device.handle());

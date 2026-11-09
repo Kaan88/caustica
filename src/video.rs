@@ -136,6 +136,19 @@ impl ImageFormat {
     pub fn needs_hdr(self) -> bool {
         matches!(self, ImageFormat::HdrPng | ImageFormat::Jxr)
     }
+    /// The format a file name asks for, by its (case-blind) extension.
+    pub fn from_path(path: &Path) -> Option<ImageFormat> {
+        let name = path.to_string_lossy().to_lowercase();
+        Some(match () {
+            _ if name.ends_with(".layers.exr") => ImageFormat::Layers,
+            _ if name.ends_with(".hdr.png") => ImageFormat::HdrPng,
+            _ if name.ends_with(".exr") => ImageFormat::Exr,
+            _ if name.ends_with(".png") => ImageFormat::Png,
+            _ if name.ends_with(".jpg") || name.ends_with(".jpeg") => ImageFormat::Jpeg,
+            _ if name.ends_with(".jxr") => ImageFormat::Jxr,
+            _ => return None,
+        })
+    }
 }
 /// Whether saving twice under this name template lands on the same file: only `{time}` and
 /// `{spp}` change between two saves of one view.
@@ -368,6 +381,17 @@ pub unsafe fn save_current(
 ) -> Result<()> {
     let frame = read_image(g, format)?;
     write_image(path, format, quality, &frame, g.width, g.height)
+}
+/// Writes a linear RGBA image of `w` × `h` as an EXR (the software view's plain mean).
+pub fn save_linear(path: &Path, rgba: &[f32], w: u32, h: u32) -> Result<()> {
+    write_image(
+        path,
+        ImageFormat::Exr,
+        0,
+        &Frame::Linear(rgba.to_vec()),
+        w,
+        h,
+    )
 }
 pub const JPEG_QUALITY: u32 = 92;
 
@@ -1053,6 +1077,280 @@ impl Job {
         })
     }
 }
+/// A CPU render's frame for `format`: the linear mean for EXR, else the display transform
+/// (`reference::display`, grain seeded by `seed`).
+fn cpu_frame(
+    s: &Settings,
+    format: ImageFormat,
+    linear: Vec<f32>,
+    size: [u32; 2],
+    seed: u32,
+) -> Result<Frame> {
+    Ok(match format {
+        ImageFormat::Exr => Frame::Linear(linear),
+        ImageFormat::Png | ImageFormat::Jpeg => {
+            Frame::Rgba8(crate::reference::display(s, &linear, size, seed)?)
+        }
+        f => anyhow::bail!("The CPU renderer can't write {} yet", f.label()),
+    })
+}
+/// Writes a CPU render (linear RGBA) as one image, as `write_image` writes the GPU's.
+pub fn write_cpu_image(
+    s: &Settings,
+    path: &Path,
+    format: ImageFormat,
+    quality: u32,
+    linear: Vec<f32>,
+    size: [u32; 2],
+    seed: u32,
+) -> Result<()> {
+    let frame = cpu_frame(s, format, linear, size, seed)?;
+    write_image(path, format, quality, &frame, size[0], size[1])
+}
+
+/// An export on the CPU renderer, with no device: the turntable, timeline and high-resolution
+/// still of `Job`, through the same writer. Each frame renders `spp` samples (or until
+/// `seconds_per_frame`), then goes through the CPU display transform (EXR stays linear). A
+/// turntable keeps one scene and only moves its camera; a timeline frame is the scene at its
+/// time (`reference::prepare`, which also runs the simulation), and with the shutter open it adds
+/// moments inside it, as the GPU's passes do. Returns what was written.
+pub fn render_cpu(
+    s: &Settings,
+    mut options: Options,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(f32) + Sync),
+) -> Result<String> {
+    let started = Instant::now();
+    let mut note = String::new();
+    if options.format.video() && !ffmpeg_available() {
+        options.format = Format::Png;
+        note = " · ffmpeg not found: PNG frames".into();
+    }
+    anyhow::ensure!(
+        options.format != Format::Hdr10,
+        "HDR10 video needs the HDR display transform, which the CPU renderer has not yet"
+    );
+    if options.timeline {
+        anyhow::ensure!(
+            !s.animation.is_empty() || s.physics.enabled,
+            "The scene has no keyframes to follow"
+        );
+        if !s.animation.is_empty() {
+            options.fps = s.animation.fps;
+            options.frames = s.animation.frames();
+        }
+    }
+    anyhow::ensure!(options.frames > 0, "No frames to render");
+    let format = options.image_format();
+    // What `Job::start` sets, less what only the GPU has (DLAA, vsync, battle, the split).
+    let mut v = s.clone();
+    v.scale = 1.;
+    v.rotate = false;
+    v.compare = false;
+    v.view = 0;
+    v.lpe.clear();
+    v.max_samples = options.spp.max(1);
+    if !options.timeline {
+        v.pitch = options.pitch.clamp(-89., 89.);
+        v.distance = options.distance;
+    }
+    let size = options.size();
+    let spp = options.spp.max(1);
+    let blur = options.timeline
+        && v.animation.shutter > 0.
+        && !v.animation.is_empty()
+        && !v.physics.enabled;
+    let fps = options.fps.max(1) as f32;
+    // The frame's renders: one per moment, the samples shared out; the sample indices go on
+    // across moments, so no two moments repeat a pixel's random numbers.
+    let moments = if blur { spp.min(32) } else { 1 };
+    let turntable = (!options.timeline).then(|| crate::reference::prepare(&v, 0.));
+    let mut orbit = match &turntable {
+        Some(t) => Some(crate::reference::Progressive::new(t, size)?),
+        None => None,
+    };
+    // Cheap checks first: a refused scene or format fails before the writer starts.
+    if let Some(t) = &turntable {
+        cpu_frame(t, format, vec![0.; 4], [1, 1], 0)?;
+    } else {
+        cpu_frame(&v, format, vec![0.; 4], [1, 1], 0)?;
+    }
+    let mut writer = Writer::start(&options, 1000.)?;
+    let frames = options.frames;
+    let result = (|| -> Result<u32> {
+        for i in 0..frames {
+            let frame_start = Instant::now();
+            let limit = options.seconds_per_frame;
+            let mut sum = vec![0f32; size[0] as usize * size[1] as usize * 4];
+            let mut samples = 0u32;
+            let shown;
+            let report = |f: f32| progress(((i as f32 + f.min(1.)) / frames as f32).min(1.));
+            // Adds passes to `p` until it has `n` samples or the frame's time is up.
+            let run = |p: &mut crate::reference::Progressive, n: u32, share: f32| -> Result<()> {
+                let base = p.samples;
+                while p.samples < base + n {
+                    let step = if limit > 0. { 1 } else { base + n - p.samples };
+                    let at = (p.samples - base) as f32 / n as f32;
+                    let f = |x: f32| report(share * (at + x * step as f32 / n as f32));
+                    anyhow::ensure!(
+                        p.pass(
+                            step,
+                            std::thread::available_parallelism().map_or(4, |n| n.get()),
+                            cancel,
+                            &f
+                        ),
+                        "cancelled"
+                    );
+                    if limit > 0. && frame_start.elapsed().as_secs_f32() >= limit {
+                        break;
+                    }
+                }
+                Ok(())
+            };
+            if let (Some(t), Some(p)) = (&turntable, &mut orbit) {
+                let mut camera = t.clone();
+                camera.yaw = t.yaw + options.yaw(i);
+                p.move_camera(&camera, size);
+                run(p, spp, 1.)?;
+                sum = p.total();
+                samples = p.samples;
+                shown = camera;
+            } else {
+                let t = i as f32 / fps;
+                let mut first = 0;
+                let mut last = None;
+                for m in 0..moments {
+                    let n = spp / moments + u32::from(m < spp % moments);
+                    let at = if blur {
+                        // Stratified in a scrambled order, as `Job::before_render`'s passes.
+                        let u = ((m + 1) as f32 * 0.618_034).fract();
+                        t + (u - 0.5) * v.animation.shutter / fps
+                    } else {
+                        t
+                    };
+                    let scene = crate::reference::prepare(&v, at.max(0.));
+                    let mut p = crate::reference::Progressive::new(&scene, size)?;
+                    p.samples = first;
+                    run(&mut p, n, 1. / moments as f32)?;
+                    let done = p.samples - first;
+                    for (a, b) in sum.iter_mut().zip(p.total()) {
+                        *a += b;
+                    }
+                    first = p.samples;
+                    samples += done;
+                    drop(p);
+                    last = Some(scene);
+                    if limit > 0. && frame_start.elapsed().as_secs_f32() >= limit {
+                        break;
+                    }
+                }
+                shown = last.context("no moment rendered")?;
+            }
+            let n = samples.max(1) as f32;
+            let mean: Vec<f32> = sum
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .flat_map(|c| [c[0] / n, c[1] / n, c[2] / n, 1.])
+                .collect();
+            let mut frame = Some(cpu_frame(&shown, format, mean, size, i % 4096)?);
+            while let Some(f) = frame.take() {
+                frame = writer.try_send(f)?;
+                if frame.is_some() {
+                    anyhow::ensure!(!cancel.load(Ordering::Relaxed), "cancelled");
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            }
+        }
+        Ok(frames)
+    })();
+    let cancelled = cancel.load(Ordering::Relaxed);
+    let written = writer.finish(cancelled || result.is_err());
+    if !cancelled {
+        result?;
+    }
+    let written = written?;
+    let [w, h] = size;
+    let secs = started.elapsed().as_secs_f32();
+    Ok(if cancelled {
+        if options.format.video() || options.still {
+            format!("Export cancelled after {written} frames")
+        } else {
+            format!(
+                "Export cancelled: wrote {written} frames to {}",
+                options.folder().display()
+            )
+        }
+    } else if options.still {
+        format!(
+            "Saved {} ({w}×{h}, {spp} spp, {secs:.0} s, CPU){note}",
+            options.path.display()
+        )
+    } else if options.format.video() {
+        format!(
+            "Saved {} ({written} frames, {w}×{h}, {secs:.0} s, CPU){note}",
+            options.path.display()
+        )
+    } else {
+        format!(
+            "Saved {written} frames to {} ({w}×{h}, {secs:.0} s, CPU){note}",
+            options.folder().display()
+        )
+    })
+}
+/// `render_cpu` on a thread, for the app's software view: the export the GPU's `Job` would run.
+/// Dropping it cancels the render and waits for the writer (a cancelled video is deleted).
+pub struct CpuExport {
+    pub options: Options,
+    pub started: Instant,
+    cancel: Arc<AtomicBool>,
+    /// Progress 0–1 as f32 bits.
+    progress: Arc<std::sync::atomic::AtomicU32>,
+    thread: Option<std::thread::JoinHandle<Result<String>>>,
+}
+impl CpuExport {
+    pub fn start(s: &Settings, options: Options) -> CpuExport {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let (s, o, stop, at) = (s.clone(), options.clone(), cancel.clone(), progress.clone());
+        let thread = std::thread::spawn(move || {
+            crate::platform::background_thread();
+            render_cpu(&s, o, &stop, &|f| at.store(f.to_bits(), Ordering::Relaxed))
+        });
+        CpuExport {
+            options,
+            started: Instant::now(),
+            cancel,
+            progress,
+            thread: Some(thread),
+        }
+    }
+    pub fn progress(&self) -> f32 {
+        f32::from_bits(self.progress.load(Ordering::Relaxed))
+    }
+    pub fn cancel(&self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
+    pub fn finished(&self) -> bool {
+        self.thread.as_ref().is_none_or(|t| t.is_finished())
+    }
+    /// Waits for the thread; what it wrote, or why it stopped.
+    pub fn join(mut self) -> Result<String> {
+        self.thread
+            .take()
+            .context("already joined")?
+            .join()
+            .map_err(|_| anyhow::anyhow!("the CPU export panicked"))?
+    }
+}
+impl Drop for CpuExport {
+    fn drop(&mut self) {
+        self.cancel();
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
 /// A small RGBA copy for the progress window (nearest texel).
 fn preview(rgba: &[u8], w: u32, h: u32) -> egui::ColorImage {
     let step = w.div_ceil(360).max(1);
@@ -1097,6 +1395,52 @@ pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cpu_turntable_frames_match_the_still() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/test-cpu-export");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut s = Settings::default();
+        s.preset(0);
+        let size = [32, 24];
+        let mut o = Options::turntable(&s, size, 3, 2, dir.join("spin.png"));
+        o.format = Format::Png;
+        let text = render_cpu(&s, o.clone(), &AtomicBool::new(false), &|_| {}).unwrap();
+        assert!(text.contains("3 frames"), "{text}");
+        let first = image::open(dir.join("spin/00001.png")).unwrap().to_rgba8();
+        let still = crate::reference::prepare(&s, 0.);
+        let linear = crate::reference::render(&still, size, 2, &|_| {}).unwrap();
+        let expect = crate::reference::display(&still, &linear, size, 0).unwrap();
+        assert_eq!(first.into_raw(), expect);
+        // The camera turns: the second frame differs.
+        let second = image::open(dir.join("spin/00002.png")).unwrap().to_rgba8();
+        assert_ne!(second.into_raw(), expect);
+        // A cancelled export stops with what it had; a refused format writes nothing.
+        let cancel = AtomicBool::new(true);
+        o.path = dir.join("cancelled.png");
+        assert!(
+            render_cpu(&s, o.clone(), &cancel, &|_| {})
+                .unwrap()
+                .contains("cancelled")
+        );
+        o.format = Format::Hdr10;
+        assert!(render_cpu(&s, o, &AtomicBool::new(false), &|_| {}).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn image_formats_by_file_name() {
+        for (name, f) in [
+            ("a.EXR", ImageFormat::Exr),
+            ("a.layers.exr", ImageFormat::Layers),
+            ("a.hdr.png", ImageFormat::HdrPng),
+            ("a.png", ImageFormat::Png),
+            ("a.jpeg", ImageFormat::Jpeg),
+        ] {
+            assert_eq!(ImageFormat::from_path(Path::new(name)), Some(f));
+        }
+        assert_eq!(ImageFormat::from_path(Path::new("a.tga")), None);
+    }
 
     #[test]
     fn name_templates_that_repeat() {

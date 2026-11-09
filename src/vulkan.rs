@@ -69,9 +69,14 @@ pub struct Device {
     pub anisotropy: bool,
     /// `VK_EXT_hdr_metadata` is enabled.
     pub hdr_metadata: bool,
+    /// Ray query and acceleration structures are on. Without them the device only displays:
+    /// the CPU renderer fills the view (`GpuState::ray_tracing`).
+    pub ray_tracing: bool,
 }
 
-const DEVICE_EXTENSIONS: [&CStr; 3] = [
+/// What tracing needs on top of what displaying needs; a device without them still opens,
+/// display-only. `CAUSTICA_NO_RT=1` treats every device as lacking them.
+const RT_EXTENSIONS: [&CStr; 3] = [
     khr::acceleration_structure::NAME,
     khr::ray_query::NAME,
     khr::deferred_host_operations::NAME,
@@ -160,10 +165,13 @@ impl Device {
             // On failure the surface, messenger and instance go too: Menu → Renderer falls back
             // to D3D12 on the same window, which a live surface would keep bound.
             let made = (|| -> Result<_> {
-                let (phys, family, name) = pick(&instance, &surface_fn, surface)?;
+                let (phys, family, name, rt) = pick(&instance, &surface_fn, surface)?;
 
-                let mut extensions: Vec<*const c_char> =
-                    DEVICE_EXTENSIONS.iter().map(|e| e.as_ptr()).collect();
+                let mut extensions: Vec<*const c_char> = if rt {
+                    RT_EXTENSIONS.iter().map(|e| e.as_ptr()).collect()
+                } else {
+                    vec![]
+                };
                 if surface.is_some() {
                     extensions.push(khr::swapchain::NAME.as_ptr());
                 }
@@ -176,7 +184,13 @@ impl Device {
                 if hdr_metadata {
                     extensions.push(ext::hdr_metadata::NAME.as_ptr());
                 }
-                for e in gpu::upscale::required_extensions(true, instance.handle(), phys) {
+                // The upscalers run on traced frames only.
+                let upscalers = if rt {
+                    gpu::upscale::required_extensions(true, instance.handle(), phys)
+                } else {
+                    vec![]
+                };
+                for e in upscalers {
                     let known = extensions.iter().any(|&p| CStr::from_ptr(p) == e)
                         // NGX lists it, but it may not be enabled beside the core feature below.
                         || e == vk::EXT_BUFFER_DEVICE_ADDRESS_NAME;
@@ -201,7 +215,7 @@ impl Device {
                 let mut f11 = vk::PhysicalDeviceVulkan11Features::default()
                     .storage_buffer16_bit_access(has11.storage_buffer16_bit_access != 0);
                 let mut f12 = vk::PhysicalDeviceVulkan12Features::default()
-                    .buffer_device_address(true)
+                    .buffer_device_address(rt)
                     .descriptor_indexing(true)
                     .runtime_descriptor_array(true)
                     .shader_sampled_image_array_non_uniform_indexing(true)
@@ -220,7 +234,7 @@ impl Device {
                     .acceleration_structure(true);
                 let mut frq = vk::PhysicalDeviceRayQueryFeaturesKHR::default().ray_query(true);
                 let core = vk::PhysicalDeviceFeatures::default()
-                    .shader_int64(true)
+                    .shader_int64(rt)
                     .shader_int16(has_int16 != 0)
                     .sampler_anisotropy(anisotropy)
                     .fragment_stores_and_atomics(true)
@@ -231,24 +245,22 @@ impl Device {
                 let queues = [vk::DeviceQueueCreateInfo::default()
                     .queue_family_index(family)
                     .queue_priorities(&priority)];
+                let mut info = vk::DeviceCreateInfo::default()
+                    .queue_create_infos(&queues)
+                    .enabled_extension_names(&extensions)
+                    .enabled_features(&core)
+                    .push_next(&mut f11)
+                    .push_next(&mut f12)
+                    .push_next(&mut f13);
+                if rt {
+                    info = info.push_next(&mut fas).push_next(&mut frq);
+                }
                 let device = instance
-                    .create_device(
-                        phys,
-                        &vk::DeviceCreateInfo::default()
-                            .queue_create_infos(&queues)
-                            .enabled_extension_names(&extensions)
-                            .enabled_features(&core)
-                            .push_next(&mut f11)
-                            .push_next(&mut f12)
-                            .push_next(&mut f13)
-                            .push_next(&mut fas)
-                            .push_next(&mut frq),
-                        None,
-                    )
+                    .create_device(phys, &info, None)
                     .context("vkCreateDevice")?;
-                Ok((phys, family, name, device, anisotropy, hdr_metadata))
+                Ok((phys, family, name, device, anisotropy, hdr_metadata, rt))
             })();
-            let (phys, family, name, device, anisotropy, hdr_metadata) = match made {
+            let (phys, family, name, device, anisotropy, hdr_metadata, ray_tracing) = match made {
                 Ok(m) => m,
                 Err(e) => {
                     if let Some(s) = surface {
@@ -277,6 +289,7 @@ impl Device {
                     memory,
                     anisotropy,
                     hdr_metadata,
+                    ray_tracing,
                 },
                 surface,
             ))
@@ -319,14 +332,30 @@ impl Drop for Device {
     }
 }
 
-/// The best device with everything the renderer needs: discrete over integrated over the rest
-/// (lavapipe), and a graphics + compute queue that presents to `surface`.
+/// Whether `CAUSTICA_NO_RT=1` asks for the display-only path on a device that could trace.
+pub fn rt_disabled() -> bool {
+    std::env::var("CAUSTICA_NO_RT").is_ok_and(|v| v == "1")
+}
+
+/// A device's rank in `pick`: any device that traces over any that only displays, then
+/// discrete over integrated over the rest (lavapipe, other CPU devices).
+fn grade(rt: bool, ty: vk::PhysicalDeviceType) -> u32 {
+    let kind = match ty {
+        vk::PhysicalDeviceType::DISCRETE_GPU => 3,
+        vk::PhysicalDeviceType::INTEGRATED_GPU => 2,
+        _ => 1,
+    };
+    kind + 10 * rt as u32
+}
+
+/// The best device (`grade`) with a graphics + compute queue that presents to `surface`, and
+/// whether it traces.
 unsafe fn pick(
     instance: &ash::Instance,
     surface_fn: &khr::surface::Instance,
     surface: Option<vk::SurfaceKHR>,
-) -> Result<(vk::PhysicalDevice, u32, String)> {
-    let mut best: Option<(u32, vk::PhysicalDevice, u32, String)> = None;
+) -> Result<(vk::PhysicalDevice, u32, String, bool)> {
+    let mut best: Option<(u32, vk::PhysicalDevice, u32, String, bool)> = None;
     let mut rejected = Vec::new();
     for phys in unsafe { instance.enumerate_physical_devices()? } {
         let props = unsafe { instance.get_physical_device_properties(phys) };
@@ -335,21 +364,20 @@ unsafe fn pick(
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         match unsafe { suitable(instance, surface_fn, surface, phys, &props) } {
-            Ok(family) => {
-                let score = match props.device_type {
-                    vk::PhysicalDeviceType::DISCRETE_GPU => 3,
-                    vk::PhysicalDeviceType::INTEGRATED_GPU => 2,
-                    _ => 1,
-                };
+            Ok((family, rt, lacks)) => {
+                if let Some(why) = lacks {
+                    eprintln!("vulkan: {name} can't trace ({why}): display only");
+                }
+                let score = grade(rt, props.device_type);
                 if best.as_ref().is_none_or(|b| score > b.0) {
-                    best = Some((score, phys, family, name));
+                    best = Some((score, phys, family, name, rt));
                 }
             }
             Err(why) => rejected.push(format!("{name}: {why}")),
         }
     }
-    best.map(|(_, p, f, n)| (p, f, n))
-        .ok_or_else(|| anyhow!("no Vulkan device with ray query: {}", rejected.join("; ")))
+    best.map(|(_, p, f, n, rt)| (p, f, n, rt))
+        .ok_or_else(|| anyhow!("no usable Vulkan device: {}", rejected.join("; ")))
 }
 
 unsafe fn suitable(
@@ -358,20 +386,21 @@ unsafe fn suitable(
     surface: Option<vk::SurfaceKHR>,
     phys: vk::PhysicalDevice,
     props: &vk::PhysicalDeviceProperties,
-) -> Result<u32> {
+) -> Result<(u32, bool, Option<String>)> {
     unsafe {
         if props.api_version < vk::API_VERSION_1_3 {
             bail!("Vulkan 1.3 needed");
         }
         let have = instance.enumerate_device_extension_properties(phys)?;
-        for e in DEVICE_EXTENSIONS
-            .iter()
-            .chain(surface.map(|_| &khr::swapchain::NAME))
-        {
-            if !have.iter().any(|h| h.extension_name_as_c_str() == Ok(*e)) {
-                bail!("{} missing", e.to_string_lossy());
-            }
+        let offered = |e: &CStr| have.iter().any(|h| h.extension_name_as_c_str() == Ok(e));
+        if surface.is_some() && !offered(khr::swapchain::NAME) {
+            bail!("{} missing", khr::swapchain::NAME.to_string_lossy());
         }
+        let rt_missing: Vec<String> = RT_EXTENSIONS
+            .iter()
+            .filter(|e| !offered(e))
+            .map(|e| e.to_string_lossy().into_owned())
+            .collect();
         let mut f12 = vk::PhysicalDeviceVulkan12Features::default();
         let mut f13 = vk::PhysicalDeviceVulkan13Features::default();
         let mut fas = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default();
@@ -386,7 +415,6 @@ unsafe fn suitable(
         }
         let core = instance.get_physical_device_features(phys);
         let missing: Vec<&str> = [
-            (core.shader_int64, "shaderInt64"),
             (
                 core.shader_storage_image_extended_formats,
                 "storageImageExtendedFormats",
@@ -399,7 +427,6 @@ unsafe fn suitable(
                 core.shader_storage_image_write_without_format,
                 "storageImageWriteWithoutFormat",
             ),
-            (f12.buffer_device_address, "bufferDeviceAddress"),
             (f12.descriptor_indexing, "descriptorIndexing"),
             (f12.runtime_descriptor_array, "runtimeDescriptorArray"),
             (
@@ -416,8 +443,6 @@ unsafe fn suitable(
             (f13.synchronization2, "synchronization2"),
             (f13.dynamic_rendering, "dynamicRendering"),
             (f13.maintenance4, "maintenance4"),
-            (fas.acceleration_structure, "accelerationStructure"),
-            (frq.ray_query, "rayQuery"),
         ]
         .into_iter()
         .filter(|(on, _)| *on == vk::FALSE)
@@ -426,6 +451,23 @@ unsafe fn suitable(
         if !missing.is_empty() {
             bail!("features missing: {}", missing.join(", "));
         }
+        // Only tracing needs these; the display, glare, filter and UI shaders use none of them.
+        let rt_features: Vec<String> = [
+            (core.shader_int64, "shaderInt64"),
+            (f12.buffer_device_address, "bufferDeviceAddress"),
+            (fas.acceleration_structure, "accelerationStructure"),
+            (frq.ray_query, "rayQuery"),
+        ]
+        .into_iter()
+        .filter(|(on, _)| *on == vk::FALSE)
+        .map(|(_, n)| n.to_string())
+        .collect();
+        let lacks = [rt_missing, rt_features].concat();
+        let lacks = if rt_disabled() {
+            Some("CAUSTICA_NO_RT=1".to_string())
+        } else {
+            (!lacks.is_empty()).then(|| lacks.join(", "))
+        };
         let families = instance.get_physical_device_queue_family_properties(phys);
         let want = vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE;
         for (i, f) in families.iter().enumerate() {
@@ -434,7 +476,7 @@ unsafe fn suitable(
                 None => true,
             };
             if f.queue_flags.contains(want) && presents {
-                return Ok(i as u32);
+                return Ok((i as u32, lacks.is_none(), lacks));
             }
         }
         bail!("no graphics + compute queue that presents")
@@ -967,7 +1009,7 @@ struct Windowed {
 
 impl Windowed {
     unsafe fn open(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) -> Result<()> {
-        let attrs = winit::window::Window::default_attributes()
+        let attrs = crate::platform::with_app_id(winit::window::Window::default_attributes())
             .with_title("Caustica (Vulkan)")
             .with_inner_size(winit::dpi::PhysicalSize::new(self.size[0], self.size[1]));
         let window = event_loop.create_window(attrs)?;
@@ -1125,5 +1167,20 @@ impl winit::application::ApplicationHandler for Windowed {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn devices_that_trace_rank_first() {
+        type T = vk::PhysicalDeviceType;
+        // A tracing integrated GPU over a display-only discrete one; lavapipe last.
+        assert!(grade(true, T::INTEGRATED_GPU) > grade(false, T::DISCRETE_GPU));
+        assert!(grade(false, T::DISCRETE_GPU) > grade(false, T::INTEGRATED_GPU));
+        assert!(grade(false, T::INTEGRATED_GPU) > grade(false, T::CPU));
+        assert!(grade(true, T::CPU) > grade(false, T::DISCRETE_GPU));
     }
 }

@@ -1,5 +1,6 @@
 //! Renders that grow by passes: the CLI's and the viewport's.
 use super::camera::filter_offset;
+use super::denoise::{Guide, Moments, luminance};
 use super::sampling::Rng;
 use super::scene::Scene;
 use super::unsupported;
@@ -27,7 +28,7 @@ fn cores() -> usize {
 }
 
 /// Runs `work(y, row)` for each row of `data` on `threads` threads until `cancel`.
-fn for_rows<T: Send>(
+pub(super) fn for_rows<T: Send>(
     data: &mut [T],
     width: usize,
     threads: usize,
@@ -64,6 +65,10 @@ pub struct Progressive<'a> {
     scenes: Vec<Scene<'a>>,
     pub(super) sums: Vec<DVec3>,
     pub samples: u32,
+    /// The denoiser's inputs (`denoise`), empty until `keep_guides` asks for them: per pixel the
+    /// guide ray's hit and what the samples add besides their light.
+    guides: Vec<Guide>,
+    moments: Vec<Moments>,
     /// Its threads run at low priority: a render behind a window.
     background: bool,
 }
@@ -109,16 +114,59 @@ impl<'a> Progressive<'a> {
             scenes: vec![Scene::new(s, size)],
             sums: vec![DVec3::ZERO; size[0] as usize * size[1] as usize],
             samples: 0,
+            guides: vec![],
+            moments: vec![],
             background: false,
         }
     }
+    /// Gathers the denoiser's inputs from here on. It starts the render over (the moments must
+    /// cover every sample); the sums' bits don't change, since the guides draw no random numbers.
+    pub fn keep_guides(&mut self) {
+        let [w, h] = self.scene().size.map(|v| v as usize);
+        let scene = self.scene();
+        self.guides = (0..w * h).map(|i| scene.guide(i % w, i / w)).collect();
+        self.moments = vec![Moments::default(); w * h];
+        self.sums.iter_mut().for_each(|c| *c = DVec3::ZERO);
+        self.samples = 0;
+    }
+    /// The mean through the denoiser (RGBA, rows top first), or the plain mean without guides.
+    /// Gathering the denoiser's inputs.
+    pub fn denoising(&self) -> bool {
+        !self.guides.is_empty()
+    }
+    /// Stops gathering the denoiser's inputs; the sums go on.
+    pub fn drop_guides(&mut self) {
+        self.guides = vec![];
+        self.moments = vec![];
+    }
+    pub fn denoised(&self, strength: f32, threads: usize) -> Vec<f32> {
+        if self.guides.is_empty() {
+            return self.image();
+        }
+        let n = self.samples.max(1) as f64;
+        let mean: Vec<Vec3> = self.sums.iter().map(|c| (*c / n).as_vec3()).collect();
+        let size = self.scene().size.map(|v| v as usize);
+        let out = super::denoise::filter(
+            &mean,
+            &self.moments,
+            &self.guides,
+            self.samples,
+            size,
+            strength,
+            threads,
+        );
+        out.iter().flat_map(|c| [c.x, c.y, c.z, 1.]).collect()
+    }
     /// Starts over from another viewpoint of the same scene, keeping the BVH and the light tables.
-    pub(super) fn move_camera(&mut self, camera: &Settings, size: [u32; 2]) {
+    pub fn move_camera(&mut self, camera: &Settings, size: [u32; 2]) {
         self.aim(camera, size);
         self.sums.clear();
         self.sums
             .resize(size[0] as usize * size[1] as usize, DVec3::ZERO);
         self.samples = 0;
+        if !self.guides.is_empty() {
+            self.keep_guides();
+        }
     }
     /// Moves the camera and keeps the sums: light painting's long exposure, which a camera move
     /// smears as it would a photograph's.
@@ -141,14 +189,19 @@ impl<'a> Progressive<'a> {
         let (w, h) = (scenes[0].size[0] as usize, scenes[0].size[1] as usize);
         let first = self.samples;
         let done = AtomicUsize::new(0);
+        let guides = &self.guides;
+        // Each pixel's sum, with its moments when the denoiser wants them.
+        let mut moments = self.moments.iter_mut();
+        let mut cells: Vec<(&mut DVec3, Option<&mut Moments>)> =
+            self.sums.iter_mut().map(|c| (c, moments.next())).collect();
         for_rows(
-            &mut self.sums,
+            &mut cells,
             w,
             threads,
             self.background,
             cancel,
             &|y, row| {
-                for (x, sum) in row.iter_mut().enumerate() {
+                for (x, (sum, moments)) in row.iter_mut().enumerate() {
                     for k in first..first + spp {
                         let mut r = Rng::new((y * w + x) as u64, k as u64);
                         // Drawn only when there are moments to choose from, so a still keeps
@@ -159,11 +212,19 @@ impl<'a> Progressive<'a> {
                         };
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
-                        let c = match scene.camera_ray(pixel, &mut r) {
-                            Some((o, d, w)) => scene.radiance(o, d, w, &mut r),
-                            None => Vec3::ZERO,
-                        };
-                        *sum += firefly_clamp(s.firefly, c, *sum, k).as_dvec3();
+                        let ray = scene.camera_ray(pixel, &mut r);
+                        // A sample the lens cuts off counts, as black.
+                        let c = ray.map_or(Vec3::ZERO, |(o, d, w)| scene.radiance(o, d, w, &mut r));
+                        let c = firefly_clamp(s.firefly, c, **sum, k);
+                        **sum += c.as_dvec3();
+                        if let Some(m) = moments {
+                            if let Some((o, d, _)) = ray {
+                                let (albedo, id) = scene.first_albedo(o, d);
+                                m.albedo += albedo;
+                                m.covered += (id == guides[y * w + x].id) as u32;
+                            }
+                            m.m2 += (luminance(c) as f64).powi(2);
+                        }
                     }
                 }
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -186,6 +247,17 @@ impl<'a> Progressive<'a> {
             .flat_map(|c| {
                 let c = (*c / n).as_vec3();
                 [c.x, c.y, c.z, 1.]
+            })
+            .collect()
+    }
+    /// The sums so far as RGBA (alpha the sample count), for adding renders of different moments.
+    pub fn total(&self) -> Vec<f32> {
+        let n = self.samples as f32;
+        self.sums
+            .iter()
+            .flat_map(|c| {
+                let c = c.as_vec3();
+                [c.x, c.y, c.z, n]
             })
             .collect()
     }
@@ -257,6 +329,8 @@ struct Request {
     /// Light painting keeps the exposure through this edit (`crate::painting_keeps`).
     paint: bool,
 }
+/// A published image: linear RGBA, rows top first.
+pub type Image = Arc<Vec<f32>>;
 /// The CPU renderer running in the background for the viewport, in one of two roles: the full
 /// view (`view`: renders what it can and says what it left out, previews while the camera moves),
 /// or Look → Compare's reference (refuses what it can't render, and is measured against). It
@@ -281,6 +355,9 @@ struct Shared {
     /// Light painting (the app's L): edits of the lights and the camera keep the exposure, which
     /// goes on past the sample cap, as the GPU's does.
     painting: AtomicBool,
+    /// The view's denoiser (`denoise`): on, and its strength's bits.
+    denoise: AtomicBool,
+    strength: std::sync::atomic::AtomicU32,
     inner: Mutex<Inner>,
     wake: Condvar,
 }
@@ -291,8 +368,12 @@ struct Inner {
 }
 #[derive(Default, Clone)]
 pub struct LiveState {
-    /// The latest mean, and whether it has not been shown yet.
+    /// The latest mean (denoised when the view's denoiser is on), and whether it has not been
+    /// shown yet.
     pub image: Option<Arc<Vec<f32>>>,
+    /// The plain mean behind a denoised `image`, for saving: what is saved as the render's light
+    /// never goes through the denoiser.
+    pub raw: Option<Arc<Vec<f32>>>,
     pub fresh: bool,
     /// The image is a preview: no full pass has finished since the last restart.
     pub preview: bool,
@@ -404,6 +485,37 @@ impl Live {
         let st = &inner.state;
         st.fresh || (st.error.is_none() && st.samples < st.cap)
     }
+    /// The view's denoiser, off by default: turning it on starts the render over (its inputs
+    /// must cover every sample); the strength only refilters.
+    pub fn set_denoise(&self, on: bool, strength: f32) {
+        self.shared
+            .denoise
+            .store(on && self.view, Ordering::Relaxed);
+        self.shared
+            .strength
+            .store(strength.to_bits(), Ordering::Relaxed);
+    }
+    /// The plain mean behind the latest image when that is denoised: what a save writes.
+    pub fn raw(&self) -> Option<Arc<Vec<f32>>> {
+        let pixels = self.size[0] as usize * self.size[1] as usize;
+        let inner = lock(&self.shared.inner);
+        let st = &inner.state;
+        st.raw.clone().filter(|i| i.len() == pixels * 4)
+    }
+    /// The latest image of a full pass as shown (denoised when the denoiser is on), its plain mean
+    /// and its samples, whether or not the viewport has taken it: what a script's capture saves
+    /// and what the convergence graph measures. None for a preview, a stale image or none yet.
+    pub fn latest(&self) -> Option<(Image, Image, u32)> {
+        let pixels = self.size[0] as usize * self.size[1] as usize;
+        let inner = lock(&self.shared.inner);
+        let st = &inner.state;
+        if st.preview || st.samples == 0 || inner.request.is_some() {
+            return None;
+        }
+        let image = st.image.clone().filter(|i| i.len() == pixels * 4)?;
+        let plain = st.raw.clone().filter(|i| i.len() == pixels * 4);
+        Some((image.clone(), plain.unwrap_or(image), st.samples))
+    }
     /// Holds the render after its current pass (the app's pause); a preview still runs.
     pub fn set_paused(&self, paused: bool) {
         self.shared.paused.store(paused, Ordering::Relaxed);
@@ -456,7 +568,14 @@ impl Shared {
     }
     /// A new image, unless a request has already made it stale. A preview always lands: with the
     /// camera moving there is always a request, and a frame old beats none.
-    fn publish(&self, image: Vec<f32>, preview: bool, samples: u32, seconds: f32) {
+    fn publish(
+        &self,
+        image: Vec<f32>,
+        raw: Option<Vec<f32>>,
+        preview: bool,
+        samples: u32,
+        seconds: f32,
+    ) {
         let mut inner = lock(&self.inner);
         if inner.request.is_some() && !preview {
             return;
@@ -464,6 +583,7 @@ impl Shared {
         let st = &mut inner.state;
         st.images += 1;
         st.image = Some(Arc::new(image));
+        st.raw = raw.map(Arc::new);
         st.fresh = true;
         st.preview = preview;
         st.samples = samples;
@@ -536,7 +656,19 @@ impl Shared {
         // A painted exposure has its image already; a preview would replace it.
         let mut previewed = !view || p.samples > 0;
         let mut spp = 1;
+        // The denoiser setting the last image was made with.
+        let mut shown = (false, 0);
         while !self.stopped() {
+            let want = (
+                self.denoise.load(Ordering::Relaxed),
+                self.strength.load(Ordering::Relaxed),
+            );
+            if want.0 && !p.denoising() {
+                p.keep_guides();
+                spent = 0.;
+            } else if !want.0 && p.denoising() {
+                p.drop_guides();
+            }
             if let Some(r) = self.take() {
                 if !same_but_camera(s, &r.settings) {
                     return Some((r, spent));
@@ -562,7 +694,7 @@ impl Shared {
                 // per pixel, little beside a full pass that wouldn't finish between two frames.
                 let t = Instant::now();
                 if let Some(image) = p.preview(block, threads, &self.stop) {
-                    self.publish(image, true, 0, 0.);
+                    self.publish(image, None, true, 0, 0.);
                 }
                 let blocks = (p.scene().size[0] as usize).div_ceil(block)
                     * (p.scene().size[1] as usize).div_ceil(block);
@@ -571,6 +703,10 @@ impl Shared {
                 continue;
             }
             if p.samples >= cap || (self.paused.load(Ordering::Relaxed) && p.samples > 0) {
+                if shown != want && p.samples > 0 {
+                    self.show(p, want, threads, spent);
+                    shown = want;
+                }
                 self.wait();
                 continue;
             }
@@ -583,9 +719,19 @@ impl Shared {
             spent += t.elapsed().as_secs_f32();
             spp = ((0.5 / per_sample.max(1e-6)) as u32).clamp(1, 64);
             block = preview_block(per_sample);
-            self.publish(p.image(), false, p.samples, spent);
+            self.show(p, want, threads, spent);
+            shown = want;
         }
         None
+    }
+    /// Publishes the mean, through the denoiser when `want` says so (and its inputs are there).
+    fn show(&self, p: &Progressive<'_>, want: (bool, u32), threads: usize, spent: f32) {
+        if want.0 && p.denoising() {
+            let image = p.denoised(f32::from_bits(want.1), threads);
+            self.publish(image, Some(p.image()), false, p.samples, spent);
+        } else {
+            self.publish(p.image(), None, false, p.samples, spent);
+        }
     }
 }
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {

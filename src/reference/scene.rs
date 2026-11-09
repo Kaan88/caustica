@@ -4,7 +4,7 @@ use super::bsdf::{flags, rgb};
 use super::bvh::{Bvh, Hit, Tri};
 use crate::lighting::PackedMaterial;
 use crate::scene::{Settings, Vertex};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 
 /// What a ray may hit: camera rays skip lights hidden from the camera; shadow rays skip lights
 /// that cast no shadow and, unless glass casts shadows, clear glass.
@@ -18,6 +18,8 @@ pub(super) enum Ray {
 pub(super) struct Scene<'a> {
     pub(super) s: &'a Settings,
     pub(super) bvh: Bvh,
+    /// The procedural objects, which the BVH doesn't hold.
+    pub(super) sdfs: Vec<super::sdf::SdfObject>,
     pub(super) materials: Vec<PackedMaterial>,
     /// The emitters (suns and spheres first, then emissive triangles) and their power CDF.
     pub(super) lights: Vec<Light>,
@@ -25,6 +27,9 @@ pub(super) struct Scene<'a> {
     /// Per BVH triangle, its entry in `lights` + 1, or 0: a sphere light's mesh maps to the
     /// sphere's entry, as `lighting::emitter_table`'s lookup does.
     pub(super) tri_light: Vec<u32>,
+    /// Emissive procedural objects, and the share of non-sky light samples they take.
+    pub(super) sdf_lights: Vec<super::lights::SdfLight>,
+    pub(super) sdf_share: f32,
     pub(super) eye: Vec3,
     pub(super) inverse_vp: Mat4,
     pub(super) frame: super::camera::Frame,
@@ -36,6 +41,8 @@ pub(super) struct Scene<'a> {
     /// The HDRI or the physical sky's map, and the share of light samples it takes.
     pub(super) env: Option<super::environment::Env>,
     pub(super) p_env: f32,
+    /// The texture maps and the frames that box-map them.
+    pub(super) textures: super::textures::Textures,
 }
 /// An entry of the light table.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -94,9 +101,45 @@ impl Surface {
     }
 }
 impl Scene<'_> {
-    pub(super) fn accept(&self, kind: Ray) -> impl Fn(u32) -> bool + '_ {
-        move |id| {
+    /// The tangent an anisotropic material brushes along, or a grating's grooves run along, at
+    /// `p` (the hit's `tangent`): world X for the walls, the object's x axis for an object, or
+    /// for spun brushing (flag 2048) the circle about the object's y axis. Zero (unused) for
+    /// other materials.
+    pub(super) fn tangent(&self, material: u32, p: Vec3) -> Vec3 {
+        let m = &self.materials[material as usize];
+        if m.layers[3] <= 0. && crate::reference::bsdf::grating(m).is_none() {
+            return Vec3::ZERO;
+        }
+        let (ax, ay, o) = (material as usize)
+            .checked_sub(5)
+            .and_then(|i| self.textures.object_axes(i))
+            .unwrap_or((Vec3::X, Vec3::Y, Vec3::ZERO));
+        if flags(m) & 2048 != 0 {
+            ay.cross(p - o)
+        } else {
+            ax
+        }
+    }
+    /// The candidate filter of a ray from `o` along `d`: alpha holes first (`alpha_hole`), then
+    /// the kind's rule. A hole is no hit at all: it takes no bounce and no false hit.
+    pub(super) fn accept(
+        &self,
+        kind: Ray,
+        o: Vec3,
+        d: Vec3,
+    ) -> impl Fn(u32, usize, Vec2) -> bool + '_ {
+        // A blend decision per ray, stable across that ray's candidates: a hash of the ray
+        // itself, so scenes without blending keep their random streams bit for bit.
+        let key = mix(o
+            .to_array()
+            .into_iter()
+            .chain(d.to_array())
+            .fold(0, |k, c| mix(k ^ c.to_bits())));
+        move |id, tri, b| {
             let m = &self.materials[id as usize];
+            if flags(m) & 8 != 0 && self.alpha_hole(m, tri, b, key) {
+                return false;
+            }
             match kind {
                 Ray::Camera => flags(m) & 2 == 0,
                 Ray::Bounce => true,
@@ -104,9 +147,94 @@ impl Scene<'_> {
             }
         }
     }
-    pub(super) fn surface(&self, h: &Hit, d: Vec3) -> Surface {
-        Surface::on(&self.bvh.tris[h.tri], h.b.x, h.b.y, d)
+    /// Whether triangle `tri` at barycentrics `b` is a hole in its masked material `m` (flag 8):
+    /// the base map's level-0 alpha at the raw vertex UVs (a texture set has no cutoff, so box
+    /// mapping never reaches this). A cutoff c >= 0 is glTF MASK, a hole where alpha < c (c is
+    /// already divided by the factor's alpha). A negative one is BLEND, −(the factor's alpha):
+    /// stochastic transparency, opaque with probability alpha × −c, decided by a hash of the
+    /// ray's `key`, the triangle and the barycentrics, not a random draw.
+    pub(super) fn alpha_hole(&self, m: &PackedMaterial, tri: usize, b: Vec2, key: u32) -> bool {
+        let Some(map) = (m.maps[0] as usize)
+            .checked_sub(1)
+            .and_then(|i| self.textures.maps.get(i))
+        else {
+            return false;
+        };
+        // A procedural object has no UVs and no cutout, as on the GPU.
+        let Some(t) = self.bvh.tris.get(tri) else {
+            return false;
+        };
+        let uv = t.uv[0] * (1. - b.x - b.y) + t.uv[1] * b.x + t.uv[2] * b.y;
+        let a = super::textures::bilinear(map, uv).w;
+        let c = f32::from_bits(m.maps[3]);
+        if c >= 0. {
+            return a < c;
+        }
+        let k = mix(key ^ mix((tri as u32).wrapping_mul(0x85eb_ca6b)) ^ b.x.to_bits());
+        a * -c <= (k >> 8) as f32 * (1. / 16_777_216.)
     }
+    /// The nearest hit along o + t d in (1e-4, tmax) whose material `accept` takes, triangles
+    /// and procedural objects alike; with `any`, the first one found.
+    pub(super) fn intersect(
+        &self,
+        o: Vec3,
+        d: Vec3,
+        tmax: f32,
+        accept: &dyn Fn(u32, usize, Vec2) -> bool,
+        any: bool,
+    ) -> Option<Hit> {
+        let mut best = self.bvh.intersect(o, d, tmax, accept, any);
+        if any && best.is_some() {
+            return best;
+        }
+        for (i, sdf) in self.sdfs.iter().enumerate() {
+            let limit = best.map_or(tmax, |h| h.t);
+            if !accept(sdf.material, usize::MAX, Vec2::ZERO) {
+                continue;
+            }
+            if let Some(t) = sdf.hit(o, d, 1e-4, limit) {
+                best = Some(Hit {
+                    t,
+                    tri: usize::MAX,
+                    b: Vec2::ZERO,
+                    material: sdf.material,
+                    sdf: Some(i),
+                });
+                if any {
+                    break;
+                }
+            }
+        }
+        best
+    }
+    /// The surface at hit `h` of the ray from `o` along `d`.
+    pub(super) fn surface(&self, h: &Hit, o: Vec3, d: Vec3) -> Surface {
+        let Some(i) = h.sdf else {
+            return Surface::on(&self.bvh.tris[h.tri], h.b.x, h.b.y, d);
+        };
+        // One normal for shading and offsets; the side is the gradient's.
+        let mut n = self.sdfs[i].normal(o, d, h.t);
+        let front = d.dot(n) < 0.;
+        if !front {
+            n = -n;
+        }
+        Surface {
+            p: o + d * h.t,
+            n,
+            ng: n,
+            front,
+            material: h.material,
+        }
+    }
+}
+
+/// A 32-bit integer hash (lowbias32), for decisions that must not draw from the sampler.
+pub(super) fn mix(mut x: u32) -> u32 {
+    x ^= x >> 16;
+    x = x.wrapping_mul(0x7feb_352d);
+    x ^= x >> 15;
+    x = x.wrapping_mul(0x846c_a68b);
+    x ^ (x >> 16)
 }
 
 /// An object's unit world normal at a vertex, back to the inverse-transpose image of its unit
@@ -126,10 +254,44 @@ pub(super) fn interpolation_normal(s: &Settings, material: u32, n: Vec3) -> Vec3
         .max(1e-12)
 }
 
+/// Copies each object's mesh UVs into its vertices (`geometry` leaves them zero), where its
+/// material maps them: flag 16 without box mapping (base_scale.w <= 0), or an emissive map
+/// (flag 64, read on mesh UVs even with box mapping, as the GPU's emitter UV records) or an alpha
+/// cutout (flag 8, `alpha_hole`), as the
+/// GPU's instances carry them (`plan::mesh_uvs`, in the mesh source's order). Objects follow the static geometry
+/// in order, invisible ones empty and procedural ones absent, as `geometry::geometry` lays them.
+fn mesh_uvs(s: &Settings, materials: &[PackedMaterial], vertices: &mut [Vertex]) {
+    let mapped = |i: usize| {
+        materials.get(5 + i).is_some_and(|m| {
+            flags(m) & 16 != 0 && m.base_scale[3] <= 0. || flags(m) & (8 | 64) != 0
+        })
+    };
+    if !(0..s.objects.len()).any(mapped) {
+        return;
+    }
+    let mut at = crate::geometry::static_geometry(s).len();
+    for (i, o) in s.objects.iter().enumerate() {
+        if !o.sdf.is_none() || !o.visible {
+            continue;
+        }
+        let n = crate::geometry::object_source(o).1.len();
+        if mapped(i)
+            && let Some(run) = vertices.get_mut(at..at + n)
+        {
+            for (v, uv) in run.iter_mut().zip(crate::render::plan::mesh_uvs(o, n)) {
+                v.uv = uv;
+            }
+        }
+        at += n;
+    }
+}
+
 impl<'a> Scene<'a> {
     pub(super) fn new(s: &'a Settings, size: [u32; 2]) -> Self {
-        let materials = crate::lighting::materials(s);
-        let vertices: Vec<Vertex> = crate::geometry::geometry(s);
+        let mut materials = crate::lighting::materials(s);
+        let textures = super::textures::Textures::new(s, &mut materials);
+        let mut vertices: Vec<Vertex> = crate::geometry::geometry(s);
+        mesh_uvs(s, &materials, &mut vertices);
         let tris: Vec<Tri> = vertices
             .as_chunks::<3>()
             .0
@@ -138,11 +300,13 @@ impl<'a> Scene<'a> {
                 p: [0, 1, 2].map(|i| Vec3::from(v[i].position)),
                 n: [0, 1, 2]
                     .map(|i| interpolation_normal(s, v[i].material, Vec3::from(v[i].normal))),
+                uv: [0, 1, 2].map(|i| Vec2::from(v[i].uv)),
                 material: v[0].material,
             })
             .filter(|t| (t.material as usize) < materials.len())
             .collect();
         let bvh = Bvh::build(tris);
+        let sdfs = super::sdf::SdfObject::of(s);
         // Suns and sphere lights first, as `emitter_table`: a sphere by its surface's power
         // (4πr² × luminance), a sun by its irradiance (L·π·sin² of its radius) over the area of
         // the scene it lights (`Analytic::area`).
@@ -184,7 +348,8 @@ impl<'a> Scene<'a> {
                 weights.push(w);
             }
         }
-        // Emissive triangles by power: area × luminance of the emission (pattern-free colour).
+        // Emissive triangles by power: area × luminance of the emission (pattern-free colour;
+        // an emissive map's mean, as the GPU's table), uniform over each triangle.
         let mut tri_light = vec![0; bvh.tris.len()];
         for (i, t) in bvh.tris.iter().enumerate() {
             if let Some(e) = sphere_entry.get(&t.material) {
@@ -193,7 +358,7 @@ impl<'a> Scene<'a> {
             }
             let m = &materials[t.material as usize];
             if m.optical[1] > 0. {
-                let c = rgb(m.color_rough) * m.optical[1];
+                let c = crate::lighting::emitted(m);
                 weights.push(Scene::area(t) * lum(c).max(1e-6));
                 lights.push(Light::Tri(i));
                 tri_light[i] = lights.len() as u32;
@@ -211,8 +376,20 @@ impl<'a> Scene<'a> {
             eprintln!("CPU reference: {e:#}");
             None
         });
+        // Procedural emitters take light samples only alongside a light-sampling strategy (with
+        // BSDF sampling alone, their hits count in full); with triangles too, half of them.
+        let sdf_lights = if s.mis_mode.min(2) == 2 {
+            vec![]
+        } else {
+            super::lights::SdfLight::of(&sdfs, &materials)
+        };
+        let sdf_share = match (sdf_lights.is_empty(), lights.is_empty()) {
+            (true, _) => 0.,
+            (false, true) => 1.,
+            (false, false) => 0.5,
+        };
         // The environment and the emitters share light samples half and half.
-        let p_env = match (&env, lights.is_empty()) {
+        let p_env = match (&env, lights.is_empty() && sdf_lights.is_empty()) {
             (None, _) => 0.,
             (Some(_), true) => 1.,
             (Some(_), false) => 0.5,
@@ -220,10 +397,13 @@ impl<'a> Scene<'a> {
         let mut scene = Scene {
             s,
             bvh,
+            sdfs,
             materials,
             lights,
             cdf,
             tri_light,
+            sdf_lights,
+            sdf_share,
             eye: Vec3::ZERO,
             inverse_vp: Mat4::IDENTITY,
             frame: Default::default(),
@@ -232,6 +412,7 @@ impl<'a> Scene<'a> {
             size,
             env,
             p_env,
+            textures,
         };
         scene.set_camera(s, size);
         scene
