@@ -57,10 +57,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         s.integrator != 0,
         "BDPT and photon mapping (the reference is a path tracer)",
     );
-    need(
-        s.projection != 0,
-        "a camera projection other than perspective",
-    );
     need(s.aperture > 0., "depth of field");
     need(s.lens_system != 0, "a real lens system");
     need(

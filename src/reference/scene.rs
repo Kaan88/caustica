@@ -24,6 +24,7 @@ pub(super) struct Scene<'a> {
     pub(super) cdf: Vec<f32>,
     pub(super) eye: Vec3,
     pub(super) inverse_vp: Mat4,
+    pub(super) frame: super::camera::Frame,
     /// The dielectric the camera is inside (`geometry::camera_medium`), as the GPU seeds it.
     pub(super) camera_media: Vec<(u32, u32)>,
     pub(super) size: [u32; 2],
@@ -130,6 +131,7 @@ impl<'a> Scene<'a> {
             cdf,
             eye: Vec3::ZERO,
             inverse_vp: Mat4::IDENTITY,
+            frame: Default::default(),
             camera_media: vec![],
             size,
         };
@@ -142,6 +144,15 @@ impl<'a> Scene<'a> {
         let (view, proj, eye) = camera.camera(size[0] as f32 / size[1] as f32);
         self.eye = eye;
         self.inverse_vp = (proj * view).inverse();
+        self.frame = super::camera::Frame {
+            right: view.row(0).truncate(),
+            up: view.row(1).truncate(),
+            forward: -view.row(2).truncate(),
+            aspect: size[0] as f32 / size[1] as f32,
+            tan_half: 1. / proj.y_axis.y,
+            ortho_half: camera.distance * (camera.fov.to_radians() * 0.5).tan(),
+            projection: camera.projection,
+        };
         self.camera_media = match crate::geometry::camera_medium(camera, eye) {
             0 => vec![],
             e => vec![(e >> 13, (e & 0x1fff) - 1)],

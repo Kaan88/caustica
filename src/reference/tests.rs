@@ -87,7 +87,6 @@ fn every_missing_feature_is_refused() {
         ("battle", edit(&|s| s.battle = true)),
         ("firefly", edit(&|s| s.firefly = 10.)),
         ("BDPT", edit(&|s| s.integrator = 1)),
-        ("projection", edit(&|s| s.projection = 1)),
         ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
         ("sphere light", light(LightKind::Sphere)),
@@ -356,6 +355,7 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         cdf: vec![],
         eye: Vec3::ZERO,
         inverse_vp: Mat4::IDENTITY,
+        frame: Default::default(),
         camera_media: vec![],
         size: [1, 1],
     };
@@ -547,4 +547,35 @@ fn a_paused_view_holds_after_its_pass_and_goes_on() {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
     assert!(live.state().samples > held);
+}
+
+#[test]
+fn camera_rays_follow_each_projection() {
+    let mut s = Settings::default();
+    let centre = Vec2::new(160., 120.);
+    let corner = Vec2::new(10., 10.);
+    let perspective = Scene::new(&s, [320, 240]);
+    let f = perspective.frame;
+    // Perspective: the dispatcher is the plain pinhole, and the centre looks down the axis.
+    let (o, d) = perspective.camera_ray(corner);
+    assert_eq!(
+        (o, d),
+        (perspective.eye, perspective.camera_direction(corner))
+    );
+    assert!(perspective.camera_ray(centre).1.dot(f.forward) > 0.9999);
+    // Orthographic: parallel rays from points spread across the film.
+    s.projection = 1;
+    let ortho = Scene::new(&s, [320, 240]);
+    let ((oa, da), (ob, db)) = (ortho.camera_ray(centre), ortho.camera_ray(corner));
+    assert_eq!(da, db);
+    assert!((oa - ortho.eye).length() < 1e-3 && (ob - oa).length() > 0.1);
+    // Equirectangular: the left and right edges look backward, the top straight up.
+    s.projection = 2;
+    let pano = Scene::new(&s, [320, 240]);
+    assert!(pano.camera_ray(Vec2::new(0., 120.)).1.dot(f.forward) < -0.999);
+    assert!(pano.camera_ray(Vec2::new(160., 0.)).1.dot(f.up) > 0.999);
+    // Little planet: the centre looks straight down.
+    s.projection = 3;
+    let planet = Scene::new(&s, [320, 240]);
+    assert!(planet.camera_ray(centre).1.y < -0.999);
 }

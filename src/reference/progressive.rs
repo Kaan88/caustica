@@ -119,8 +119,8 @@ impl<'a> Progressive<'a> {
                         let mut r = Rng::new((y * w + x) as u64, k as u64);
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
-                        let d = scene.camera_direction(pixel);
-                        *sum += scene.radiance(scene.eye, d, &mut r).as_dvec3();
+                        let (o, d) = scene.camera_ray(pixel);
+                        *sum += scene.radiance(o, d, &mut r).as_dvec3();
                     }
                 }
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -172,8 +172,8 @@ impl<'a> Progressive<'a> {
                         ((x as f32 + 0.5) * k as f32).min(w as f32 - 0.5),
                         ((y as f32 + 0.5) * k as f32).min(h as f32 - 0.5),
                     );
-                    let d = scene.camera_direction(pixel);
-                    *c = scene.radiance(scene.eye, d, &mut r);
+                    let (o, d) = scene.camera_ray(pixel);
+                    *c = scene.radiance(o, d, &mut r);
                 }
             },
         );
