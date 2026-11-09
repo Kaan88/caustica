@@ -3,6 +3,7 @@
 
     python tools/oracle.py [--exe PATH] [--scenes a,b,...] [--integrator 0|1|2] [--time T]
                            [--size 320x240] [--gpu-spp 1024] [--cpu-spp 512] [--out DIR]
+                           [--blur-frame N [--fps 24]]
 
 The test is statistical. d = GPU - CPU luminance per pixel; the scene structure cancels and
 what is left is the noise of both renders, so the standard error of the image mean of d is
@@ -15,6 +16,11 @@ With --time both sides render the scene as it stands at T seconds, frozen (refer
 tracks, the per-frame script, physics and cloth in fixed steps, the rotating camera). Without it
 the GPU's physics and rotation run on the wall clock while the CPU's stay at t = 0, so those
 scenes need --time.
+
+With --blur-frame N both sides render frame N of a timeline export, motion blur included: the
+GPU exports every frame of the timeline as EXR (`--turntable-timeline`, each pass one moment in
+the shutter) and frame N is taken; the CPU renders `--reference-time N/fps` (reference::exposure,
+the shutter's moments). --fps must be the scene's timeline rate.
 
 Scenes the CPU reference refuses (reference::unsupported) are reported as SKIP; the CPU side
 always path-traces (a scene file's integrator is overridden), and --rgb turns spectral off on both. Default list:
@@ -77,6 +83,8 @@ def main():
     p.add_argument('--rgb', action='store_true', help='render spectral scenes in RGB on both sides')
     p.add_argument('--set', action='append', default=[], help='key=json for both sides (repeatable)')
     p.add_argument('--time', help='seconds on the timeline, frozen, for both sides')
+    p.add_argument('--blur-frame', type=int, help='frame of a timeline export, motion-blurred')
+    p.add_argument('--fps', type=int, default=24, help="the scene's timeline rate (--blur-frame)")
     p.add_argument('--size', default='320x240')
     p.add_argument('--gpu-spp', type=int, default=1024)
     p.add_argument('--cpu-spp', type=int, default=512)
@@ -108,7 +116,8 @@ def main():
         cpu = os.path.join(a.out, stem + '.cpu.exr')
         gpu = os.path.join(a.out, stem + f'.gpu{a.integrator}.exr')
         # The CPU reference is a path tracer; it is the judge for every GPU integrator.
-        code, out = run([a.exe, *scene_args(name), *size,
+        when = [] if a.blur_frame is None else ['--reference-time', str(a.blur_frame / a.fps)]
+        code, out = run([a.exe, *scene_args(name), *size, *when,
                          '--set', 'integrator=0', '--set', f'firefly={a.firefly}', '--reference', str(a.cpu_spp), '--capture', cpu])
         if code != 0:
             why = out.strip().splitlines()[-1] if out.strip() else f'exit {code}'
@@ -116,10 +125,25 @@ def main():
             continue
         per = 1 if a.firefly > 0 else 4
         frames = max(1, a.gpu_spp // per)
-        code, out = run([a.exe, '--headless', *scene_args(name), *size, '--no-rr', '--raw',
-                         '--scale', '1', '--spp', str(per), '--samples', str(frames * per),
-                         '--frames', str(frames), '--set', f'firefly={a.firefly}',
-                         '--set', f'integrator={a.integrator}', '--capture', gpu])
+        if a.blur_frame is not None:
+            # No dot: the export would take what follows it for an extension.
+            folder = os.path.join(a.out, stem + '-frames')
+            os.makedirs(folder, exist_ok=True)
+            code, out = run([a.exe, '--headless', *scene_args(name), *size, '--no-rr', '--raw',
+                             '--scale', '1', '--spp', str(per), '--set', f'firefly={a.firefly}',
+                             '--set', f'integrator={a.integrator}', '--turntable', folder,
+                             '--turntable-timeline', '--turntable-format', 'exr',
+                             '--turntable-spp', str(frames * per)])
+            frame = os.path.join(folder, f'{a.blur_frame + 1:05}.exr')
+            if code == 0 and os.path.exists(frame):
+                os.replace(frame, gpu)
+            elif code == 0:
+                code, out = 1, 'no frame ' + frame
+        else:
+            code, out = run([a.exe, '--headless', *scene_args(name), *size, '--no-rr', '--raw',
+                             '--scale', '1', '--spp', str(per), '--samples', str(frames * per),
+                             '--frames', str(frames), '--set', f'firefly={a.firefly}',
+                             '--set', f'integrator={a.integrator}', '--capture', gpu])
         if code != 0:
             print(f'{name:28} GPU FAILED  {out.strip()[-200:]}')
             failed += 1

@@ -29,7 +29,7 @@ mod scene;
 #[cfg(test)]
 mod tests;
 
-pub use prepare::{at_time, prepare};
+pub use prepare::{SHUTTER_MOMENTS, at_time, exposure, prepare};
 pub use progressive::{Live, LiveState, Progressive, render};
 
 /// What a scene uses that the reference does not render; empty when it can.
@@ -115,13 +115,18 @@ fn material_records(s: &Settings) -> Vec<crate::lighting::PackedMaterial> {
         .map(|(_, m)| m)
         .collect()
 }
-/// `--reference SPP`: renders the scene as it stands at time `t` (`prepare`) and writes a linear
-/// EXR (or a PNG of the clamped values).
-pub fn run(s: &Settings, t: f32, size: [u32; 2], spp: u32, path: &std::path::Path) -> Result<()> {
+/// `--reference SPP`: renders `moments` (one scene, `prepare`d, or a motion-blurred frame's,
+/// `exposure`) and writes a linear EXR (or a PNG of the clamped values).
+pub fn run(moments: &[Settings], size: [u32; 2], spp: u32, path: &std::path::Path) -> Result<()> {
     let start = std::time::Instant::now();
-    let rgba = render(&prepare(s, t), size, spp, &|f| {
-        println!("REFERENCE_PROGRESS {:.0}%", f * 100.)
-    })?;
+    let mut p = Progressive::over(moments, size)?;
+    p.pass(
+        spp,
+        std::thread::available_parallelism().map_or(4, |n| n.get()),
+        &std::sync::atomic::AtomicBool::new(false),
+        &|f| println!("REFERENCE_PROGRESS {:.0}%", f * 100.),
+    );
+    let rgba = p.image();
     let rgb: Vec<f32> = rgba
         .as_chunks::<4>()
         .0

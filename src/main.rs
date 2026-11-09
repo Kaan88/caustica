@@ -240,6 +240,33 @@ struct App {
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 308;
+/// Light painting's rule (both renderers): an edit keeps the long exposure when the transport
+/// keys differ only in the camera and the lights. Keys that don't parse never do.
+pub(crate) fn painting_keeps(old: &str, new: &str) -> bool {
+    let strip = |key: &str| {
+        let mut v: serde_json::Value = serde_json::from_str(key).ok()?;
+        let o = v.as_object_mut()?;
+        for k in [
+            "yaw",
+            "pitch",
+            "distance",
+            "target",
+            "fov",
+            "light_position",
+            "light_size",
+            "light_aspect",
+            "light_intensity",
+            "light_temperature",
+            "light_tint",
+            "light_on",
+            "lights",
+        ] {
+            o.remove(k);
+        }
+        Some(v)
+    };
+    matches!((strip(old), strip(new)), (Some(a), Some(b)) if a == b)
+}
 fn transport_key(s: &Settings) -> String {
     // The JSON tree without objects and lights (hashed below); the caller compares fields.
     let mut j = {
@@ -422,6 +449,7 @@ impl App {
         let mut self_test = false;
         let mut reference: Option<u32> = None;
         let mut time: Option<f32> = None;
+        let mut reference_time: Option<f32> = None;
         let mut selected_preset = 0;
         let mut update_from = None;
         let mut update_yes = false;
@@ -600,6 +628,16 @@ impl App {
                             .context("--time needs seconds")?,
                     );
                 }
+                // `--reference` renders a timeline export's frame at this time, motion blur and all
+                // (reference::exposure).
+                "--reference-time" => {
+                    reference_time = Some(
+                        args.next()
+                            .context("--reference-time needs seconds")?
+                            .parse()
+                            .context("--reference-time needs seconds")?,
+                    );
+                }
                 "--no-rr" => s.rr = false,
                 "--rr" => s.rr = true,
                 "--require-rr" => {
@@ -720,7 +758,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --make-thumbnails --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -743,6 +781,10 @@ impl App {
             (64..=8192).contains(&size[0]) && (64..=8192).contains(&size[1]),
             "Dimensions must be 64–8192"
         );
+        anyhow::ensure!(
+            reference_time.is_none() || reference.is_some() && time.is_none(),
+            "--reference-time goes with --reference, instead of --time"
+        );
         if let Some(t) = time {
             anyhow::ensure!(t >= 0., "--time can't be negative");
             s = reference::at_time(&s, t);
@@ -757,7 +799,11 @@ impl App {
         if let Some(spp) = reference {
             let path = capture.context("--reference needs --capture out.exr")?;
             anyhow::ensure!(spp > 0, "--reference needs at least one sample");
-            reference::run(&s, 0., size, spp, &path)?;
+            let moments = match reference_time {
+                Some(t) => reference::exposure(&s, t)?,
+                None => vec![reference::prepare(&s, 0.)],
+            };
+            reference::run(&moments, size, spp, &path)?;
             std::process::exit(0);
         }
         anyhow::ensure!(frames != Some(0), "--frames must be positive");
@@ -1434,22 +1480,7 @@ impl App {
                 }
                 // Light painting: moving or changing lights keeps the long exposure going.
                 let camera_moved = old != new;
-                let painted = self.painting && {
-                    for k in [
-                        "light_position",
-                        "light_size",
-                        "light_aspect",
-                        "light_intensity",
-                        "light_temperature",
-                        "light_tint",
-                        "light_on",
-                        "lights",
-                    ] {
-                        old.as_object_mut().unwrap().remove(k);
-                        new.as_object_mut().unwrap().remove(k);
-                    }
-                    old == new
-                };
+                let painted = self.painting && painting_keeps(&self.last_key, &key);
                 if !painted {
                     g.reset(camera_moved);
                 }
@@ -1875,6 +1906,7 @@ impl App {
             }
             if let Some(live) = &mut self.cpu_reference {
                 live.set_paused(self.paused);
+                live.set_painting(self.painting);
                 if live.key != self.last_key || live.size != size {
                     live.follow(s.clone(), self.last_key.clone(), size);
                     // The old image no longer matches; the split shows the GPU until the first

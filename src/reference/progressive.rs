@@ -59,7 +59,9 @@ fn for_rows<T: Send>(
 /// and sample index, so any split into passes gives the same bits as one pass. The sums are f64:
 /// past tens of thousands of samples an f32 sum drops the low bits of what it adds.
 pub struct Progressive<'a> {
-    scene: Scene<'a>,
+    /// The scene, or with motion blur its moments inside the open shutter (`exposure`): each
+    /// sample draws one, so the mean is the shutter's average.
+    scenes: Vec<Scene<'a>>,
     pub(super) sums: Vec<DVec3>,
     pub samples: u32,
     /// Its threads run at low priority: a render behind a window.
@@ -67,24 +69,44 @@ pub struct Progressive<'a> {
 }
 impl<'a> Progressive<'a> {
     pub fn new(s: &'a Settings, size: [u32; 2]) -> Result<Self> {
-        let missing = unsupported(s);
+        Self::over(std::slice::from_ref(s), size)
+    }
+    /// The average of the scenes `moments` (one or more, of the same camera): a motion-blurred
+    /// frame. Every moment is checked, since a key can switch a feature on.
+    pub fn over(moments: &'a [Settings], size: [u32; 2]) -> Result<Self> {
+        anyhow::ensure!(!moments.is_empty(), "No scene to render");
+        let mut missing: Vec<String> = vec![];
+        for m in moments.iter().flat_map(unsupported) {
+            if !missing.contains(&m) {
+                missing.push(m);
+            }
+        }
         anyhow::ensure!(
             missing.is_empty(),
             "The CPU reference can't render this scene: {}",
             missing.join(", ")
         );
-        let p = Self::partial(s, size);
-        anyhow::ensure!(
-            p.scene.env.is_some() || !s.physical_sky.on && s.hdri.is_empty(),
-            "The CPU reference couldn't load the environment"
-        );
+        let mut p = Self::partial(&moments[0], size);
+        p.scenes
+            .extend(moments[1..].iter().map(|s| Scene::new(s, size)));
+        for scene in &p.scenes {
+            let s = scene.s;
+            anyhow::ensure!(
+                scene.env.is_some() || !s.physical_sky.on && s.hdri.is_empty(),
+                "The CPU reference couldn't load the environment"
+            );
+        }
         Ok(p)
+    }
+    /// The first (or only) moment: what the camera, the size and the preview read.
+    fn scene(&self) -> &Scene<'a> {
+        &self.scenes[0]
     }
     /// A render of what the renderer knows of the scene, whatever `unsupported` lists: for looking
     /// at, with that list on screen, never for measuring.
     pub(super) fn partial(s: &'a Settings, size: [u32; 2]) -> Self {
         Progressive {
-            scene: Scene::new(s, size),
+            scenes: vec![Scene::new(s, size)],
             sums: vec![DVec3::ZERO; size[0] as usize * size[1] as usize],
             samples: 0,
             background: false,
@@ -92,11 +114,18 @@ impl<'a> Progressive<'a> {
     }
     /// Starts over from another viewpoint of the same scene, keeping the BVH and the light tables.
     pub(super) fn move_camera(&mut self, camera: &Settings, size: [u32; 2]) {
-        self.scene.set_camera(camera, size);
+        self.aim(camera, size);
         self.sums.clear();
         self.sums
             .resize(size[0] as usize * size[1] as usize, DVec3::ZERO);
         self.samples = 0;
+    }
+    /// Moves the camera and keeps the sums: light painting's long exposure, which a camera move
+    /// smears as it would a photograph's.
+    pub(super) fn aim(&mut self, camera: &Settings, size: [u32; 2]) {
+        for scene in &mut self.scenes {
+            scene.set_camera(camera, size);
+        }
     }
     /// Adds `spp` samples to every pixel on `threads` threads. Returns false when `cancel` stopped
     /// it partway; the sums are then mixed and the render should be dropped.
@@ -107,9 +136,9 @@ impl<'a> Progressive<'a> {
         cancel: &AtomicBool,
         progress: &(dyn Fn(f32) + Sync),
     ) -> bool {
-        let scene = &self.scene;
-        let s = scene.s;
-        let (w, h) = (scene.size[0] as usize, scene.size[1] as usize);
+        let scenes = &self.scenes;
+        let s = scenes[0].s;
+        let (w, h) = (scenes[0].size[0] as usize, scenes[0].size[1] as usize);
         let first = self.samples;
         let done = AtomicUsize::new(0);
         for_rows(
@@ -122,6 +151,12 @@ impl<'a> Progressive<'a> {
                 for (x, sum) in row.iter_mut().enumerate() {
                     for k in first..first + spp {
                         let mut r = Rng::new((y * w + x) as u64, k as u64);
+                        // Drawn only when there are moments to choose from, so a still keeps
+                        // its sample sequences.
+                        let scene = match scenes.len() {
+                            1 => &scenes[0],
+                            m => &scenes[((r.f() * m as f32) as usize).min(m - 1)],
+                        };
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
                         let c = match scene.camera_ray(pixel, &mut r) {
@@ -162,7 +197,7 @@ impl<'a> Progressive<'a> {
         threads: usize,
         cancel: &AtomicBool,
     ) -> Option<Vec<f32>> {
-        let scene = &self.scene;
+        let scene = self.scene();
         let [w, h] = scene.size.map(|v| v as usize);
         let cols = w.div_ceil(k);
         let mut blocks = vec![Vec3::ZERO; cols * h.div_ceil(k)];
@@ -219,6 +254,8 @@ pub(super) fn same_but_camera(a: &Settings, b: &Settings) -> bool {
 struct Request {
     settings: Settings,
     size: [u32; 2],
+    /// Light painting keeps the exposure through this edit (`crate::painting_keeps`).
+    paint: bool,
 }
 /// The CPU renderer running in the background for the viewport, in one of two roles: the full
 /// view (`view`: renders what it can and says what it left out, previews while the camera moves),
@@ -230,6 +267,8 @@ pub struct Live {
     pub key: String,
     pub size: [u32; 2],
     pub view: bool,
+    /// The scene's sample cap, which light painting lifts.
+    cap: u32,
     shared: Arc<Shared>,
 }
 #[derive(Default)]
@@ -239,6 +278,9 @@ struct Shared {
     /// Ends the current pass: a request is waiting. Set and cleared under `inner`'s lock.
     cancel: AtomicBool,
     paused: AtomicBool,
+    /// Light painting (the app's L): edits of the lights and the camera keep the exposure, which
+    /// goes on past the sample cap, as the GPU's does.
+    painting: AtomicBool,
     inner: Mutex<Inner>,
     wake: Condvar,
 }
@@ -278,7 +320,12 @@ impl Live {
             inner.state.threads = threads;
         }
         let job = shared.clone();
-        let first = Request { settings: s, size };
+        let cap = s.max_samples.max(1);
+        let first = Request {
+            settings: s,
+            size,
+            paint: false,
+        };
         let spawned = std::thread::Builder::new()
             .name("cpu-render".into())
             .spawn(move || {
@@ -294,6 +341,7 @@ impl Live {
             key,
             size,
             view,
+            cap,
             shared,
         }
     }
@@ -301,22 +349,42 @@ impl Live {
     /// drag can't queue work. The view keeps its last image until the next one lands; the
     /// reference has none until then.
     pub fn follow(&mut self, s: Settings, key: String, size: [u32; 2]) {
+        let painting = self.shared.painting.load(Ordering::Relaxed);
+        let paint = painting && size == self.size && crate::painting_keeps(&self.key, &key);
         self.key = key;
         self.size = size;
+        self.cap = s.max_samples.max(1);
         let mut inner = lock(&self.shared.inner);
         let st = &mut inner.state;
-        st.cap = s.max_samples.max(1);
-        st.preview = self.view;
-        st.samples = 0;
-        st.seconds = 0.;
+        st.cap = if painting { u32::MAX } else { self.cap };
         st.error = None;
-        if !self.view {
-            st.image = None;
-            st.fresh = false;
+        if !paint {
+            st.preview = self.view;
+            st.samples = 0;
+            st.seconds = 0.;
+            if !self.view {
+                st.image = None;
+                st.fresh = false;
+            }
         }
-        inner.request = Some(Request { settings: s, size });
-        self.shared.cancel.store(true, Ordering::Relaxed);
+        inner.request = Some(Request {
+            settings: s,
+            size,
+            paint,
+        });
+        // A painted exposure lets the running pass finish: a cancelled one leaves some rows with
+        // a sample more than the rest.
+        if !paint {
+            self.shared.cancel.store(true, Ordering::Relaxed);
+        }
         self.shared.wake.notify_all();
+    }
+    /// Light painting on or off; turning it on or off doesn't restart (the app restarts it).
+    pub fn set_painting(&self, on: bool) {
+        if self.shared.painting.swap(on, Ordering::Relaxed) != on {
+            lock(&self.shared.inner).state.cap = if on { u32::MAX } else { self.cap };
+            self.shared.wake.notify_all();
+        }
     }
     /// Progress without the image.
     pub fn state(&self) -> LiveState {
@@ -404,6 +472,8 @@ impl Shared {
     /// The thread: builds the scene of each request whose scene differs from the last.
     fn run(&self, first: Request, view: bool, threads: usize) {
         let mut next = first;
+        // Light painting's exposure, carried from one scene to the next.
+        let mut carry: Option<(Vec<DVec3>, u32, f32)> = None;
         loop {
             let (s, size) = (next.settings, next.size);
             let built = if view {
@@ -416,7 +486,20 @@ impl Shared {
             let request = match built {
                 Ok(mut p) => {
                     p.background = true;
-                    self.drive(&s, &mut p, view, threads)
+                    let mut spent = 0.;
+                    if let Some((sums, samples, seconds)) = carry.take()
+                        && next.paint
+                        && sums.len() == p.sums.len()
+                    {
+                        (p.sums, p.samples, spent) = (sums, samples, seconds);
+                    }
+                    let request = self.drive(&s, &mut p, view, threads, spent);
+                    if let Some((r, seconds)) = &request
+                        && r.paint
+                    {
+                        carry = Some((std::mem::take(&mut p.sums), p.samples, *seconds));
+                    }
+                    request.map(|(r, _)| r)
                 }
                 Err(e) => {
                     self.refuse(format!("{e:#}"));
@@ -437,31 +520,41 @@ impl Shared {
             }
         }
     }
-    /// Renders one scene from whatever viewpoints arrive. Returns a request for another scene, or
-    /// None when told to stop. A cancelled pass always has a request behind it, which starts the
-    /// sums over.
+    /// Renders one scene from whatever viewpoints arrive. Returns a request for another scene
+    /// (with the seconds spent, which light painting carries on), or None when told to stop. A
+    /// cancelled pass always has a request behind it, which starts the sums over, except under
+    /// light painting, whose request keeps them: the cancelled pass never added to them.
     fn drive(
         &self,
         s: &Settings,
         p: &mut Progressive<'_>,
         view: bool,
         threads: usize,
-    ) -> Option<Request> {
-        let cap = s.max_samples.max(1);
+        mut spent: f32,
+    ) -> Option<(Request, f32)> {
         let mut block = 8;
-        let mut previewed = !view;
+        // A painted exposure has its image already; a preview would replace it.
+        let mut previewed = !view || p.samples > 0;
         let mut spp = 1;
-        let mut spent = 0.;
         while !self.stopped() {
             if let Some(r) = self.take() {
                 if !same_but_camera(s, &r.settings) {
-                    return Some(r);
+                    return Some((r, spent));
                 }
-                p.move_camera(&r.settings, r.size);
-                previewed = !view;
-                spp = 1;
-                spent = 0.;
+                if r.paint {
+                    p.aim(&r.settings, r.size);
+                } else {
+                    p.move_camera(&r.settings, r.size);
+                    previewed = !view;
+                    spp = 1;
+                    spent = 0.;
+                }
             }
+            let cap = if self.painting.load(Ordering::Relaxed) {
+                u32::MAX
+            } else {
+                s.max_samples.max(1)
+            };
             if !previewed {
                 previewed = true;
                 // Not cancelled by the next request: while the camera moves each frame brings one,
@@ -471,9 +564,9 @@ impl Shared {
                 if let Some(image) = p.preview(block, threads, &self.stop) {
                     self.publish(image, true, 0, 0.);
                 }
-                let blocks = (p.scene.size[0] as usize).div_ceil(block)
-                    * (p.scene.size[1] as usize).div_ceil(block);
-                let pixels = p.scene.size[0] as f32 * p.scene.size[1] as f32;
+                let blocks = (p.scene().size[0] as usize).div_ceil(block)
+                    * (p.scene().size[1] as usize).div_ceil(block);
+                let pixels = p.scene().size[0] as f32 * p.scene().size[1] as f32;
                 block = preview_block(t.elapsed().as_secs_f32() * pixels / blocks as f32);
                 continue;
             }
