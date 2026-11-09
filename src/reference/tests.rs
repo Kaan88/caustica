@@ -121,7 +121,6 @@ fn every_missing_feature_is_refused() {
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
         ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
-        ("IES", light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006))),
         (
             "SDF",
             edit(&|s| {
@@ -168,7 +167,7 @@ fn every_missing_feature_is_refused() {
     }
     // A profile's numbers in its light's record don't read as materials.
     let ies = light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006));
-    assert_eq!(unsupported(&ies), ["IES profiles"]);
+    assert!(unsupported(&ies).is_empty(), "{:?}", unsupported(&ies));
     // Walls that aren't there need no texture.
     let mut s = Settings::default();
     s.cornell_room = false;
@@ -195,6 +194,37 @@ fn a_meshs_maps_are_refused_unless_turned_off() {
     s.objects = vec![quad];
     assert!(!unsupported(&s).is_empty());
     let _ = std::fs::remove_dir_all(&dir);
+}
+/// A light's packed profile reads back as the profile: its samples at their angles, linear in
+/// angle between them, nothing behind the light, and it replaces a spot's cone.
+#[test]
+fn ies_profile_reads_the_packed_samples() {
+    use super::bsdf::{ies_profile, spot};
+    let spec = crate::ies::beam_spec(20., 0.1, 0.006);
+    let p = crate::ies::profile(&spec).unwrap();
+    let mut s = light_with_ies(spec);
+    s.lights[0].kind = crate::scene::LightKind::Spot;
+    let m = *crate::lighting::materials(&s)
+        .iter()
+        .find(|m| m.lobes[3] as u32 & 16384 != 0)
+        .unwrap();
+    assert_eq!(m.lobes[3] as u32 & 32, 0, "a profile has no cone");
+    let step = 90. / (crate::ies::SAMPLES - 1) as f32;
+    let byte = 0.5 / 255. + 1e-4;
+    for i in [0, 7, 30, 58] {
+        let c = (i as f32 * step).to_radians().cos();
+        assert!((ies_profile(&m, c) - p[i]).abs() < byte, "sample {i}");
+    }
+    // Halfway between samples 3 and 4 (45 degrees falls on neither).
+    let c = (3.5 * step).to_radians().cos();
+    assert!((ies_profile(&m, c) - 0.5 * (p[3] + p[4])).abs() < byte);
+    let c45 = 45f32.to_radians().cos();
+    let x = 45. / step;
+    let want = p[x as usize] + (p[x as usize + 1] - p[x as usize]) * x.fract();
+    assert!((ies_profile(&m, c45) - want).abs() < byte);
+    assert_eq!(ies_profile(&m, 0.), 0.);
+    assert_eq!(ies_profile(&m, -0.5), 0.);
+    assert_eq!(spot(&m, 1.), ies_profile(&m, 1.));
 }
 fn light_with_ies(ies: String) -> Settings {
     let mut s = Settings::default();

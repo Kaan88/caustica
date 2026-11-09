@@ -81,11 +81,7 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
             || s.cornell_room && !s.walls.texture.is_empty(),
         "texture maps (with their alpha cutouts and emissive maps)",
     );
-    for (what, bit) in [
-        ("portals", 4u32),
-        ("beam splitters", 4096),
-        ("IES profiles", 16384),
-    ] {
+    for (what, bit) in [("portals", 4u32), ("beam splitters", 4096)] {
         need(
             crate::lighting::materials(s)
                 .iter()

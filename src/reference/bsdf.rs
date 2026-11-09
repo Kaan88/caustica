@@ -193,8 +193,39 @@ pub(super) fn material_at(m: &PackedMaterial, p: Vec3) -> PackedMaterial {
 pub(super) fn flags(m: &PackedMaterial) -> u32 {
     m.lobes[3] as u32
 }
-/// The spot falloff (`spot`, flag 32): smoothstep between the cone's cosines.
+/// Sample `i` of a light's IES profile (flag 16384), from the fields `lighting::materials`
+/// stores `ies::pack`'s 20 words in, in that order: three bytes per word, low first.
+pub(super) fn ies_sample(m: &PackedMaterial, i: usize) -> f32 {
+    let k = i / 3;
+    let word = match k {
+        0..4 => m.layers[k],
+        4..8 => m.sheen[k - 4],
+        8..12 => m.base_scale[k - 8],
+        12..16 => m.surface_scale[k - 12],
+        16..19 => m.medium[k - 16],
+        _ => m.phase[0],
+    };
+    ((word as u32 >> (8 * (i % 3))) & 255) as f32 / 255.
+}
+/// The profile's relative intensity at cosine `c` from the light's normal: samples evenly
+/// spaced in angle over 0–90°, interpolated linearly in angle; nothing behind the light.
+pub(super) fn ies_profile(m: &PackedMaterial, c: f32) -> f32 {
+    if c <= 0. {
+        return 0.;
+    }
+    let last = crate::ies::SAMPLES - 1;
+    let x = c.min(1.).acos() / std::f32::consts::FRAC_PI_2 * last as f32;
+    let i = (x as usize).min(last - 1);
+    let (a, b) = (ies_sample(m, i), ies_sample(m, i + 1));
+    a + (b - a) * (x - i as f32)
+}
+/// A light's factor toward cosine `c` from its normal: its IES profile (flag 16384), which
+/// replaces a spot's cone, else the spot falloff (flag 32): smoothstep between the cone's
+/// cosines, else 1.
 pub(super) fn spot(m: &PackedMaterial, c: f32) -> f32 {
+    if flags(m) & 16384 != 0 {
+        return ies_profile(m, c);
+    }
     if flags(m) & 32 == 0 {
         return 1.;
     }
