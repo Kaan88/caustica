@@ -1,4 +1,4 @@
-//! Light sampling: emissive triangles by power.
+//! Light sampling: the environment by its share, else emissive triangles by power.
 use super::bsdf::{emitted, material_at};
 use super::bvh::Tri;
 use super::sampling::Rng;
@@ -18,20 +18,26 @@ impl Scene<'_> {
     pub(super) fn area(t: &Tri) -> f32 {
         (t.p[1] - t.p[0]).cross(t.p[2] - t.p[0]).length() * 0.5
     }
-    /// The solid-angle pdf of reaching emitter triangle `tri` at `at` from `from`.
+    /// The solid-angle pdf of light sampling reaching emitter triangle `tri` at `at` from `from`.
     pub(super) fn light_pdf(&self, tri: usize, from: Vec3, at: Vec3) -> f32 {
         let Ok(k) = self.lights.binary_search(&tri) else {
             return 0.;
         };
-        let p = self.cdf[k] - if k > 0 { self.cdf[k - 1] } else { 0. };
+        let p = (1. - self.p_env) * (self.cdf[k] - if k > 0 { self.cdf[k - 1] } else { 0. });
         let t = &self.bvh.tris[tri];
         let ng = (t.p[1] - t.p[0]).cross(t.p[2] - t.p[0]).normalize();
         let d = at - from;
         let c = ng.dot(d.normalize()).abs();
         p * d.length_squared() / (Self::area(t) * c).max(1e-12)
     }
-    /// One emitter point: direction, radiance arriving, solid-angle pdf, shadow-ray length.
+    /// One light sample: direction, radiance arriving, solid-angle pdf, shadow-ray length.
     pub(super) fn sample_light(&self, x: Vec3, r: &mut Rng) -> Option<(Vec3, Vec3, f32, f32)> {
+        if let Some(env) = &self.env
+            && r.f() < self.p_env
+        {
+            let (ld, pe) = env.sample(r);
+            return (pe > 0.).then(|| (ld, env.radiance(ld), self.p_env * pe, 1e4));
+        }
         if self.lights.is_empty() {
             return None;
         }

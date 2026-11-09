@@ -18,6 +18,7 @@ use anyhow::{Context, Result};
 mod bsdf;
 mod bvh;
 mod camera;
+mod environment;
 mod integrators;
 mod lights;
 mod media;
@@ -39,10 +40,12 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
             out.push(what.to_string());
         }
     };
-    need(!s.hdri.is_empty(), "an HDRI environment");
-    need(s.physical_sky.on, "the physical sky");
+    // The physical sky's sun is an analytic sun light (`lighting::analytic`).
+    need(
+        s.physical_sky.on && s.physical_sky.sun().is_some(),
+        "the physical sky's sun above the horizon (sun lights)",
+    );
     need(s.fog.density > 0., "fog");
-    need(s.shadow_catcher, "the shadow catcher");
     need(s.spectral, "spectral rendering");
     // At the last bounce MIS keeps only its share of a light sample, the BSDF sample that would
     // make up the rest not being traced; ReSTIR's first hit keeps all of it. With a bounce to

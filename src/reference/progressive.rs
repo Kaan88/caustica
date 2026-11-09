@@ -73,7 +73,12 @@ impl<'a> Progressive<'a> {
             "The CPU reference can't render this scene: {}",
             missing.join(", ")
         );
-        Ok(Self::partial(s, size))
+        let p = Self::partial(s, size);
+        anyhow::ensure!(
+            p.scene.env.is_some() || !s.physical_sky.on && s.hdri.is_empty(),
+            "The CPU reference couldn't load the environment"
+        );
+        Ok(p)
     }
     /// A render of what the renderer knows of the scene, whatever `unsupported` lists: for looking
     /// at, with that list on screen, never for measuring.

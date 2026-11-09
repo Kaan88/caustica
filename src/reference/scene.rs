@@ -28,6 +28,9 @@ pub(super) struct Scene<'a> {
     /// The dielectric the camera is inside (`geometry::camera_medium`), as the GPU seeds it.
     pub(super) camera_media: Vec<(u32, u32)>,
     pub(super) size: [u32; 2],
+    /// The HDRI or the physical sky's map, and the share of light samples it takes.
+    pub(super) env: Option<super::environment::Env>,
+    pub(super) p_env: f32,
 }
 pub(super) struct Surface {
     pub(super) p: Vec3,
@@ -123,6 +126,17 @@ impl<'a> Scene<'a> {
         for c in &mut cdf {
             *c /= total;
         }
+        // A map that fails to load leaves the plain sky; `Progressive::new` refuses that.
+        let env = super::environment::Env::load(s).unwrap_or_else(|e| {
+            eprintln!("CPU reference: {e:#}");
+            None
+        });
+        // The environment and the emitters share light samples half and half.
+        let p_env = match (&env, lights.is_empty()) {
+            (None, _) => 0.,
+            (Some(_), true) => 1.,
+            (Some(_), false) => 0.5,
+        };
         let mut scene = Scene {
             s,
             bvh,
@@ -134,6 +148,8 @@ impl<'a> Scene<'a> {
             frame: Default::default(),
             camera_media: vec![],
             size,
+            env,
+            p_env,
         };
         scene.set_camera(s, size);
         scene

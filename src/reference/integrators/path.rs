@@ -25,8 +25,11 @@ impl Scene<'_> {
         // The dielectrics the path is inside: (priority, material), innermost last.
         let mut media: Vec<(u32, u32)> = self.camera_media.clone();
         let mut false_hits = 0;
+        // Only delta bounces since the camera: the background it sees is ground-projected.
+        let mut camera_chain = true;
         let mut bounce = 0;
         while bounce < s.bounces {
+            camera_chain &= previous_delta;
             let kind = if bounce == 0 {
                 Ray::Camera
             } else {
@@ -66,15 +69,37 @@ impl Scene<'_> {
                 origin = sf.p - sf.ng * 0.0003;
             };
             let Some(h) = hit else {
-                // The sky gradient over the background colour (no HDRI).
-                let up = (direction.y * 0.5 + 0.5).clamp(0., 1.);
-                let sky = Vec3::from(s.background)
-                    + s.sky * Vec3::new(0.8, 0.87, 1.0).lerp(Vec3::new(0.16, 0.35, 0.72), up);
-                radiance += throughput * sky;
+                let Some(env) = &self.env else {
+                    // The sky gradient over the background colour (no HDRI).
+                    radiance += throughput * self.plain_sky(direction);
+                    break;
+                };
+                let seen = if bounce == 0 && !env.visible {
+                    Vec3::from(s.background)
+                } else if camera_chain {
+                    env.radiance(env.background_dir(origin, direction))
+                } else {
+                    env.radiance(direction)
+                };
+                let weight = if bounce == 0 || previous_delta {
+                    1.
+                } else {
+                    match mis {
+                        1 => 0.,
+                        2 => 1.,
+                        _ => previous_pdf / (previous_pdf + self.p_env * env.pdf(direction)),
+                    }
+                };
+                radiance += throughput * seen * weight;
                 break;
             };
             throughput *= self.transmittance(&media, h.t);
             let sf = self.surface(&h, direction);
+            // Shadow catcher: the floor is the background behind it, and the path ends there.
+            if s.shadow_catcher && sf.material == 3 {
+                radiance += throughput * self.catcher(&sf, direction, bounce, camera_chain, r);
+                break;
+            }
             let m = material_at(&self.materials[sf.material as usize], sf.p);
             let le = emitted(&m, sf.front, (-direction).dot(sf.n));
             if le.max_element() > 0. {
@@ -211,5 +236,63 @@ impl Scene<'_> {
         } else {
             Vec3::ZERO
         }
+    }
+    /// The sky gradient over the background colour, without an environment map.
+    fn plain_sky(&self, d: Vec3) -> Vec3 {
+        let up = (d.y * 0.5 + 0.5).clamp(0., 1.);
+        Vec3::from(self.s.background)
+            + self.s.sky * Vec3::new(0.8, 0.87, 1.0).lerp(Vec3::new(0.16, 0.35, 0.72), up)
+    }
+    /// What the shadow catcher shows (`Settings::shadow_catcher`). Seen from the camera (through
+    /// delta bounces only), the background behind it, ground-projected when that is on, times
+    /// the share of four light samples' power the scene leaves unblocked; any other ray sees
+    /// the projected ground, unshadowed.
+    fn catcher(
+        &self,
+        sf: &crate::reference::scene::Surface,
+        direction: Vec3,
+        bounce: u32,
+        camera_chain: bool,
+        r: &mut Rng,
+    ) -> Vec3 {
+        let env = self.env.as_ref();
+        let seen = match env {
+            Some(e) if e.ground > 0. => e.ground_dir(sf.p),
+            _ => direction,
+        };
+        let background = |d: Vec3| env.map_or_else(|| self.plain_sky(d), |e| e.radiance(d));
+        if !camera_chain {
+            return background(seen);
+        }
+        let bg = match env {
+            Some(e) if bounce == 0 && !e.visible => Vec3::from(self.s.background),
+            _ => background(seen),
+        };
+        let (mut all, mut lit) = (0f32, 0f32);
+        for _ in 0..4 {
+            let Some((ld, le, pl, limit)) = self.sample_light(sf.p, r) else {
+                continue;
+            };
+            let c = sf.n.dot(ld);
+            if c <= 0. || pl <= 0. {
+                continue;
+            }
+            let w = crate::environment::luminance(le.to_array()) * c / pl;
+            all += w;
+            let blocked = self
+                .bvh
+                .intersect(
+                    sf.p + sf.ng * 0.0003,
+                    ld,
+                    limit,
+                    &self.accept(Ray::Shadow),
+                    true,
+                )
+                .is_some();
+            if !blocked {
+                lit += w;
+            }
+        }
+        bg * if all > 0. { lit / all } else { 1. }
     }
 }

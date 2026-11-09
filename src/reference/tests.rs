@@ -116,10 +116,8 @@ fn every_missing_feature_is_refused() {
         s
     };
     let cases: Vec<(&str, Settings)> = vec![
-        ("HDRI", edit(&|s| s.hdri = "x.hdr".into())),
-        ("physical sky", edit(&|s| s.physical_sky.on = true)),
+        ("physical sky's sun", edit(&|s| s.physical_sky.on = true)),
         ("fog", edit(&|s| s.fog.density = 0.1)),
-        ("shadow catcher", edit(&|s| s.shadow_catcher = true)),
         ("spectral", edit(&|s| s.spectral = true)),
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
@@ -392,6 +390,8 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         frame: Default::default(),
         camera_media: vec![],
         size: [1, 1],
+        env: None,
+        p_env: 0.,
     };
     let hit = Hit {
         t: 1.,
