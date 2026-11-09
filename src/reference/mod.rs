@@ -64,6 +64,11 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         s.integrator != 0,
         "BDPT and photon mapping (the reference is a path tracer)",
     );
+    // The reference writes beauty only; LPE AOV layers would be missing from its EXR.
+    need(
+        s.lpe.iter().any(|e| !e.is_empty()),
+        "light path expressions (LPE AOVs)",
+    );
     need(s.aperture > 0., "depth of field");
     need(s.lens_system != 0, "a real lens system");
     need(

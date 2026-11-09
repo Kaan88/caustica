@@ -127,6 +127,7 @@ fn every_missing_feature_is_refused() {
         ("spectral", edit(&|s| s.spectral = true)),
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
+        ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
         ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
         ("sphere light", light(LightKind::Sphere)),
