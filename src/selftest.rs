@@ -1370,6 +1370,19 @@ impl App {
                 self.cpu_view_image = Some(image.clone());
                 let linear = unsafe { g.read_floats(18)? };
                 anyhow::ensure!(linear == *image, "The linear output is not the CPU's image");
+                // The save buttons' EXR is that image too (the file may hold halves).
+                let path = video::ImageFormat::Exr.file("caustica-cpu-view");
+                unsafe { video::save_current(g, video::ImageFormat::Exr, 92, &path)? };
+                let saved = image::open(&path)?.to_rgba32f();
+                let _ = std::fs::remove_file(&path);
+                anyhow::ensure!(
+                    saved.len() == image.len()
+                        && saved
+                            .iter()
+                            .zip(image.iter())
+                            .all(|(a, b)| (a - b).abs() <= 1e-3 * b.abs().max(1.)),
+                    "The saved EXR is not the CPU's image"
+                );
             }
             307 => {
                 let live = self.cpu_reference.as_ref().context("No software view")?;
