@@ -2,7 +2,7 @@ use super::bsdf::{eval_bsdf, ggx_albedo, ggx_table};
 use super::bvh::{Bvh, Hit, Tri};
 use super::lights::shadow_limit;
 use super::sampling::{Rng, cosine_sample};
-use super::scene::{Scene, interpolation_normal};
+use super::scene::{Scene, Surface, interpolation_normal};
 use super::*;
 use crate::lighting::PackedMaterial;
 use glam::{Mat4, Vec2, Vec3};
@@ -640,5 +640,29 @@ fn henyey_greenstein_is_normalised_and_sampled() {
             .sum::<f32>()
             / n as f32;
         assert!((mean - g).abs() < 0.02, "g {g}: mean cos {mean}");
+    }
+}
+
+/// A spot's cosine is signed against the emitter's normal both when a bounce hits it and when
+/// light sampling picks it (`sample_light`), so MIS weighs the same radiance: from behind a
+/// two-sided spot, both see the cosine as negative (outside the cone).
+#[test]
+fn a_spots_cosine_is_the_same_hit_or_sampled() {
+    let t = Tri {
+        p: [
+            Vec3::new(-1., -1., 0.),
+            Vec3::new(1., -1., 0.),
+            Vec3::new(0., 1., 0.),
+        ],
+        n: [Vec3::Z; 3],
+        material: 0,
+    };
+    for d in [Vec3::new(0.3, 0., -1.), Vec3::new(0.3, 0., 1.)] {
+        let d = d.normalize();
+        let sf = Surface::on(&t, 0.3, 0.3, d);
+        // As `sample_light` takes it: ld = d toward the light, the cosine (-ld)·n.
+        let (_, n) = t.normals(0.3, 0.3);
+        assert!((sf.emission_cos(d) - (-d).dot(n)).abs() < 1e-6);
+        assert_eq!(sf.emission_cos(d) > 0., sf.front);
     }
 }

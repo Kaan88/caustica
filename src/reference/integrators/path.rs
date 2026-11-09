@@ -141,7 +141,7 @@ impl Scene<'_> {
                 break;
             }
             let m = material_at(&self.materials[sf.material as usize], sf.p);
-            let le = emitted(&m, sf.front, (-direction).dot(sf.n));
+            let le = emitted(&m, sf.front, sf.emission_cos(direction));
             if le.max_element() > 0. {
                 let weight = if bounce == 0 || previous_delta {
                     1.

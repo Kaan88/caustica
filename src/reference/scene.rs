@@ -43,20 +43,9 @@ pub(super) struct Surface {
     pub(super) front: bool,
     pub(super) material: u32,
 }
-impl Scene<'_> {
-    pub(super) fn accept(&self, kind: Ray) -> impl Fn(u32) -> bool + '_ {
-        move |id| {
-            let m = &self.materials[id as usize];
-            match kind {
-                Ray::Camera => flags(m) & 2 == 0,
-                Ray::Bounce => true,
-                Ray::Shadow => flags(m) & 8192 == 0 && (self.s.glass_shadow || m.lobes[2] < 0.5),
-            }
-        }
-    }
-    pub(super) fn surface(&self, h: &Hit, d: Vec3) -> Surface {
-        let t = &self.bvh.tris[h.tri];
-        let (u, v) = (h.b.x, h.b.y);
+impl Surface {
+    /// Triangle `t` at barycentrics (u, v), hit along `d`.
+    pub(super) fn on(t: &Tri, u: f32, v: f32, d: Vec3) -> Surface {
         let (mut n, mut ng) = t.normals(u, v);
         let front = d.dot(ng) < 0.;
         if !front {
@@ -72,6 +61,28 @@ impl Scene<'_> {
             front,
             material: t.material,
         }
+    }
+    /// The cosine toward a viewer along `-d` against the emitter's own normal (the triangle's face
+    /// normal, as light sampling's `normals` orients it), signed: a spot's cone points out of the
+    /// front, so a two-sided spot seen from behind is outside it, as light sampling sees it.
+    pub(super) fn emission_cos(&self, d: Vec3) -> f32 {
+        let c = (-d).dot(self.ng);
+        if self.front { c } else { -c }
+    }
+}
+impl Scene<'_> {
+    pub(super) fn accept(&self, kind: Ray) -> impl Fn(u32) -> bool + '_ {
+        move |id| {
+            let m = &self.materials[id as usize];
+            match kind {
+                Ray::Camera => flags(m) & 2 == 0,
+                Ray::Bounce => true,
+                Ray::Shadow => flags(m) & 8192 == 0 && (self.s.glass_shadow || m.lobes[2] < 0.5),
+            }
+        }
+    }
+    pub(super) fn surface(&self, h: &Hit, d: Vec3) -> Surface {
+        Surface::on(&self.bvh.tris[h.tri], h.b.x, h.b.y, d)
     }
 }
 
