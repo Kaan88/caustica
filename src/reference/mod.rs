@@ -52,7 +52,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         "ReSTIR at one bounce (set restir=false or more bounces)",
     );
     need(s.battle, "battle mode (four integrators at once)");
-    need(s.firefly > 0., "the firefly clamp (biased; set firefly=0)");
     need(
         s.integrator != 0,
         "BDPT and photon mapping (the reference is a path tracer)",

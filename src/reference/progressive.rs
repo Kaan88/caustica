@@ -120,7 +120,8 @@ impl<'a> Progressive<'a> {
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
                         let (o, d) = scene.camera_ray(pixel);
-                        *sum += scene.radiance(o, d, &mut r).as_dvec3();
+                        let c = scene.radiance(o, d, &mut r);
+                        *sum += firefly_clamp(s.firefly, c, *sum, k).as_dvec3();
                     }
                 }
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -488,4 +489,35 @@ impl Shared {
 }
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The firefly clamp (biased, off at 0): after four samples a pixel's sample may be at most
+/// `limit` times the luminance of the mean so far (never below 0.05), scaled down to that.
+/// The GPU compares against the mean at the start of its frame; here it is the mean of the
+/// samples before this one, which is the same thing at one sample a frame.
+fn firefly_clamp(limit: f32, c: Vec3, sum: DVec3, k: u32) -> Vec3 {
+    if limit <= 0. || k <= 4 {
+        return c;
+    }
+    let lum = |v: Vec3| v.dot(Vec3::new(0.2126, 0.7152, 0.0722));
+    let mean = (sum / k as f64).as_vec3();
+    c * (limit * lum(mean).max(0.05) / lum(c).max(1e-6)).min(1.)
+}
+
+#[cfg(test)]
+mod firefly_tests {
+    use super::*;
+
+    #[test]
+    fn firefly_clamp_scales_only_outliers_after_four_samples() {
+        let sum = DVec3::splat(5.); // mean 1 after 5 samples
+        let hot = Vec3::splat(100.);
+        assert_eq!(firefly_clamp(0., hot, sum, 5), hot);
+        assert_eq!(firefly_clamp(10., hot, sum, 4), hot);
+        assert!((firefly_clamp(10., hot, sum, 5) - Vec3::splat(10.)).length() < 1e-4);
+        assert_eq!(firefly_clamp(10., Vec3::splat(2.), sum, 5), Vec3::splat(2.));
+        // A dark mean still allows 0.05 x limit.
+        let dark = firefly_clamp(10., hot, DVec3::ZERO, 5);
+        assert!((dark - Vec3::splat(0.5)).length() < 1e-4);
+    }
 }

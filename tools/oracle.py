@@ -80,6 +80,9 @@ def main():
     p.add_argument('--size', default='320x240')
     p.add_argument('--gpu-spp', type=int, default=1024)
     p.add_argument('--cpu-spp', type=int, default=512)
+    p.add_argument('--firefly', type=float, default=0.,
+                   help='firefly clamp on both sides; biased by sample count, so the GPU then '
+                        'renders one sample a frame and --gpu-spp should equal --cpu-spp')
     p.add_argument('--z', type=float, default=4.0)
     p.add_argument('--floor', type=float, default=0.002)
     p.add_argument('--out', default=os.path.join('captures', 'oracle'))
@@ -106,15 +109,16 @@ def main():
         gpu = os.path.join(a.out, stem + f'.gpu{a.integrator}.exr')
         # The CPU reference is a path tracer; it is the judge for every GPU integrator.
         code, out = run([a.exe, *scene_args(name), *size,
-                         '--set', 'integrator=0', '--reference', str(a.cpu_spp), '--capture', cpu])
+                         '--set', 'integrator=0', '--set', f'firefly={a.firefly}', '--reference', str(a.cpu_spp), '--capture', cpu])
         if code != 0:
             why = out.strip().splitlines()[-1] if out.strip() else f'exit {code}'
             print(f'{name:28} SKIP  {why[:110]}')
             continue
-        frames = max(1, a.gpu_spp // 4)
+        per = 1 if a.firefly > 0 else 4
+        frames = max(1, a.gpu_spp // per)
         code, out = run([a.exe, '--headless', *scene_args(name), *size, '--no-rr', '--raw',
-                         '--scale', '1', '--spp', '4', '--samples', str(frames * 4),
-                         '--frames', str(frames), '--set', 'firefly=0',
+                         '--scale', '1', '--spp', str(per), '--samples', str(frames * per),
+                         '--frames', str(frames), '--set', f'firefly={a.firefly}',
                          '--set', f'integrator={a.integrator}', '--capture', gpu])
         if code != 0:
             print(f'{name:28} GPU FAILED  {out.strip()[-200:]}')

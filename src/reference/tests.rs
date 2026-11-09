@@ -85,7 +85,6 @@ fn every_missing_feature_is_refused() {
         ("shadow catcher", edit(&|s| s.shadow_catcher = true)),
         ("spectral", edit(&|s| s.spectral = true)),
         ("battle", edit(&|s| s.battle = true)),
-        ("firefly", edit(&|s| s.firefly = 10.)),
         ("BDPT", edit(&|s| s.integrator = 1)),
         ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
