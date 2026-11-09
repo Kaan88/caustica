@@ -247,6 +247,12 @@ impl<'a> Scene<'a> {
             tan_half: 1. / proj.y_axis.y,
             ortho_half: camera.distance * (camera.fov.to_radians() * 0.5).tan(),
             projection: camera.projection,
+            aperture: camera.aperture,
+            focus: camera.focus_distance,
+            blades: camera.aperture_blades,
+            rotation: camera.blade_rotation.to_radians(),
+            cat_eye: camera.cat_eye,
+            tilt: camera.tilt.to_radians(),
         };
         self.camera_media = match crate::geometry::camera_medium(camera, eye) {
             0 => vec![],

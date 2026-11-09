@@ -124,8 +124,10 @@ impl<'a> Progressive<'a> {
                         let mut r = Rng::new((y * w + x) as u64, k as u64);
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
-                        let (o, d) = scene.camera_ray(pixel);
-                        let c = scene.radiance(o, d, &mut r);
+                        let c = match scene.camera_ray(pixel, &mut r) {
+                            Some((o, d)) => scene.radiance(o, d, &mut r),
+                            None => Vec3::ZERO,
+                        };
                         *sum += firefly_clamp(s.firefly, c, *sum, k).as_dvec3();
                     }
                 }
@@ -178,8 +180,9 @@ impl<'a> Progressive<'a> {
                         ((x as f32 + 0.5) * k as f32).min(w as f32 - 0.5),
                         ((y as f32 + 0.5) * k as f32).min(h as f32 - 0.5),
                     );
-                    let (o, d) = scene.camera_ray(pixel);
-                    *c = scene.radiance(o, d, &mut r);
+                    *c = scene
+                        .camera_ray(pixel, &mut r)
+                        .map_or(Vec3::ZERO, |(o, d)| scene.radiance(o, d, &mut r));
                 }
             },
         );

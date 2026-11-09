@@ -1,4 +1,5 @@
 //! Camera rays: the pixel filter's offset and the ray through a film point.
+use super::sampling::Rng;
 use super::scene::Scene;
 use crate::scene::Settings;
 use glam::{Vec2, Vec3, Vec4};
@@ -78,17 +79,44 @@ pub(super) struct Frame {
     pub(super) tan_half: f32,
     pub(super) ortho_half: f32,
     pub(super) projection: u32,
+    /// The thin lens: aperture radius (0 = pinhole), focus distance, blades (0 to 2 = round),
+    /// blade rotation and tilt (radians) and the cat-eye strength.
+    pub(super) aperture: f32,
+    pub(super) focus: f32,
+    pub(super) blades: u32,
+    pub(super) rotation: f32,
+    pub(super) cat_eye: f32,
+    pub(super) tilt: f32,
+}
+
+/// A point in the unit aperture for uniform numbers drawn from `r`: the disk, or a regular
+/// polygon of `blades` sides rotated by `rotation`, uniform over its area either way.
+pub(super) fn aperture_point(blades: u32, rotation: f32, r: &mut Rng) -> Vec2 {
+    if blades <= 2 {
+        let (q, a) = (r.f().sqrt(), 2. * PI * r.f());
+        return q * Vec2::from_angle(a);
+    }
+    // Pick one of the equal triangles from the centre, then a uniform point in it.
+    let n = blades as f32;
+    let k = (r.f() * n).floor();
+    let edge = |i: f32| Vec2::from_angle(rotation + 2. * PI * i / n);
+    let (mut u, mut v) = (r.f(), r.f());
+    if u + v > 1. {
+        (u, v) = (1. - u, 1. - v);
+    }
+    u * edge(k) + v * edge(k + 1.)
 }
 
 impl Scene<'_> {
     /// The camera ray through film point `pixel`, origin and direction, for each projection
-    /// (`camera_ray`). Tilt-shift without an aperture is the plain perspective; depth of field
-    /// and lens systems are refused in `unsupported`.
-    pub(super) fn camera_ray(&self, pixel: Vec2) -> (Vec3, Vec3) {
+    /// (`camera_ray`), or None for a sample the cat-eye cuts off (it still counts, as black).
+    /// Only the perspective and tilt-shift projections take the thin lens; the pinhole draws no
+    /// random numbers. Lens systems are refused in `unsupported`.
+    pub(super) fn camera_ray(&self, pixel: Vec2, r: &mut Rng) -> Option<(Vec3, Vec3)> {
         let f = &self.frame;
         let ndc = pixel / Vec2::new(self.size[0] as f32, self.size[1] as f32) * 2. - 1.;
         let ndc = Vec2::new(ndc.x, -ndc.y);
-        match f.projection {
+        Some(match f.projection {
             1 => (
                 self.eye + (f.right * ndc.x * f.aspect + f.up * ndc.y) * f.ortho_half,
                 f.forward,
@@ -109,8 +137,30 @@ impl Scene<'_> {
                 let d = rh * (2. * q.x / s) + fh * (2. * q.y / s) - Vec3::Y * ((1. - qq) / s);
                 (self.eye, d.normalize())
             }
-            _ => (self.eye, self.camera_direction(pixel)),
-        }
+            _ => {
+                let d = self.camera_direction(pixel);
+                if f.aperture <= 0. {
+                    return Some((self.eye, d));
+                }
+                // Everything on the focal plane (tilted about the right axis for tilt-shift)
+                // stays sharp: every lens point aims at where the pinhole ray meets it.
+                let n = if f.projection == 4 {
+                    (f.forward * f.tilt.cos() + f.up * f.tilt.sin()).normalize()
+                } else {
+                    f.forward
+                };
+                let focal = self.eye + d * (f.focus * f.forward.dot(n) / d.dot(n).max(1e-4));
+                let l = aperture_point(f.blades, f.rotation, r);
+                // Cat-eye: the barrel cuts the aperture with a unit circle shifted toward the
+                // frame's edge.
+                let shift = ndc * Vec2::new(f.aspect, 1.) * (f.cat_eye * 0.7);
+                if f.cat_eye > 0. && l.distance(shift) > 1. {
+                    return None;
+                }
+                let o = self.eye + (f.right * l.x + f.up * l.y) * f.aperture;
+                (o, (focal - o).normalize())
+            }
+        })
     }
     pub(super) fn camera_direction(&self, pixel: Vec2) -> Vec3 {
         let ndc = pixel / Vec2::new(self.size[0] as f32, self.size[1] as f32) * 2. - 1.;

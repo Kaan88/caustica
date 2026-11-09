@@ -119,7 +119,6 @@ fn every_missing_feature_is_refused() {
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
-        ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
         (
             "SDF",
@@ -618,27 +617,82 @@ fn camera_rays_follow_each_projection() {
     let perspective = Scene::new(&s, [320, 240]);
     let f = perspective.frame;
     // Perspective: the dispatcher is the plain pinhole, and the centre looks down the axis.
-    let (o, d) = perspective.camera_ray(corner);
+    let (o, d) = pinhole(&perspective, corner);
     assert_eq!(
         (o, d),
         (perspective.eye, perspective.camera_direction(corner))
     );
-    assert!(perspective.camera_ray(centre).1.dot(f.forward) > 0.9999);
+    assert!(pinhole(&perspective, centre).1.dot(f.forward) > 0.9999);
     // Orthographic: parallel rays from points spread across the film.
     s.projection = 1;
     let ortho = Scene::new(&s, [320, 240]);
-    let ((oa, da), (ob, db)) = (ortho.camera_ray(centre), ortho.camera_ray(corner));
+    let ((oa, da), (ob, db)) = (pinhole(&ortho, centre), pinhole(&ortho, corner));
     assert_eq!(da, db);
     assert!((oa - ortho.eye).length() < 1e-3 && (ob - oa).length() > 0.1);
     // Equirectangular: the left and right edges look backward, the top straight up.
     s.projection = 2;
     let pano = Scene::new(&s, [320, 240]);
-    assert!(pano.camera_ray(Vec2::new(0., 120.)).1.dot(f.forward) < -0.999);
-    assert!(pano.camera_ray(Vec2::new(160., 0.)).1.dot(f.up) > 0.999);
+    assert!(pinhole(&pano, Vec2::new(0., 120.)).1.dot(f.forward) < -0.999);
+    assert!(pinhole(&pano, Vec2::new(160., 0.)).1.dot(f.up) > 0.999);
     // Little planet: the centre looks straight down.
     s.projection = 3;
     let planet = Scene::new(&s, [320, 240]);
-    assert!(planet.camera_ray(centre).1.y < -0.999);
+    assert!(pinhole(&planet, centre).1.y < -0.999);
+}
+/// A pinhole camera ray: it must not draw random numbers or be cut off.
+fn pinhole(scene: &Scene, pixel: Vec2) -> (Vec3, Vec3) {
+    let mut r = Rng::new(0, 0);
+    let ray = scene.camera_ray(pixel, &mut r).unwrap();
+    assert_eq!(r.f(), Rng::new(0, 0).f());
+    ray
+}
+/// The thin lens: every aperture sample of a pixel passes through one focal point (on the
+/// tilted plane too), bladed samples stay inside the polygon, and the cat-eye cuts the corners
+/// more than the centre.
+#[test]
+fn thin_lens_samples_focus_and_stay_in_the_aperture() {
+    let mut s = Settings::default();
+    (s.aperture, s.focus_distance) = (0.1, 3.);
+    for (projection, tilt) in [(0, 0.), (4, 10.)] {
+        (s.projection, s.tilt) = (projection, tilt);
+        let scene = Scene::new(&s, [320, 240]);
+        let pixel = Vec2::new(40., 200.);
+        let f = scene.frame;
+        let n = if projection == 4 {
+            (f.forward * f.tilt.cos() + f.up * f.tilt.sin()).normalize()
+        } else {
+            f.forward
+        };
+        // Where a ray meets the focal plane, through the point 3 ahead on the axis.
+        let plane = scene.eye + f.forward * 3.;
+        let meet = |(o, d): (Vec3, Vec3)| o + d * ((plane - o).dot(n) / d.dot(n));
+        let focal = meet((scene.eye, scene.camera_direction(pixel)));
+        let mut r = Rng::new(1, 2);
+        for _ in 0..64 {
+            let (o, d) = scene.camera_ray(pixel, &mut r).unwrap();
+            assert!((meet((o, d)) - focal).length() < 1e-3);
+        }
+    }
+    let rot = 20f32.to_radians();
+    let mut r = Rng::new(3, 4);
+    for _ in 0..4096 {
+        let l = super::camera::aperture_point(6, rot, &mut r);
+        // Inside a hexagon whose corners sit at rot + k·60°: within the apothem of each edge.
+        for k in 0..6 {
+            let mid = Vec2::from_angle(rot + (k as f32 + 0.5) * PI / 3.);
+            assert!(l.dot(mid) <= (PI / 6.).cos() + 1e-5);
+        }
+    }
+    s.cat_eye = 0.5;
+    let scene = Scene::new(&s, [320, 240]);
+    let cut = |pixel: Vec2| {
+        let mut r = Rng::new(5, 6);
+        (0..4096)
+            .filter(|_| scene.camera_ray(pixel, &mut r).is_none())
+            .count()
+    };
+    assert_eq!(cut(Vec2::new(160., 120.)), 0);
+    assert!(cut(Vec2::new(2., 2.)) > 500);
 }
 /// Henyey-Greenstein's pdf integrates to one and its samples follow it (mean cos θ = g).
 #[test]
