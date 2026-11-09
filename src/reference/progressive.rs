@@ -212,9 +212,12 @@ impl<'a> Progressive<'a> {
                         };
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
-                        let ray = scene.camera_ray(pixel, &mut r);
+                        let mut waves = scene.waves(&r);
+                        let ray = scene.camera_ray(pixel, &mut waves, &mut r);
                         // A sample the lens cuts off counts, as black.
-                        let c = ray.map_or(Vec3::ZERO, |(o, d, w)| scene.radiance(o, d, w, &mut r));
+                        let c = ray.map_or(Vec3::ZERO, |(o, d, w)| {
+                            scene.radiance(o, d, w, &mut waves, &mut r)
+                        });
                         let c = firefly_clamp(s.firefly, c, **sum, k);
                         **sum += c.as_dvec3();
                         if let Some(m) = moments {
@@ -287,9 +290,12 @@ impl<'a> Progressive<'a> {
                         ((x as f32 + 0.5) * k as f32).min(w as f32 - 0.5),
                         ((y as f32 + 0.5) * k as f32).min(h as f32 - 0.5),
                     );
+                    let mut waves = scene.waves(&r);
                     *c = scene
-                        .camera_ray(pixel, &mut r)
-                        .map_or(Vec3::ZERO, |(o, d, w)| scene.radiance(o, d, w, &mut r));
+                        .camera_ray(pixel, &mut waves, &mut r)
+                        .map_or(Vec3::ZERO, |(o, d, w)| {
+                            scene.radiance(o, d, w, &mut waves, &mut r)
+                        });
                 }
             },
         );

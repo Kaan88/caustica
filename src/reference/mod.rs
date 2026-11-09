@@ -29,6 +29,7 @@ mod progressive;
 mod sampling;
 mod scene;
 mod sdf;
+mod spectral;
 #[cfg(test)]
 mod tests;
 mod textures;
@@ -46,7 +47,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         }
     };
     // `Fog::equiangular` only changes the GPU's sampling; the CPU ignores it.
-    need(s.spectral, "spectral rendering");
     need(s.battle, "battle mode (four integrators at once)");
     need(
         s.integrator != 0,

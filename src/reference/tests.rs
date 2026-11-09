@@ -1,4 +1,4 @@
-use super::bsdf::{eval_bsdf, ggx_albedo, ggx_table};
+use super::bsdf::{Wavelength, eval_bsdf, ggx_albedo, ggx_table};
 use super::bvh::{Bvh, Hit, Tri};
 use super::lights::shadow_limit;
 use super::sampling::{Rng, cosine_sample};
@@ -24,7 +24,7 @@ fn the_albedo_table_parses_and_a_white_furnace_conserves() {
     for _ in 0..k {
         let l = cosine_sample(n, &mut r);
         // Cosine samples: f cos / (cos / pi).
-        let (f, _) = eval_bsdf(&m, n, Vec3::X, v, l, 0.);
+        let (f, _) = eval_bsdf(&m, n, Vec3::X, v, l, Wavelength::NONE);
         sum += f * PI;
     }
     let mean = sum / k as f32;
@@ -50,9 +50,9 @@ fn anisotropy_reduces_to_isotropic() {
     m.lobes[0] = 1.;
     let v = Vec3::new(0.5, 0.7, 0.1).normalize();
     let l = Vec3::new(-0.4, 0.8, 0.3).normalize();
-    let (fi, _) = eval_bsdf(&m, n, t, v, l, 0.);
+    let (fi, _) = eval_bsdf(&m, n, t, v, l, Wavelength::NONE);
     m.layers[3] = 1e-4;
-    let (fa, _) = eval_bsdf(&m, n, t, v, l, 0.);
+    let (fa, _) = eval_bsdf(&m, n, t, v, l, Wavelength::NONE);
     assert!(
         (fa / fi - Vec3::ONE).abs().max_element() < 0.03,
         "{fa} vs {fi}"
@@ -89,7 +89,7 @@ fn anisotropic_white_metal_furnace() {
             if l.dot(n) <= 0. {
                 continue;
             }
-            let (f, pdf) = eval_bsdf(&m, n, t, v, l, 0.);
+            let (f, pdf) = eval_bsdf(&m, n, t, v, l, Wavelength::NONE);
             sum += f.x * l.dot(n) / pdf.max(1e-7);
         }
         let mean = sum / k as f32;
@@ -130,7 +130,7 @@ fn grating_white_metal_furnace_and_evanescent_orders() {
         let (u, phi) = (r.f(), 2. * PI * r.f());
         let s = (1. - u * u).sqrt();
         let lu = Vec3::new(s * phi.cos(), u, s * phi.sin());
-        mass += eval_bsdf(&m, n, t, v, lu, lambda).1 * 2. * PI;
+        mass += eval_bsdf(&m, n, t, v, lu, Wavelength::rgb(lambda)).1 * 2. * PI;
         let l = if r.f() < ps {
             let u = r.f();
             let mut c = 0.;
@@ -155,7 +155,7 @@ fn grating_white_metal_furnace_and_evanescent_orders() {
         if l.dot(n) <= 0. {
             continue;
         }
-        let (f, pdf) = eval_bsdf(&m, n, t, v, l, lambda);
+        let (f, pdf) = eval_bsdf(&m, n, t, v, l, Wavelength::rgb(lambda));
         sum += f * l.dot(n) / pdf.max(1e-7);
     }
     let (mean, mass) = (sum / k as f32, mass / k as f32);
@@ -190,7 +190,7 @@ fn coat_and_sheen_layers_conserve_energy() {
             let (u, phi) = (r.f(), 2. * PI * r.f());
             let s = (1. - u * u).sqrt();
             let l = Vec3::new(s * phi.cos(), u, s * phi.sin());
-            let (f, pdf) = eval_bsdf(&m, n, Vec3::X, v, l, 0.);
+            let (f, pdf) = eval_bsdf(&m, n, Vec3::X, v, l, Wavelength::NONE);
             albedo += f * u * 2. * PI;
             mass += pdf * 2. * PI;
         }
@@ -242,7 +242,6 @@ fn every_missing_feature_is_refused() {
         s
     };
     let cases: Vec<(&str, Settings)> = vec![
-        ("spectral", edit(&|s| s.spectral = true)),
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
@@ -583,6 +582,7 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         env: None,
         p_env: 0.,
         textures: Default::default(),
+        spectral: false,
     };
     let hit = Hit {
         t: 1.,
@@ -749,15 +749,15 @@ fn the_view_follows_the_camera_and_the_scene() {
 fn the_view_lists_what_the_reference_refuses() {
     let mut s = Settings::default();
     s.max_samples = 2;
-    s.spectral = true;
+    s.battle = true;
     let size = [8, 6];
     let reference = Live::start(s.clone(), size, String::new(), false);
-    assert!(finish(&reference).error.unwrap().contains("spectral"));
+    assert!(finish(&reference).error.unwrap().contains("battle"));
     assert!(reference.image(true).is_none());
     let view = Live::start(s, size, String::new(), true);
     let st = finish(&view);
     assert!(st.error.is_none());
-    assert_eq!(st.missing, ["spectral rendering"]);
+    assert_eq!(st.missing, ["battle mode (four integrators at once)"]);
     assert!(view.image(false).is_some());
 }
 #[test]
@@ -816,7 +816,9 @@ fn camera_rays_follow_each_projection() {
 /// A pinhole camera ray: it must not draw random numbers or be cut off.
 fn pinhole(scene: &Scene, pixel: Vec2) -> (Vec3, Vec3) {
     let mut r = Rng::new(0, 0);
-    let (o, d, w) = scene.camera_ray(pixel, &mut r).unwrap();
+    let (o, d, w) = scene
+        .camera_ray(pixel, &mut super::spectral::Waves::rgb(), &mut r)
+        .unwrap();
     assert_eq!(r.f(), Rng::new(0, 0).f());
     assert_eq!(w, Vec3::ONE);
     (o, d)
@@ -844,7 +846,9 @@ fn thin_lens_samples_focus_and_stay_in_the_aperture() {
         let focal = meet((scene.eye, scene.camera_direction(pixel)));
         let mut r = Rng::new(1, 2);
         for _ in 0..64 {
-            let (o, d, _) = scene.camera_ray(pixel, &mut r).unwrap();
+            let (o, d, _) = scene
+                .camera_ray(pixel, &mut super::spectral::Waves::rgb(), &mut r)
+                .unwrap();
             assert!((meet((o, d)) - focal).length() < 1e-3);
         }
     }
@@ -863,7 +867,11 @@ fn thin_lens_samples_focus_and_stay_in_the_aperture() {
     let cut = |pixel: Vec2| {
         let mut r = Rng::new(5, 6);
         (0..4096)
-            .filter(|_| scene.camera_ray(pixel, &mut r).is_none())
+            .filter(|_| {
+                scene
+                    .camera_ray(pixel, &mut super::spectral::Waves::rgb(), &mut r)
+                    .is_none()
+            })
             .count()
     };
     assert_eq!(cut(Vec2::new(160., 120.)), 0);
@@ -1007,6 +1015,7 @@ fn a_camera_inside_a_sphere_light_stays_finite() {
 /// white surface facing it to 1); a hidden sun is seen from bounce 1 on only.
 #[test]
 fn a_sun_lights_as_defined() {
+    let rgb = super::spectral::Waves::rgb();
     use super::scene::Light;
     let mut s = Settings::default();
     s.cornell_room = false;
@@ -1022,16 +1031,19 @@ fn a_sun_lights_as_defined() {
     });
     assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
     let scene = Scene::new(&s, [8, 8]);
-    let Some(&Light::Sun { d, om, le, hidden }) = scene.lights.first() else {
+    let Some(&Light::Sun {
+        d, om, le, hidden, ..
+    }) = scene.lights.first()
+    else {
         panic!("no sun entry: {:?}", scene.lights);
     };
     assert!(!hidden);
     assert!((le.x * om * (2. - om) - 1.).abs() < 1e-3, "{le} {om}");
     assert!((d + s.lights[0].direction()).length() < 1e-5);
-    assert_eq!(scene.suns(d, 0, |_| 1.), le);
-    assert_eq!(scene.suns(-d, 1, |_| 1.), Vec3::ZERO);
+    assert_eq!(scene.suns(d, 0, &rgb, |_| 1.), le);
+    assert_eq!(scene.suns(-d, 1, &rgb, |_| 1.), Vec3::ZERO);
     let mut r = Rng::new(3, 4);
-    let (ld, l, pl, limit) = scene.sample_light(Vec3::ZERO, &mut r).unwrap();
+    let (ld, l, pl, limit) = scene.sample_light(Vec3::ZERO, &rgb, &mut r).unwrap();
     assert!(d.cross(ld).length_squared() <= om * (2. - om) * 1.001 && l == le);
     let pick = (1. - scene.p_env) * scene.cdf[0];
     assert!(
@@ -1052,8 +1064,8 @@ fn a_sun_lights_as_defined() {
     assert!(both > 0.01, "{both}");
     s.lights[0].visible = false;
     let scene = Scene::new(&s, [8, 8]);
-    assert_eq!(scene.suns(d, 0, |_| 1.), Vec3::ZERO);
-    assert_eq!(scene.suns(d, 1, |_| 1.), le);
+    assert_eq!(scene.suns(d, 0, &rgb, |_| 1.), Vec3::ZERO);
+    assert_eq!(scene.suns(d, 1, &rgb, |_| 1.), le);
 }
 /// A lens system: at the frame's centre the mean weight, a blocked sample counting 0, is 1 for
 /// every prescription (`lens::pack` normalises the centre's pupil); with dispersion each channel
@@ -1066,7 +1078,7 @@ fn lens_systems_weigh_one_at_the_centre() {
         let mut r = Rng::new(7, 8);
         let n = 20000;
         (0..n)
-            .filter_map(|_| scene.camera_ray(pixel, &mut r))
+            .filter_map(|_| scene.camera_ray(pixel, &mut super::spectral::Waves::rgb(), &mut r))
             .map(|(_, _, w)| w)
             .sum::<Vec3>()
             / n as f32
@@ -1094,8 +1106,14 @@ fn lens_systems_weigh_one_at_the_centre() {
         Vec3::new(15., 10., 0.),
         Vec3::new(-0.2, -0.1, -1.).normalize(),
     );
-    let red = lens.trace_channel(o, d, 0).unwrap().1;
-    let blue = lens.trace_channel(o, d, 2).unwrap().1;
+    let red = lens
+        .trace_channel(o, d, super::camera::Channel::Rgb(0))
+        .unwrap()
+        .1;
+    let blue = lens
+        .trace_channel(o, d, super::camera::Channel::Rgb(2))
+        .unwrap()
+        .1;
     assert!(red.angle_between(blue) > 1e-4);
 }
 /// The stop test accepts exactly the polygon `aperture_point` samples.
@@ -1396,7 +1414,7 @@ fn thin_film_decodes_and_stays_in_range() {
     // The Airy terms keep ~0.007 from r123's 1e-5 floor.
     {
         let c = 1f32;
-        let f = film_fresnel(c, 1.33, eta3, 0.);
+        let f = film_fresnel(c, 1.33, eta3, 0., None);
         let want = eta3.map(|e| {
             let f0 = ((e - 1.) / (e + 1.)).powi(2);
             f0 + (1. - f0) * (1. - c).powi(5)
@@ -1406,20 +1424,20 @@ fn thin_film_decodes_and_stays_in_range() {
     // Any film, any angle: a reflectance, and coloured at a soap-bubble thickness.
     for t in [50f32, 300., 700., 1500.] {
         for c in [0.05f32, 0.4, 0.9, 1.] {
-            let f = film_fresnel(c, 1.33, Vec3::ONE, t);
+            let f = film_fresnel(c, 1.33, Vec3::ONE, t, None);
             assert!(
                 f.min_element() >= 0. && f.max_element() <= 1.,
                 "{t} {c}: {f}"
             );
         }
     }
-    let f = film_fresnel(1., 1.33, Vec3::ONE, 300.);
+    let f = film_fresnel(1., 1.33, Vec3::ONE, 300., None);
     assert!(f.max_element() - f.min_element() > 0.02, "no colour: {f}");
     // Strength blends the base Fresnel toward the film; 0 strength leaves it alone.
     let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
     m.optical[0] = 1.5;
     m.surface_scale = [0., 0., 0.5, 300. + 2048. * 133.];
-    prepare_film(&mut m, 0.8, 1., 0.);
+    prepare_film(&mut m, 0.8, 1., 0., None);
     let f0 = Vec3::splat(0.04);
     let film = Vec3::new(m.base_scale[0], m.base_scale[1], m.base_scale[2]);
     let want = fresnel(0.8, f0).lerp(film, 0.5);
@@ -1539,9 +1557,12 @@ fn heterogeneous_fog_tracking_matches_the_integrated_density() {
 fn an_objects_extinction_reads_its_tint() {
     let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
     m.medium[3] = 2.;
-    assert_eq!(super::media::extinction(&m), Vec3::splat(2.));
+    assert_eq!(
+        super::media::extinction(&m, &super::spectral::Waves::rgb()),
+        Vec3::splat(2.)
+    );
     m.phase[3] = crate::lighting::pack_tint([1., 0.5, 0.]);
-    let e = super::media::extinction(&m);
+    let e = super::media::extinction(&m, &super::spectral::Waves::rgb());
     assert!(
         (e - Vec3::new(2., 2. * 128. / 255., 0.))
             .abs()
@@ -1552,13 +1573,17 @@ fn an_objects_extinction_reads_its_tint() {
     // A blackbody's or the measured light's phase.w is a scale.
     for spectrum in [-3000., 4.] {
         m.phase[2] = spectrum;
-        assert_eq!(super::media::extinction(&m), Vec3::splat(2.));
+        assert_eq!(
+            super::media::extinction(&m, &super::spectral::Waves::rgb()),
+            Vec3::splat(2.)
+        );
     }
 }
 /// A shadow ray inside a scattering object loses its extinction and its colour's absorption up
 /// to the first surface; inside clear glass, and outside without fog, nothing.
 #[test]
 fn shadows_through_an_objects_medium() {
+    let rgb = super::spectral::Waves::rgb();
     let mut s = Settings::default();
     let m = &mut s.objects[0].material;
     m.transmission = 1.;
@@ -1578,16 +1603,16 @@ fn shadows_through_an_objects_medium() {
         .t;
     let sigma = 3. * Vec3::new(1., 128. / 255., 64. / 255.);
     let want = (-sigma * exit).exp() * Vec3::new(1., 0.8, 0.6).powf(exit);
-    let got = scene.shadow_transmittance(&[entry], centre, d, 10., &mut r);
+    let got = scene.shadow_transmittance(&[entry], centre, d, 10., &rgb, &mut r);
     assert!((got - want).abs().max_element() < 1e-4, "{got} {want}");
     assert_eq!(
-        scene.shadow_transmittance(&[], centre, d, 10., &mut r),
+        scene.shadow_transmittance(&[], centre, d, 10., &rgb, &mut r),
         Vec3::ONE
     );
     s.objects[0].material.density = 0.;
     let clear = Scene::new(&s, [32, 24]);
     assert_eq!(
-        clear.shadow_transmittance(&[entry], centre, d, 10., &mut r),
+        clear.shadow_transmittance(&[entry], centre, d, 10., &rgb, &mut r),
         Vec3::ONE
     );
 }
@@ -1927,7 +1952,7 @@ fn sdf_emitter_light_sampling() {
         for i in 0..n {
             let mut r = Rng::new(11, i);
             let v = scene
-                .radiance(o, d, Vec3::ONE, &mut r)
+                .radiance(o, d, Vec3::ONE, &mut scene.waves(&r), &mut r)
                 .dot(Vec3::splat(1. / 3.)) as f64;
             sum += v;
             sq += v * v;
@@ -1967,4 +1992,32 @@ fn the_denoisers_inputs_leave_the_sums_alone() {
     // Without guides it is the plain mean.
     p.drop_guides();
     assert_eq!(p.denoised(0.5, 2), p.image());
+}
+
+/// Spectral mode renders the Cornell box (measured spectra, uplifted colours) to the RGB image's
+/// channel means: the wavelengths are an unbiased estimate of the same colours.
+#[test]
+fn spectral_matches_rgb_on_the_cornell_box() {
+    let mut s = Settings::default();
+    s.bounces = 4;
+    assert!(unsupported(&s).is_empty() && !s.spectral);
+    let means = |spectral| {
+        let mut s = s.clone();
+        s.spectral = spectral;
+        let image = render(&s, [24, 18], 192, &|_| {}).unwrap();
+        let mut m = [0f64; 3];
+        for p in image.chunks_exact(4) {
+            for c in 0..3 {
+                m[c] += p[c] as f64;
+            }
+        }
+        m.map(|v| v / (image.len() / 4) as f64)
+    };
+    let (rgb, spectral) = (means(false), means(true));
+    for c in 0..3 {
+        assert!(
+            (spectral[c] / rgb[c] - 1.).abs() < 0.03,
+            "{rgb:?} vs {spectral:?}"
+        );
+    }
 }

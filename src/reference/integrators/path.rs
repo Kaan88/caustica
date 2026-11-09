@@ -1,15 +1,16 @@
 //! The path tracer.
 use crate::lighting::PackedMaterial;
 use crate::reference::bsdf::{
-    GRATING_ORDER, aniso_alpha, aniso_frame, coat_probability, emitted, eval_bsdf, flags,
-    fresnel_dielectric, grating, grating_move, grating_wavelength, material_at, order_shares,
-    prepare_film, spec_probability,
+    GRATING_ORDER, Wavelength, aniso_alpha, aniso_frame, coat_probability, emitted, eval_bsdf,
+    flags, fresnel_dielectric, grating, grating_move, grating_wavelength, material_at,
+    order_shares, prepare_film, rgb, spec_probability,
 };
 use crate::reference::media::{flight, hg_pdf, hg_sample, push, remove, top};
 use crate::reference::sampling::{
     Rng, cosine_sample, ggx_sample, ggx_sample_aniso, reflect, refract,
 };
 use crate::reference::scene::{Ray, Scene};
+use crate::reference::spectral::Waves;
 use glam::{Vec3, Vec4};
 
 /// Where a ray entering a portal's front face at `p` leaves its pair: the map record (`lighting`
@@ -23,11 +24,14 @@ pub(in crate::reference) fn portal_map(map: &PackedMaterial, p: Vec3, d: Vec3) -
 }
 
 impl Scene<'_> {
+    /// One path's radiance as linear RGB. `w` holds its wavelengths (`Scene::waves`): spectral,
+    /// the channels are those wavelengths until the end, where `to_rgb` brings them back.
     pub(in crate::reference) fn radiance(
         &self,
         mut origin: Vec3,
         mut direction: Vec3,
         weight: Vec3,
+        w: &mut Waves,
         r: &mut Rng,
     ) -> Vec3 {
         let s = self.s;
@@ -82,7 +86,7 @@ impl Scene<'_> {
                     break Some(h);
                 }
                 // The segment up to the false hit lies in the medium before it.
-                throughput *= self.transmittance(&media, h.t);
+                throughput *= self.transmittance(&media, h.t, w);
                 if sf.front {
                     push(&mut media, entry);
                 } else {
@@ -99,23 +103,23 @@ impl Scene<'_> {
             let medium = if media.is_empty() {
                 self.fog_interval(origin, direction, tmax).map(|(t0, t1)| {
                     let f = &s.fog;
-                    let (ts, w) = self.fog_flight(origin, direction, t0, t1, r);
-                    (ts, t1, w, Vec3::from(f.color), f.phase)
+                    let (ts, fw) = self.fog_flight(origin, direction, t0, t1, w, r);
+                    (ts, t1, fw, w.up(Vec3::from(f.color)), f.phase)
                 })
             } else {
-                self.object_medium(&media).map(|(sigma, albedo, g)| {
-                    let (ts, w) = flight(sigma, 0., tmax, r);
-                    (ts, tmax, w, albedo, g)
+                self.object_medium(&media, w).map(|(sigma, albedo, g)| {
+                    let (ts, fw) = flight(sigma, 0., tmax, r);
+                    (ts, tmax, fw, albedo, g)
                 })
             };
-            if let Some((ts, t1, w, albedo, g)) = medium {
-                throughput *= w;
+            if let Some((ts, t1, fw, albedo, g)) = medium {
+                throughput *= fw;
                 if ts < t1 {
                     // The dielectric's colour absorbs up to the scatter.
-                    throughput *= self.transmittance(&media, ts) * albedo;
+                    throughput *= self.transmittance(&media, ts, w) * albedo;
                     let x = origin + direction * ts;
                     if mis != 2
-                        && let Some((ld, le, pl, limit)) = self.sample_light(x, r)
+                        && let Some((ld, le, pl, limit)) = self.sample_light(x, w, r)
                         && self
                             .intersect(x, ld, limit, &self.accept(Ray::Shadow, x, ld), true)
                             .is_none()
@@ -123,7 +127,7 @@ impl Scene<'_> {
                         let pp = hg_pdf(direction.dot(ld), g);
                         let density = if mis == 1 { pl } else { pl + pp };
                         radiance += throughput
-                            * self.shadow_transmittance(&media, x, ld, limit, r)
+                            * self.shadow_transmittance(&media, x, ld, limit, w, r)
                             * pp
                             * le
                             / density.max(1e-8);
@@ -149,7 +153,7 @@ impl Scene<'_> {
             let Some(h) = hit else {
                 // Suns: seen inside their disc, weighted against light sampling.
                 radiance += throughput
-                    * self.suns(direction, bounce, |pl| {
+                    * self.suns(direction, bounce, w, |pl| {
                         if bounce == 0 || previous_delta {
                             1.
                         } else {
@@ -163,7 +167,7 @@ impl Scene<'_> {
                     });
                 let Some(env) = &self.env else {
                     // The sky gradient over the background colour (no HDRI).
-                    radiance += throughput * self.plain_sky(direction);
+                    radiance += throughput * w.up(self.plain_sky(direction));
                     break;
                 };
                 let seen = if bounce == 0 && !env.visible {
@@ -182,14 +186,14 @@ impl Scene<'_> {
                         _ => previous_pdf / (previous_pdf + self.p_env * env.pdf(direction)),
                     }
                 };
-                radiance += throughput * seen * weight;
+                radiance += throughput * w.up(seen) * weight;
                 break;
             };
-            throughput *= self.transmittance(&media, h.t);
+            throughput *= self.transmittance(&media, h.t, w);
             let mut sf = self.surface(&h, origin, direction);
             // Shadow catcher: the floor is the background behind it, and the path ends there.
             if s.shadow_catcher && sf.material == 3 {
-                radiance += throughput * self.catcher(&sf, direction, bounce, camera_chain, r);
+                radiance += throughput * self.catcher(&sf, direction, bounce, camera_chain, w, r);
                 break;
             }
             // Portals: a front face maps the ray into the paired portal (the map record's first
@@ -219,7 +223,7 @@ impl Scene<'_> {
                 crossings += 1;
                 previous_delta = true;
                 if sf.front {
-                    throughput *= Vec3::from_slice(&m.color_rough[..3]);
+                    throughput *= w.up_material(&m, rgb(m.color_rough));
                     if r.f() < m.lobes[1] {
                         direction = reflect(direction, sf.n);
                         bounce += 1;
@@ -229,7 +233,12 @@ impl Scene<'_> {
                 continue;
             }
             let colour = self.emission_colour(&m, h.tri, h.b);
-            let le = emitted(&m, colour, sf.front, sf.emission_cos(direction));
+            let le = emitted(
+                &m,
+                w.up_material(&m, colour),
+                sf.front,
+                sf.emission_cos(direction),
+            );
             // Maps after emission, as the GPU: an emitter keeps its unmapped colour.
             self.apply_maps(&mut m, &h, &mut sf.n);
             if le.max_element() > 0. {
@@ -260,15 +269,34 @@ impl Scene<'_> {
                 };
                 radiance += throughput * le * weight;
             }
-            // A thin film, between the media on both sides of a dielectric, else over an opaque base.
-            if m.surface_scale[2] > 0. {
+            // A thin film, between the media on both sides of a dielectric, else over an opaque
+            // base.
+            let film = (m.surface_scale[2] > 0.).then(|| {
                 let (outside, base) = if m.lobes[2] > 0. {
-                    let (n1, n2, _) = self.interface(&media, &m, sf.material, sf.front);
+                    let (n1, n2, _) = self.interface(&media, &m, sf.material, sf.front, w);
                     (n1, n2)
                 } else {
                     (1., 0.)
                 };
-                prepare_film(&mut m, (-direction).dot(sf.n).clamp(0., 1.), outside, base);
+                let c = (-direction).dot(sf.n).clamp(0., 1.);
+                prepare_film(&mut m, c, outside, base, None);
+                (c, outside, base)
+            });
+            if w.on {
+                // A grating's orders leave at the hero wavelength's angles only, so the path
+                // keeps that one from here, before light sampling.
+                if grating(&m).is_some() {
+                    w.hero(&mut throughput);
+                }
+                // The colours become spectra, and the film is exact at the path's wavelengths
+                // over the uplifted f0 (its RGB pass above is what the RGB guides would read).
+                let c = w.up_material(&m, rgb(m.color_rough));
+                m.color_rough[..3].copy_from_slice(&c.to_array());
+                let sheen = w.up(rgb(m.sheen));
+                m.sheen[..3].copy_from_slice(&sheen.to_array());
+                if let Some((c, outside, base)) = film {
+                    prepare_film(&mut m, c, outside, base, Some(w.l));
+                }
             }
             // The brushing direction, from the raw record as the GPU's hit reads it; a procedural
             // hit's is fixed by its normal, as `intersect` gives it.
@@ -283,10 +311,15 @@ impl Scene<'_> {
             }
             // A grating hit's wavelength, shared by light sampling and the BSDF sample here, from
             // its own stream so the path's draws stay as they were.
-            let lambda = if grating(&m).is_some() {
-                grating_wavelength(&mut r.fork(0x6772_6174 ^ bounce as u64))
-            } else {
-                0.
+            let lambda = match grating(&m) {
+                None => Wavelength::NONE,
+                Some(_) if w.on => Wavelength {
+                    nm: w.l.x,
+                    weight: Vec3::ONE,
+                },
+                Some(_) => {
+                    Wavelength::rgb(grating_wavelength(&mut r.fork(0x6772_6174 ^ bounce as u64)))
+                }
             };
             // Unlit: emission only.
             if flags(&m) & 1 != 0 {
@@ -313,16 +346,16 @@ impl Scene<'_> {
                 match &self.env {
                     Some(env) if r.f() < self.p_env => {
                         let (ld, pe) = env.sample(r);
-                        (pe > 0.).then(|| (ld, env.radiance(ld), self.p_env * pe, 1e4))
+                        (pe > 0.).then(|| (ld, w.up(env.radiance(ld)), self.p_env * pe, 1e4))
                     }
                     _ => {
                         alone = true;
-                        self.sample_table(sf.p, r)
+                        self.sample_table(sf.p, w, r)
                             .map(|(ld, le, pl, limit)| (ld, le, pl / (1. - self.sdf_share), limit))
                     }
                 }
             } else {
-                self.sample_light(sf.p, r)
+                self.sample_light(sf.p, w, r)
             };
             if let Some((ld, le, pl, limit)) = sample {
                 let nl = sf.n.dot(ld);
@@ -340,8 +373,8 @@ impl Scene<'_> {
                             .is_none()
                     {
                         let density = if mis == 1 || alone { pl } else { pl + pdf };
-                        let tr =
-                            self.shadow_transmittance(&media, sf.p + sf.ng * 0.0003, ld, limit, r);
+                        let o = sf.p + sf.ng * 0.0003;
+                        let tr = self.shadow_transmittance(&media, o, ld, limit, w, r);
                         radiance += throughput * f * nl * le * tr / density.max(1e-8);
                     }
                 }
@@ -351,7 +384,12 @@ impl Scene<'_> {
             let mut delta = false;
             let mut bsdf_pdf = 0.;
             if r.f() < m.lobes[2] {
-                let (n1, n2, after) = self.interface(&media, &m, sf.material, sf.front);
+                // Dispersion: from here the path follows the hero wavelength's index (light
+                // sampling above still used all three).
+                if w.dispersive(&m) {
+                    w.hero(&mut throughput);
+                }
+                let (n1, n2, after) = self.interface(&media, &m, sf.material, sf.front, w);
                 let eta = n1 / n2;
                 let ci = v.dot(sf.n).clamp(0., 1.);
                 let mut fr = fresnel_dielectric(ci, eta);
@@ -404,7 +442,7 @@ impl Scene<'_> {
                     let mut order = None;
                     if let Some((share, spacing)) = grating(&m) {
                         let (_, b) = aniso_frame(sf.n, tangent, m.sheen[3]);
-                        let k = lambda / spacing;
+                        let k = lambda.nm / spacing;
                         let w = order_shares(share, k, sf.n, b, v);
                         let u = r.f();
                         let mut c = 0.;
@@ -459,33 +497,39 @@ impl Scene<'_> {
             }
             bounce += 1;
         }
-        if radiance.is_finite() {
-            radiance.max(Vec3::ZERO)
-        } else {
+        // Spectral: no clamp, as on the GPU. A wavelength triple's estimate can be negative in a
+        // channel (the output weights are), and clamping each would bias the mean (+35% red on
+        // Classic, engine-notes).
+        if !radiance.is_finite() {
             Vec3::ZERO
+        } else if w.on {
+            w.to_rgb(radiance)
+        } else {
+            radiance.max(Vec3::ZERO)
         }
     }
     /// The IORs on the near and far side of dielectric `material` hit from `front`, and the
     /// media stack beyond it: entering, the current medium's and its own; leaving, its own and
-    /// the one the stack falls back to (air when empty).
+    /// the one the stack falls back to (air when empty). Each at the path's hero wavelength once
+    /// it keeps that alone (`Waves::ior`).
     fn interface(
         &self,
         media: &[(u32, u32)],
         m: &crate::lighting::PackedMaterial,
         material: u32,
         front: bool,
+        w: &Waves,
     ) -> (f32, f32, Vec<(u32, u32)>) {
         let entry = ((flags(m) >> 8) & 7, material);
-        let ior =
-            |e: Option<&(u32, u32)>| e.map_or(1., |e| self.materials[e.1 as usize].optical[0]);
+        let ior = |e: Option<&(u32, u32)>| e.map_or(1., |e| w.ior(&self.materials[e.1 as usize]));
         let mut after = media.to_vec();
         if front {
             push(&mut after, entry);
-            (ior(top(media)), m.optical[0], after)
+            (ior(top(media)), w.ior(m), after)
         } else {
             remove(&mut after, entry);
             let n2 = ior(top(&after));
-            (m.optical[0], n2, after)
+            (w.ior(m), n2, after)
         }
     }
     /// The sky gradient over the background colour, without an environment map.
@@ -504,6 +548,7 @@ impl Scene<'_> {
         direction: Vec3,
         bounce: u32,
         camera_chain: bool,
+        w: &Waves,
         r: &mut Rng,
     ) -> Vec3 {
         let env = self.env.as_ref();
@@ -513,7 +558,7 @@ impl Scene<'_> {
         };
         let background = |d: Vec3| env.map_or_else(|| self.plain_sky(d), |e| e.radiance(d));
         if !camera_chain {
-            return background(seen);
+            return w.up(background(seen));
         }
         let bg = match env {
             Some(e) if bounce == 0 && !e.visible => Vec3::from(self.s.background),
@@ -521,15 +566,15 @@ impl Scene<'_> {
         };
         let (mut all, mut lit) = (0f32, 0f32);
         for _ in 0..4 {
-            let Some((ld, le, pl, limit)) = self.sample_light(sf.p, r) else {
+            let Some((ld, le, pl, limit)) = self.sample_light(sf.p, w, r) else {
                 continue;
             };
             let c = sf.n.dot(ld);
             if c <= 0. || pl <= 0. {
                 continue;
             }
-            let w = crate::environment::luminance(le.to_array()) * c / pl;
-            all += w;
+            let lw = crate::environment::luminance(le.to_array()) * c / pl;
+            all += lw;
             let blocked = self
                 .intersect(
                     sf.p + sf.ng * 0.0003,
@@ -540,9 +585,9 @@ impl Scene<'_> {
                 )
                 .is_some();
             if !blocked {
-                lit += w;
+                lit += lw;
             }
         }
-        bg * if all > 0. { lit / all } else { 1. }
+        w.up(bg) * if all > 0. { lit / all } else { 1. }
     }
 }

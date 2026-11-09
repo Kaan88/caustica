@@ -43,6 +43,9 @@ pub(super) struct Scene<'a> {
     pub(super) p_env: f32,
     /// The texture maps and the frames that box-map them.
     pub(super) textures: super::textures::Textures,
+    /// Spectral mode (`spectral`): on unless light path expressions force the path tracer to RGB,
+    /// as on the GPU (`passes.rs`).
+    pub(super) spectral: bool,
 }
 /// An entry of the light table.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,7 +54,12 @@ pub(super) enum Light {
     Tri(usize),
     /// A sphere light: centre, radius and flat emission. Sampled in the cone it covers; rays
     /// meet its inscribed mesh (`geometry::geometry`), which is two-sided and unlit.
-    Sphere { c: Vec3, r: f32, le: Vec3 },
+    Sphere {
+        c: Vec3,
+        r: f32,
+        le: Vec3,
+        material: u32,
+    },
     /// A sun: the unit direction towards it, 1 − cos of its angular radius, its radiance, and
     /// whether the camera can't see it (flag 2). It has no geometry: rays that miss the scene
     /// inside its disc meet it.
@@ -60,6 +68,7 @@ pub(super) enum Light {
         om: f32,
         le: Vec3,
         hidden: bool,
+        material: u32,
     },
 }
 pub(super) struct Surface {
@@ -326,6 +335,7 @@ impl<'a> Scene<'a> {
                         om,
                         le,
                         hidden: m.lobes[3] as u32 & 2 != 0,
+                        material: a.material,
                     });
                     weights.push(w);
                 }
@@ -344,6 +354,7 @@ impl<'a> Scene<'a> {
                     c: a.at,
                     r: a.extent,
                     le,
+                    material: a.material,
                 });
                 weights.push(w);
             }
@@ -413,9 +424,19 @@ impl<'a> Scene<'a> {
             env,
             p_env,
             textures,
+            spectral: s.spectral && (s.integrator != 0 || s.lpe.iter().all(|e| e.is_empty())),
         };
         scene.set_camera(s, size);
         scene
+    }
+    /// A sample's wavelengths, from its own stream (`r` stays as it was, so RGB draws don't
+    /// move), or RGB.
+    pub(super) fn waves(&self, r: &super::sampling::Rng) -> super::spectral::Waves {
+        if self.spectral {
+            super::spectral::Waves::new(r.fork(0x7761_7665).f())
+        } else {
+            super::spectral::Waves::rgb()
+        }
     }
     /// Takes the camera of `camera`, a copy of the scene that differs from `self.s` in its camera
     /// fields at most. What renders reads the camera from here, never from `self.s`.

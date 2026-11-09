@@ -210,8 +210,15 @@ pub(super) fn film_sensitivity(opd: f32, shift: Vec3) -> Vec3 {
     ) * xyz
 }
 /// The film's reflectance at view cosine `c1`: film IOR `eta2` and base IOR `eta3` (per
-/// channel) relative to the outside, thickness in nm (RGB, `film_fresnel` without waves).
-pub(super) fn film_fresnel(c1: f32, eta2: f32, eta3: Vec3, thickness: f32) -> Vec3 {
+/// channel) relative to the outside, thickness in nm. With `waves` (spectral, nm per channel)
+/// the Airy terms are exact at those wavelengths; without, the RGB fit (`film_sensitivity`).
+pub(super) fn film_fresnel(
+    c1: f32,
+    eta2: f32,
+    eta3: Vec3,
+    thickness: f32,
+    waves: Option<Vec3>,
+) -> Vec3 {
     // A film thinner than ~30 nm fades into the outside medium, leaving the base's Fresnel.
     let fade = (thickness / 30.).clamp(0., 1.);
     let eta2 = 1. + (eta2 - 1.) * fade * fade * (3. - 2. * fade);
@@ -235,7 +242,12 @@ pub(super) fn film_fresnel(c1: f32, eta2: f32, eta3: Vec3, thickness: f32) -> Ve
     for k in 1..=2 {
         let k = k as f32;
         cm *= sq;
-        sum += cm * 2. * film_sensitivity(k * opd, k * phi);
+        sum += cm
+            * 2.
+            * match waves {
+                Some(l) => (k * (2. * PI * opd / l + phi)).map(f32::cos),
+                None => film_sensitivity(k * opd, k * phi),
+            };
     }
     sum.clamp(Vec3::ZERO, Vec3::ONE)
 }
@@ -246,8 +258,15 @@ pub(super) fn film_decode(w: f32) -> (f32, f32) {
 }
 /// Evaluates the film once for the hit at view cosine `c` (as glTF's model does) into the hit's
 /// copy of the material, `base_scale.rgb` (`prepare_film`). `outside` and `base` are the IORs on
-/// both sides; base 0 is an opaque base, whose IOR per channel comes from its f0.
-pub(super) fn prepare_film(m: &mut PackedMaterial, c: f32, outside: f32, base: f32) {
+/// both sides; base 0 is an opaque base, whose IOR per channel comes from its f0. `waves`: the
+/// spectral path's wavelengths, on a material already uplifted (`prepare_film_waves`).
+pub(super) fn prepare_film(
+    m: &mut PackedMaterial,
+    c: f32,
+    outside: f32,
+    base: f32,
+    waves: Option<Vec3>,
+) {
     if m.surface_scale[2] <= 0. {
         return;
     }
@@ -260,7 +279,7 @@ pub(super) fn prepare_film(m: &mut PackedMaterial, c: f32, outside: f32, base: f
         (Vec3::ONE + q) / (Vec3::ONE - q)
     };
     let (thickness, ior) = film_decode(m.surface_scale[3]);
-    let f = film_fresnel(c, ior / outside, eta3, thickness);
+    let f = film_fresnel(c, ior / outside, eta3, thickness, waves);
     m.base_scale[..3].copy_from_slice(&f.to_array());
 }
 // Diffraction grating (a CD's or DVD's spiral): order o of wavelength λ leaves where the
@@ -310,6 +329,26 @@ pub(super) fn grating_wavelength(r: &mut Rng) -> f32 {
     let z = (-2. * u1.ln()).sqrt() * (2. * PI * u2).cos();
     (GRATING_MU[c] + GRATING_SIGMA[c] * z).clamp(300., 900.)
 }
+/// A grating hit's wavelength (nm, 0 without a grating) and the weight its orders take: RGB
+/// draws one (`grating_wavelength`) and weighs it into the channels (`grating_weight`); the
+/// spectral path takes its hero wavelength at weight 1.
+#[derive(Clone, Copy)]
+pub(super) struct Wavelength {
+    pub(super) nm: f32,
+    pub(super) weight: Vec3,
+}
+impl Wavelength {
+    pub(super) const NONE: Self = Self {
+        nm: 0.,
+        weight: Vec3::ONE,
+    };
+    pub(super) fn rgb(nm: f32) -> Self {
+        Self {
+            nm,
+            weight: grating_weight(nm),
+        }
+    }
+}
 /// The RGB weight of wavelength `lambda` drawn by `grating_wavelength`: 3·N_c(λ) / Σ N (at
 /// most 3 per channel, mean white over the draw).
 pub(super) fn grating_weight(lambda: f32) -> Vec3 {
@@ -331,8 +370,7 @@ pub(super) fn spec_probability(m: &PackedMaterial) -> f32 {
     (0.25 + 0.5 * m.lobes[0] + 0.25 * m.lobes[1]).clamp(0.1, 0.95)
 }
 /// `eval_bsdf` (a thin film is read from `base_scale`, `prepare_film`): the value and the pdf of
-/// the path tracer's sampling. `lambda` is the hit's grating wavelength in nm (`grating_wavelength`,
-/// 0 without a grating). `t` is the hit's tangent, read by a grating's grooves and by an
+/// the path tracer's sampling. `lambda` is the hit's grating wavelength (`Wavelength`). `t` is the hit's tangent, read by a grating's grooves and by an
 /// anisotropic base (layers.w > 0), whose pdf is that of
 /// visible-normal sampling. A sheen sits on the base and a clear coat on both; each dims what lies below by the
 /// albedo it takes from the view direction (glTF's layering), so the result stays one function
@@ -343,7 +381,7 @@ pub(super) fn eval_bsdf(
     t: Vec3,
     v: Vec3,
     l: Vec3,
-    lambda: f32,
+    lambda: Wavelength,
 ) -> (Vec3, f32) {
     let nl = n.dot(l).clamp(0., 1.);
     let nv = n.dot(v).clamp(0., 1.);
@@ -390,11 +428,11 @@ pub(super) fn eval_bsdf(
     let diff = (Vec3::ONE - f) * (1. - m.lobes[0]) * rgb(m.color_rough) / PI;
     let compensation = Vec3::ONE + fc * (1. / ess - 1.);
     let mut r = diff + f * d * gv * gl / (4. * nv * nl).max(1e-6) * compensation;
-    if let Some((share, spacing)) = grating(m).filter(|_| lambda > 0. && nl > 0.) {
+    if let Some((share, spacing)) = grating(m).filter(|_| lambda.nm > 0. && nl > 0.) {
         // Each order is the isotropic lobe evaluated where the move across the grooves takes l
         // back from; the mirror keeps what the orders that leave don't take.
         let (_, b) = aniso_frame(n, t, m.sheen[3]);
-        let k = lambda / spacing;
+        let k = lambda.nm / spacing;
         let w = order_shares(share, k, n, b, v);
         let (mut orders, mut op) = (Vec3::ZERO, 0.);
         for (o, &wo) in GRATING_ORDER.iter().zip(&w) {
@@ -412,7 +450,7 @@ pub(super) fn eval_bsdf(
         let g: f32 = w.iter().sum();
         r = diff
             + (r - diff) * (1. - g)
-            + orders * (g1(nv, a) / (4. * nv).max(1e-6)) * compensation * grating_weight(lambda);
+            + orders * (g1(nv, a) / (4. * nv).max(1e-6)) * compensation * lambda.weight;
         pdf = (1. - ps) * nl / PI + ps * ((1. - g) * spec_pdf + op);
     }
     let sheen = rgb(m.sheen);

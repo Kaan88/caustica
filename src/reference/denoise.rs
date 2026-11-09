@@ -45,6 +45,7 @@ impl Scene<'_> {
         let pixel = (y * self.size[0] as usize + x) as u64;
         let ray = self.camera_ray(
             Vec2::new(x as f32 + 0.5, y as f32 + 0.5),
+            &mut super::spectral::Waves::rgb(),
             &mut Rng::new(pixel, u64::MAX),
         );
         let Some((o, d, _)) = ray else {

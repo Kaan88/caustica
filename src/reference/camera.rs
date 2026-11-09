@@ -1,6 +1,7 @@
 //! Camera rays: the pixel filter's offset and the ray through a film point.
 use super::sampling::{Rng, refract};
 use super::scene::Scene;
+use super::spectral::Waves;
 use crate::scene::Settings;
 use glam::{Vec2, Vec3, Vec4};
 use std::f32::consts::PI;
@@ -119,6 +120,13 @@ pub(super) fn inside_stop(q: Vec2, r: f32, blades: u32, rotation: f32) -> bool {
     q.length() * a.cos() <= r * (0.5 * sector).cos()
 }
 
+/// What a lens trace refracts by: an RGB channel's indices, or (spectral) one wavelength's.
+#[derive(Clone, Copy)]
+pub(super) enum Channel {
+    Rgb(usize),
+    Nm(f32),
+}
+
 /// A real lens system (`lens::pack`'s buffer) in millimetres, the film at z = 0 and the lens
 /// toward -z, and what places it in the world.
 pub(super) struct RealLens {
@@ -148,12 +156,22 @@ impl RealLens {
     }
     /// A trace through a round stop, for tests.
     #[cfg(test)]
-    pub(super) fn trace_channel(&self, o: Vec3, d: Vec3, c: usize) -> Option<(Vec3, Vec3)> {
+    pub(super) fn trace_channel(&self, o: Vec3, d: Vec3, c: Channel) -> Option<(Vec3, Vec3)> {
         self.trace(o, d, c, 0, 0.)
     }
-    /// Surface i's index on its film side in channel c.
-    fn ior(&self, i: usize, c: usize) -> f32 {
-        self.data[3 + 2 * i][c]
+    /// Surface i's index on its film side in channel c. `pack` puts the three on one Cauchy
+    /// curve n(λ) = A + B/λ² (green at 550 nm, red 610, blue 465), so red and blue give B and
+    /// green A at 550: any wavelength reads off that curve.
+    fn ior(&self, i: usize, c: Channel) -> f32 {
+        let n = self.data[3 + 2 * i];
+        match c {
+            Channel::Rgb(c) => n[c],
+            Channel::Nm(nm) => {
+                let l = nm * 1e-3;
+                let b = (n[2] - n[0]) / (1. / (0.465 * 0.465) - 1. / (0.61 * 0.61));
+                n[1] + b * (1. / (l * l) - 1. / (0.55 * 0.55))
+            }
+        }
     }
     /// From the film out of the front element, refracting in channel c; None when a surface is
     /// missed, its rim or the stop blocks the ray, or it reflects totally.
@@ -161,7 +179,7 @@ impl RealLens {
         &self,
         mut o: Vec3,
         mut d: Vec3,
-        c: usize,
+        c: Channel,
         blades: u32,
         rot: f32,
     ) -> Option<(Vec3, Vec3)> {
@@ -218,13 +236,18 @@ impl Scene<'_> {
     /// projection (`camera_ray`), or None for a sample the cat-eye or a lens system's barrel
     /// cuts off (it still counts, as black). Only the perspective and tilt-shift projections
     /// take the thin lens, and a lens system replaces it in perspective; the pinhole draws no
-    /// random numbers.
-    pub(super) fn camera_ray(&self, pixel: Vec2, r: &mut Rng) -> Option<(Vec3, Vec3, Vec3)> {
+    /// random numbers. A dispersive lens system on a spectral path (`w`) traces its hero wavelength.
+    pub(super) fn camera_ray(
+        &self,
+        pixel: Vec2,
+        w: &mut Waves,
+        r: &mut Rng,
+    ) -> Option<(Vec3, Vec3, Vec3)> {
         let f = &self.frame;
         let ndc = pixel / Vec2::new(self.size[0] as f32, self.size[1] as f32) * 2. - 1.;
         let ndc = Vec2::new(ndc.x, -ndc.y);
         if let Some(lens) = &self.lens {
-            return self.lens_ray(lens, ndc, r);
+            return self.lens_ray(lens, ndc, w, r);
         }
         Some(match f.projection {
             1 => (
@@ -276,13 +299,22 @@ impl Scene<'_> {
     /// A lens system's ray: the film point for `ndc` (the image is inverted), a uniform point in
     /// the exit-pupil bounds of its band turned to the point's angle, traced out of the front
     /// element. Weight cos⁴ at the film × the bounds' area × `pack`'s normalisation, so the
-    /// frame's centre gets 1; with dispersion each sample takes one channel at weight 3.
-    fn lens_ray(&self, lens: &RealLens, ndc: Vec2, r: &mut Rng) -> Option<(Vec3, Vec3, Vec3)> {
+    /// frame's centre gets 1; with dispersion each sample takes one channel at weight 3, or on a
+    /// spectral path the hero wavelength (no random number drawn).
+    fn lens_ray(
+        &self,
+        lens: &RealLens,
+        ndc: Vec2,
+        waves: &mut Waves,
+        r: &mut Rng,
+    ) -> Option<(Vec3, Vec3, Vec3)> {
         let f = &self.frame;
-        let c = if lens.dispersion {
-            ((r.f() * 3.) as usize).min(2)
+        let c = if !lens.dispersion {
+            Channel::Rgb(1)
+        } else if waves.on {
+            Channel::Nm(waves.l.x)
         } else {
-            1
+            Channel::Rgb(((r.f() * 3.) as usize).min(2))
         };
         let [half_w, half_h, bands, norm] = lens.data[0];
         let [rear_z, _, front_z, covered] = lens.data[1];
@@ -303,8 +335,10 @@ impl Scene<'_> {
             self.eye + (f.right * lo.x + f.up * lo.y + f.forward * (front_z - lo.z)) * lens.scale;
         let d = (f.right * ld.x + f.up * ld.y - f.forward * ld.z).normalize();
         let mut w = Vec3::splat(cos4 * area * norm);
-        if lens.dispersion {
-            w *= Vec3::AXES[c] * 3.;
+        match c {
+            Channel::Rgb(c) if lens.dispersion => w *= Vec3::AXES[c] * 3.,
+            Channel::Nm(_) => waves.hero(&mut w),
+            _ => {}
         }
         Some((o, d, w))
     }

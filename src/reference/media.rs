@@ -1,6 +1,7 @@
 //! The nested-dielectric stack and what it absorbs.
 use super::bsdf::rgb;
 use super::scene::Scene;
+use super::spectral::Waves;
 use glam::Vec3;
 
 /// The nested-dielectric stack (`medium_top`, `medium_push`, `medium_remove`): entries are
@@ -25,11 +26,12 @@ pub(super) fn remove(media: &mut Vec<(u32, u32)>, e: (u32, u32)) {
 impl Scene<'_> {
     /// Beer-Lambert through `t` of the innermost dielectric: its colour is the transmittance
     /// per unit (`medium_absorption`).
-    pub(super) fn transmittance(&self, media: &[(u32, u32)], t: f32) -> Vec3 {
+    pub(super) fn transmittance(&self, media: &[(u32, u32)], t: f32, w: &Waves) -> Vec3 {
         let Some(top) = top(media) else {
             return Vec3::ONE;
         };
-        let c = rgb(self.materials[top.1 as usize].color_rough).max(Vec3::splat(0.001));
+        let m = &self.materials[top.1 as usize];
+        let c = w.up_material(m, rgb(m.color_rough)).max(Vec3::splat(0.001));
         c.powf(t)
     }
 }
@@ -82,8 +84,10 @@ impl Scene<'_> {
     }
     /// The uniform fog's extinction per channel: the density times its tint, read as the GPU
     /// reads it (`lighting::pack_tint`: 8 bits per channel, relative to the largest).
-    pub(super) fn fog_sigma(&self) -> Vec3 {
-        self.s.fog.density * tint_of(crate::lighting::pack_tint(self.s.fog.extinction))
+    pub(super) fn fog_sigma(&self, w: &Waves) -> Vec3 {
+        w.sigma(
+            self.s.fog.density * w.up(tint_of(crate::lighting::pack_tint(self.s.fog.extinction))),
+        )
     }
     /// The fog's transmittance along o + d t over [start, limit], per channel: exact when
     /// uniform, an unbiased ratio-tracking estimate when `Fog::noise` makes it heterogeneous.
@@ -93,6 +97,7 @@ impl Scene<'_> {
         d: Vec3,
         start: f32,
         limit: f32,
+        w: &Waves,
         r: &mut super::sampling::Rng,
     ) -> Vec3 {
         let Some((t0, t1)) = self.fog_interval(o, d, limit) else {
@@ -104,15 +109,19 @@ impl Scene<'_> {
         }
         let f = &self.s.fog;
         if f.noise <= 0. {
-            return (-self.fog_sigma() * (t1 - t0)).exp();
+            return (-self.fog_sigma(w) * (t1 - t0)).exp();
         }
-        ratio_tracking(self.fog_sigma(), f.noise, f.noise_size, o, d, t0, t1, r)
+        ratio_tracking(self.fog_sigma(w), f.noise, f.noise_size, o, d, t0, t1, r)
     }
     /// The scattering medium of the innermost dielectric when it has one (`Material::density`):
     /// its extinction, scattering albedo and Henyey-Greenstein g.
-    pub(super) fn object_medium(&self, media: &[(u32, u32)]) -> Option<(Vec3, Vec3, f32)> {
+    pub(super) fn object_medium(
+        &self,
+        media: &[(u32, u32)],
+        w: &Waves,
+    ) -> Option<(Vec3, Vec3, f32)> {
         let m = &self.materials[top(media)?.1 as usize];
-        (m.medium[3] > 0.).then(|| (extinction(m), rgb(m.medium), m.phase[0]))
+        (m.medium[3] > 0.).then(|| (extinction(m, w), w.up(rgb(m.medium)), m.phase[0]))
     }
     /// What a shadow ray from o toward a light `limit` away lets through of the media. Inside a
     /// scattering object: its extinction and its colour's absorption up to the nearest surface,
@@ -125,11 +134,12 @@ impl Scene<'_> {
         o: Vec3,
         d: Vec3,
         limit: f32,
+        w: &Waves,
         r: &mut super::sampling::Rng,
     ) -> Vec3 {
         let (mut tr, mut start) = (Vec3::ONE, 0.);
         if !media.is_empty() {
-            let Some((sigma, _, _)) = self.object_medium(media) else {
+            let Some((sigma, _, _)) = self.object_medium(media, w) else {
                 return Vec3::ONE;
             };
             start = self
@@ -141,9 +151,9 @@ impl Scene<'_> {
                     false,
                 )
                 .map_or(limit, |h| h.t);
-            tr = (-sigma * start).exp() * self.transmittance(media, start);
+            tr = (-sigma * start).exp() * self.transmittance(media, start, w);
         }
-        tr * self.fog_transmittance(o, d, start, limit, r)
+        tr * self.fog_transmittance(o, d, start, limit, w, r)
     }
     /// A free flight through the fog over [t0, t1): `flight` when uniform, delta tracking
     /// otherwise.
@@ -153,13 +163,14 @@ impl Scene<'_> {
         d: Vec3,
         t0: f32,
         t1: f32,
+        w: &Waves,
         r: &mut super::sampling::Rng,
     ) -> (f32, Vec3) {
         let f = &self.s.fog;
         if f.noise <= 0. {
-            return flight(self.fog_sigma(), t0, t1, r);
+            return flight(self.fog_sigma(w), t0, t1, r);
         }
-        delta_tracking(self.fog_sigma(), f.noise, f.noise_size, o, d, t0, t1, r)
+        delta_tracking(self.fog_sigma(w), f.noise, f.noise_size, o, d, t0, t1, r)
     }
 }
 
@@ -284,15 +295,18 @@ pub(super) fn ratio_tracking(
 }
 
 /// A material's extinction per channel (`extinction_of`): its density times its packed tint,
-/// where phase.w holds one (not on blackbodies and the measured light, whose phase.w is a scale).
-pub(super) fn extinction(m: &crate::lighting::PackedMaterial) -> Vec3 {
+/// where phase.w holds one (not on blackbodies and the measured light, whose phase.w is a scale),
+/// uplifted at the path's wavelengths (`Waves::sigma`).
+pub(super) fn extinction(m: &crate::lighting::PackedMaterial, w: &Waves) -> Vec3 {
     let spectrum = m.phase[2];
-    m.medium[3]
-        * if spectrum < 0. || spectrum == 4. {
-            Vec3::ONE
-        } else {
-            tint_of(m.phase[3])
-        }
+    w.sigma(
+        m.medium[3]
+            * if spectrum < 0. || spectrum == 4. {
+                Vec3::ONE
+            } else {
+                w.up(tint_of(m.phase[3]))
+            },
+    )
 }
 
 /// A packed extinction tint (`lighting::pack_tint`) as a colour; 0 is grey.
