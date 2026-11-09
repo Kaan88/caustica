@@ -2,7 +2,7 @@
 use crate::reference::bsdf::{
     coat_probability, emitted, eval_bsdf, flags, fresnel_dielectric, material_at, spec_probability,
 };
-use crate::reference::media::{push, remove, top};
+use crate::reference::media::{hg_pdf, hg_sample, push, remove, top};
 use crate::reference::sampling::{Rng, cosine_sample, ggx_sample, reflect, refract};
 use crate::reference::scene::{Ray, Scene};
 use glam::Vec3;
@@ -68,6 +68,46 @@ impl Scene<'_> {
                 false_hits += 1;
                 origin = sf.p - sf.ng * 0.0003;
             };
+            // The fog box fills the space outside every object: a free flight through it may
+            // scatter before the surface (or the background), with light sampling by the phase.
+            if media.is_empty()
+                && let Some((t0, t1)) =
+                    self.fog_interval(origin, direction, hit.as_ref().map_or(1e4, |h| h.t))
+            {
+                let f = &s.fog;
+                let ts = t0 - (1. - r.f()).ln() / f.density;
+                if ts < t1 {
+                    throughput *= Vec3::from(f.color);
+                    let x = origin + direction * ts;
+                    if mis != 2
+                        && let Some((ld, le, pl, limit)) = self.sample_light(x, r)
+                        && self
+                            .bvh
+                            .intersect(x, ld, limit, &self.accept(Ray::Shadow), true)
+                            .is_none()
+                    {
+                        let pp = hg_pdf(direction.dot(ld), f.phase);
+                        let density = if mis == 1 { pl } else { pl + pp };
+                        radiance += throughput * self.fog_transmittance(x, ld, limit) * pp * le
+                            / density.max(1e-8);
+                    }
+                    let (d, pp) = hg_sample(direction, f.phase, r);
+                    previous_pdf = pp;
+                    previous_delta = false;
+                    previous_position = x;
+                    origin = x;
+                    direction = d;
+                    if bounce >= 3 {
+                        let survival = throughput.max_element().clamp(0.05, 0.95);
+                        if r.f() > survival {
+                            break;
+                        }
+                        throughput /= survival;
+                    }
+                    bounce += 1;
+                    continue;
+                }
+            }
             let Some(h) = hit else {
                 let Some(env) = &self.env else {
                     // The sky gradient over the background colour (no HDRI).
@@ -147,7 +187,12 @@ impl Scene<'_> {
                             .is_none()
                     {
                         let density = if mis == 1 { pl } else { pl + pdf };
-                        radiance += throughput * f * nl * le / density.max(1e-8);
+                        let fog = if media.is_empty() {
+                            self.fog_transmittance(sf.p, ld, limit)
+                        } else {
+                            1.
+                        };
+                        radiance += throughput * f * nl * le * fog / density.max(1e-8);
                     }
                 }
             }

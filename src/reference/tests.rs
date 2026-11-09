@@ -117,7 +117,13 @@ fn every_missing_feature_is_refused() {
     };
     let cases: Vec<(&str, Settings)> = vec![
         ("physical sky's sun", edit(&|s| s.physical_sky.on = true)),
-        ("fog", edit(&|s| s.fog.density = 0.1)),
+        (
+            "heterogeneous fog",
+            edit(&|s| {
+                s.fog.density = 0.1;
+                s.fog.noise = 0.5;
+            }),
+        ),
         ("spectral", edit(&|s| s.spectral = true)),
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
@@ -549,15 +555,15 @@ fn the_view_follows_the_camera_and_the_scene() {
 fn the_view_lists_what_the_reference_refuses() {
     let mut s = Settings::default();
     s.max_samples = 2;
-    s.fog.density = 0.1;
+    s.spectral = true;
     let size = [8, 6];
     let reference = Live::start(s.clone(), size, String::new(), false);
-    assert!(finish(&reference).error.unwrap().contains("fog"));
+    assert!(finish(&reference).error.unwrap().contains("spectral"));
     assert!(reference.image(true).is_none());
     let view = Live::start(s, size, String::new(), true);
     let st = finish(&view);
     assert!(st.error.is_none());
-    assert_eq!(st.missing, ["fog"]);
+    assert_eq!(st.missing, ["spectral rendering"]);
     assert!(view.image(false).is_some());
 }
 #[test]
@@ -612,4 +618,26 @@ fn camera_rays_follow_each_projection() {
     s.projection = 3;
     let planet = Scene::new(&s, [320, 240]);
     assert!(planet.camera_ray(centre).1.y < -0.999);
+}
+/// Henyey-Greenstein's pdf integrates to one and its samples follow it (mean cos θ = g).
+#[test]
+fn henyey_greenstein_is_normalised_and_sampled() {
+    use super::media::{hg_pdf, hg_sample};
+    for g in [-0.6f32, 0., 0.4, 0.85] {
+        let n = 20000;
+        let integral: f32 = (0..n)
+            .map(|i| {
+                let c = -1. + 2. * (i as f32 + 0.5) / n as f32;
+                hg_pdf(c, g) * 2. * std::f32::consts::PI * 2. / n as f32
+            })
+            .sum();
+        assert!((integral - 1.).abs() < 1e-2, "g {g}: {integral}");
+        let mut r = super::sampling::Rng::new(7, 3);
+        let d = glam::Vec3::Z;
+        let mean: f32 = (0..n)
+            .map(|_| hg_sample(d, g, &mut r).0.dot(d))
+            .sum::<f32>()
+            / n as f32;
+        assert!((mean - g).abs() < 0.02, "g {g}: mean cos {mean}");
+    }
 }

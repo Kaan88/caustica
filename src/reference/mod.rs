@@ -45,7 +45,12 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         s.physical_sky.on && s.physical_sky.sun().is_some(),
         "the physical sky's sun above the horizon (sun lights)",
     );
-    need(s.fog.density > 0., "fog");
+    // The fog box renders grey and uniform; `Fog::equiangular` only changes the GPU's sampling.
+    need(
+        s.fog.density > 0. && s.fog.extinction != [1.; 3],
+        "chromatic fog",
+    );
+    need(s.fog.density > 0. && s.fog.noise > 0., "heterogeneous fog");
     need(s.spectral, "spectral rendering");
     // At the last bounce MIS keeps only its share of a light sample, the BSDF sample that would
     // make up the rest not being traced; ReSTIR's first hit keeps all of it. With a bounce to
