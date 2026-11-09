@@ -37,7 +37,8 @@ impl Scene<'_> {
         // The dielectrics the path is inside: (priority, material), innermost last.
         let mut media: Vec<(u32, u32)> = self.camera_media.clone();
         let mut false_hits = 0;
-        // Portal crossings on this path (`trace` caps them at 16).
+        // Portal and beam-splitter crossings on this path (`trace` caps portals at 16, splitters
+        // at 64).
         let mut crossings = 0;
         // Only delta bounces since the camera: the background it sees is ground-projected.
         let mut camera_chain = true;
@@ -186,6 +187,23 @@ impl Scene<'_> {
                 continue;
             }
             let m = material_at(&self.materials[sf.material as usize], sf.p);
+            // Beam splitters: a thin partial mirror, a delta event either way, sharing the
+            // portals' crossing budget (past it the sheet shades as an ordinary material). A back
+            // face (leaving a closed splitter) passes untinted, so a thin box splits once, not
+            // twice. Only a reflection is a bounce; the sheet's own emission is never seen.
+            if flags(&m) & 4096 != 0 && crossings < 64 {
+                crossings += 1;
+                previous_delta = true;
+                if sf.front {
+                    throughput *= Vec3::from_slice(&m.color_rough[..3]);
+                    if r.f() < m.lobes[1] {
+                        direction = reflect(direction, sf.n);
+                        bounce += 1;
+                    }
+                }
+                origin = sf.p + direction * 0.0005;
+                continue;
+            }
             let le = emitted(&m, sf.front, sf.emission_cos(direction));
             if le.max_element() > 0. {
                 let weight = if bounce == 0 || previous_delta {

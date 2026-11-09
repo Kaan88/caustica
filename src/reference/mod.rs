@@ -80,10 +80,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         "texture maps (with their alpha cutouts and emissive maps)",
     );
     let mats = material_records(s);
-    need(
-        mats.iter().any(|m| m.lobes[3] as u32 & 4096 != 0),
-        "beam splitters",
-    );
     // An IES profile fills these fields of its light's record (`ies::pack`): not a coat or a sheen.
     let mats: Vec<_> = mats
         .into_iter()

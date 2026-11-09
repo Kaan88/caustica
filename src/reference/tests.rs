@@ -140,7 +140,6 @@ fn every_missing_feature_is_refused() {
             "wall texture set",
             edit(&|s| s.walls.texture = "set".into()),
         ),
-        ("beam splitter", with_material(&|m| m.splitter = true)),
         ("anisotropy", with_material(&|m| m.anisotropy = 0.5)),
         ("thin film", with_material(&|m| m.iridescence = 1.)),
         ("grating", with_material(&|m| m.grating = 1.)),
@@ -952,4 +951,36 @@ fn a_portal_maps_its_centre_to_its_pairs_and_turns_the_ray_around() {
     assert!((d - Vec3::new(-0.6, 0., 0.8)).length() < 1e-4, "{d}");
     // Its matrix rows (a negative z translation here) don't read as a grating or a splitter.
     assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+}
+/// A beam splitter is a mix of a clear sheet and a mirror: white at reflectivity 0 it vanishes,
+/// and at 0.5 the image is the mean of its two ends.
+#[test]
+fn a_beam_splitter_mixes_a_clear_sheet_and_a_mirror() {
+    let size = [24, 18];
+    let mean = |reflectivity: Option<f32>| {
+        let mut s = Settings::default();
+        s.bounces = 4;
+        // BSDF sampling only: shadow rays see a splitter as opaque (as on the GPU), so with
+        // light sampling the last bounce's light beyond a clear sheet is lost, and it isn't
+        // the same image as no sheet.
+        s.mis_mode = 2;
+        let m = &mut s.objects[0].material;
+        m.color = [1.; 3];
+        match reflectivity {
+            Some(r) => {
+                m.splitter = true;
+                m.reflectivity = r;
+            }
+            None => s.objects[0].visible = false,
+        }
+        assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+        let img = render(&s, size, 64, &|_| {}).unwrap();
+        assert!(img.iter().all(|v| v.is_finite()));
+        img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>() / (size[0] * size[1]) as f32
+    };
+    let (gone, clear, mirror, half) = (mean(None), mean(Some(0.)), mean(Some(1.)), mean(Some(0.5)));
+    assert!((clear / gone - 1.).abs() < 0.03, "{clear} {gone}");
+    assert!((mirror / clear - 1.).abs() > 0.01, "{mirror} {clear}");
+    let mix = 0.5 * (clear + mirror);
+    assert!((half / mix - 1.).abs() < 0.03, "{half} {mix}");
 }
