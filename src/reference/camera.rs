@@ -1,5 +1,5 @@
 //! Camera rays: the pixel filter's offset and the ray through a film point.
-use super::sampling::Rng;
+use super::sampling::{Rng, refract};
 use super::scene::Scene;
 use crate::scene::Settings;
 use glam::{Vec2, Vec3, Vec4};
@@ -107,15 +107,125 @@ pub(super) fn aperture_point(blades: u32, rotation: f32, r: &mut Rng) -> Vec2 {
     u * edge(k) + v * edge(k + 1.)
 }
 
+/// Whether `q` lies in the stop of radius `r`: a disk, or the regular polygon of `blades` sides
+/// rotated by `rotation` that `aperture_point` samples, `r` being its corners' radius.
+pub(super) fn inside_stop(q: Vec2, r: f32, blades: u32, rotation: f32) -> bool {
+    if blades <= 2 {
+        return q.length_squared() <= r * r;
+    }
+    // Fold the angle into one edge's sector, measured from the edge's normal.
+    let sector = 2. * PI / blades as f32;
+    let a = (q.y.atan2(q.x) - rotation).rem_euclid(sector) - 0.5 * sector;
+    q.length() * a.cos() <= r * (0.5 * sector).cos()
+}
+
+/// A real lens system (`lens::pack`'s buffer) in millimetres, the film at z = 0 and the lens
+/// toward -z, and what places it in the world.
+pub(super) struct RealLens {
+    data: Vec<[f32; 4]>,
+    surfaces: usize,
+    /// World units per millimetre.
+    scale: f32,
+    dispersion: bool,
+}
+
+impl RealLens {
+    pub(super) fn new(s: &Settings, aspect: f32) -> Self {
+        let (data, surfaces) = crate::lens::pack(&crate::lens::Params {
+            lens: s.lens_system,
+            f_number: s.f_number,
+            focus_mm: s.focus_distance * s.lens_scale * 1000.,
+            fov: s.fov.to_radians(),
+            aspect,
+            dispersion: s.dispersion,
+        });
+        RealLens {
+            data,
+            surfaces,
+            scale: 0.001 / s.lens_scale,
+            dispersion: s.dispersion > 0.,
+        }
+    }
+    /// A trace through a round stop, for tests.
+    #[cfg(test)]
+    pub(super) fn trace_channel(&self, o: Vec3, d: Vec3, c: usize) -> Option<(Vec3, Vec3)> {
+        self.trace(o, d, c, 0, 0.)
+    }
+    /// Surface i's index on its film side in channel c.
+    fn ior(&self, i: usize, c: usize) -> f32 {
+        self.data[3 + 2 * i][c]
+    }
+    /// From the film out of the front element, refracting in channel c; None when a surface is
+    /// missed, its rim or the stop blocks the ray, or it reflects totally.
+    fn trace(
+        &self,
+        mut o: Vec3,
+        mut d: Vec3,
+        c: usize,
+        blades: u32,
+        rot: f32,
+    ) -> Option<(Vec3, Vec3)> {
+        for i in (0..self.surfaces).rev() {
+            let [radius, z, aperture, _] = self.data[2 + 2 * i];
+            if radius == 0. {
+                let t = (z - o.z) / d.z;
+                if t.is_nan() || t <= 0. {
+                    return None;
+                }
+                o += t * d;
+                if !inside_stop(o.truncate(), aperture, blades, rot) {
+                    return None;
+                }
+                continue;
+            }
+            // The sphere's centre sits `radius` past the vertex; the ray meets the cap on the
+            // vertex's side, the near root when it travels toward the centre's side.
+            let oc = o - Vec3::new(0., 0., z + radius);
+            let b = oc.dot(d);
+            let disc = b * b - (oc.length_squared() - radius * radius);
+            if disc < 0. {
+                return None;
+            }
+            let t = if (d.z > 0.) != (radius < 0.) {
+                -b - disc.sqrt()
+            } else {
+                -b + disc.sqrt()
+            };
+            if t.is_nan() || t <= 0. {
+                return None;
+            }
+            o += t * d;
+            if o.truncate().length_squared() > aperture * aperture {
+                return None;
+            }
+            let n = (oc + t * d).normalize();
+            let outside = if i > 0 { self.ior(i - 1, c) } else { 1. };
+            d = refract(
+                d,
+                if n.dot(d) > 0. { -n } else { n },
+                self.ior(i, c) / outside,
+            );
+            if d == Vec3::ZERO {
+                return None;
+            }
+        }
+        Some((o, d))
+    }
+}
+
 impl Scene<'_> {
-    /// The camera ray through film point `pixel`, origin and direction, for each projection
-    /// (`camera_ray`), or None for a sample the cat-eye cuts off (it still counts, as black).
-    /// Only the perspective and tilt-shift projections take the thin lens; the pinhole draws no
-    /// random numbers. Lens systems are refused in `unsupported`.
-    pub(super) fn camera_ray(&self, pixel: Vec2, r: &mut Rng) -> Option<(Vec3, Vec3)> {
+    /// The camera ray through film point `pixel`, origin, direction and weight, for each
+    /// projection (`camera_ray`), or None for a sample the cat-eye or a lens system's barrel
+    /// cuts off (it still counts, as black). Only the perspective and tilt-shift projections
+    /// take the thin lens, and a lens system replaces it in perspective; the pinhole draws no
+    /// random numbers.
+    pub(super) fn camera_ray(&self, pixel: Vec2, r: &mut Rng) -> Option<(Vec3, Vec3, Vec3)> {
         let f = &self.frame;
         let ndc = pixel / Vec2::new(self.size[0] as f32, self.size[1] as f32) * 2. - 1.;
         let ndc = Vec2::new(ndc.x, -ndc.y);
+        if let Some(lens) = &self.lens {
+            return self.lens_ray(lens, ndc, r);
+        }
         Some(match f.projection {
             1 => (
                 self.eye + (f.right * ndc.x * f.aspect + f.up * ndc.y) * f.ortho_half,
@@ -140,7 +250,7 @@ impl Scene<'_> {
             _ => {
                 let d = self.camera_direction(pixel);
                 if f.aperture <= 0. {
-                    return Some((self.eye, d));
+                    return Some((self.eye, d, Vec3::ONE));
                 }
                 // Everything on the focal plane (tilted about the right axis for tilt-shift)
                 // stays sharp: every lens point aims at where the pinhole ray meets it.
@@ -161,6 +271,42 @@ impl Scene<'_> {
                 (o, (focal - o).normalize())
             }
         })
+        .map(|(o, d)| (o, d, Vec3::ONE))
+    }
+    /// A lens system's ray: the film point for `ndc` (the image is inverted), a uniform point in
+    /// the exit-pupil bounds of its band turned to the point's angle, traced out of the front
+    /// element. Weight cos⁴ at the film × the bounds' area × `pack`'s normalisation, so the
+    /// frame's centre gets 1; with dispersion each sample takes one channel at weight 3.
+    fn lens_ray(&self, lens: &RealLens, ndc: Vec2, r: &mut Rng) -> Option<(Vec3, Vec3, Vec3)> {
+        let f = &self.frame;
+        let c = if lens.dispersion {
+            ((r.f() * 3.) as usize).min(2)
+        } else {
+            1
+        };
+        let [half_w, half_h, bands, norm] = lens.data[0];
+        let [rear_z, _, front_z, covered] = lens.data[1];
+        let film = -ndc * Vec2::new(half_w, half_h);
+        let rf = film.length();
+        let band = ((rf / covered * bands) as usize).min(bands as usize - 1);
+        let [x0, x1, y1, area] = lens.data[2 + 2 * crate::lens::MAX_SURFACES + band];
+        if area <= 0. {
+            return None;
+        }
+        let q = Vec2::new(x0 + (x1 - x0) * r.f(), (2. * r.f() - 1.) * y1);
+        let q = if rf > 1e-6 { (film / rf).rotate(q) } else { q };
+        let o = film.extend(0.);
+        let d = (q.extend(rear_z) - o).normalize();
+        let cos4 = d.z.powi(4);
+        let (lo, ld) = lens.trace(o, d, c, f.blades, f.rotation)?;
+        let o =
+            self.eye + (f.right * lo.x + f.up * lo.y + f.forward * (front_z - lo.z)) * lens.scale;
+        let d = (f.right * ld.x + f.up * ld.y - f.forward * ld.z).normalize();
+        let mut w = Vec3::splat(cos4 * area * norm);
+        if lens.dispersion {
+            w *= Vec3::AXES[c] * 3.;
+        }
+        Some((o, d, w))
     }
     pub(super) fn camera_direction(&self, pixel: Vec2) -> Vec3 {
         let ndc = pixel / Vec2::new(self.size[0] as f32, self.size[1] as f32) * 2. - 1.;

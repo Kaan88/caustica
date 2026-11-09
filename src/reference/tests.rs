@@ -119,7 +119,6 @@ fn every_missing_feature_is_refused() {
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
-        ("real lens", edit(&|s| s.lens_system = 1)),
         (
             "SDF",
             edit(&|s| {
@@ -414,6 +413,7 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         eye: Vec3::ZERO,
         inverse_vp: Mat4::IDENTITY,
         frame: Default::default(),
+        lens: None,
         camera_media: vec![],
         size: [1, 1],
         env: None,
@@ -642,9 +642,10 @@ fn camera_rays_follow_each_projection() {
 /// A pinhole camera ray: it must not draw random numbers or be cut off.
 fn pinhole(scene: &Scene, pixel: Vec2) -> (Vec3, Vec3) {
     let mut r = Rng::new(0, 0);
-    let ray = scene.camera_ray(pixel, &mut r).unwrap();
+    let (o, d, w) = scene.camera_ray(pixel, &mut r).unwrap();
     assert_eq!(r.f(), Rng::new(0, 0).f());
-    ray
+    assert_eq!(w, Vec3::ONE);
+    (o, d)
 }
 /// The thin lens: every aperture sample of a pixel passes through one focal point (on the
 /// tilted plane too), bladed samples stay inside the polygon, and the cat-eye cuts the corners
@@ -669,7 +670,7 @@ fn thin_lens_samples_focus_and_stay_in_the_aperture() {
         let focal = meet((scene.eye, scene.camera_direction(pixel)));
         let mut r = Rng::new(1, 2);
         for _ in 0..64 {
-            let (o, d) = scene.camera_ray(pixel, &mut r).unwrap();
+            let (o, d, _) = scene.camera_ray(pixel, &mut r).unwrap();
             assert!((meet((o, d)) - focal).length() < 1e-3);
         }
     }
@@ -878,4 +879,64 @@ fn a_sun_lights_as_defined() {
     let scene = Scene::new(&s, [8, 8]);
     assert_eq!(scene.suns(d, 0, |_| 1.), Vec3::ZERO);
     assert_eq!(scene.suns(d, 1, |_| 1.), le);
+}
+/// A lens system: at the frame's centre the mean weight, a blocked sample counting 0, is 1 for
+/// every prescription (`lens::pack` normalises the centre's pupil); with dispersion each channel
+/// keeps that mean, and red and blue leave the lens apart at the frame's edge.
+#[test]
+fn lens_systems_weigh_one_at_the_centre() {
+    let mut s = Settings::default();
+    (s.f_number, s.focus_distance) = (4., 4.7);
+    let mean = |scene: &Scene, pixel: Vec2| {
+        let mut r = Rng::new(7, 8);
+        let n = 20000;
+        (0..n)
+            .filter_map(|_| scene.camera_ray(pixel, &mut r))
+            .map(|(_, _, w)| w)
+            .sum::<Vec3>()
+            / n as f32
+    };
+    let centre = Vec2::new(160., 120.);
+    for lens in 1..=5 {
+        s.lens_system = lens;
+        let scene = Scene::new(&s, [320, 240]);
+        let m = mean(&scene, centre);
+        assert!(
+            (m - Vec3::ONE).abs().max_element() < 0.03,
+            "lens {lens}: {m}"
+        );
+    }
+    (s.lens_system, s.dispersion) = (4, 1.);
+    let scene = Scene::new(&s, [320, 240]);
+    let m = mean(&scene, centre);
+    assert!(
+        (m - Vec3::ONE).abs().max_element() < 0.06,
+        "dispersion: {m}"
+    );
+    // One film point and pupil sample traced in red and in blue.
+    let lens = scene.lens.as_ref().unwrap();
+    let (o, d) = (
+        Vec3::new(15., 10., 0.),
+        Vec3::new(-0.2, -0.1, -1.).normalize(),
+    );
+    let red = lens.trace_channel(o, d, 0).unwrap().1;
+    let blue = lens.trace_channel(o, d, 2).unwrap().1;
+    assert!(red.angle_between(blue) > 1e-4);
+}
+/// The stop test accepts exactly the polygon `aperture_point` samples.
+#[test]
+fn the_bladed_stop_holds_the_aperture_samples() {
+    let rot = 20f32.to_radians();
+    let mut r = Rng::new(9, 10);
+    for _ in 0..4096 {
+        let l = super::camera::aperture_point(6, rot, &mut r);
+        assert!(super::camera::inside_stop(l * 0.999, 1., 6, rot));
+    }
+    // A corner is in, past it is out; the edge's midpoint sits at the apothem.
+    let corner = Vec2::from_angle(rot);
+    assert!(super::camera::inside_stop(corner * 0.999, 1., 6, rot));
+    assert!(!super::camera::inside_stop(corner * 1.001, 1., 6, rot));
+    let mid = Vec2::from_angle(rot + PI / 6.) * (PI / 6.).cos();
+    assert!(super::camera::inside_stop(mid * 0.999, 1., 6, rot));
+    assert!(!super::camera::inside_stop(mid * 1.001, 1., 6, rot));
 }

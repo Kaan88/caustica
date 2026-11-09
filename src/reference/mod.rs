@@ -64,7 +64,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         s.lpe.iter().any(|e| !e.is_empty()),
         "light path expressions (LPE AOVs)",
     );
-    need(s.lens_system != 0, "a real lens system");
     need(
         s.objects.iter().any(|o| o.visible && !o.sdf.is_none()),
         "procedural (SDF) objects",

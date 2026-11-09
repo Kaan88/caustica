@@ -12,12 +12,13 @@ impl Scene<'_> {
         &self,
         mut origin: Vec3,
         mut direction: Vec3,
+        weight: Vec3,
         r: &mut Rng,
     ) -> Vec3 {
         let s = self.s;
         // Which strategies count: 0 both, with MIS; 1 light sampling only; 2 BSDF sampling only.
         let mis = s.mis_mode.min(2);
-        let mut throughput = Vec3::ONE;
+        let mut throughput = weight;
         let mut radiance = Vec3::ZERO;
         let mut previous_pdf = 0f32;
         let mut previous_delta = true;

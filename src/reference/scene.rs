@@ -28,6 +28,8 @@ pub(super) struct Scene<'a> {
     pub(super) eye: Vec3,
     pub(super) inverse_vp: Mat4,
     pub(super) frame: super::camera::Frame,
+    /// The lens system, when the camera has one (`Settings::real_lens`).
+    pub(super) lens: Option<super::camera::RealLens>,
     /// The dielectric the camera is inside (`geometry::camera_medium`), as the GPU seeds it.
     pub(super) camera_media: Vec<(u32, u32)>,
     pub(super) size: [u32; 2],
@@ -225,6 +227,7 @@ impl<'a> Scene<'a> {
             eye: Vec3::ZERO,
             inverse_vp: Mat4::IDENTITY,
             frame: Default::default(),
+            lens: None,
             camera_media: vec![],
             size,
             env,
@@ -254,6 +257,9 @@ impl<'a> Scene<'a> {
             cat_eye: camera.cat_eye,
             tilt: camera.tilt.to_radians(),
         };
+        self.lens = camera
+            .real_lens()
+            .then(|| super::camera::RealLens::new(camera, size[0] as f32 / size[1] as f32));
         self.camera_media = match crate::geometry::camera_medium(camera, eye) {
             0 => vec![],
             e => vec![(e >> 13, (e & 0x1fff) - 1)],
