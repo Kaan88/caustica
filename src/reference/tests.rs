@@ -450,18 +450,19 @@ fn at_time_runs_the_simulation_and_freezes_it() {
     assert_eq!(a.objects[0].elevation, b.objects[0].elevation);
     assert!(!a.physics.enabled);
 }
-/// ReSTIR changes the image only where MIS has no BSDF sample to balance: at a one-bounce limit.
+/// ReSTIR renders everywhere; its share of samples follows the GPU's reservoir layers.
 #[test]
-fn restir_is_refused_only_where_it_changes_the_image() {
+fn restir_renders_with_the_gpus_share_of_samples() {
     let mut s = Settings::default();
     s.restir = true;
     s.bounces = 1;
-    assert!(unsupported(&s).iter().any(|w| w.contains("ReSTIR")));
-    s.mis_mode = 1;
     assert!(unsupported(&s).is_empty());
-    s.mis_mode = 0;
-    s.bounces = 2;
-    assert!(unsupported(&s).is_empty());
+    use super::lights::restir_share;
+    assert_eq!(restir_share(1, 320 * 240), 1.);
+    assert_eq!(restir_share(16, 320 * 240), 0.25);
+    // 4K: two layers fit in 1 GiB.
+    assert_eq!(restir_share(8, 3840 * 2160), 0.25);
+    assert_eq!(restir_share(0, 0), 1.);
 }
 /// The app turns the camera each frame while `rotate` is on: frozen, it turns no further.
 #[test]

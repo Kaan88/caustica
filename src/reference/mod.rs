@@ -47,13 +47,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
     };
     // `Fog::equiangular` only changes the GPU's sampling; the CPU ignores it.
     need(s.spectral, "spectral rendering");
-    // At the last bounce MIS keeps only its share of a light sample, the BSDF sample that would
-    // make up the rest not being traced; ReSTIR's first hit keeps all of it. With a bounce to
-    // spare the two agree.
-    need(
-        s.restir && s.mis_mode == 0 && s.bounces == 1,
-        "ReSTIR at one bounce (set restir=false or more bounces)",
-    );
     need(s.battle, "battle mode (four integrators at once)");
     need(
         s.integrator != 0,

@@ -103,7 +103,22 @@ pub(super) fn cone_sample(axis: Vec3, om: f32, r: &mut Rng) -> (Vec3, f32) {
     )
 }
 
+/// `Scene::restir_share` for `spp` samples a frame over `pixels` render pixels.
+pub(super) fn restir_share(spp: u32, pixels: u64) -> f32 {
+    let spp = spp.max(1);
+    let layers = spp
+        .min(4)
+        .min(((1 << 30) / (pixels.max(1) * 64)).max(1) as u32);
+    layers as f32 / spp as f32
+}
+
 impl Scene<'_> {
+    /// The share of samples that use ReSTIR at the first hit: the GPU keeps a reservoir layer
+    /// for each of a frame's first `spp.clamp(1, 4)` samples, fewer when they would pass 1 GiB
+    /// (`prepare_restir`), and lights the rest plainly.
+    pub(super) fn restir_share(&self) -> f32 {
+        restir_share(self.s.spp, self.size[0] as u64 * self.size[1] as u64)
+    }
     pub(super) fn area(t: &Tri) -> f32 {
         (t.p[1] - t.p[0]).cross(t.p[2] - t.p[0]).length() * 0.5
     }
@@ -170,6 +185,10 @@ impl Scene<'_> {
         if !self.sdf_lights.is_empty() && (self.lights.is_empty() || r.f() < 0.5) {
             return self.sample_sdf(x, r);
         }
+        self.sample_table(x, r)
+    }
+    /// One sample of the light table alone; its pdf is still the full `sample_light` pick's.
+    pub(super) fn sample_table(&self, x: Vec3, r: &mut Rng) -> Option<(Vec3, Vec3, f32, f32)> {
         if self.lights.is_empty() {
             return None;
         }

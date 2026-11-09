@@ -38,6 +38,8 @@ impl Scene<'_> {
         let mut previous_pdf = 0f32;
         let mut previous_delta = true;
         let mut previous_position = origin;
+        // The last vertex sampled the light table as ReSTIR does (`restir_vertex`).
+        let mut previous_restir = false;
         // The dielectrics the path is inside: (priority, material), innermost last.
         let mut media: Vec<(u32, u32)> = self.camera_media.clone();
         let mut false_hits = 0;
@@ -129,6 +131,7 @@ impl Scene<'_> {
                     let (d, pp) = hg_sample(direction, g, r);
                     previous_pdf = pp;
                     previous_delta = false;
+                    previous_restir = false;
                     previous_position = x;
                     origin = x;
                     direction = d;
@@ -151,6 +154,7 @@ impl Scene<'_> {
                             1.
                         } else {
                             match mis {
+                                _ if previous_restir => 0.,
                                 1 => 0.,
                                 2 => 1.,
                                 _ => previous_pdf / (previous_pdf + pl),
@@ -237,6 +241,14 @@ impl Scene<'_> {
                         // procedural object is in a light table (`Scene::new`).
                         1 => 0.,
                         2 => 1.,
+                        // After a ReSTIR vertex: the table's light sample counted in full, so
+                        // what it covers counts 0 (all but a sphere light seen from inside);
+                        // procedural emitters had no light sample there and count in full.
+                        _ if previous_restir => match h.sdf {
+                            Some(_) => 1.,
+                            None if self.light_pdf(h.tri, previous_position, sf.p) > 0. => 0.,
+                            None => 1.,
+                        },
                         _ => {
                             let pl = match h.sdf {
                                 Some(i) => self.sdf_light_pdf(i, previous_position),
@@ -281,9 +293,34 @@ impl Scene<'_> {
                 break;
             }
             let v = -direction;
+            // ReSTIR DI at the first hit, for the GPU's first `restir_layers` samples of each
+            // frame (drawn here with that share): the environment keeps its own strategy and
+            // MIS, the light table is sampled alone with weight 1 (the reservoirs only lower its
+            // noise), and procedural emitters are left to the BSDF sample. At a bounce limit this
+            // differs from MIS, which keeps only its share of what the untraced BSDF sample
+            // would find.
+            let restir = bounce == 0
+                && s.restir
+                && mis == 0
+                && !self.lights.is_empty()
+                && r.f() < self.restir_share();
+            // The table's ReSTIR sample: its density alone, no BSDF share.
+            let mut alone = false;
             // Light sampling.
             let sample = if mis == 2 {
                 None
+            } else if restir {
+                match &self.env {
+                    Some(env) if r.f() < self.p_env => {
+                        let (ld, pe) = env.sample(r);
+                        (pe > 0.).then(|| (ld, env.radiance(ld), self.p_env * pe, 1e4))
+                    }
+                    _ => {
+                        alone = true;
+                        self.sample_table(sf.p, r)
+                            .map(|(ld, le, pl, limit)| (ld, le, pl / (1. - self.sdf_share), limit))
+                    }
+                }
             } else {
                 self.sample_light(sf.p, r)
             };
@@ -302,7 +339,7 @@ impl Scene<'_> {
                             )
                             .is_none()
                     {
-                        let density = if mis == 1 { pl } else { pl + pdf };
+                        let density = if mis == 1 || alone { pl } else { pl + pdf };
                         let tr =
                             self.shadow_transmittance(&media, sf.p + sf.ng * 0.0003, ld, limit, r);
                         radiance += throughput * f * nl * le * tr / density.max(1e-8);
@@ -403,6 +440,7 @@ impl Scene<'_> {
             }
             previous_pdf = bsdf_pdf;
             previous_delta = delta;
+            previous_restir = restir;
             previous_position = sf.p;
             direction = next.normalize();
             origin = sf.p
