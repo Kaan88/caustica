@@ -76,14 +76,10 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         "procedural (SDF) objects",
     );
     need(
-        s.lights.iter().any(|l| {
-            l.enabled
-                && matches!(
-                    l.kind,
-                    crate::scene::LightKind::Sphere | crate::scene::LightKind::Sun
-                )
-        }),
-        "sphere and sun lights",
+        s.lights
+            .iter()
+            .any(|l| l.enabled && l.kind == crate::scene::LightKind::Sun),
+        "sun lights",
     );
     // What `Gpu::attach_maps` binds: a texture set wins over the mesh's own maps (`mesh::maps`:
     // the glTF's or `maps_from`, when the material takes them), and the walls and the floor have

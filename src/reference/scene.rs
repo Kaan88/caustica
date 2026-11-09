@@ -19,9 +19,12 @@ pub(super) struct Scene<'a> {
     pub(super) s: &'a Settings,
     pub(super) bvh: Bvh,
     pub(super) materials: Vec<PackedMaterial>,
-    /// Emissive triangles (indices into the BVH's order), their power CDF and total.
-    pub(super) lights: Vec<usize>,
+    /// The emitters (spheres first, then emissive triangles) and their power CDF.
+    pub(super) lights: Vec<Light>,
     pub(super) cdf: Vec<f32>,
+    /// Per BVH triangle, its entry in `lights` + 1, or 0: a sphere light's mesh maps to the
+    /// sphere's entry, as `lighting::emitter_table`'s lookup does.
+    pub(super) tri_light: Vec<u32>,
     pub(super) eye: Vec3,
     pub(super) inverse_vp: Mat4,
     pub(super) frame: super::camera::Frame,
@@ -31,6 +34,15 @@ pub(super) struct Scene<'a> {
     /// The HDRI or the physical sky's map, and the share of light samples it takes.
     pub(super) env: Option<super::environment::Env>,
     pub(super) p_env: f32,
+}
+/// An entry of the light table.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Light {
+    /// An emissive triangle (index into the BVH's order).
+    Tri(usize),
+    /// A sphere light: centre, radius and flat emission. Sampled in the cone it covers; rays
+    /// meet its inscribed mesh (`geometry::geometry`), which is two-sided and unlit.
+    Sphere { c: Vec3, r: f32, le: Vec3 },
 }
 pub(super) struct Surface {
     pub(super) p: Vec3,
@@ -120,22 +132,50 @@ impl<'a> Scene<'a> {
             .filter(|t| (t.material as usize) < materials.len())
             .collect();
         let bvh = Bvh::build(tris);
-        // Emissive triangles by power: area × luminance of the emission (pattern-free colour).
+        // Sphere lights first, by their surface's power (4πr² × luminance), as `emitter_table`.
+        let lum = |c: Vec3| 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z;
         let mut lights = vec![];
-        let mut cdf = vec![];
-        let mut total = 0.;
+        let mut weights = vec![];
+        let mut sphere_entry = std::collections::HashMap::new();
+        for a in crate::lighting::analytic(s) {
+            if a.kind != crate::scene::LightKind::Sphere {
+                continue;
+            }
+            // Its mesh is never a triangle light, sampled or not.
+            sphere_entry.insert(a.material, 0);
+            let le = crate::lighting::emitted(&materials[a.material as usize]);
+            let w = 4. * std::f32::consts::PI * a.extent * a.extent * lum(le);
+            if w > 0. {
+                sphere_entry.insert(a.material, lights.len() as u32 + 1);
+                lights.push(Light::Sphere {
+                    c: a.at,
+                    r: a.extent,
+                    le,
+                });
+                weights.push(w);
+            }
+        }
+        // Emissive triangles by power: area × luminance of the emission (pattern-free colour).
+        let mut tri_light = vec![0; bvh.tris.len()];
         for (i, t) in bvh.tris.iter().enumerate() {
+            if let Some(e) = sphere_entry.get(&t.material) {
+                tri_light[i] = *e;
+                continue;
+            }
             let m = &materials[t.material as usize];
             if m.optical[1] > 0. {
                 let c = rgb(m.color_rough) * m.optical[1];
-                let w = Scene::area(t) * (0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z).max(1e-6);
-                total += w;
-                lights.push(i);
-                cdf.push(total);
+                weights.push(Scene::area(t) * lum(c).max(1e-6));
+                lights.push(Light::Tri(i));
+                tri_light[i] = lights.len() as u32;
             }
         }
-        for c in &mut cdf {
-            *c /= total;
+        let total: f32 = weights.iter().sum();
+        let mut cdf = vec![];
+        let mut acc = 0.;
+        for w in weights {
+            acc += w;
+            cdf.push(acc / total);
         }
         // A map that fails to load leaves the plain sky; `Progressive::new` refuses that.
         let env = super::environment::Env::load(s).unwrap_or_else(|e| {
@@ -154,6 +194,7 @@ impl<'a> Scene<'a> {
             materials,
             lights,
             cdf,
+            tri_light,
             eye: Vec3::ZERO,
             inverse_vp: Mat4::IDENTITY,
             frame: Default::default(),

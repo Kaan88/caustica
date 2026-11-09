@@ -130,7 +130,6 @@ fn every_missing_feature_is_refused() {
         ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
         ("depth of field", edit(&|s| s.aperture = 0.1)),
         ("real lens", edit(&|s| s.lens_system = 1)),
-        ("sphere light", light(LightKind::Sphere)),
         ("sun light", light(LightKind::Sun)),
         ("IES", light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006))),
         (
@@ -391,6 +390,7 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         bvh,
         materials: vec![bytemuck::Zeroable::zeroed()],
         lights: vec![],
+        tri_light: vec![],
         cdf: vec![],
         eye: Vec3::ZERO,
         inverse_vp: Mat4::IDENTITY,
@@ -665,4 +665,90 @@ fn a_spots_cosine_is_the_same_hit_or_sampled() {
         assert!((sf.emission_cos(d) - (-d).dot(n)).abs() < 1e-6);
         assert_eq!(sf.emission_cos(d) > 0., sf.front);
     }
+}
+/// A sphere light in the Cornell box: light sampling in its cone alone, BSDF sampling alone and
+/// MIS agree, as with the triangle lights.
+#[test]
+fn a_sphere_lights_strategies_agree() {
+    let mut s = Settings::default();
+    s.bounces = 8;
+    s.lights.push(crate::scene::AreaLight {
+        kind: crate::scene::LightKind::Sphere,
+        position: [0.3, 0.2, 0.],
+        size: [0.3, 0.3],
+        intensity: 20.,
+        ..Default::default()
+    });
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
+    let mean = |mis_mode| {
+        let mut s = s.clone();
+        s.mis_mode = mis_mode;
+        let image = render(&s, [32, 24], 512, &|_| {}).unwrap();
+        image.iter().map(|v| *v as f64).sum::<f64>() / image.len() as f64
+    };
+    let both = mean(0);
+    for mis_mode in [1, 2] {
+        let one = mean(mis_mode);
+        assert!((one / both - 1.).abs() < 0.03, "{mis_mode}: {one} {both}");
+    }
+    assert!(both > 0.01, "{both}");
+}
+/// The sphere's mesh maps to its one table entry, the probabilities sum to 1, and from inside
+/// the sphere it is neither sampled nor weighted (its cone is the whole sphere of directions).
+#[test]
+fn a_sphere_light_is_one_entry() {
+    use super::lights::{cone_sample, sphere_om};
+    use super::scene::Light;
+    let mut s = Settings::default();
+    s.lights.push(crate::scene::AreaLight {
+        kind: crate::scene::LightKind::Sphere,
+        position: [0., 0.2, 0.],
+        size: [0.4, 0.4],
+        intensity: 5.,
+        ..Default::default()
+    });
+    let scene = Scene::new(&s, [8, 8]);
+    let k = scene
+        .lights
+        .iter()
+        .position(|l| matches!(l, Light::Sphere { .. }))
+        .unwrap() as u32
+        + 1;
+    let material = 5 + s.objects.len() as u32 + s.lights.len() as u32 - 1;
+    let mesh: Vec<_> = (0..scene.bvh.tris.len())
+        .filter(|&i| scene.bvh.tris[i].material == material)
+        .collect();
+    assert!(!mesh.is_empty());
+    assert!(mesh.iter().all(|&i| scene.tri_light[i] == k));
+    assert!((scene.cdf.last().unwrap() - 1.).abs() < 1e-5);
+    let c = Vec3::new(0., 0.2, 0.);
+    let at = scene.bvh.tris[mesh[0]].p[0];
+    assert_eq!(scene.light_pdf(mesh[0], c, at), 0.);
+    assert!(scene.light_pdf(mesh[0], c + Vec3::Z * 0.8, at) > 0.);
+    assert_eq!(sphere_om(0.01, 0.2), 0.);
+    // Far: 1 − cos θ = r² / 2d² to first order; the cone's samples stay inside it.
+    assert!((sphere_om(1e6, 1.) / 5e-7 - 1.).abs() < 1e-3);
+    let mut r = Rng::new(5, 6);
+    let om = sphere_om(4., 1.);
+    for _ in 0..100 {
+        let (d, pdf) = cone_sample(Vec3::X, om, &mut r);
+        assert!(1. - d.x <= om * 1.001 && (d.length() - 1.).abs() < 1e-4);
+        assert!((pdf * 2. * PI * om - 1.).abs() < 1e-5);
+    }
+}
+/// A camera inside a sphere light sees its emission and stays finite.
+#[test]
+fn a_camera_inside_a_sphere_light_stays_finite() {
+    let mut s = Settings::default();
+    let (_, _, eye) = s.camera(1.);
+    s.lights.push(crate::scene::AreaLight {
+        kind: crate::scene::LightKind::Sphere,
+        position: eye.to_array(),
+        size: [0.5, 0.5],
+        intensity: 2.,
+        ..Default::default()
+    });
+    let image = render(&s, [8, 8], 4, &|_| {}).unwrap();
+    assert!(image.iter().all(|v| v.is_finite()));
+    assert!(image.iter().any(|v| *v > 0.));
 }
