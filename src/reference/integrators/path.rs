@@ -1,6 +1,6 @@
 //! The path tracer.
 use crate::reference::bsdf::{
-    emitted, eval_bsdf, flags, fresnel_dielectric, material_at, spec_probability,
+    coat_probability, emitted, eval_bsdf, flags, fresnel_dielectric, material_at, spec_probability,
 };
 use crate::reference::media::{push, remove, top};
 use crate::reference::sampling::{Rng, cosine_sample, ggx_sample, reflect, refract};
@@ -168,7 +168,11 @@ impl Scene<'_> {
                 delta = true;
             } else {
                 let ps = spec_probability(&m);
-                let d = if r.f() < ps {
+                let pc = coat_probability(&m);
+                let d = if pc > 0. && r.f() < pc {
+                    let cr = m.layers[1];
+                    ggx_sample(sf.n, direction, (cr * cr).max(0.001), r)
+                } else if r.f() < ps {
                     let rough = m.color_rough[3];
                     ggx_sample(sf.n, direction, (rough * rough).max(0.001), r)
                 } else {

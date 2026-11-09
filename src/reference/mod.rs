@@ -100,12 +100,7 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         .into_iter()
         .filter(|m| m.lobes[3] as u32 & 16384 == 0)
         .collect();
-    need(mats.iter().any(|m| m.layers[0] > 0.), "clear coats");
     need(mats.iter().any(|m| m.layers[3] > 0.), "anisotropy");
-    need(
-        mats.iter().any(|m| m.sheen[..3].iter().any(|c| *c > 0.)),
-        "sheen",
-    );
     need(mats.iter().any(|m| m.surface_scale[2] > 0.), "thin films");
     need(
         mats.iter().any(|m| m.optical[3] < 0.),

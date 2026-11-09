@@ -6,22 +6,78 @@ use std::f32::consts::PI;
 // ---------------------------------------------------------------------------------------------
 // The GGX directional albedo (layers.hlsli GGX_ALBEDO, 32 × 32 over cos θ and roughness).
 
+/// A fitted table from layers.hlsli (tools/fit_layers.py), `n` × `n` over cos θ and roughness.
+fn layers_table(name: &str, n: usize) -> Vec<f32> {
+    let v = crate::render::hlsl_table(include_str!("../../shaders/layers.hlsli"), name);
+    assert_eq!(v.len(), n * n, "{name} has {} entries", n * n);
+    v
+}
 pub(super) fn ggx_table() -> &'static [f32] {
     static TABLE: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
-    TABLE.get_or_init(|| {
-        let v = crate::render::hlsl_table(include_str!("../../shaders/layers.hlsli"), "GGX_ALBEDO");
-        assert_eq!(v.len(), 1024, "GGX_ALBEDO has 1024 entries");
-        v
-    })
+    TABLE.get_or_init(|| layers_table("GGX_ALBEDO", 32))
 }
-pub(super) fn ggx_albedo(nv: f32, roughness: f32) -> f32 {
-    let t = ggx_table();
-    let x = Vec2::new(nv.clamp(0., 1.), roughness.clamp(0., 1.)) * 31.;
-    let (ix, iy) = ((x.x as usize).min(30), (x.y as usize).min(30));
+/// Bilinear over an `n` × `n` table, rows of roughness, columns of cos θ.
+fn lookup(t: &[f32], n: usize, nv: f32, roughness: f32) -> f32 {
+    let k = (n - 1) as f32;
+    let x = Vec2::new(nv.clamp(0., 1.), roughness.clamp(0., 1.)) * k;
+    let (ix, iy) = ((x.x as usize).min(n - 2), (x.y as usize).min(n - 2));
     let (fx, fy) = (x.x - ix as f32, x.y - iy as f32);
-    let s = |c: usize, r: usize| t[(iy + r) * 32 + ix + c];
+    let s = |c: usize, r: usize| t[(iy + r) * n + ix + c];
     let lerp = |a: f32, b: f32, f: f32| a + (b - a) * f;
     lerp(lerp(s(0, 0), s(1, 0), fx), lerp(s(0, 1), s(1, 1), fx), fy)
+}
+pub(super) fn ggx_albedo(nv: f32, roughness: f32) -> f32 {
+    lookup(ggx_table(), 32, nv, roughness)
+}
+/// What a clear coat reflects from view cos θ (Fresnel of IOR 1.5 included): what it takes from
+/// the layers below.
+pub(super) fn coat_albedo(nv: f32, roughness: f32) -> f32 {
+    static TABLE: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
+    lookup(
+        TABLE.get_or_init(|| layers_table("COAT_ALBEDO", 32)),
+        32,
+        nv,
+        roughness,
+    )
+}
+/// The Charlie sheen's directional albedo.
+pub(super) fn sheen_albedo(nv: f32, roughness: f32) -> f32 {
+    static TABLE: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
+    lookup(
+        TABLE.get_or_init(|| layers_table("SHEEN_ALBEDO", 16)),
+        16,
+        nv,
+        roughness,
+    )
+}
+
+/// Below this roughness the sheen's distribution is too sharp for its fitted visibility.
+const SHEEN_MIN_ROUGHNESS: f32 = 0.07;
+/// Charlie sheen (Estevez and Kulla 2017): the inverted-Gaussian-like sin^(1/α) distribution
+/// with their fitted Λ for the visibility, scaled down where its albedo would pass 1.
+pub(super) fn sheen_lobe(roughness: f32, nh: f32, nv: f32, nl: f32) -> f32 {
+    let a = roughness.max(SHEEN_MIN_ROUGHNESS).powi(2);
+    let t = (1. - a) * (1. - a);
+    let mix = |p: f32, q: f32| p + (q - p) * t;
+    let l = |x: f32| {
+        mix(21.5473, 25.3245) / (1. + mix(3.82987, 3.32435) * x.powf(mix(0.19823, 0.16801)))
+            + mix(-1.97760, -1.27393) * x
+            + mix(-4.32054, -4.85967)
+    };
+    let lambda = |c: f32| {
+        if c < 0.5 {
+            l(c).exp()
+        } else {
+            (2. * l(0.5) - l(1. - c)).exp()
+        }
+    };
+    let d = (2. + 1. / a) * (1. - nh * nh).max(0.).powf(0.5 / a) / (2. * PI);
+    let vis = (1. / ((1. + lambda(nv) + lambda(nl)) * 4. * (nv * nl).max(1e-6))).clamp(0., 1.);
+    d * vis / sheen_albedo(nv, roughness).max(1.)
+}
+/// The share of BSDF samples the clear coat's own GGX lobe takes.
+pub(super) fn coat_probability(m: &PackedMaterial) -> f32 {
+    0.3 * m.layers[0]
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -60,8 +116,10 @@ pub(super) fn f0_of(m: &PackedMaterial) -> Vec3 {
 pub(super) fn spec_probability(m: &PackedMaterial) -> f32 {
     (0.25 + 0.5 * m.lobes[0] + 0.25 * m.lobes[1]).clamp(0.1, 0.95)
 }
-/// `eval_bsdf` without layers, anisotropy, gratings or films: the value and the pdf of the
-/// sampling below.
+/// `eval_bsdf` without anisotropy, gratings or films: the value and the pdf of the sampling
+/// below. A sheen sits on the base and a clear coat on both; each dims what lies below by the
+/// albedo it takes from the view direction (glTF's layering), so the result stays one function
+/// for light and BSDF samples alike.
 pub(super) fn eval_bsdf(m: &PackedMaterial, n: Vec3, v: Vec3, l: Vec3) -> (Vec3, f32) {
     let nl = n.dot(l).clamp(0., 1.);
     let nv = n.dot(v).clamp(0., 1.);
@@ -79,7 +137,28 @@ pub(super) fn eval_bsdf(m: &PackedMaterial, n: Vec3, v: Vec3, l: Vec3) -> (Vec3,
     let spec_pdf = d * nh / (4. * vh).max(1e-6);
     let pdf = (1. - ps) * nl / PI + ps * spec_pdf;
     let diff = (Vec3::ONE - f) * (1. - m.lobes[0]) * rgb(m.color_rough) / PI;
-    let r = diff + f * d * gv * gl / (4. * nv * nl).max(1e-6) * (Vec3::ONE + f0 * (1. / ess - 1.));
+    let mut r =
+        diff + f * d * gv * gl / (4. * nv * nl).max(1e-6) * (Vec3::ONE + f0 * (1. / ess - 1.));
+    let mut pdf = pdf;
+    let sheen = rgb(m.sheen);
+    if sheen.max_element() > 0. {
+        let sr = m.layers[2];
+        let below = 1. - sheen.max_element() * sheen_albedo(nv, sr).min(1.);
+        r = r * below + sheen * sheen_lobe(sr, nh, nv, nl);
+    }
+    let coat = m.layers[0];
+    if coat > 0. {
+        let cr = m.layers[1];
+        let ac = (cr * cr).max(0.001);
+        let dc = ggx_d(nh, ac);
+        // Compensated in full (1/E): the coat is clear, so what multiple scattering keeps is white.
+        let fc = 0.04 + 0.96 * (1. - vh).powi(5);
+        let lobe =
+            fc * dc * g1(nv, ac) * g1(nl, ac) / (4. * nv * nl).max(1e-6) / ggx_albedo(nv, cr);
+        r = r * (1. - coat * coat_albedo(nv, cr)) + Vec3::splat(coat * lobe);
+        let pc = coat_probability(m);
+        pdf = pdf * (1. - pc) + pc * dc * nh / (4. * vh).max(1e-6);
+    }
     let keep = 1. - m.lobes[2];
     (keep * r, keep * pdf)
 }

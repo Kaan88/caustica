@@ -31,6 +31,43 @@ fn the_albedo_table_parses_and_a_white_furnace_conserves() {
     // The GPU's model: a white rough dielectric with f0 = 0 (IOR 1) keeps about all light.
     assert!((mean.x - 1.).abs() < 0.06, "{mean}");
 }
+/// A white base under a full sheen and a clear coat keeps at most the light it gets (each layer
+/// dims what lies below by what it takes), and the pdf of the sampling mix integrates to
+/// at most 1.
+#[test]
+fn coat_and_sheen_layers_conserve_energy() {
+    let mut m: PackedMaterial = bytemuck::Zeroable::zeroed();
+    m.color_rough = [1., 1., 1., 0.6];
+    m.optical[0] = 1.5;
+    m.layers = [1., 0.3, 0.5, 0.];
+    m.sheen = [1., 1., 1., 0.];
+    let n = Vec3::Y;
+    for nv in [0.9f32, 0.5, 0.2] {
+        let v = Vec3::new((1. - nv * nv).sqrt(), nv, 0.);
+        let mut r = Rng::new(3, 4);
+        let (mut albedo, mut mass) = (Vec3::ZERO, 0.);
+        let k = 40000;
+        for _ in 0..k {
+            // Uniform hemisphere directions: pdf 1 / 2π.
+            let (u, phi) = (r.f(), 2. * PI * r.f());
+            let s = (1. - u * u).sqrt();
+            let l = Vec3::new(s * phi.cos(), u, s * phi.sin());
+            let (f, pdf) = eval_bsdf(&m, n, v, l);
+            albedo += f * u * 2. * PI;
+            mass += pdf * 2. * PI;
+        }
+        let (albedo, mass) = (albedo / k as f32, mass / k as f32);
+        assert!(
+            albedo.x < 1.03 && albedo.x > 0.7,
+            "nv {nv}: albedo {albedo}"
+        );
+        // GGX samples that land below the horizon end the path, so the mass may fall short of 1.
+        assert!(
+            mass > 0.85 && mass < 1.02,
+            "nv {nv}: pdf integrates to {mass}"
+        );
+    }
+}
 #[test]
 fn the_bvh_finds_the_nearest_triangle() {
     let tri = |z: f32, m| Tri {
@@ -121,9 +158,7 @@ fn every_missing_feature_is_refused() {
             }),
         ),
         ("beam splitter", with_material(&|m| m.splitter = true)),
-        ("coat", with_material(&|m| m.clearcoat = 1.)),
         ("anisotropy", with_material(&|m| m.anisotropy = 0.5)),
-        ("sheen", with_material(&|m| m.sheen = 1.)),
         ("thin film", with_material(&|m| m.iridescence = 1.)),
         ("grating", with_material(&|m| m.grating = 1.)),
         (
