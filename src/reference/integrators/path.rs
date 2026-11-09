@@ -1,11 +1,22 @@
 //! The path tracer.
+use crate::lighting::PackedMaterial;
 use crate::reference::bsdf::{
     coat_probability, emitted, eval_bsdf, flags, fresnel_dielectric, material_at, spec_probability,
 };
 use crate::reference::media::{hg_pdf, hg_sample, push, remove, top};
 use crate::reference::sampling::{Rng, cosine_sample, ggx_sample, reflect, refract};
 use crate::reference::scene::{Ray, Scene};
-use glam::Vec3;
+use glam::{Vec3, Vec4};
+
+/// Where a ray entering a portal's front face at `p` leaves its pair: the map record (`lighting`
+/// portal records) holds the affine map's first three rows. The origin is nudged out along the
+/// new direction.
+pub(in crate::reference) fn portal_map(map: &PackedMaterial, p: Vec3, d: Vec3) -> (Vec3, Vec3) {
+    let rows = [map.color_rough, map.lobes, map.optical].map(Vec4::from);
+    let apply = |v: Vec4| Vec3::new(rows[0].dot(v), rows[1].dot(v), rows[2].dot(v));
+    let direction = apply(d.extend(0.)).normalize();
+    (apply(p.extend(1.)) + direction * 0.001, direction)
+}
 
 impl Scene<'_> {
     pub(in crate::reference) fn radiance(
@@ -26,6 +37,8 @@ impl Scene<'_> {
         // The dielectrics the path is inside: (priority, material), innermost last.
         let mut media: Vec<(u32, u32)> = self.camera_media.clone();
         let mut false_hits = 0;
+        // Portal crossings on this path (`trace` caps them at 16).
+        let mut crossings = 0;
         // Only delta bounces since the camera: the background it sees is ground-projected.
         let mut camera_chain = true;
         let mut bounce = 0;
@@ -153,6 +166,24 @@ impl Scene<'_> {
             if s.shadow_catcher && sf.material == 3 {
                 radiance += throughput * self.catcher(&sf, direction, bounce, camera_chain, r);
                 break;
+            }
+            // Portals: a front face maps the ray into the paired portal (the map record's first
+            // three rows); a back face lets it through. Neither is a bounce, and light sampling
+            // never looks through one, so what is found beyond counts in full.
+            let record = &self.materials[sf.material as usize];
+            if flags(record) & 4 != 0 && crossings < 16 {
+                crossings += 1;
+                if !sf.front {
+                    origin = sf.p + direction * 0.001;
+                    continue;
+                }
+                (origin, direction) = portal_map(
+                    &self.materials[record.secondary[3] as usize],
+                    sf.p,
+                    direction,
+                );
+                previous_delta = true;
+                continue;
             }
             let m = material_at(&self.materials[sf.material as usize], sf.p);
             let le = emitted(&m, sf.front, sf.emission_cos(direction));

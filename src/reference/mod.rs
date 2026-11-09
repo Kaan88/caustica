@@ -79,16 +79,13 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
             || s.cornell_room && !s.walls.texture.is_empty(),
         "texture maps (with their alpha cutouts and emissive maps)",
     );
-    for (what, bit) in [("portals", 4u32), ("beam splitters", 4096)] {
-        need(
-            crate::lighting::materials(s)
-                .iter()
-                .any(|m| m.lobes[3] as u32 & bit != 0),
-            what,
-        );
-    }
+    let mats = material_records(s);
+    need(
+        mats.iter().any(|m| m.lobes[3] as u32 & 4096 != 0),
+        "beam splitters",
+    );
     // An IES profile fills these fields of its light's record (`ies::pack`): not a coat or a sheen.
-    let mats: Vec<_> = crate::lighting::materials(s)
+    let mats: Vec<_> = mats
         .into_iter()
         .filter(|m| m.lobes[3] as u32 & 16384 == 0)
         .collect();
@@ -107,6 +104,21 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
     out
 }
 
+/// The records of `lighting::materials` that describe surfaces: without the portal maps (flag 4
+/// points at them), whose rows are a matrix, not flags or lobes.
+fn material_records(s: &Settings) -> Vec<crate::lighting::PackedMaterial> {
+    let all = crate::lighting::materials(s);
+    let maps: std::collections::HashSet<usize> = all
+        .iter()
+        .filter(|m| m.lobes[3] as u32 & 4 != 0)
+        .map(|m| m.secondary[3] as usize)
+        .collect();
+    all.into_iter()
+        .enumerate()
+        .filter(|(i, _)| !maps.contains(i))
+        .map(|(_, m)| m)
+        .collect()
+}
 /// `--reference SPP`: renders the scene as it stands at time `t` (`prepare`) and writes a linear
 /// EXR (or a PNG of the clamped values).
 pub fn run(s: &Settings, t: f32, size: [u32; 2], spp: u32, path: &std::path::Path) -> Result<()> {

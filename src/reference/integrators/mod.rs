@@ -1,2 +1,2 @@
 //! The estimators. One today: the path tracer.
-mod path;
+pub(super) mod path;

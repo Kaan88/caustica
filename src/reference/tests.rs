@@ -140,14 +140,6 @@ fn every_missing_feature_is_refused() {
             "wall texture set",
             edit(&|s| s.walls.texture = "set".into()),
         ),
-        (
-            "portal",
-            edit(&|s| {
-                s.objects.push(Object::default());
-                s.objects[0].portal = 1;
-                s.objects[1].portal = 0;
-            }),
-        ),
         ("beam splitter", with_material(&|m| m.splitter = true)),
         ("anisotropy", with_material(&|m| m.anisotropy = 0.5)),
         ("thin film", with_material(&|m| m.iridescence = 1.)),
@@ -939,4 +931,25 @@ fn the_bladed_stop_holds_the_aperture_samples() {
     let mid = Vec2::from_angle(rot + PI / 6.) * (PI / 6.).cos();
     assert!(super::camera::inside_stop(mid * 0.999, 1., 6, rot));
     assert!(!super::camera::inside_stop(mid * 1.001, 1., 6, rot));
+}
+#[test]
+fn a_portal_maps_its_centre_to_its_pairs_and_turns_the_ray_around() {
+    use crate::reference::integrators::path::portal_map;
+    use crate::scene::Object;
+    let mut s = Settings::default();
+    s.objects = vec![Object::default(), Object::default()];
+    s.objects[0].position = [-0.5, 0.];
+    s.objects[1].position = [0.5, -0.8];
+    s.objects[0].portal = 1;
+    s.objects[1].portal = -1;
+    let all = crate::lighting::materials(&s);
+    let a = all.iter().find(|m| m.lobes[3] as u32 & 4 != 0).unwrap();
+    let map = &all[a.secondary[3] as usize];
+    let ca = crate::geometry::object_frame(&s.objects[0]).0;
+    let cb = crate::geometry::object_frame(&s.objects[1]).0;
+    let (o, d) = portal_map(map, ca, Vec3::new(0.6, 0., -0.8));
+    assert!((o - (cb + d * 0.001)).length() < 1e-4, "{o} vs {cb}");
+    assert!((d - Vec3::new(-0.6, 0., 0.8)).length() < 1e-4, "{d}");
+    // Its matrix rows (a negative z translation here) don't read as a grating or a splitter.
+    assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
 }
