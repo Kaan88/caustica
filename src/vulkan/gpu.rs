@@ -284,7 +284,7 @@ impl Gpu {
             let frame = Frame::new(&device)?;
             let accel_fns =
                 khr::acceleration_structure::Device::new(&device.instance, &device.device);
-            let layout = Layout::new(&device)?;
+            let mut layout = Layout::new(&device)?;
             // Compiled in parallel: NVIDIA's SPIR-V compiler takes seconds per tracer when its
             // cache is cold (a new driver or new shaders), about a minute in a row.
             let all = [
@@ -332,6 +332,10 @@ impl Gpu {
             // get the device only, not our queue, so the progress frames' submits don't race them.
             struct Threaded(upscale::Upscalers);
             unsafe impl Send for Threaded {}
+            layout.open_cache(
+                &device,
+                super::layout::shader_key(list.iter().map(|&(_, code, _)| code)),
+            );
             let device_ref = &device;
             let done = std::sync::atomic::AtomicUsize::new(0);
             let (done_ref, swap_ref, frame_ref) = (&done, &swap, &frame);
@@ -383,6 +387,7 @@ impl Gpu {
             for (name, pipe) in built {
                 pipes.insert(name, pipe.with_context(|| format!("{name} pipeline"))?);
             }
+            layout.save_cache(&device);
             let constants = device.buffer(
                 CB_STRIDE * CB_SLOTS,
                 vk::BufferUsageFlags::UNIFORM_BUFFER,

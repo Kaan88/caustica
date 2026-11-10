@@ -141,6 +141,11 @@ static CACHE_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
 pub fn set_cache_override(dir: PathBuf) {
     let _ = CACHE_OVERRIDE.set(dir);
 }
+/// True on a `--thumbnails-out` run, whose `cache()` is the release's bundled folder: per-machine
+/// caches (the Vulkan pipeline cache) must stay out of it.
+pub fn cache_overridden() -> bool {
+    CACHE_OVERRIDE.get().is_some()
+}
 /// The thumbnails shipped with the app (`thumbnails` beside the exe, read-only, made at release
 /// time): scene thumbnails named by their scene's hash, and `materials/` with the material
 /// balls. `scenes::sync_thumbnails` and `balls` copy or read from here and ignore any file whose
