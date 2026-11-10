@@ -32,6 +32,12 @@ pub(super) struct Scene<'a> {
     pub(super) sdf_share: f32,
     pub(super) eye: Vec3,
     pub(super) inverse_vp: Mat4,
+    /// BDPT's light tracing (`integrators::bdpt`): the view-projection a point projects through,
+    /// the film's area at unit distance (4 tan²) and whether the camera is a pinhole perspective
+    /// one, which light paths can reach.
+    pub(super) vp: Mat4,
+    pub(super) film_area: f32,
+    pub(super) light_tracing: bool,
     pub(super) frame: super::camera::Frame,
     /// The lens system, when the camera has one (`Settings::real_lens`).
     pub(super) lens: Option<super::camera::RealLens>,
@@ -46,6 +52,9 @@ pub(super) struct Scene<'a> {
     /// Spectral mode (`spectral`): on unless light path expressions force the path tracer to RGB,
     /// as on the GPU (`passes.rs`).
     pub(super) spectral: bool,
+    /// Shadow rays stop at clear glass whatever `glass_shadow` says: BDPT's connections and next-
+    /// event estimation see it as solid, as on the GPU (`glass_blocks`).
+    pub(super) glass_blocks: bool,
 }
 /// An entry of the light table.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -152,7 +161,10 @@ impl Scene<'_> {
             match kind {
                 Ray::Camera => flags(m) & 2 == 0,
                 Ray::Bounce => true,
-                Ray::Shadow => flags(m) & 8192 == 0 && (self.s.glass_shadow || m.lobes[2] < 0.5),
+                Ray::Shadow => {
+                    flags(m) & 8192 == 0
+                        && (self.s.glass_shadow || self.glass_blocks || m.lobes[2] < 0.5)
+                }
             }
         }
     }
@@ -417,6 +429,9 @@ impl<'a> Scene<'a> {
             sdf_share,
             eye: Vec3::ZERO,
             inverse_vp: Mat4::IDENTITY,
+            vp: Mat4::IDENTITY,
+            film_area: 0.,
+            light_tracing: false,
             frame: Default::default(),
             lens: None,
             camera_media: vec![],
@@ -425,6 +440,7 @@ impl<'a> Scene<'a> {
             p_env,
             textures,
             spectral: s.spectral && (s.integrator != 0 || s.lpe.iter().all(|e| e.is_empty())),
+            glass_blocks: s.integrator == 1,
         };
         scene.set_camera(s, size);
         scene
@@ -443,7 +459,10 @@ impl<'a> Scene<'a> {
     pub(super) fn set_camera(&mut self, camera: &Settings, size: [u32; 2]) {
         let (view, proj, eye) = camera.camera(size[0] as f32 / size[1] as f32);
         self.eye = eye;
-        self.inverse_vp = (proj * view).inverse();
+        self.vp = proj * view;
+        self.inverse_vp = self.vp.inverse();
+        self.film_area = 4. / (proj.x_axis.x * proj.y_axis.y);
+        self.light_tracing = camera.perspective() && camera.aperture <= 0.;
         self.frame = super::camera::Frame {
             right: view.row(0).truncate(),
             up: view.row(1).truncate(),

@@ -1,7 +1,8 @@
 """GPU-vs-CPU oracle: renders scenes on the GPU (raw accumulation) and with the CPU reference
 (src/reference/, an independent path tracer of the same model) and tests that they agree.
 
-    python tools/oracle.py [--exe PATH] [--scenes a,b,...] [--integrator 0|1|2] [--time T]
+    python tools/oracle.py [--exe PATH] [--scenes a,b,...] [--integrator 0|1|2]
+                           [--cpu-integrator 0|1|same] [--keep-filter] [--time T]
                            [--size 320x240] [--gpu-spp 1024] [--cpu-spp 512] [--out DIR]
                            [--blur-frame N [--fps 24]]
 
@@ -23,7 +24,9 @@ the shutter) and frame N is taken; the CPU renders `--reference-time N/fps` (ref
 the shutter's moments). --fps must be the scene's timeline rate.
 
 Scenes the CPU reference refuses (reference::unsupported) are reported as SKIP; the CPU side
-always path-traces (a scene file's integrator is overridden), and --rgb turns spectral off on both. Default list:
+path-traces unless --cpu-integrator says otherwise (1: BDPT; same: the GPU's --integrator; a scene
+file's integrator is overridden either way), and --rgb turns spectral off on both. With
+--integrator other than 0 both sides take a 1-pixel box filter unless --keep-filter. Default list:
 the scenes measured when the reference was written.
 """
 import argparse
@@ -80,6 +83,9 @@ def main():
     p.add_argument('--exe', default=os.path.join('target', 'validation', 'release', 'caustica.exe'))
     p.add_argument('--scenes', default=DEFAULT)
     p.add_argument('--integrator', type=int, default=0)
+    p.add_argument('--cpu-integrator', default='0', help="the CPU's integrator: 0, 1 or 'same'")
+    p.add_argument('--keep-filter', action='store_true',
+                   help="keep the scene's pixel filter for integrators other than 0")
     p.add_argument('--rgb', action='store_true', help='render spectral scenes in RGB on both sides')
     p.add_argument('--set', action='append', default=[], help='key=json for both sides (repeatable)')
     p.add_argument('--time', help='seconds on the timeline, frozen, for both sides')
@@ -103,22 +109,23 @@ def main():
     # BDPT and photon mapping used a box pixel filter until 2026-11-05 (they now take the path
     # tracer's); a wider filter moves the image mean at sharp bright edges (its shifts don't sum
     # to 1 over the grid), so they are still compared with a 1-pixel box on both sides.
-    if a.integrator != 0:
+    if a.integrator != 0 and not a.keep_filter:
         size += ['--set', 'pixel_filter=0', '--set', 'filter_width=1']
     for kv in a.set:
         size += ['--set', kv]
     if a.time is not None:
         size += ['--time', a.time]
+    cpu_integrator = a.integrator if a.cpu_integrator == 'same' else int(a.cpu_integrator)
     failed = 0
     print(f'{"scene":28} {"GPU/CPU":>8} {"z":>7}  worst block (ratio, z, row/col)')
     for name in [s for s in a.scenes.split(',') if s]:
         stem = name.replace(':', '-')
-        cpu = os.path.join(a.out, stem + '.cpu.exr')
+        cpu = os.path.join(a.out, stem + f'.cpu{cpu_integrator}.exr')
         gpu = os.path.join(a.out, stem + f'.gpu{a.integrator}.exr')
-        # The CPU reference is a path tracer; it is the judge for every GPU integrator.
+        # The CPU reference path-traces by default, the judge for every GPU integrator.
         when = [] if a.blur_frame is None else ['--reference-time', str(a.blur_frame / a.fps)]
         code, out = run([a.exe, *scene_args(name), *size, *when,
-                         '--set', 'integrator=0', '--set', f'firefly={a.firefly}', '--reference', str(a.cpu_spp), '--capture', cpu])
+                         '--set', f'integrator={cpu_integrator}', '--set', f'firefly={a.firefly}', '--reference', str(a.cpu_spp), '--capture', cpu])
         if code != 0:
             why = out.strip().splitlines()[-1] if out.strip() else f'exit {code}'
             print(f'{name:28} SKIP  {why[:110]}')

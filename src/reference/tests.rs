@@ -243,7 +243,7 @@ fn every_missing_feature_is_refused() {
     };
     let cases: Vec<(&str, Settings)> = vec![
         ("battle", edit(&|s| s.battle = true)),
-        ("BDPT", edit(&|s| s.integrator = 1)),
+        ("photon mapping", edit(&|s| s.integrator = 2)),
     ];
     for (what, s) in &cases {
         assert!(!unsupported(s).is_empty(), "{what} was not refused");
@@ -574,6 +574,9 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         sdf_share: 0.,
         eye: Vec3::ZERO,
         inverse_vp: Mat4::IDENTITY,
+        vp: Mat4::IDENTITY,
+        film_area: 0.,
+        light_tracing: false,
         frame: Default::default(),
         lens: None,
         camera_media: vec![],
@@ -582,6 +585,7 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         p_env: 0.,
         textures: Default::default(),
         spectral: false,
+        glass_blocks: false,
     };
     let hit = Hit {
         t: 1.,
@@ -2115,4 +2119,61 @@ fn one_bounce_is_all_direct() {
         ((direct - beauty).abs() / beauty).max_element() < 1e-4,
         "{direct} {beauty}"
     );
+}
+/// BDPT's passes, light-tracing splats included, give the same bits as one render, whatever
+/// the threads.
+#[test]
+fn bdpt_passes_match_one_render() {
+    let mut s = Settings::default();
+    s.bounces = 3;
+    s.integrator = 1;
+    let one = render(&s, [16, 12], 5, &|_| {}).unwrap();
+    let mut p = Progressive::new(&s, [16, 12]).unwrap();
+    let stop = AtomicBool::new(false);
+    for (n, threads) in [(2, 3), (1, 1), (2, 4)] {
+        assert!(p.pass(n, threads, &stop, &|_| {}));
+    }
+    assert_eq!(p.image(), one);
+}
+/// BDPT converges to the path tracer's image (same bounces; the model differs only at the bounce
+/// limit, by little at 6), with light tracing on and with the camera a delta vertex.
+#[test]
+fn bdpt_agrees_with_the_path_tracer() {
+    let mut s = Settings::default();
+    s.bounces = 6;
+    let mean = |s: &Settings, spp| {
+        let image = render(s, [24, 18], spp, &|_| {}).unwrap();
+        let sum: f64 = image
+            .chunks(4)
+            .map(|c| (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) as f64)
+            .sum();
+        sum / (24. * 18.)
+    };
+    let path = mean(&s, 256);
+    s.integrator = 1;
+    let bdpt = mean(&s, 128);
+    assert!(
+        (bdpt / path - 1.).abs() < 0.03,
+        "BDPT {bdpt} vs path {path}"
+    );
+    // A thin lens makes the camera a delta vertex: no light tracing.
+    s.aperture = 0.01;
+    let lens = mean(&s, 128);
+    assert!(
+        (lens / path - 1.).abs() < 0.03,
+        "BDPT with a lens {lens} vs path {path}"
+    );
+}
+/// BDPT's shadow rays and connections stop at clear glass even where glass casts no shadow.
+#[test]
+fn bdpt_sees_glass_as_solid() {
+    let mut s = Settings::default();
+    s.glass_shadow = false;
+    for (integrator, blocks) in [(0, false), (1, true)] {
+        s.integrator = integrator;
+        let mut scene = Scene::new(&s, [4, 4]);
+        scene.materials[0].lobes[2] = 1.;
+        let accept = scene.accept(Ray::Shadow, Vec3::ZERO, Vec3::X);
+        assert_eq!(accept(0, 0, Vec2::ZERO), blocks, "integrator {integrator}");
+    }
 }

@@ -2,6 +2,7 @@
 use super::aov::{GuideAov, Lpe, PixelAov, Record};
 use super::camera::filter_offset;
 use super::denoise::{Guide, Moments, luminance};
+use super::integrators::bdpt::Splat;
 use super::sampling::Rng;
 use super::scene::Scene;
 use super::unsupported;
@@ -230,6 +231,12 @@ impl<'a> Progressive<'a> {
             .iter_mut()
             .map(|c| (c, moments.next(), aovs.next()))
             .collect();
+        // BDPT's light-tracing terms land in any pixel: each row keeps its own, added after the
+        // pass in row order, so the sums don't depend on the threads.
+        let bdpt = s.integrator == 1;
+        let splats: Vec<Mutex<Vec<Splat>>> = (0..if bdpt { h } else { 0 })
+            .map(|_| Mutex::new(vec![]))
+            .collect();
         for_rows(
             &mut cells,
             w,
@@ -237,6 +244,7 @@ impl<'a> Progressive<'a> {
             self.background,
             cancel,
             &|y, row| {
+                let mut row_splats = vec![];
                 for (x, (sum, moments, aov)) in row.iter_mut().enumerate() {
                     let mut rec = match aov {
                         Some(_) => Record::new(true, lpe, aov_guides[y * w + x].material),
@@ -257,9 +265,21 @@ impl<'a> Progressive<'a> {
                         rec.start();
                         // A sample the lens cuts off counts, as black.
                         let c = ray.map_or(Vec3::ZERO, |(o, d, w)| {
-                            scene.radiance(o, d, w, &mut waves, &mut r, &mut rec)
+                            if bdpt {
+                                let c = scene.bdpt(o, d, w, k, &mut waves, &mut r, &mut row_splats);
+                                // Its AOVs: the whole estimate as direct light, no specular.
+                                rec.direct = c;
+                                c
+                            } else {
+                                scene.radiance(o, d, w, &mut waves, &mut r, &mut rec)
+                            }
                         });
-                        let scale = firefly_scale(s.firefly, c, **sum, k);
+                        // The firefly clamp is the path tracer's, as on the GPU.
+                        let scale = if bdpt {
+                            1.
+                        } else {
+                            firefly_scale(s.firefly, c, **sum, k)
+                        };
                         let c = c * scale;
                         **sum += c.as_dvec3();
                         if let Some(a) = aov {
@@ -278,6 +298,9 @@ impl<'a> Progressive<'a> {
                         a.take_lpe(&rec);
                     }
                 }
+                if bdpt {
+                    *lock(&splats[y]) = row_splats;
+                }
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                 if n.is_multiple_of((h / 20).max(1)) {
                     progress(n as f32 / h as f32);
@@ -286,6 +309,11 @@ impl<'a> Progressive<'a> {
         );
         if cancel.load(Ordering::Relaxed) {
             return false;
+        }
+        for row in splats {
+            for (i, c) in row.into_inner().unwrap_or_else(|e| e.into_inner()) {
+                self.sums[i as usize] += c.as_dvec3();
+            }
         }
         self.samples += spp;
         true

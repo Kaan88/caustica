@@ -91,7 +91,7 @@ impl Scene<'_> {
     }
     /// The fog's transmittance along o + d t over [start, limit], per channel: exact when
     /// uniform, an unbiased ratio-tracking estimate when `Fog::noise` makes it heterogeneous.
-    fn fog_transmittance(
+    pub(super) fn fog_transmittance(
         &self,
         o: Vec3,
         d: Vec3,

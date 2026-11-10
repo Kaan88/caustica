@@ -2,14 +2,12 @@
 use crate::lighting::PackedMaterial;
 use crate::reference::aov::{self, Record};
 use crate::reference::bsdf::{
-    GRATING_ORDER, Wavelength, aniso_alpha, aniso_frame, coat_probability, emitted,
-    eval_bsdf_parts, flags, fresnel_dielectric, grating, grating_move, grating_wavelength,
-    material_at, order_shares, prepare_film, rgb, spec_probability,
+    Wavelength, emitted, eval_bsdf_parts, flags, grating, grating_wavelength, material_at,
+    prepare_film, rgb,
 };
+use crate::reference::integrators::shading::{sample_lobes, spectral_material};
 use crate::reference::media::{flight, hg_pdf, hg_sample, push, remove, top};
-use crate::reference::sampling::{
-    Rng, cosine_sample, ggx_sample, ggx_sample_aniso, reflect, refract,
-};
+use crate::reference::sampling::{Rng, reflect};
 use crate::reference::scene::{Ray, Scene};
 use crate::reference::spectral::Waves;
 use glam::{Vec3, Vec4};
@@ -344,25 +342,9 @@ impl Scene<'_> {
                 }
                 // The colours become spectra, and the film is exact at the path's wavelengths
                 // over the uplifted f0 (its RGB pass above is what the RGB guides would read).
-                let c = w.up_material(&m, rgb(m.color_rough));
-                m.color_rough[..3].copy_from_slice(&c.to_array());
-                let sheen = w.up(rgb(m.sheen));
-                m.sheen[..3].copy_from_slice(&sheen.to_array());
-                if let Some((c, outside, base)) = film {
-                    prepare_film(&mut m, c, outside, base, Some(w.l));
-                }
+                spectral_material(&mut m, film, w);
             }
-            // The brushing direction, from the raw record as the GPU's hit reads it; a procedural
-            // hit's is fixed by its normal, as `intersect` gives it.
-            let mut tangent = self.tangent(sf.material, sf.p);
-            if h.sdf.is_some() && tangent != Vec3::ZERO {
-                let up = if sf.n.y.abs() < 0.99 {
-                    Vec3::Y
-                } else {
-                    Vec3::X
-                };
-                tangent = sf.n.cross(up).normalize();
-            }
+            let tangent = self.hit_tangent(&sf, &h);
             // A grating hit's wavelength, shared by light sampling and the BSDF sample here, from
             // its own stream so the path's draws stay as they were.
             let lambda = match grating(&m) {
@@ -449,91 +431,23 @@ impl Scene<'_> {
                 if w.dispersive(&m) {
                     w.hero(&mut throughput);
                 }
-                let (n1, n2, after) = self.interface(&media, &m, sf.material, sf.front, w);
-                let eta = n1 / n2;
-                let ci = v.dot(sf.n).clamp(0., 1.);
-                let mut fr = fresnel_dielectric(ci, eta);
-                // A film colours the reflection and, by what it leaves, the transmission: the
-                // choice goes by the mean, the weight per channel.
-                let film = m.surface_scale[2];
-                let mut frc = Vec3::splat(fr);
-                if film > 0. && fr < 1. {
-                    frc = frc.lerp(
-                        Vec3::new(m.base_scale[0], m.base_scale[1], m.base_scale[2]),
-                        film,
-                    );
-                    fr = (frc.element_sum() / 3.).clamp(1e-4, 1. - 1e-4);
+                let x = self.dielectric(&media, &m, sf.material, sf.front, sf.n, direction, w, r);
+                rec.advance(if x.reflected { aov::S } else { aov::T });
+                throughput *= x.weight;
+                if !x.reflected {
+                    media = x.after;
+                    throughput *= x.eta * x.eta;
                 }
-                let reflected = r.f() < fr;
-                rec.advance(if reflected { aov::S } else { aov::T });
-                if film > 0. {
-                    throughput *= if reflected {
-                        frc / fr
-                    } else {
-                        (Vec3::ONE - frc) / (1. - fr)
-                    };
-                }
-                let mut d = if reflected {
-                    reflect(direction, sf.n)
-                } else {
-                    refract(direction, sf.n, eta)
-                };
-                if !reflected {
-                    media = after;
-                    throughput *= eta * eta;
-                }
-                let rough = m.color_rough[3];
-                if rough > 0.001 {
-                    let pert = cosine_sample(if reflected { sf.n } else { -sf.n }, r);
-                    d = d.lerp(pert, rough * rough).normalize();
-                }
-                next = d;
+                next = x.next;
                 delta = true;
                 if bounce == 0 {
                     rec.first_spec = true;
                 }
             } else {
-                let ps = spec_probability(&m);
-                let pc = coat_probability(&m);
-                // A GGX or coat lobe sampled at the first vertex makes the path specular.
-                let mut lobe = true;
-                let d = if pc > 0. && r.f() < pc {
-                    let cr = m.layers[1];
-                    ggx_sample(sf.n, direction, (cr * cr).max(0.001), r)
-                } else if r.f() < ps {
-                    let rough = m.color_rough[3];
-                    let a = (rough * rough).max(0.001);
-                    // A grating's order (`order_shares`): the isotropic sample moved across the
-                    // grooves; one moved past the horizon ends the path.
-                    let mut order = None;
-                    if let Some((share, spacing)) = grating(&m) {
-                        let (_, b) = aniso_frame(sf.n, tangent, m.sheen[3]);
-                        let k = lambda.nm / spacing;
-                        let w = order_shares(share, k, sf.n, b, v);
-                        let u = r.f();
-                        let mut c = 0.;
-                        order = (0..4)
-                            .find(|&o| {
-                                c += w[o];
-                                u < c
-                            })
-                            .map(|o| (GRATING_ORDER[o] * k, b));
-                    }
-                    if let Some((shift, b)) = order {
-                        let d = ggx_sample(sf.n, direction, a, r);
-                        match grating_move(sf.n, b, d, shift).filter(|_| sf.n.dot(d) > 0.) {
-                            Some(d) => d,
-                            None => break,
-                        }
-                    } else if m.layers[3] > 0. {
-                        let (t, b) = aniso_frame(sf.n, tangent, m.sheen[3]);
-                        ggx_sample_aniso(sf.n, t, b, direction, aniso_alpha(&m), r)
-                    } else {
-                        ggx_sample(sf.n, direction, a, r)
-                    }
-                } else {
-                    lobe = false;
-                    cosine_sample(sf.n, r)
+                // A GGX or coat lobe sampled at the first vertex makes the path specular; a
+                // grating's order moved past the horizon ends the path.
+                let Some((d, lobe)) = sample_lobes(&m, sf.n, tangent, direction, lambda, r) else {
+                    break;
                 };
                 if bounce == 0 && lobe {
                     rec.first_spec = true;
@@ -591,32 +505,8 @@ impl Scene<'_> {
             radiance.max(Vec3::ZERO)
         }
     }
-    /// The IORs on the near and far side of dielectric `material` hit from `front`, and the
-    /// media stack beyond it: entering, the current medium's and its own; leaving, its own and
-    /// the one the stack falls back to (air when empty). Each at the path's hero wavelength once
-    /// it keeps that alone (`Waves::ior`).
-    fn interface(
-        &self,
-        media: &[(u32, u32)],
-        m: &crate::lighting::PackedMaterial,
-        material: u32,
-        front: bool,
-        w: &Waves,
-    ) -> (f32, f32, Vec<(u32, u32)>) {
-        let entry = ((flags(m) >> 8) & 7, material);
-        let ior = |e: Option<&(u32, u32)>| e.map_or(1., |e| w.ior(&self.materials[e.1 as usize]));
-        let mut after = media.to_vec();
-        if front {
-            push(&mut after, entry);
-            (ior(top(media)), w.ior(m), after)
-        } else {
-            remove(&mut after, entry);
-            let n2 = ior(top(&after));
-            (w.ior(m), n2, after)
-        }
-    }
     /// The sky gradient over the background colour, without an environment map.
-    fn plain_sky(&self, d: Vec3) -> Vec3 {
+    pub(in crate::reference) fn plain_sky(&self, d: Vec3) -> Vec3 {
         let up = (d.y * 0.5 + 0.5).clamp(0., 1.);
         Vec3::from(self.s.background)
             + self.s.sky * Vec3::new(0.8, 0.87, 1.0).lerp(Vec3::new(0.16, 0.35, 0.72), up)

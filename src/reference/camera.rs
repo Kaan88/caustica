@@ -68,6 +68,28 @@ pub(super) fn filter_offset(s: &Settings, u: Vec2) -> Vec2 {
         _ => (u - 0.5) * w,
     }
 }
+/// The pixel filter's density at offset `x` from a pixel's centre, per axis (`filter_density`):
+/// what `filter_offset` draws from, so light-tracing splats weigh pixels as camera rays reach
+/// them. The Gaussian is normalised over the ±3σ it is cut to.
+pub(super) fn filter_density(s: &Settings, x: f32) -> f32 {
+    let w = s.filter_width;
+    let t = x / w + 0.5;
+    if !(0. ..=1.).contains(&t) {
+        return 0.;
+    }
+    match s.pixel_filter {
+        1 => {
+            let sd = w / 6.;
+            (-0.5 * x * x / (sd * sd)).exp() / (sd * (2. * PI).sqrt() * 0.9973)
+        }
+        2 => {
+            let a = 2. * PI * t;
+            (0.35875 - 0.48829 * a.cos() + 0.14128 * (2. * a).cos() - 0.01168 * (3. * a).cos())
+                / (0.35875 * w)
+        }
+        _ => 1. / w,
+    }
+}
 
 /// The camera's frame as the GPU reads it: world_view's rows (right, up, -forward), the
 /// aspect, the tangent of the half field of view and the orthographic half height.

@@ -239,6 +239,15 @@ bool connected(float3 a,float3 na,float3 b,float3 nb){
 #define PHOTON_WALK 32u
 static BVertex cam[CAMERA_VERTICES],lig[LIGHT_VERTICES];
 float remap0(float x){return x!=0?x:1;}
+// Whether a strategy can end a subpath at x: a scatter point, or a surface whose material has a
+// part a connection can evaluate. Not V_DELTA, which says what x sampled to go on: skipping a
+// partly transmissive surface (0 < transmission < 1) whenever it sampled its dielectric lobe kept
+// its connections on only that share of samples while the MIS weights count them always (a test
+// sphere at transmission 0.5 was 21% dark; found by the CPU reference's BDPT).
+bool connectible(BVertex x){
+    if((x.info&V_MEDIUM)!=0)return true;if((x.info&V_NO_BSDF)!=0)return false;
+    Material m=materials[x.info&0xffffffu];return m.lobes.z<1 && ((uint)m.lobes.w&4096u)==0;
+}
 // One strategy's weighted contribution. A non-finite term (a half vector of opposite directions,
 // densities overflowing at near-coincident vertices) is dropped on its own: zeroing the whole
 // sample instead lost the large terms of the same path, 4% of veach-ajar's light.
@@ -377,7 +386,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
             }else if(t==1){
                 // Light tracing: the light subpath's last vertex seen by the camera.
                 if(!lt || s>S)continue;
-                BVertex qs=lig[s-1];if((qs.info&(V_DELTA|V_NO_BSDF))!=0)continue;
+                BVertex qs=lig[s-1];if(!connectible(qs))continue;
                 float2 film;if(!project(qs.p,film))continue;
                 float3 w=eye.xyz-qs.p;float d2=dot(w,w),dist=sqrt(d2);w/=dist;
                 float c=vcos(qs,w),ct=dot(-w,camera_forward());if(ct<=0)continue;
@@ -391,7 +400,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 splat_filtered(film,hero_rgb(C*mis_weight(s,1,0,0,camera_pdf_w(-w)*c/d2,qsm_rev,0)));
             }else if(s==1){
                 // Next-event estimation: one light choice per camera vertex, as trace makes it.
-                BVertex pt=cam[t-1];if((pt.info&(V_DELTA|V_NO_BSDF))!=0)continue;
+                BVertex pt=cam[t-1];if(!connectible(pt))continue;
                 float3 wm=normalize(cam[t-2].p-pt.p);
                 if(random()<p_env){
                     float pe;float3 ld=sample_env(pe);if(pe<=0)continue;float pdf;float3 f=vertex_f(pt,wm,ld,pdf);
@@ -417,7 +426,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 add_term(L,C*mis_weight(1,t,pt_rev,ptm_rev,qs_rev,0,po));
             }else{
                 // Both subpaths joined by one edge.
-                BVertex qs=lig[s-1],pt=cam[t-1];if(((qs.info|pt.info)&(V_DELTA|V_NO_BSDF))!=0)continue;
+                BVertex qs=lig[s-1],pt=cam[t-1];if(!connectible(qs) || !connectible(pt))continue;
                 float3 w=qs.p-pt.p;float d2=max(dot(w,w),1e-12),dist=sqrt(d2);w/=dist;
                 float3 wm=normalize(cam[t-2].p-pt.p),wq=normalize(lig[s-2].p-qs.p);
                 float pa,pb;float3 fa=vertex_f(pt,wm,w,pa),fb=vertex_f(qs,-w,wq,pb);

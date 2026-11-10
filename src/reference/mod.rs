@@ -50,8 +50,8 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
     // `Fog::equiangular` only changes the GPU's sampling; the CPU ignores it.
     need(s.battle, "battle mode (four integrators at once)");
     need(
-        s.integrator != 0,
-        "BDPT and photon mapping (the reference is a path tracer)",
+        s.integrator >= 2,
+        "photon mapping (the reference has the path tracer and BDPT)",
     );
     // Measured spectra and blackbodies render as their RGB colour outside spectral mode, as on
     // the GPU.
