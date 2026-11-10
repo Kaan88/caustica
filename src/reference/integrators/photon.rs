@@ -190,8 +190,10 @@ impl Scene<'_> {
         if cancel.load(Ordering::Relaxed) {
             return None;
         }
-        // In emission order, cut at the GPU's capacity.
-        let capacity = n * self.s.bounces.clamp(1, PHOTON_BOUNCES) as usize;
+        // In emission order, cut at the GPU's capacity: its buffer holds the scene's whole count
+        // of photons (`Settings::photons`), also when battle mode's quadrant traces a share.
+        let capacity =
+            self.s.photons.max(1) as usize * self.s.bounces.clamp(1, PHOTON_BOUNCES) as usize;
         let (mut surface, mut volume) = (vec![], vec![]);
         for (q, in_medium) in chunks
             .into_iter()
