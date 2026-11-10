@@ -148,7 +148,12 @@ def main():
             print(f'{name:28} GPU FAILED  {out.strip()[-200:]}')
             failed += 1
             continue
-        ratio, z, (bz, br, at), bad = test(exr.read(gpu), exr.read(cpu), 8, a.z, a.floor)
+        # The GPU's capture clamps each pixel's mean at 0 (post.hlsl `beauty`); a spectral mean
+        # can be negative (hero wavelengths outside the gamut), so the CPU's is clamped the same
+        # way to compare like with like. RGB means are never negative.
+        c = exr.read(cpu)
+        c[..., :3] = np.maximum(c[..., :3], 0)
+        ratio, z, (bz, br, at), bad = test(exr.read(gpu), c, 8, a.z, a.floor)
         failed += bad
         print(f'{name:28} {ratio:8.4f} {z:7.2f}  {br:.4f} {bz:6.2f} {at}  {"FAIL" if bad else "ok"}')
     sys.exit(1 if failed else 0)
