@@ -40,6 +40,27 @@ pub struct AovLayer {
     pub data: Vec<f32>,
 }
 
+/// An LPE layer's EXR name: `lpe<slot>_` and the expression with everything but letters and
+/// digits as `_` (a dot would nest layers), at most 48 characters.
+pub(crate) fn lpe_layer_name(slot: u32, expr: Option<&String>) -> String {
+    let mut name = format!("lpe{}", slot + 1);
+    if let Some(e) = expr {
+        let mut last = '_';
+        let mut tail = String::new();
+        for c in e.chars() {
+            let c = if c.is_ascii_alphanumeric() { c } else { '_' };
+            if c != '_' || last != '_' {
+                tail.push(c);
+            }
+            last = c;
+        }
+        let tail = tail.trim_matches('_');
+        if !tail.is_empty() {
+            name = format!("{name}_{tail}");
+        }
+    }
+    name.chars().take(48).collect()
+}
 /// The AOV layers both backends write to a multi-layer EXR (before LPE layers), from
 /// `read(index)` = a float texture's (width, height, channels, samples).
 /// The numbers of a `static const` table in shader source (`name[...] = { ... };`), in order;
@@ -727,6 +748,12 @@ pub fn halton(mut index: u32, base: u32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn lpe_layers_are_named_by_their_expression() {
+        let e = "C D'red wall' .* L".to_string();
+        assert_eq!(super::lpe_layer_name(0, Some(&e)), "lpe1_C_D_red_wall_L");
+        assert_eq!(super::lpe_layer_name(2, None), "lpe3");
+    }
 
     /// gui.hlsl reads a positive eye.w as HDR paper white and linearises egui's sRGB colours for
     /// it. On SDR's UNORM targets nothing re-encodes them, so the whole UI would draw too dark;

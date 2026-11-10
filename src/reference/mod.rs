@@ -15,6 +15,7 @@
 use crate::scene::Settings;
 use anyhow::{Context, Result};
 
+mod aov;
 mod bsdf;
 mod bvh;
 mod camera;
@@ -52,11 +53,6 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
         s.integrator != 0,
         "BDPT and photon mapping (the reference is a path tracer)",
     );
-    // The reference writes beauty only; LPE AOV layers would be missing from its EXR.
-    need(
-        s.lpe.iter().any(|e| !e.is_empty()),
-        "light path expressions (LPE AOVs)",
-    );
     // Measured spectra and blackbodies render as their RGB colour outside spectral mode, as on
     // the GPU.
     out
@@ -65,7 +61,10 @@ pub fn unsupported(s: &Settings) -> Vec<String> {
 /// `--reference SPP`: renders `moments` (one scene, `prepare`d, or a motion-blurred frame's,
 /// `exposure`) and writes a linear EXR, or a PNG or JPEG through the display transform
 /// (`display`), as the GPU's capture does. `denoise` (`--cpu-denoise`) filters the mean first
-/// (`denoise`); the oracle never asks for it. `lenient` renders the first moment alone.
+/// (`denoise`); the oracle never asks for it. `lenient` renders the first moment alone. A
+/// `name.layers.exr` holds every AOV as a layer (`aov`), as the GPU's capture does; with the light
+/// path expression view (view 12) the image is the expression `lpe_slot`'s light instead of the
+/// beauty (black for a slot not in use), as on the GPU.
 pub fn run(
     moments: &[Settings],
     size: [u32; 2],
@@ -80,11 +79,13 @@ pub fn run(
             matches!(
                 f,
                 crate::video::ImageFormat::Exr
+                    | crate::video::ImageFormat::Layers
                     | crate::video::ImageFormat::Png
                     | crate::video::ImageFormat::Jpeg
             )
         })
-        .context("--reference writes .exr, .png or .jpg")?;
+        .context("--reference writes .exr, .layers.exr, .png or .jpg")?;
+    let layers = format == crate::video::ImageFormat::Layers;
     anyhow::ensure!(!moments.is_empty(), "No scene to render");
     let mut moments = moments.to_vec();
     let progress = |f: f32| println!("REFERENCE_PROGRESS {:.0}%", f * 100.);
@@ -110,6 +111,10 @@ pub fn run(
     if denoise {
         p.keep_guides();
     }
+    let lpe_view = frame.view == 12;
+    if layers || lpe_view {
+        p.keep_aovs();
+    }
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     p.pass(
         spp,
@@ -117,20 +122,27 @@ pub fn run(
         &std::sync::atomic::AtomicBool::new(false),
         &progress,
     );
-    let rgba = if denoise {
+    let rgba = if lpe_view {
+        p.lpe_image(frame.lpe_slot)
+            .unwrap_or_else(|| [0., 0., 0., 1.].repeat((size[0] * size[1]) as usize))
+    } else if denoise {
         p.denoised(frame.denoise_strength, threads)
     } else {
         p.image()
     };
-    crate::video::write_cpu_image(
-        frame,
-        path,
-        format,
-        crate::video::JPEG_QUALITY,
-        rgba,
-        size,
-        0,
-    )?;
+    if layers {
+        crate::video::write_layers(path, &p.layers(rgba))?;
+    } else {
+        crate::video::write_cpu_image(
+            frame,
+            path,
+            format,
+            crate::video::JPEG_QUALITY,
+            rgba,
+            size,
+            0,
+        )?;
+    }
     println!(
         "REFERENCE_OK spp={spp} size={}x{} seconds={:.1}",
         size[0],

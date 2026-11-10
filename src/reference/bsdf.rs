@@ -383,6 +383,19 @@ pub(super) fn eval_bsdf(
     l: Vec3,
     lambda: Wavelength,
 ) -> (Vec3, f32) {
+    let (f, pdf, _) = eval_bsdf_parts(m, n, t, v, l, lambda);
+    (f, pdf)
+}
+/// `eval_bsdf` and the diffuse part of its value: the base's diffuse lobe as the sheen and the
+/// coat above it leave it (light path expressions split a vertex into D and G or S by it).
+pub(super) fn eval_bsdf_parts(
+    m: &PackedMaterial,
+    n: Vec3,
+    t: Vec3,
+    v: Vec3,
+    l: Vec3,
+    lambda: Wavelength,
+) -> (Vec3, f32, Vec3) {
     let nl = n.dot(l).clamp(0., 1.);
     let nv = n.dot(v).clamp(0., 1.);
     let h = (v + l).normalize_or_zero();
@@ -428,6 +441,7 @@ pub(super) fn eval_bsdf(
     let diff = (Vec3::ONE - f) * (1. - m.lobes[0]) * rgb(m.color_rough) / PI;
     let compensation = Vec3::ONE + fc * (1. / ess - 1.);
     let mut r = diff + f * d * gv * gl / (4. * nv * nl).max(1e-6) * compensation;
+    let mut diffuse = diff;
     if let Some((share, spacing)) = grating(m).filter(|_| lambda.nm > 0. && nl > 0.) {
         // Each order is the isotropic lobe evaluated where the move across the grooves takes l
         // back from; the mirror keeps what the orders that leave don't take.
@@ -458,6 +472,7 @@ pub(super) fn eval_bsdf(
         let sr = m.layers[2];
         let below = 1. - sheen.max_element() * sheen_albedo(nv, sr).min(1.);
         r = r * below + sheen * sheen_lobe(sr, nh, nv, nl);
+        diffuse *= below;
     }
     let coat = m.layers[0];
     if coat > 0. {
@@ -468,12 +483,14 @@ pub(super) fn eval_bsdf(
         let fc = 0.04 + 0.96 * (1. - vh).powi(5);
         let lobe =
             fc * dc * g1(nv, ac) * g1(nl, ac) / (4. * nv * nl).max(1e-6) / ggx_albedo(nv, cr);
-        r = r * (1. - coat * coat_albedo(nv, cr)) + Vec3::splat(coat * lobe);
+        let below = 1. - coat * coat_albedo(nv, cr);
+        r = r * below + Vec3::splat(coat * lobe);
+        diffuse *= below;
         let pc = coat_probability(m);
         pdf = pdf * (1. - pc) + pc * dc * nh / (4. * vh).max(1e-6);
     }
     let keep = 1. - m.lobes[2];
-    (keep * r, keep * pdf)
+    (keep * r, keep * pdf, keep * diffuse)
 }
 /// The pattern colour at p (`material_at`).
 pub(super) fn material_at(m: &PackedMaterial, p: Vec3) -> PackedMaterial {

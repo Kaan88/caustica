@@ -78,6 +78,8 @@ impl SdfLight {
 /// emitter's plane than the sampled line and cross it 0.0003 / |c| before the point: the stop is
 /// twice that off the plane, measured along the normal. Near-tangent rays and rays to nearby
 /// points cap it, so it can't skip a real occluder.
+/// A light sample (`Scene::sample_light`).
+pub(super) type LightSample = (Vec3, Vec3, f32, f32, Option<u32>);
 pub(super) fn shadow_limit(dist: f32, c: f32) -> f32 {
     (dist - (0.5 * dist).min(0.0006 / c.abs().max(0.02))).max(0.0002)
 }
@@ -154,13 +156,15 @@ impl Scene<'_> {
     }
     /// What the suns add along `d`, a ray that left the scene: each one whose disc holds `d`
     /// (tested by sin², from a cross product: a float cosine can't resolve a 0.05° sun), times
-    /// `weight` of its light-sampling pdf. Hidden suns only from the first bounce on.
+    /// `weight` of its light-sampling pdf. Hidden suns only from the first bounce on. `each` sees
+    /// each sun's material and share.
     pub(super) fn suns(
         &self,
         d: Vec3,
         bounce: u32,
         w: &Waves,
         weight: impl Fn(f32) -> f32,
+        mut each: impl FnMut(u32, Vec3),
     ) -> Vec3 {
         let mut sum = Vec3::ZERO;
         for (k, l) in self.lights.iter().enumerate() {
@@ -178,24 +182,21 @@ impl Scene<'_> {
             if d.dot(c) <= 0. || x.dot(x) > om * (2. - om) || bounce == 0 && hidden {
                 continue;
             }
-            sum += w.up_emitted(&self.materials[material as usize], le)
+            let e = w.up_emitted(&self.materials[material as usize], le)
                 * weight(self.pick(k) / (2. * PI * om));
+            each(material, e);
+            sum += e;
         }
         sum
     }
     /// One light sample: direction, radiance arriving (at the path's wavelengths, `w`),
-    /// solid-angle pdf, shadow-ray length.
-    pub(super) fn sample_light(
-        &self,
-        x: Vec3,
-        w: &Waves,
-        r: &mut Rng,
-    ) -> Option<(Vec3, Vec3, f32, f32)> {
+    /// solid-angle pdf, shadow-ray length, and the light's material (None: the environment).
+    pub(super) fn sample_light(&self, x: Vec3, w: &Waves, r: &mut Rng) -> Option<LightSample> {
         if let Some(env) = &self.env
             && r.f() < self.p_env
         {
             let (ld, pe) = env.sample(r);
-            return (pe > 0.).then(|| (ld, w.up(env.radiance(ld)), self.p_env * pe, 1e4));
+            return (pe > 0.).then(|| (ld, w.up(env.radiance(ld)), self.p_env * pe, 1e4, None));
         }
         if !self.sdf_lights.is_empty() && (self.lights.is_empty() || r.f() < 0.5) {
             return self.sample_sdf(x, w, r);
@@ -203,12 +204,7 @@ impl Scene<'_> {
         self.sample_table(x, w, r)
     }
     /// One sample of the light table alone; its pdf is still the full `sample_light` pick's.
-    pub(super) fn sample_table(
-        &self,
-        x: Vec3,
-        w: &Waves,
-        r: &mut Rng,
-    ) -> Option<(Vec3, Vec3, f32, f32)> {
+    pub(super) fn sample_table(&self, x: Vec3, w: &Waves, r: &mut Rng) -> Option<LightSample> {
         if self.lights.is_empty() {
             return None;
         }
@@ -229,7 +225,7 @@ impl Scene<'_> {
             } => {
                 let (ld, pc) = cone_sample(d, om, r);
                 let le = w.up_emitted(&self.materials[material as usize], le);
-                return Some((ld, le, self.pick(k) * pc, 1e4 - 0.0006));
+                return Some((ld, le, self.pick(k) * pc, 1e4 - 0.0006, Some(material)));
             }
             // A direction in the cone the sphere covers, and a shadow ray up to its true surface
             // (the inscribed mesh lies beyond it). From inside, no sample.
@@ -249,7 +245,8 @@ impl Scene<'_> {
                 let b = c.dot(ld);
                 let limit = b - (radius * radius - (d2 - b * b)).max(0.).sqrt();
                 let le = w.up_emitted(&self.materials[material as usize], le);
-                return Some((ld, le, self.pick(k) * pc, (limit - 0.0006).max(0.0002)));
+                let limit = (limit - 0.0006).max(0.0002);
+                return Some((ld, le, self.pick(k) * pc, limit, Some(material)));
             }
         };
         let t = &self.bvh.tris[tri];
@@ -276,7 +273,8 @@ impl Scene<'_> {
         );
         let le = w.up_emitted(&self.materials[t.material as usize], le);
         let pdf = self.light_pdf(tri, x, p);
-        (pdf > 0. && le.max_element() > 0.).then_some((ld, le, pdf, shadow_limit(dist, ld.dot(n))))
+        let limit = shadow_limit(dist, ld.dot(n));
+        (pdf > 0. && le.max_element() > 0.).then_some((ld, le, pdf, limit, Some(t.material)))
     }
     /// The probability light sampling picks procedural emitter record `k`.
     fn sdf_prob(&self, k: usize) -> f32 {
@@ -308,7 +306,7 @@ impl Scene<'_> {
     }
     /// A light sample of an emissive procedural object: one by power, a direction in its bound's
     /// cone, kept when the nearest surface a shadow ray meets that way is the object.
-    fn sample_sdf(&self, x: Vec3, w: &Waves, r: &mut Rng) -> Option<(Vec3, Vec3, f32, f32)> {
+    fn sample_sdf(&self, x: Vec3, w: &Waves, r: &mut Rng) -> Option<LightSample> {
         let u = r.f();
         let k = self
             .sdf_lights
@@ -343,6 +341,7 @@ impl Scene<'_> {
         );
         let pl = self.sdf_light_pdf(l.object, x);
         // The surface's own normal (`ng` faces the ray) sets the stop short of it.
-        (pl > 0. && le.max_element() > 0.).then_some((ld, le, pl, shadow_limit(h.t, ld.dot(sf.ng))))
+        let limit = shadow_limit(h.t, ld.dot(sf.ng));
+        (pl > 0. && le.max_element() > 0.).then_some((ld, le, pl, limit, Some(sf.material)))
     }
 }

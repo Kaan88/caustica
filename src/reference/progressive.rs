@@ -1,4 +1,5 @@
 //! Renders that grow by passes: the CLI's and the viewport's.
+use super::aov::{GuideAov, Lpe, PixelAov, Record};
 use super::camera::filter_offset;
 use super::denoise::{Guide, Moments, luminance};
 use super::sampling::Rng;
@@ -69,6 +70,11 @@ pub struct Progressive<'a> {
     /// guide ray's hit and what the samples add besides their light.
     guides: Vec<Guide>,
     moments: Vec<Moments>,
+    /// The AOVs (`aov`), empty until `keep_aovs` asks for them: per pixel the samples' sums and
+    /// the guide ray's layers; and the light path expressions they run.
+    aovs: Vec<PixelAov>,
+    aov_guides: Vec<GuideAov>,
+    lpe: Option<Lpe>,
     /// Its threads run at low priority: a render behind a window.
     background: bool,
 }
@@ -116,8 +122,24 @@ impl<'a> Progressive<'a> {
             samples: 0,
             guides: vec![],
             moments: vec![],
+            aovs: vec![],
+            aov_guides: vec![],
+            lpe: None,
             background: false,
         }
+    }
+    /// Records the AOVs from here on (`layers`), starting the render over; the sums' bits don't
+    /// change, since the records draw from their own random streams.
+    pub fn keep_aovs(&mut self) {
+        let [w, h] = self.scene().size.map(|v| v as usize);
+        let scene = self.scene();
+        let guides = (0..w * h).map(|i| scene.aov_guide(i % w, i / w)).collect();
+        let lpe = Lpe::new(scene.s);
+        self.aov_guides = guides;
+        self.lpe = lpe;
+        self.aovs = vec![PixelAov::default(); w * h];
+        self.sums.iter_mut().for_each(|c| *c = DVec3::ZERO);
+        self.samples = 0;
     }
     /// Gathers the denoiser's inputs from here on. It starts the render over (the moments must
     /// cover every sample); the sums' bits don't change, since the guides draw no random numbers.
@@ -167,6 +189,9 @@ impl<'a> Progressive<'a> {
         if !self.guides.is_empty() {
             self.keep_guides();
         }
+        if !self.aovs.is_empty() {
+            self.keep_aovs();
+        }
     }
     /// Moves the camera and keeps the sums: light painting's long exposure, which a camera move
     /// smears as it would a photograph's.
@@ -190,10 +215,21 @@ impl<'a> Progressive<'a> {
         let first = self.samples;
         let done = AtomicUsize::new(0);
         let guides = &self.guides;
-        // Each pixel's sum, with its moments when the denoiser wants them.
+        let aov_guides = &self.aov_guides;
+        let lpe = self.lpe.as_ref();
+        // Each pixel's sum, with its moments when the denoiser wants them and its AOVs.
         let mut moments = self.moments.iter_mut();
-        let mut cells: Vec<(&mut DVec3, Option<&mut Moments>)> =
-            self.sums.iter_mut().map(|c| (c, moments.next())).collect();
+        let mut aovs = self.aovs.iter_mut();
+        type Cell<'c> = (
+            &'c mut DVec3,
+            Option<&'c mut Moments>,
+            Option<&'c mut PixelAov>,
+        );
+        let mut cells: Vec<Cell> = self
+            .sums
+            .iter_mut()
+            .map(|c| (c, moments.next(), aovs.next()))
+            .collect();
         for_rows(
             &mut cells,
             w,
@@ -201,7 +237,11 @@ impl<'a> Progressive<'a> {
             self.background,
             cancel,
             &|y, row| {
-                for (x, (sum, moments)) in row.iter_mut().enumerate() {
+                for (x, (sum, moments, aov)) in row.iter_mut().enumerate() {
+                    let mut rec = match aov {
+                        Some(_) => Record::new(true, lpe, aov_guides[y * w + x].material),
+                        None => Record::off(),
+                    };
                     for k in first..first + spp {
                         let mut r = Rng::new((y * w + x) as u64, k as u64);
                         // Drawn only when there are moments to choose from, so a still keeps
@@ -214,12 +254,17 @@ impl<'a> Progressive<'a> {
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
                         let mut waves = scene.waves(&r);
                         let ray = scene.camera_ray(pixel, &mut waves, &mut r);
+                        rec.start();
                         // A sample the lens cuts off counts, as black.
                         let c = ray.map_or(Vec3::ZERO, |(o, d, w)| {
-                            scene.radiance(o, d, w, &mut waves, &mut r)
+                            scene.radiance(o, d, w, &mut waves, &mut r, &mut rec)
                         });
-                        let c = firefly_clamp(s.firefly, c, **sum, k);
+                        let scale = firefly_scale(s.firefly, c, **sum, k);
+                        let c = c * scale;
                         **sum += c.as_dvec3();
+                        if let Some(a) = aov {
+                            a.add(&rec, c, scale);
+                        }
                         if let Some(m) = moments {
                             if let Some((o, d, _)) = ray {
                                 let (albedo, id) = scene.first_albedo(o, d);
@@ -228,6 +273,9 @@ impl<'a> Progressive<'a> {
                             }
                             m.m2 += (luminance(c) as f64).powi(2);
                         }
+                    }
+                    if let Some(a) = aov {
+                        a.take_lpe(&rec);
                     }
                 }
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -252,6 +300,78 @@ impl<'a> Progressive<'a> {
                 [c.x, c.y, c.z, 1.]
             })
             .collect()
+    }
+    /// Light path expression `slot`'s mean as RGBA (`keep_aovs`), or None for a slot not in use.
+    pub fn lpe_image(&self, slot: u32) -> Option<Vec<f32>> {
+        let used = self.lpe.as_ref().map_or(0, |l| l.slots);
+        if self.aovs.is_empty() || slot as usize >= used {
+            return None;
+        }
+        let n = self.samples.max(1) as f64;
+        Some(
+            self.aovs
+                .iter()
+                .flat_map(|a| {
+                    let c = (a.lpe[slot as usize] / n).as_vec3();
+                    [c.x, c.y, c.z, 1.]
+                })
+                .collect(),
+        )
+    }
+    /// A multi-layer EXR's layers (`keep_aovs`), in the GPU's order (`render::aov_layers`, then
+    /// each light path expression in use): `beauty` (RGBA), the albedos, the guide ray's normal,
+    /// roughness, depth and motion (0: a still), the direct and specular light, the object ids.
+    pub fn layers(&self, beauty: Vec<f32>) -> Vec<crate::render::AovLayer> {
+        let [w, h] = self.scene().size;
+        let n = self.samples.max(1) as f64;
+        let mut layers = vec![];
+        let mut add = |name: &str, channels: &[&'static str], data: Vec<f32>| {
+            layers.push(crate::render::AovLayer {
+                name: name.into(),
+                width: w,
+                height: h,
+                channels: channels.to_vec(),
+                data,
+            })
+        };
+        let mean = |f: &dyn Fn(&PixelAov) -> DVec3| -> Vec<f32> {
+            self.aovs
+                .iter()
+                .flat_map(|a| (f(a) / n).as_vec3().to_array())
+                .collect()
+        };
+        const RGB: [&str; 3] = ["R", "G", "B"];
+        let g = &self.aov_guides;
+        add("beauty", &["R", "G", "B", "A"], beauty);
+        add(
+            "diffuse_albedo",
+            &RGB,
+            mean(&|a| a.diffuse_albedo.truncate()),
+        );
+        add("specular_albedo", &RGB, mean(&|a| a.specular_albedo));
+        add(
+            "normal",
+            &["X", "Y", "Z"],
+            g.iter().flat_map(|g| g.normal.to_array()).collect(),
+        );
+        add("roughness", &["Y"], g.iter().map(|g| g.roughness).collect());
+        add("depth", &["Z"], g.iter().map(|g| g.depth).collect());
+        add("motion", &["X", "Y"], vec![0.; g.len() * 2]);
+        add("direct", &RGB, mean(&|a| a.direct));
+        add("specular", &RGB, mean(&|a| a.specular));
+        add(
+            "object_id",
+            &["Y"],
+            g.iter()
+                .map(|g| g.material.wrapping_add(1) as f32)
+                .collect(),
+        );
+        let exprs = &self.scene().s.lpe;
+        for slot in 0..self.lpe.as_ref().map_or(0, |l| l.slots) {
+            let name = crate::render::lpe_layer_name(slot as u32, exprs.get(slot));
+            add(&name, &RGB, mean(&|a| a.lpe[slot]));
+        }
+        layers
     }
     /// The sums so far as RGBA (alpha the sample count), for adding renders of different moments.
     pub fn total(&self) -> Vec<f32> {
@@ -294,7 +414,7 @@ impl<'a> Progressive<'a> {
                     *c = scene
                         .camera_ray(pixel, &mut waves, &mut r)
                         .map_or(Vec3::ZERO, |(o, d, w)| {
-                            scene.radiance(o, d, w, &mut waves, &mut r)
+                            scene.radiance(o, d, w, &mut waves, &mut r, &mut Record::off())
                         });
                 }
             },
@@ -748,13 +868,19 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// `limit` times the luminance of the mean so far (never below 0.05), scaled down to that.
 /// The GPU compares against the mean at the start of its frame; here it is the mean of the
 /// samples before this one, which is the same thing at one sample a frame.
+#[cfg(test)]
 fn firefly_clamp(limit: f32, c: Vec3, sum: DVec3, k: u32) -> Vec3 {
+    c * firefly_scale(limit, c, sum, k)
+}
+/// The firefly clamp's factor for sample `k` of value `c`, the pixel's sum so far `sum`: 1, or
+/// less for an outlier. The direct light AOV is scaled with the sample, as on the GPU.
+fn firefly_scale(limit: f32, c: Vec3, sum: DVec3, k: u32) -> f32 {
     if limit <= 0. || k <= 4 {
-        return c;
+        return 1.;
     }
     let lum = |v: Vec3| v.dot(Vec3::new(0.2126, 0.7152, 0.0722));
     let mean = (sum / k as f64).as_vec3();
-    c * (limit * lum(mean).max(0.05) / lum(c).max(1e-6)).min(1.)
+    (limit * lum(mean).max(0.05) / lum(c).max(1e-6)).min(1.)
 }
 
 #[cfg(test)]

@@ -268,7 +268,7 @@ impl Gpu {
             let rgb = self.read_lpe(slot)?;
             if rgb.len() == (w * h * 3) as usize {
                 layers.push(AovLayer {
-                    name: lpe_layer_name(
+                    name: crate::render::lpe_layer_name(
                         slot,
                         self.lpe_uploaded
                             .as_ref()
@@ -375,35 +375,5 @@ impl Gpu {
             q.ClearStoredMessages();
         }
         result
-    }
-}
-/// An LPE layer's EXR name: `lpe<slot>_` and the expression with everything but letters and
-/// digits as `_` (a dot would nest layers), at most 48 characters.
-fn lpe_layer_name(slot: u32, expr: Option<&String>) -> String {
-    let mut name = format!("lpe{}", slot + 1);
-    if let Some(e) = expr {
-        let mut last = '_';
-        let mut tail = String::new();
-        for c in e.chars() {
-            let c = if c.is_ascii_alphanumeric() { c } else { '_' };
-            if c != '_' || last != '_' {
-                tail.push(c);
-            }
-            last = c;
-        }
-        let tail = tail.trim_matches('_');
-        if !tail.is_empty() {
-            name = format!("{name}_{tail}");
-        }
-    }
-    name.chars().take(48).collect()
-}
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn lpe_layers_are_named_by_their_expression() {
-        let e = "C D'red wall' .* L".to_string();
-        assert_eq!(super::lpe_layer_name(0, Some(&e)), "lpe1_C_D_red_wall_L");
-        assert_eq!(super::lpe_layer_name(2, None), "lpe3");
     }
 }

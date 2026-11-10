@@ -244,7 +244,6 @@ fn every_missing_feature_is_refused() {
     let cases: Vec<(&str, Settings)> = vec![
         ("battle", edit(&|s| s.battle = true)),
         ("BDPT", edit(&|s| s.integrator = 1)),
-        ("LPE", edit(&|s| s.lpe = vec!["C.*L".into()])),
     ];
     for (what, s) in &cases {
         assert!(!unsupported(s).is_empty(), "{what} was not refused");
@@ -1040,10 +1039,10 @@ fn a_sun_lights_as_defined() {
     assert!(!hidden);
     assert!((le.x * om * (2. - om) - 1.).abs() < 1e-3, "{le} {om}");
     assert!((d + s.lights[0].direction()).length() < 1e-5);
-    assert_eq!(scene.suns(d, 0, &rgb, |_| 1.), le);
-    assert_eq!(scene.suns(-d, 1, &rgb, |_| 1.), Vec3::ZERO);
+    assert_eq!(scene.suns(d, 0, &rgb, |_| 1., |_, _| ()), le);
+    assert_eq!(scene.suns(-d, 1, &rgb, |_| 1., |_, _| ()), Vec3::ZERO);
     let mut r = Rng::new(3, 4);
-    let (ld, l, pl, limit) = scene.sample_light(Vec3::ZERO, &rgb, &mut r).unwrap();
+    let (ld, l, pl, limit, _) = scene.sample_light(Vec3::ZERO, &rgb, &mut r).unwrap();
     assert!(d.cross(ld).length_squared() <= om * (2. - om) * 1.001 && l == le);
     let pick = (1. - scene.p_env) * scene.cdf[0];
     assert!(
@@ -1064,8 +1063,8 @@ fn a_sun_lights_as_defined() {
     assert!(both > 0.01, "{both}");
     s.lights[0].visible = false;
     let scene = Scene::new(&s, [8, 8]);
-    assert_eq!(scene.suns(d, 0, &rgb, |_| 1.), Vec3::ZERO);
-    assert_eq!(scene.suns(d, 1, &rgb, |_| 1.), le);
+    assert_eq!(scene.suns(d, 0, &rgb, |_| 1., |_, _| ()), Vec3::ZERO);
+    assert_eq!(scene.suns(d, 1, &rgb, |_| 1., |_, _| ()), le);
 }
 /// A lens system: at the frame's centre the mean weight, a blocked sample counting 0, is 1 for
 /// every prescription (`lens::pack` normalises the centre's pupil); with dispersion each channel
@@ -1952,7 +1951,14 @@ fn sdf_emitter_light_sampling() {
         for i in 0..n {
             let mut r = Rng::new(11, i);
             let v = scene
-                .radiance(o, d, Vec3::ONE, &mut scene.waves(&r), &mut r)
+                .radiance(
+                    o,
+                    d,
+                    Vec3::ONE,
+                    &mut scene.waves(&r),
+                    &mut r,
+                    &mut super::aov::Record::off(),
+                )
                 .dot(Vec3::splat(1. / 3.)) as f64;
             sum += v;
             sq += v * v;
@@ -2020,4 +2026,93 @@ fn spectral_matches_rgb_on_the_cornell_box() {
             "{rgb:?} vs {spectral:?}"
         );
     }
+}
+
+/// Recording the AOVs leaves the beauty's bits as they were.
+#[test]
+fn aovs_leave_the_beauty_alone() {
+    let mut s = Settings::default();
+    s.bounces = 4;
+    s.lpe = vec!["C D .* L".into()];
+    let plain = render(&s, [12, 9], 4, &|_| {}).unwrap();
+    let mut p = Progressive::new(&s, [12, 9]).unwrap();
+    p.keep_aovs();
+    assert!(p.pass(4, 2, &AtomicBool::new(false), &|_| {}));
+    assert_eq!(p.image(), plain);
+}
+fn layer_mean(l: &crate::render::AovLayer) -> Vec3 {
+    let n = l.channels.len();
+    let mut sum = Vec3::ZERO;
+    for c in l.data.chunks(n) {
+        sum += Vec3::new(c[0], c[1], c[2]);
+    }
+    sum / (l.data.len() / n) as f32
+}
+/// A partition of all paths into light path expressions sums to the beauty (in expectation), and
+/// the layers come in the GPU's order with their sizes and channels.
+#[test]
+fn light_path_expressions_partition_the_beauty() {
+    let mut s = Settings::default();
+    s.lpe = ["C [LB]", "C D .* [LB]", "C [GS] .* [LB]", "C [TV] .* [LB]"]
+        .map(String::from)
+        .into();
+    let mut p = Progressive::new(&s, [24, 18]).unwrap();
+    p.keep_aovs();
+    assert!(p.pass(96, 4, &AtomicBool::new(false), &|_| {}));
+    let layers = p.layers(p.image());
+    let names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
+    assert_eq!(
+        names[..10],
+        [
+            "beauty",
+            "diffuse_albedo",
+            "specular_albedo",
+            "normal",
+            "roughness",
+            "depth",
+            "motion",
+            "direct",
+            "specular",
+            "object_id"
+        ]
+    );
+    assert_eq!(names[10], "lpe1_C_LB");
+    assert_eq!(layers.len(), 14);
+    for l in &layers {
+        assert_eq!(l.data.len(), 24 * 18 * l.channels.len(), "{}", l.name);
+    }
+    let beauty = layer_mean(&layers[0]);
+    let parts: Vec<Vec3> = layers[10..].iter().map(layer_mean).collect();
+    let sum: Vec3 = parts.iter().sum();
+    assert!(parts[1].min_element() > 0. && parts[0].min_element() >= 0.);
+    let rel = (sum - beauty).abs() / beauty;
+    assert!(rel.max_element() < 0.03, "{sum} vs {beauty} {parts:?}");
+    // A hit has an id and a unit normal, a miss neither (and depth 1e4).
+    let ids = &layers[9].data;
+    assert!(ids.iter().any(|&id| id >= 1.) && ids.iter().any(|&id| id == 0.));
+    for (i, &id) in ids.iter().enumerate() {
+        let n = Vec3::from_slice(&layers[3].data[i * 3..]).length();
+        let hit = id >= 1.;
+        assert!(if hit {
+            (n - 1.).abs() < 1e-3
+        } else {
+            n == 0. && layers[5].data[i] == 1e4
+        });
+    }
+}
+/// With one bounce all light is direct.
+#[test]
+fn one_bounce_is_all_direct() {
+    let mut s = Settings::default();
+    s.bounces = 1;
+    let mut p = Progressive::new(&s, [16, 12]).unwrap();
+    p.keep_aovs();
+    assert!(p.pass(8, 2, &AtomicBool::new(false), &|_| {}));
+    let layers = p.layers(p.image());
+    let (beauty, direct) = (layer_mean(&layers[0]), layer_mean(&layers[7]));
+    assert!(beauty.min_element() > 0.);
+    assert!(
+        ((direct - beauty).abs() / beauty).max_element() < 1e-4,
+        "{direct} {beauty}"
+    );
 }
