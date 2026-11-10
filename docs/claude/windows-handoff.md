@@ -1,113 +1,184 @@
 # Continuing from Windows
 
-Branch `cpu-playable`. Snapshot of work in progress, unreviewed for the CPU renderer and CPU mode, not `main`: `main` stays at the last verified state until this has run on real Windows.
+**State (2026-11-10):** `main` = tag `v0.12.0`, released from Linux with **only the AppImage** (owner's decision). Everything since v0.11.1 is in it: the CPU renderer and software view, the night sky, the walk avatar and flashlight, the UI review fixes, and six lanes merged the same day (headless no-present, OIDN for stills, egui 0.37, specular bounces and the Realtime preset, the accuracy work with exact rough glass and the Accurate preset, auto exposure with the Eyes look). `origin/cpu-playable` holds the same tree as WIP snapshots, so there is nothing to merge from it. Release notes: the v0.12.0 page on GitHub. Per-feature design: `docs/engine-notes.md` (the last section, "Merge of the six lanes and its fixes", lists what the merge itself changed).
 
-## In this branch
-- Flashlight beside the camera, with a beam profile (`scenes/ies/flashlight.ies`) and settings in its outliner row.
-- Achievements reworked (`src/stats.rs`).
-- 24 of the 42 UI review findings fixed; `docs/ui-review.md` lists the 18 still open.
-- CPU renderer split into `src/reference/`, with its refusal holes closed.
-- CPU mode (`--cpu`, and a switch in the UI): written, but the work stopped during its first test on 2026-11-07, before its independent check. Start here: run it, finish what is missing against the "playable" brief below, and have it checked.
+**Not done on any Windows machine:** no build, no D3D12 run, no DXIL run, no C++ bridge build, no installer. The Linux side only proves the following:
+- `tools/check_windows.sh clippy` type-checks the `cfg(windows)` Rust (D3D12 included) with clippy `-D warnings`, with zero warnings at v0.12.0.
+- `tools/check_dxil.py` compiles and validates all 37 DXIL entries with the Linux DXC.
 
-The playable brief: a clear switch that shows the CPU render full view through the normal display pass, the camera and edits restarting it with a fast preview while moving, samples and time in the status bar, saving with the normal buttons, a plain message listing what the scene uses that the CPU can't render yet, and CPU threads that don't starve the UI.
+Neither links, builds `bridge/*.cpp`, or runs anything. **Rule: no Windows installer or zip is uploaded until this checklist passes** (owner, 2026-11-10; the Linux-only v0.12.0 was the one exception). Tick an item by writing the date and the result next to it. Line numbers drift: `grep` the quoted name.
 
-## Windows checklist (per lane)
+**Installed Windows copies are offered v0.12.0 now, and it has no setup exe for them.** `update::parse_release` finds no `caustica-v*-setup.exe`, so the asset is `None`. From the code, the window then offers "Open release page" instead of Update (`can_update` in `src/ui/windows.rs`). First check on Windows: an installed 0.11.1 copy shows that, and "Skip this version" works.
 
-**Rule: no tag and no release until every item below is checked on Windows (owner agreed, 2026-11-10).** **Exception, owner's decision 2026-11-10:** v0.12.0 was released from Linux with only the AppImage (no installer or zip; the D3D12 side unbuilt). The rule holds again for the Windows assets: build and upload them to v0.12.0 (or a v0.12.1) only after this list passes. The Linux machine cannot compile `cfg(windows)` code, the D3D12 backend (`src/gpu/**`, `src/gpu.rs`), the DXIL shaders (`build.rs` returns before the DXC/DXIL step off Windows, so Linux only proves the SPIR-V compile), the C++ bridges (`bridge/ngx.cpp`, `fsr.cpp`, `xess.cpp`; `vk.cpp` is built on Linux only with the DLSS SDK) or the PowerShell tools. Everything here is read from the six lane diffs of 2026-11-10 (all uncommitted then). Line numbers are in the lane worktrees (`/home/kaan/caustica-<lane>`) and move on merge; `grep` the quoted name. Tick an item by writing the date and the result next to it.
+## First session on Windows, in order
+1. `git fetch origin`, check out `main` (v0.12.0). Run `tools/setup.ps1` (fetches the SDKs, now including OIDN; see the OIDN items). The fetched `scenes/{models,hdri,textures}` and `vendor/` are not in git.
+2. Build and check as `CLAUDE.md` says (`$env:CARGO_TARGET_DIR="target/validation"`; fmt, test, clippy, build), then `--self-test --debug` (it fails on any D3D12 warning). Expect 484 frames.
+3. `tools/verify.ps1`. Then `tools/rr_stability.py`, twice: as it stands (exposure pinned, P = 1), and once with the exposure at 2^20 (see "Exposure").
+4. `python tools/oracle.py --exe target\validation\release\caustica.exe` (default list). Linux/Vulkan gives every scene ok, gem-display the loosest at 1.0127. Then the extra runs in "Accuracy" and "Spectral".
+5. By hand, what hidden runs can't exercise: Tab and shortcuts, typing into sliders, undo of panel edits, the restore-last-session prompt, the flashlight row, the CPU view, the Renderer menu, auto exposure while walking from a bright room into a dark one, the Realtime and Accurate presets, and the Still denoiser row.
+6. Re-baseline the D3D12 numbers: headless frame times change (no Present), the meter adds a pass and a readback per frame, and the trace loop bound is dynamic. Record `gpu_ms_mean`, `trace_ms_mean`, `frame_ms_mean` and `fence_wait_ms_mean` (`--no-vsync`, at least 200 frames) for v0.11.1 and v0.12.0 on the same scenes.
+7. The release (last section).
 
-Lanes: **exposure** and **accuracy** (base a752d0f, with 80b14a1's `chrome.rs`/`layout.rs`/`vulkan/gpu.rs`/`dirs.rs` patched in), **headless**, **bounces**, **egui**, **oidn** (base 80b14a1).
+## Checklist
 
-### Cross-lane hazards (check right after the merge, before the per-lane items)
-- [ ] `Constants` (render.rs) and `cbuffer Frame` (common.hlsli): **exposure** appends `meter`, `meter_ctrl` after `star_limit` (common.hlsli:54-55, render.rs `Constants`), **bounces** appends `bounce_split` at the same spot (common.hlsli:54, render.rs:358). Merged, the order in both files must agree field for field, and `const _: () = assert!(size_of::<Constants>() as u64 <= CB_STRIDE)` (gpu.rs:37, CB_STRIDE 1024) must still hold: it fails the build, so it is the first signal. How: `cargo build --locked` on Windows, then the self-test renders sane (a field out of order shows as a wrong display, tone map or meter).
-- [ ] `src/gpu/frame.rs` is touched by exposure (meter, pre-exposure, readbacks), headless (Present) and egui (font atlas): after the merge read the file once for a double edit of the same lines.
-- [ ] Re-measure the D3D12 baselines after the merge: headless frame times change (headless lane, below), the meter adds a pass and a readback per frame (exposure), and the trace loop is dynamic (bounces). Record `gpu_ms_mean`, `trace_ms_mean`, `frame_ms_mean`, `fence_wait_ms_mean` from `RENDER_OK` (`--no-vsync`, at least 200 frames) on `main` and on the merge.
+### Build and ABI
+- [ ] `cargo build --locked` and `cargo clippy --locked -- -D warnings` on Windows. This is the first build of:
+  - egui 0.37 and `egui-winit` 0.37 (`windows-sys 0.61` beside the project's `windows 0.62`)
+  - the C++ bridges with `pre_exposure`
+  - OIDN in `build.rs`
+- [ ] **Bridge ABI: `pre_exposure` on every upscaler eval.**
+  - C++ side: `bridge/ngx.cpp` `caustica_ngx_eval` (RR, `InPreExposure`) and `caustica_ngx_eval_sr`; `bridge/fsr.cpp` (`d.preExposure`); XeSS has no input.
+  - Rust side: the declarations in `src/gpu.rs`.
+  - The parameter order must match on both sides. `dt` and `pre_exposure` are both `f32`, so a swap still links and only shows in the image.
+- [ ] `Constants` stays under `CB_STRIDE` (a `const` assert; it fails the build). `CB_SLOTS` is 27: glare 13-22, meter 23, pre-exposure 24-26. Nothing else should index past 22 (`grep CB_SLOTS`).
+- [ ] **D3D12 `GpuState` initializer** (`src/gpu/init.rs`, `st: GpuState {`): the merge added `meter: Default::default()`, `metered: None`, `pre_exposure: 0.` by hand. Vulkan uses `..Default::default()`. Confirm it matches.
 
-### Lane: exposure (E3 meter, E4 Eyes look, E5 pre-exposure)
-Why it needs Windows: it changes what the D3D12 frame does every frame (a new compute pass, a per-frame readback, in-place scaling of the reconstruction inputs) and the NGX/FSR bridge ABI.
+### Exposure (meter, Eyes look, pre-exposure)
+Each frame on D3D12 now gets a new compute pass, a readback, and in-place scaling of the reconstruction inputs.
+- [ ] **What NGX and FSR do with the pre-exposure.**
+  - The app multiplies the colour input by P (a power of two), passes P to the SDK, and divides the output by P (`pre_expose`, `src/gpu/frame.rs`).
+  - Assumption from the SDK headers, unproven: the output comes back pre-exposed.
+  - Check with RR, DLSS SR, FSR and XeSS on a night scene: self-test frame 245, or `--preset 0 --set light_intensity=1.2e-6 --set auto_exposure=true`.
+  - Compare `CAUSTICA_PRE_EXPOSURE=0` (P = 1) against the default. The mean luminance of the two EXRs should agree within 2%, with no banding or fp16 clipping.
+  - XeSS gets the scaled colour with `exposureScale=1`.
+- [ ] **RR path scales in place:**
+  - Calls to check: `pre_expose(&c, 0, false)` before the RR transitions, P passed to `caustica_ngx_eval`, and `pre_expose(&c, 0, true)` after.
+  - `--self-test --debug` must show no state or barrier complaints on textures 0 and 14.
+  - Every later reader must see scene units: display, meter, scopes, EXR and `read_floats(18)`.
+  - A daylight EXR with auto exposure must be bit-identical to one with `CAUSTICA_PRE_EXPOSURE=0`.
+- [ ] **Upscaler path:** `run_upscaler` scales before and restores after. Texture 14 must be in UAV state for the restore. FSR, XeSS and DLSS SR must match `CAUSTICA_PRE_EXPOSURE=0` in daylight.
+- [ ] **u28 (scopes) is now 256 × 262.** Rows 260 and 261 belong to the meter: histogram, group counter and state.
+  - `clear_scopes` (`src/gpu/device.rs`) copies a box over the scopes rows only.
+  - The readback buffer grew 256 bytes, and the state copy is the box `[8, 261, 16, 262]` at `probe_albedo + 1024`.
+  - Check `--self-test --debug` for copy-footprint and box errors.
+  - Turn the scopes on (`--ui-scopes`) while auto exposure runs: the scopes must draw and the meter must keep adapting.
+- [ ] **Resize:** `resize_output` now sets `st.metered = None`, because u28 is recreated empty. After resizing the window, auto exposure must show no frame at the manual exposure.
+- [ ] **Readback every frame:** `queue_readbacks` now runs unconditionally. Measure `frame_ms_mean` and `fence_wait_ms_mean` against v0.11.1; under 0.1 ms is expected.
+- [ ] **Meter pass (DXIL):** `display` dispatched again with `meter_ctrl.x` bit 1, plus `meter_pass` and `meter_update` in `shaders/post.hlsl`.
+  - It uses groupshared memory, `InterlockedAdd` and `InterlockedExchange` on `RWTexture2D<uint> scopes`, and a last-group-reduces pattern without `globallycoherent`.
+  - Run it on NVIDIA, and on AMD or Intel if one is at hand. Watch for a meter that flickers between frames.
+  - Self-test frame 240 asserts middle grey within 0.15 stop against the CPU histogram.
+- [ ] **Scale pass (DXIL):** `scale_pass` (`meter_ctrl.x` bit 3) works through a `RWTexture2D<float4>` passed as a function parameter. Texture 14 is dispatched at output size, the other textures at render size.
+- [ ] **Glare after the meter** (moved in `frame.rs` and `vulkan/gpu.rs`): glare now uses the same frame's exposure. Check a glare scene with auto exposure: street-bokeh, or stage-beams.
+- [ ] **HDR self-check:** `check_hdr_output` now uses the meter's exposure. Check it on the scRGB and HDR10 swap chains.
+- [ ] **Self-test frames 240, 245 and 246.** Frame 246 restores preset 0 after 245's dark scene. Every other frame pins auto exposure and Eyes off. Check that they pass on D3D12.
+- [ ] **Video export with auto exposure:** H.264 and a PNG sequence, from the UI and from `--turntable`, which now sets `g.meter = job.meter_step()`. The first frame settles and later frames adapt smoothly. EXR stays in scene units.
+- [ ] **`tools/rr_stability.py`** pins `auto_exposure=false`, `eyes=false` and `exposure=1`, so P = 1 and pre-exposure is not exercised.
+  - Thresholds: edge temporal std < 0.02, mean frame difference < 0.0015. The last run gave 0.0071 and 0.00017.
+  - Add a run at exposure 2^20 (`--set exposure=1048576`, with the light and background scaled down by 2^20) for P ≠ 1.
+- [ ] **`--vulkan` on Windows with RR at night:** `pre_exposure` through `bridge/vk.cpp` (`ngxvk`).
+- [ ] **Remote page and gamepad:** the remote's exposure slider and auto switch, ev_bias at ±16, and the d-pad stepping ev_bias in auto mode.
 
-- [ ] **Bridge ABI, `pre_exposure` added to every upscaler eval.** `bridge/ngx.cpp:59,64` (`caustica_ngx_eval`, DLSS RR: `InPreExposure`), `bridge/ngx.cpp:78,82` (`caustica_ngx_eval_sr`), `bridge/fsr.cpp:36,44` (`d.preExposure`), `bridge/xess.cpp:40` (comment only, XeSS has no input), matching Rust declarations `src/gpu.rs:62,88,112`. Check: the bridge compiles (`cargo build --locked`; `build.rs` builds the C++), parameter order equal on both sides (a swapped `f32` would not fail to link: `dt` and `pre_exposure` are both floats). How: build, then the three runs below.
-- [ ] **What NGX and FSR do with the value.** The app multiplies the colour input by P (a power of two) and hands P to the SDK, then divides the output by P (`pre_expose`, `src/gpu/frame.rs:534`). The assumption, taken from the SDK headers and not proven: the output comes back in the same pre-exposed units. Check on D3D12 with RR, DLSS SR, FSR and XeSS: a night scene (self-test frame 245, or `--preset 0 --set light_intensity=1.2e-6 --set auto_exposure=true`) with `CAUSTICA_PRE_EXPOSURE=0` (P forced to 1, `render.rs pre_exposure()`) against the default: mean luminance of the two EXR captures within 2 percent, no banding or fp16 clipping in the default. XeSS gets the scaled colour with `exposureScale=1` (no pre-exposure input): verify the same for it.
-- [ ] **RR path scales in place.** `frame.rs:178` (P from the last frame's displayed exposure), `:204` (`pre_expose(&c, 0, false)` before the RR transitions), `:227` (P passed to `caustica_ngx_eval`, `.max(f32::MIN_POSITIVE)`), `:238` (`pre_expose(&c, 0, true)`: restores texture 0 and brings texture 14 back to scene units). Check: the self-test with `--debug` (any D3D12 warning fails it: look for UAV/COPY state or barrier complaints on textures 0 and 14), and that every later reader (display, meter, scopes, EXR capture, `read_floats(18)`) sees scene units: EXR of a daylight scene with auto exposure on equals the one with `CAUSTICA_PRE_EXPOSURE=0` bit for bit (P = 1 there, nothing runs) and within RR noise at night.
-- [ ] **Upscaler path scales in place.** `frame.rs:564 run_upscaler`: `:574-580` scale before (a failed write tells the bridge P = 1), `:655` restore after. Check texture 14 is in UAV state when the restore runs (the transition loop before it) and that FSR/XeSS/DLSS SR each give the same image as `CAUSTICA_PRE_EXPOSURE=0` on a daylight scene.
-- [ ] **New constant slots.** `render.rs:661` `CB_SLOTS = 13+10+1+3 = 27` (was 23): meter slot 23, pre-exposure slots 24-26 (`PRE_EXPOSURE_SLOT`). The constants buffer is `CB_STRIDE * CB_SLOTS` (`src/gpu/init.rs:480`), so it grows 4 KB. Check: nothing else indexes past slot 22 (`grep CB_SLOTS`), the self-test passes.
-- [ ] **u28 (scopes) is 256 x 262, was 256 x 260.** `render.rs:16` `SCOPES_TEXTURE`, `render.rs:757` `texture_layout`; rows 260 (meter histogram) and 261 (group counter and state) are the meter's. D3D12 consequences, all in `src/gpu/device.rs`: `clear_scopes` (`:355-361`) now copies a box of the scopes' rows only, so the zero-buffer footprint (whole texture) is read through a partial box; the readback buffer grew by 256 bytes (`:592`, `probe_albedo + 1024 + 256`); the meter state is copied every frame from box `[8, 261, 16, 262]` at `probe_albedo + 1024` with row pitch 256 (`:643-649`; offset must be a multiple of 512, it is). Check: `--self-test --debug` (copy-footprint and box validation errors show only on the debug layer), then scopes on (`--ui-scopes`) while auto exposure runs: scopes draw and the meter keeps adapting (the box must not have zeroed rows 260-261).
-- [ ] **Readback every frame.** `frame.rs:358` calls `queue_readbacks` unconditionally (was only with scopes or a probe), `device.rs:702-706` maps and reads the state each frame. Check: `frame_ms_mean` and `fence_wait_ms_mean` against `main` (the UAV to COPY_SOURCE to UAV round trip on texture 28 plus a Map per frame); no more than 0.1 ms is expected, report it either way.
-- [ ] **Meter pass (DXIL).** `frame.rs:333-346` dispatches the `display` PSO once more with `meter_ctrl.x` bit 1 at slot 23; `shaders/post.hlsl` `meter_pass` (`:374`), `meter_update` (`:111`), `display` now takes `SV_GroupIndex`/`SV_GroupID` (`:406`), uses 1 KB of `groupshared`, `InterlockedAdd`/`InterlockedExchange` on the `RWTexture2D<uint> scopes` and `DeviceMemoryBarrierWithGroupSync`. Linux verified the SPIR-V only. Check: the DXIL compiles and validates (`build.rs` dxc step), and the last-group-reduces pattern (a group counter in u28 row 261) is correct on D3D12 without `globallycoherent` on `scopes`: the reduce reads totals with `InterlockedExchange` (atomic) so it should be, but run it on NVIDIA, and on the AMD/Intel machine if one is at hand, and watch for a meter that flickers between frames. Self-test frame 240 asserts the metered luminance is middle grey within 0.15 stop on D3D12 against the CPU's histogram (`selftest.rs:1300`).
-- [ ] **Scale pass (DXIL).** `post.hlsl:401 scale_pass` (`meter_ctrl.x` bit 3): rgb of texture `meter_ctrl.y` (0 noisy, 1 accumulation, 8 ping, 14 reconstruction) times `asfloat(meter_ctrl.w)`, via `RWTexture2D<float4>` passed as a function parameter with `GetDimensions`. Check it compiles under DXC for DXIL and that texture 14 (output size) and the others (render size) bound their writes (`frame.rs:534-560` dispatches render-size groups for the input, output-size groups for texture 14).
-- [ ] **HDR self-check.** `src/main.rs:3516 check_hdr_output` now uses the meter's exposure (`g.metered.exposure(s)`). Check on a real HDR display or the scRGB/HDR10 swap chain path that the self-test's HDR check still passes (it compares the shader's `hdr_map` with the CPU's).
-- [ ] **Self-test frames 240 and 245** (`selftest.rs:6-7`, edits `:1060`/`:1068`, asserts `:1300`/`:1320`, and the pin at `:1252` that turns auto exposure and Eyes off on every other frame). Check they pass on D3D12, and that the full self-test is still green with every other frame pinned manual. Update `docs/claude/testing.md` frame map when they do.
-- [ ] **Video export.** `video.rs:962 Job::meter_step` (per-frame meter on simulated time, `src/main.rs:1704-1726`). Check a short H.264 and a PNG sequence export on D3D12 with auto exposure on: the first frame settles, later frames adapt smoothly, EXR output stays in scene units.
-- [ ] **`tools/rr_stability.py`** now pins `auto_exposure=false`, `eyes=false`, `exposure=1` (`rr_stability.py:45-47`) and uses `getattr(subprocess, "CREATE_NO_WINDOW", 0)`. With the exposure pinned, P is 1, so this run does **not** exercise pre-exposure: run it as the regression for "nothing changed at P = 1" (thresholds: edge temporal std < 0.02, mean frame difference < 0.0015; last 0.0071 and 0.00017), and add a second pass with the manual exposure at 2^20 (`--set exposure=1048576` and light and background scaled down 2^20) to see RR stability with P != 1. The other pinned tools (`oracle.py`, `integrator_sweep.py`, `motion_error.py`, `native_aa.py`, `upscale_quality.py`) only add `--set auto_exposure=false --set eyes=false`.
-- [ ] **`tools/verify.ps1`** (not edited, but its `--require-rr` runs now start with auto exposure on, because new scenes and presets default to it): `rr-quality`, `rr-dlaa` and `raw` are the first D3D12 RR runs with the meter and pre-exposure live. Run it whole.
-- [ ] **Bridge for Vulkan on Windows** (`bridge/vk.cpp:153,164,177,182`, `src/vulkan/gpu/upscale.rs:503`): the same `pre_exposure` through `ngxvk`. Linux builds this with the DLSS SDK; check `--vulkan` on Windows with RR at night. Vulkan-only edits in `src/vulkan/gpu.rs:1054,1347` and `layout.rs` (meter pass, state copy) are covered by the Linux runs.
-- [ ] **`dirs::cache_overridden`** (`src/dirs.rs:144`): a `--thumbnails-out` run must not write the Vulkan pipeline cache. Windows default is D3D12, so only the release thumbnail step (`tools/make_installer.ps1`) is exposed: after it, the bundled `thumbnails` folder has no `vulkan-pipelines-*.bin`.
+### Accuracy (exact rough glass, Accurate preset, ray origin)
+- [ ] **Six new DXIL entries** (37 in all):
+  - `trace_exact`, `trace_exact_ser`, `trace_spectral_exact`, `trace_spectral_exact_ser`, `bdpt_exact`, `bdpt_spectral_exact`
+  - SER twins at `Gpu::ser` 7 and 8. The order must match the SER tracers.
+  - `build.rs` entries ↔ `hotreload::ENTRIES` ↔ `Shaders` ↔ `Gpu::reload_shaders` must match one to one.
+  - Check that `exact_glass=true` renders with and without SER, and that hot reload still works.
+- [ ] **Oracle with exact glass on D3D12:** `oracle.py --scenes glass-of-water,gem-display --set exact_glass=true`. Linux gives 1.0006 and 1.0127.
+- [ ] **Ray origin on the +ng side for non-delta lobes** (`origin=h.p+h.ng*(!delta || ...)` in `trace_main`): this changes images near the terminator. The SER and non-SER tracers must give the same image, and the oracle must stay within its limits.
+- [ ] **Accurate preset:** choose it, then switch to every other preset and back. The name must follow each time, and Realtime's `specular_bounces` must never ride along (`realtime_then_accurate_drops_the_specular_budget` covers the logic).
+- [ ] `oracle.py` gained `--cpu-truth`, `--cpu-set` and `--gpu-set`. Run it once on Windows to prove the script.
 
-### Lane: accuracy
-Why it needs Windows: one line of shared shader code (DXIL and both SER variants) and the Vulkan pipeline cache's file handling on NTFS.
+### Bounces (specular budget, Realtime preset)
+- [ ] **Dynamic loop bound** (`bounce<sampling.z+spec_used`, `bounce_split`):
+  - Watch the DXC output for unroll warnings or register-pressure changes.
+  - With the default `specular_bounces = 0`, images must be bit-identical to v0.11.1. Compare EXRs of presets 0, 3, 8 and 21, and compare `trace_ms_mean`.
+- [ ] **Glass vertices count against the budget only at roughness ≤ 0.1**, in both the lerp and the exact model (`lobe>=3 ? m.color_rough.a<=0.1 : ...`). Check Realtime on a rough-glass scene.
+- [ ] **Realtime on a DLSS machine:**
+  - RR runs (`--require-rr`), and the image is stable: `rr_stability.py` with spp 1, bounces 3, specular_bounces 8.
+  - With `--no-rr` it falls back to the native filter and still reads as Realtime.
+  - Measure its frame time against Best on the glass scenes.
 
-- [ ] **Ray leaves from the +ng side for non-delta lobes.** `shaders/pathtrace.hlsl:1708` (`origin=h.p+h.ng*(!delta || dot(direction,h.ng)>0?0.0003:-0.0003)`), in `trace_main`, so it is in `trace`, `trace_ser` (lib_6_9) and the ReSTIR entries. It changes images (BSDF samples near the shading-normal terminator no longer enter the object). Check: both tracers compile and give the same image (`Gpu::ser` twins), `python tools/oracle.py --exe ...` ratios stay inside their limits on D3D12 (the Linux run was Vulkan), and the self-test's pixel comparisons pass.
-- [ ] **Vulkan pipeline cache on Windows.** `src/vulkan/layout.rs:30` (`cache_path`: none when `cache_overridden`), `:112 load_cache` (validates vendor id, device id and the driver's cache UUID), `:396 open_cache`, `:406 save_cache` (writes `vulkan-pipelines-<shaderhash>.bin` to a `.<pid>.tmp` then `std::fs::rename` over the old file: fine on NTFS unless another Caustica process holds it open), `src/vulkan/gpu.rs:335,390`, `prune_caches` keeps 3 files. Check with `--vulkan` on NVIDIA Windows: the first start writes one file under `dirs::cache()` (`%LOCALAPPDATA%` side), the second start is about 0.5 s instead of 14-18 s, a changed shader or a driver update ignores the file and rewrites it, no stray `.tmp` after a crash or a second instance.
-- [ ] **UI wrap fix** (`src/ui/chrome.rs:107`, `:374`, `:750`: the top bar's one-row layout, the "Image" cluster width 340, `available_size_before_wrap`). Windows UI only: check the top bar at 1280, 1920, 2560 wide at 100 and 150 percent DPI, and the `#[cfg(windows)]` Renderer menu (`chrome.rs:44,146`), which Linux never builds, still sits inside it.
-- [ ] **`--truth`, `scene::Truth`** and `oracle.py --cpu-truth/--cpu-set/--gpu-set`: CPU-side only, no D3D12 effect. On Windows run `python tools/oracle.py` once with the new options through `cygpath -w` paths to prove the script (it gained `import re` and extra args).
-- [ ] **`dirs::cache_overridden`**: same item as in exposure (identical hunk).
+### Spectral
+- [ ] **BDPT and photon mapping with a dispersive lens were 3× too bright; fixed.**
+  - GPU: `camera_ray` uses `hero_only ? (1,0,0) : (3,0,0)`, and `photon_gather` now calls `begin_hero` before `camera_ray`.
+  - CPU: `progressive.rs` sets `waves.hero = waves.on` before the camera ray when the sample goes to BDPT or photon mapping.
+  - Linux, street-bokeh, 320×180, 64 frames: BDPT/PT 0.995 and photon/PT 1.008 with spectral on, against 2.990 and 2.985 before the fix.
+  - Check on D3D12: `--set integrator=N --set spectral=true --scene street-bokeh --no-rr --raw --capture x.exr` for N = 0, 1, 2. Compare the means.
+- [ ] **Known, open (predates the merge):** GPU spectral photon mapping reads about 8% high on street-bokeh against the CPU path tracer: 1.085, z 3.0, even with `dispersion=0`. Details in `docs/plan-big-features.md`. Check whether D3D12 shows the same.
 
-### Lane: headless
-Why it needs Windows: `--headless` now skips `Present` on D3D12, which only the D3D12 backend on Windows can show to be safe.
+### Headless (no Present)
+- [ ] **`Present` is skipped when `headless`** (`src/gpu/frame.rs`). This covers `--headless`, `--make-thumbnails`, `--turntable` and the self-test.
+  - The back buffer stays in PRESENT state, so `--self-test --debug` must be clean.
+  - `--capture-ui` and the other capture paths must equal v0.11.1.
+  - HDR headless captures must be unchanged.
+  - The swap chain has no waitable object (`grep -i waitable src/gpu` is empty). Keep that true.
+- [ ] **The back buffer index never advances in headless runs.** Nothing indexes per back buffer today; check that the exposure code doesn't.
+- [ ] Vulkan twin on Windows: `--vulkan --headless --frames 8 --capture a.png` and `--vulkan --self-test`.
 
-- [ ] **No Present in headless runs.** `src/gpu/frame.rs:454-459` (`if !self.headless { self.swap.Present(...) }`), `render.rs:199` (`GpuState::headless`), `src/gpu/init.rs:707` (initial `false`), `src/main.rs:2661` (`gpu.headless = self.hidden`, after the Windows `(hwnd, gpu)` block that can fall back from Vulkan to D3D12). `hidden` is also set by `--make-thumbnails`, `--turntable` and the self-test, so all of those now skip Present. Check: the backbuffer is back in PRESENT state at the end of each frame, so the next frame's PRESENT to RENDER_TARGET transition matches (`--self-test --debug` fails on any state warning); with `--capture-ui` (`keep_ui_frame` copy) and the capture and `read_rgba8(10)` paths the images equal those of a build from before the lane (compare PNGs); HDR (scRGB and HDR10) headless captures unchanged; the swap chain has no waitable object (`grep -i waitable src/gpu` is empty), so skipping Present cannot hang a latency wait: leave that check in if a waitable object is ever added.
-- [ ] **Numbers change.** A headless D3D12 run no longer waits on the compositor. Re-baseline every recorded `frame_ms_mean` and benchmark from D3D12 headless runs (`gpu_ms` is unaffected); `--no-vsync` benchmarks were already free, vsync ones were not.
-- [ ] **Vulkan twin** (`src/vulkan/gpu.rs:63,210,489,1057-1100,1221,1277`): an offscreen image replaces the swapchain image. Linux verified it; on Windows Vulkan run `--vulkan --headless --frames 8 --capture a.png` and `--vulkan --self-test`.
+### egui 0.37
+- [ ] **Font atlas is a colour image** (`update_gui_textures`: the `ImageData::Font` arm is gone, and the per-delta upload is now a nested loop).
+  - Check text weight and brightness in SDR, scRGB and HDR10 (`shaders/gui.hlsl` assumes premultiplied sRGB).
+  - A growing atlas must recreate the texture: show CJK or accented scene names and look for tofu.
+- [ ] **Translucency changed in 0.32:** popups, shadows and selections are slightly darker. Check in all three output modes by eye.
+- [ ] **Windows-only egui code:**
+  - The `renderer_menu` in `src/ui/chrome.rs` is a plain `menu_button`. In 0.37 a click inside closes it, so check the D3D12/Vulkan switch, "Restart now" and "Retry Vulkan now".
+  - `show_in_folder`.
+- [ ] **Menus that hold checkboxes are `sticky_menu`:** the top-bar Menu, LPE Presets, Levels and "+ Add" (its Z-up box). Check that ticking keeps them open.
+- [ ] **A/B compare split handle is `Order::Middle`:** dragging it must not orbit the camera.
+- [ ] **The meter hold uses `egui_is_using_pointer`:** dragging a light or material slider holds auto exposure ("Exposure held").
+- [ ] **Window behaviour:** clipboard (text fields and the Rhai console), IME, key release on focus loss (Alt-Tab while holding W), and DPI at 100, 125 and 150% on two monitors.
+  - The side panel width must still save. The resize id `Id::new("side panel").with("__resize")` has to match egui 0.37's.
+  - The top bar must wrap at 1280, 1920 and 2560.
+- [ ] Re-baseline the UI captures (`--capture-ui`) and the docs images.
 
-### Lane: bounces (specular bounce budget B1, Realtime bundle)
-Why it needs Windows: the DXIL path-tracer loop changed shape, and the Realtime bundle starts a path (1 spp, ReSTIR, RR) only a Windows GPU with DLSS can run.
+### OIDN (still denoiser)
+- [ ] **`tools/setup.ps1` `Get-Oidn`:**
+  - It downloads `oidn-2.5.1.x64.windows.zip` and checks SHA256 `f11f91bc072a5e3a564515724cb72ab8fcfbc445c84a84c197ff9b16cc01396f`, which hasn't been verified on Windows.
+  - It expands to `vendor/oidn/windows/{bin,lib,include}`.
+  - A second run is a no-op (`VERSION-win-2.5.1`).
+  - The script is CRLF.
+- [ ] **`build.rs` `oidn_runtime`:**
+  - The four DLLs (`OpenImageDenoise.dll`, `_core`, `_device_cpu`, `tbb12.dll`) land beside the exe, including with `CARGO_TARGET_DIR=target/validation`.
+  - A rebuild while the app runs does not fail.
+  - A check-only build skips the copy.
+- [ ] **`src/oidn.rs` loading:**
+  - `--headless --frames 64 --oidn --capture a.png` comes out cleaner than without `--oidn`, with no `OIDN skipped` in the log.
+  - With one DLL renamed, the Render tab row shows the reason and the capture is saved raw.
+- [ ] **Guides on D3D12:** `save_still` and `denoise_capture` read albedo and normal via `Gpu::read_layers`. A failure denoises unguided with no message, so check with and without RR that texture and edges survive.
+- [ ] **CPU view with OIDN:**
+  - A pause mid-render shows the filtered image.
+  - CPU stills are metered on the unfiltered mean (`write_cpu_image_exposed`).
+  - The UI must not stutter while oneTBB runs.
+- [ ] **Packages:**
+  - `make_installer.ps1` stages the DLLs and `licenses\OIDN-*.txt`.
+  - The installed app has them beside the exe, and uninstall removes them.
+  - An in-place update over 0.11.1 replaces them.
+  - The unzipped zip runs `--headless --oidn` with no `vendor/` folder.
+  - Note in the release notes how much the installer grew.
 
-- [ ] **Dynamic loop bound.** `shaders/pathtrace.hlsl:1473` (`spec_used`), `:1476` (`bounce<sampling.z+spec_used`), `:1614` (beam-splitter reflection counts), `:1708` (`if((delta || (lobe==2 && near_delta(m))) && spec_used<bounce_split.x) spec_used++`), `near_delta` at `:695`. Check: `trace`, `trace_ser` and the ReSTIR variants compile to DXIL (the loop is now not a compile-time-bounded count: watch DXC for "loop does not unroll" or a register-pressure regression), and `trace_ms_mean` with the default `specular_bounces = 0` is unchanged within noise on the same scene and preset (0 keeps the legacy budget, so images must be bit-identical to `main`: compare EXR captures of presets 0, 3, 8, 21).
-- [ ] **Constants.** `common.hlsli:54` / `render.rs:358,568`: `bounce_split`; `render.rs:475` `tools.z` is now `(bounces + specular_bounces).min(8)`. Covered by the cross-lane hazard above. Check the trace-stats (mean bounces) readout still means what the label says.
-- [ ] **Realtime bundle on D3D12.** `ui.rs` `Bundle::Realtime` (spp 1, bounces 3, specular bounces 8, ReSTIR on, scale 0.67, RR or, without RR, the native filter; `apply(.., rr_ok)`, `ui/render_tab.rs:411,448`), `selftest.rs:1085,1094`. Check on a DLSS machine: choose it, RR runs (`--require-rr`), image is stable (`tools/rr_stability.py` with the bundle's `--set` values: spp 1, bounces 3, specular_bounces 8), and on a machine or run with RR off (`--no-rr`) it falls back to the native filter and `Bundle::of` still names it Realtime. Measure its frame time against Best on the glass scenes.
-- [ ] **Self-test.** The full self-test stays at its frame count and passes; `unit tests` for the bundle round trip run on Linux already.
+### Pipeline cache (Vulkan)
+- [ ] **`--vulkan` on NVIDIA Windows:**
+  - The first start writes one `vulkan-pipelines-<hash>.bin` under `dirs::cache()`, and the second start takes about 0.5 s.
+  - A changed shader or a driver update rewrites the file.
+  - No stray `.tmp` is left after a crash or with two instances.
+  - At most 3 files are kept.
+- [ ] **`--thumbnails-out` (the installer's thumbnail step) writes no cache file** (`dirs::cache_overridden`). Check that the bundled `thumbnails` folder has no `vulkan-pipelines-*.bin`.
 
-### Lane: egui (0.31 to 0.37)
-Why it needs Windows: it changes how the D3D12 and Vulkan GUI pipelines get their font atlas and premultiplied colours, and it is the first build of the new `egui-winit` on Windows (clipboard, IME, focus).
+## The Windows release
+v0.12.0 exists, holding only the AppImage and a `SHA256SUMS` that lists only the AppImage. `tools/release.ps1 -Upload` runs `gh release create`, which fails on an existing tag. Two ways:
+- **Preferred: v0.12.1 with the fixes the checklist needs.**
+  1. Bump `Cargo.toml` and `Cargo.lock`, commit to `main`, tag `v0.12.1`, push.
+  2. Run `tools/release.ps1 -Version 0.12.1 -AppImage -Upload`. This builds the installer and zip, builds the AppImage on the Linux VM, writes `SHA256SUMS` over all of them, and creates the release.
+  3. Write notes by hand (the script lists commit subjects) and edit the release.
+- **Add Windows assets to v0.12.0** (only if nothing changed in code):
+  1. `tools/release.ps1 -Version 0.12.0` without `-Upload` (builds `dist\`).
+  2. `gh release download v0.12.0 -p "Caustica-*.AppImage" -D dist`.
+  3. Write `SHA256SUMS` over the installer, the zip and the AppImage, in `sha256sum` format, LF, no BOM, as `release.ps1` does.
+  4. `gh release upload v0.12.0 <setup.exe> <zip> dist\SHA256SUMS --clobber`.
 
-- [ ] **Font atlas is a colour image.** `src/gpu/frame.rs:609` (`update_gui_textures`: the `ImageData::Font` arm and its gamma coverage conversion are deleted, only `ImageData::Color(i) => i.pixels`), `src/vulkan/gui.rs:192`. Check on D3D12: text weight and brightness in SDR, scRGB HDR and HDR10/PQ through `shaders/gui.hlsl:19-23` (the shader assumes premultiplied sRGB and divides by alpha); compare 1280, 1920 and 2560 captures (`--capture-ui`) with a pre-egui build. A resized atlas (0.36 fixes dropped `TexturesDelta`) must recreate the D3D12 texture: open a window with many glyphs (the Unicode glyph test in `main.rs` tests, scene names in CJK or accents) and watch for tofu or missing slots (`Out of egui texture slots`).
-- [ ] **Translucency.** 0.32 fixed semi-transparent colours that looked too bright: popup shadows, selection fills and overlays get slightly darker. Recheck in the three output modes. The UI-capture self-test compares no stored pixels, so only your eyes catch this.
-- [ ] **Windows-only egui code Linux never builds.** `src/ui/chrome.rs:44-80` `renderer_menu` (`#[cfg(windows)]`, its `ui.close()` at `:79` is the new API) and its call site `:147` (`ui.menu_button("Renderer", ...)`, a plain `menu_button`, not `sticky_menu`: with 0.32+ a click on a radio value now closes it, so check the D3D12/Vulkan switch, "Restart now" and "Retry Vulkan now" still work). Also `src/ui.rs` `show_in_folder` (`cfg(windows)` branch near `:2190`) was not edited but sits among `ui.rs` hunks.
-- [ ] **`egui-winit 0.37` on Windows** (`Cargo.toml:11-12`; `Cargo.lock` adds `windows-sys 0.61.2` beside the project's `windows 0.62`, plus the skrifa/vello_cpu text stack). Check: `cargo build --locked` and `cargo clippy --locked -- -D warnings` on Windows; the app exe size and cold start; clipboard copy and paste into a text field and into the Rhai console; typing into sliders; key release on focus loss (walk mode and shortcuts: Alt-Tab while holding W); IME composition if a CJK input is installed. `default_fonts` is now an explicit feature: without it every glyph is tofu.
-- [ ] **Panels and popups.** `Panel::top/bottom/right(..).show_inside(root)` for the top bar, status bar, timeline and side panel (`chrome.rs`, `timeline_ui.rs`); `central_rect(ctx)` replaces `available_rect` for popups and toasts. Check at 100/125/150 percent DPI and with the window dragged to a second monitor: the side panel resize (`Id::new("side panel").with("__resize")` at `chrome.rs:735` must still be the id egui 0.37 uses, else `prefs.panel_width` stops saving), the top bar wrap widths (`cluster()`; text is about 1 percent narrower), tooltips and the context menus staying inside the viewport.
-- [ ] **Re-baseline** the UI captures (`--capture-ui`, 1280/1920/2560) and the docs images on Windows; `docs/egui-upgrade-plan.md` steps 2 and 3 say which Windows looks are still open.
+Self-update refuses an update whose `SHA256SUMS` lacks its file.
 
-### Lane: oidn (Intel Open Image Denoise, still images)
-Why it needs Windows: it ships four DLLs and loads them at run time with `libloading`, and its setup, build and packaging steps are PowerShell and `build.rs` on Windows.
+## Next work after Windows
+`docs/plan-big-features.md` holds the plan:
+- "Backlog from the plan review", in batches of at most 3 non-overlapping lanes
+- redesign B (`docs/ui-redesign-b.md`), including where the new controls go
+- the hash-grid cache with the Realtime preset
 
-- [ ] **`tools/setup.ps1:91` `Get-Oidn` (called at `:135`).** Downloads `oidn-2.5.1.x64.windows.zip` from the GitHub release, checks SHA256 `f11f91bc072a5e3a564515724cb72ab8fcfbc445c84a84c197ff9b16cc01396f` (not yet verified on Windows), expands to `vendor/oidn/windows/{bin,lib,include}` and `vendor/oidn/doc`. Check: it runs clean on a fresh checkout, the checksum matches, the zip's folder name (`oidn-2.5.1.x64.windows`) and the four DLL names (`OpenImageDenoise.dll`, `OpenImageDenoise_core.dll`, `OpenImageDenoise_device_cpu.dll`, `tbb12.dll`) and the three licence files exist as the script assumes, and a second run is a no-op (the `VERSION-win-2.5.1` marker). The script is CRLF on disk (git warns about line endings on this file and `setup.ps1`).
-- [ ] **`build.rs:330` `oidn_runtime` (`:605`).** Copies the DLLs from `vendor/oidn/windows/bin` to the profile directory beside the exe (`out.ancestors().nth(3)`, which is `target/<profile>`; check it is also right with `CARGO_TARGET_DIR=target/validation`), skipping a copy whose size already matches (a running instance locks its DLLs, like the DLSS ones). Missing vendor folder: a `cargo:warning` and the feature stays off. Check: after `cargo build --release --locked` the four DLLs are next to `caustica.exe`, a second build while the app runs does not fail.
-- [ ] **`src/oidn.rs` run-time loading (Windows branch).** `LIBS` (`:60`: `tbb12.dll`, core, `device_cpu`, front, loaded in that order by full path, `libloading` uses `LoadLibraryExW` with an altered search path for absolute paths), `search_dirs` (exe folder, its parent, the vendored copy). Check: `Render tab > Still denoiser (OIDN)` shows no error, a PNG capture (`--headless --frames 64 --oidn --capture a.png`) differs from the same without `--oidn` and is visibly cleaner, `RENDER_OK` still prints, the log has no `OIDN skipped`. Test also with the DLLs missing (rename one): the row shows the reason, the capture is saved raw.
-- [ ] **Guides from the D3D12 renderer.** `src/video.rs:387 save_still` and `:409 denoise_capture` call `Gpu::read_layers` (`src/gpu/capture.rs:264`) for albedo and normal and `oidn::guides_from_layers`; if that fails the denoise runs unguided without a message. Check on D3D12, with and without RR, that the guides are found (add a log line or compare with `--no-rr --raw`): the walls' texture and edges survive, nothing is smeared. `main.rs:1074` (`--capture`) and `:2388` (the capture path that tags a file) run `denoise_capture` after the backend wrote the PNG itself.
-- [ ] **Installer and packages.** `tools/make_installer.ps1:40-42` copies the three OIDN licence files to `licenses\`; it already stages every `*.dll` of `target\release` (`:27`), which now includes the four OIDN DLLs, and `installer/caustica.iss:56` takes the whole staged folder (not edited). Check: run `tools/make_installer.ps1 -Version 0.0.0-test` with Inno Setup 7: the staged `dist\caustica-v...` holds the DLLs and `licenses\OIDN-*.txt`, the installed app has them beside the exe, uninstall removes them, note how much the installer and the zip grew (the DLLs of the CPU device and oneTBB) and say so in the release notes, and an in-place update over the previous version replaces them. `tools/release.ps1`'s zip is built from the same folder: unzip it and run `--headless --oidn` from the unzipped copy on a machine without the vendor folder (this proves the run-time search finds the DLLs beside the exe, not in `vendor/`).
-- [ ] **Notices.** `THIRD-PARTY-NOTICES.md` names OIDN 2.5.1 and oneTBB (Apache-2.0), and `.github/workflows/ci.yml:94-96` copies the licences (manual-only CI: never run it to test this). Check the installed `licenses\` folder against the file list, and that `README.md` and the About box do not need a line.
-- [ ] **`Cargo.toml` `libloading = "0.8"`** (already in the tree through `ash`): `cargo build --locked` on Windows with the updated `Cargo.lock`.
-- [ ] **CPU view** (`reference/progressive.rs`, `reference/oidn.rs`): runs on the CPU, pure Rust plus the DLL; on Windows check it does not starve the UI (OIDN uses oneTBB threads: watch the frame time while it denoises the converged image).
-- [ ] **AppImage** (`tools/appimage.sh`) copies the Linux `.so` files: Linux only, listed for completeness, check on the VM, not Windows.
+`docs/ui-review.md` has one row partly open: R does different things depending on whether something is selected.
 
-### Common first steps, before any lane item
-1. `git fetch origin` and check out the merged tree. `vendor` and the fetched `scenes` folders are not in git; the checkout's own copies are used (`tools/setup.ps1` fetches the SDKs, including OIDN now).
-2. **Merge gate (Linux, before the Windows build):** on the merged tree run `tools/check_windows.sh` (cross type check of the `cfg(windows)` code; add `check --all-targets` for the test code) and `tools/check_dxil.py` (all DXIL entries compile and validate); `check_windows.sh` goes through `target/safe.sh` itself, run the Python one as `target/safe.sh python3 -I tools/check_dxil.py`. Zero errors is the gate; the warnings it prints are what `clippy -D warnings` would stop on at Windows (no clippy for the Windows target here). Real Windows runs stay the rest of this list. Fix what they report before spending a Windows session; they do not link, build the C++ bridges or run anything.
-3. Build and check as `CLAUDE.md` says (`target/validation`), then `--self-test`. **None of the lanes has run on real Windows or D3D12.**
-4. Run `tools/verify.ps1`, then `tools/rr_stability.py` (both cases above), then the two night-scene pre-exposure comparisons, then the installer.
-5. Try by hand what hidden runs cannot exercise: Tab and other shortcuts, typing into sliders, undo of panel edits, the restore-last-session prompt, the flashlight row, the CPU mode, the Renderer menu, the auto-exposure slider and status-bar readout while the camera moves between a bright and a dark room, the Realtime bundle, the Still denoiser row.
-6. Only then tag. Bump `Cargo.toml`, push the tag, run `tools/release.ps1 -Version X.Y.Z -AppImage -Upload`.
-
-## Remaining CPU parity work
-`docs/claude/cpu-parity-audit.json` holds a spec per feature (`groups[].items[]`, `critic.missed`, `critic.order`); its line numbers have drifted. Done: stages 0 and 1. Next, in order:
-2. Foundations: hit frame, two-level BVH, emitter semantics, MisMode, camera dispatcher.
-3. Firefly clamp, projections, depth of field, sphere and sun lights, IES, flashlight, portals, splitters, real lenses.
-4. Textures and maps, coat, sheen, anisotropy, thin film, gratings.
-5. HDRI, physical sky, shadow catcher.
-6. Fog, object media, nested dielectrics; SDF objects.
-7. Spectral.
-8. AOVs and LPE, BDPT, photon mapping, battle mode.
-9. Export, denoiser, thumbnails, no-ray-tracing machines.
-Each stage: remove the refusal in `reference::unsupported`, measure with `tools/oracle.py`, add a line to engine-notes "CPU reference renderer". The owner's decision on coplanar dielectric contacts is still open.
+**CPU parity:** stages 0-8 of `docs/claude/cpu-parity-audit.json` are done, and `reference::unsupported` refuses nothing. Stage 9's display transform and exports are done (engine-notes "Display transform and exports with no device"). Still to prove on Windows: the CPU view as the fallback on a machine with no ray-tracing GPU (roadmap).
 
 ## Heavy runs
-A run on Linux froze the desktop on 2026-11-06, cause not proven: 14 GB of RAM-backed `/tmp` plus parallel builds and GPU renders. Keep a few cores free, run one GPU process at a time, at low resolution, and keep temporary files on disk.
+A run on Linux froze the desktop on 2026-11-06, cause not proven: 14 GB of RAM-backed `/tmp` plus parallel builds and GPU renders. Keep a few cores free, run one GPU process at a time at low resolution, and keep temporary files on disk. On Linux, `target/safe.sh` takes a build lock (cargo) or a GPU lock and checks free memory.
