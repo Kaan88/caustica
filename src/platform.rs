@@ -102,3 +102,38 @@ pub fn with_app_id(attrs: winit::window::WindowAttributes) -> winit::window::Win
 pub fn with_app_id(attrs: winit::window::WindowAttributes) -> winit::window::WindowAttributes {
     attrs
 }
+
+/// The event loop. Wayland can't hide a window, so every hidden run (thumbnails, headless
+/// renders, turntables) put an entry on the taskbar for its whole life. With `hidden` set it uses
+/// X11 instead when a local X server answers (XWayland on a Wayland desktop), where a window that
+/// is never mapped stays invisible. winit allows one event loop per process, so it only tries X11
+/// when the server's socket answers.
+#[cfg(target_os = "linux")]
+pub fn event_loop(hidden: bool) -> anyhow::Result<winit::event_loop::EventLoop<()>> {
+    use winit::platform::x11::EventLoopBuilderExtX11;
+    let mut builder = winit::event_loop::EventLoop::builder();
+    if hidden && local_x_server() {
+        builder.with_x11();
+    }
+    Ok(builder.build()?)
+}
+#[cfg(not(target_os = "linux"))]
+pub fn event_loop(_hidden: bool) -> anyhow::Result<winit::event_loop::EventLoop<()>> {
+    Ok(winit::event_loop::EventLoop::new()?)
+}
+/// `DISPLAY` names a local server (`:N` or `:N.S`) whose socket accepts a connection (a socket
+/// left behind by a server that exited refuses; a lazily started XWayland accepts). It can't see
+/// a refused X authorisation, such as a run that inherited `DISPLAY` but not `XAUTHORITY`.
+#[cfg(target_os = "linux")]
+fn local_x_server() -> bool {
+    let Some(display) = std::env::var_os("DISPLAY") else {
+        return false;
+    };
+    let Some(number) = display.to_str().and_then(|d| d.strip_prefix(':')) else {
+        return false;
+    };
+    let number = number.split('.').next().unwrap_or_default();
+    !number.is_empty()
+        && number.bytes().all(|b| b.is_ascii_digit())
+        && std::os::unix::net::UnixStream::connect(format!("/tmp/.X11-unix/X{number}")).is_ok()
+}

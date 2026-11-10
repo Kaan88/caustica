@@ -82,7 +82,7 @@ use std::{
 use winit::{
     application::ApplicationHandler,
     event::*,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    event_loop::{ActiveEventLoop, ControlFlow},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
@@ -3744,7 +3744,11 @@ fn run() -> Result<()> {
         return Ok(());
     }
     let mut app = App::new()?;
-    let event_loop = EventLoop::new()?;
+    // Runs that draw the interface (the self-test, `--capture-ui`) stay on Wayland, as X11 has
+    // another UI scale; so do scripts and forced HDR output, which switch the swapchain to HDR,
+    // which XWayland doesn't offer.
+    let x11 = app.hidden && !app.show_ui && app.script.is_none() && app.settings.hdr_mode != 2;
+    let event_loop = platform::event_loop(x11)?;
     event_loop.run_app(&mut app)?;
     if let Some(error) = app.failed {
         bail!(error);
