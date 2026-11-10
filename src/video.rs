@@ -1186,12 +1186,16 @@ pub fn render_cpu(
             let shown;
             let report = |f: f32| progress(((i as f32 + f.min(1.)) / frames as f32).min(1.));
             // Adds passes to `p` until it has `n` samples or the frame's time is up.
-            let run = |p: &mut crate::reference::Progressive, n: u32, share: f32| -> Result<()> {
+            let run = |p: &mut crate::reference::Progressive,
+                       n: u32,
+                       from: f32,
+                       share: f32|
+             -> Result<()> {
                 let base = p.samples;
                 while p.samples < base + n {
                     let step = if limit > 0. { 1 } else { base + n - p.samples };
                     let at = (p.samples - base) as f32 / n as f32;
-                    let f = |x: f32| report(share * (at + x * step as f32 / n as f32));
+                    let f = |x: f32| report(from + share * (at + x * step as f32 / n as f32));
                     anyhow::ensure!(
                         p.pass(
                             step,
@@ -1211,7 +1215,7 @@ pub fn render_cpu(
                 let mut camera = t.clone();
                 camera.yaw = t.yaw + options.yaw(i);
                 p.move_camera(&camera, size);
-                run(p, spp, 1.)?;
+                run(p, spp, 0., 1.)?;
                 sum = p.total();
                 samples = p.samples;
                 shown = camera;
@@ -1231,7 +1235,7 @@ pub fn render_cpu(
                     let scene = crate::reference::prepare(&v, at.max(0.));
                     let mut p = crate::reference::Progressive::new(&scene, size)?;
                     p.samples = first;
-                    run(&mut p, n, 1. / moments as f32)?;
+                    run(&mut p, n, m as f32 / moments as f32, 1. / moments as f32)?;
                     let done = p.samples - first;
                     for (a, b) in sum.iter_mut().zip(p.total()) {
                         *a += b;

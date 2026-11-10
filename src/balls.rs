@@ -75,8 +75,39 @@ fn prune(dir: &std::path::Path) {
 }
 /// A batch that hasn't finished in this long is killed (a hung child would block every ball).
 const TIMEOUT: Duration = Duration::from_secs(120);
+/// The ball shipped with the app (`dirs::bundled_thumbnails()/materials`), if any. Same name as
+/// the cached one, which carries the hash of the material's JSON: a material (or the `Material`
+/// struct) that has changed since the release hashes differently and finds no file here.
+fn bundled(bundled_dir: &std::path::Path, key: u64) -> PathBuf {
+    bundled_dir
+        .join("materials")
+        .join(format!("{VERSION}-{key:016x}.png"))
+}
+/// Renders a ball for each material preset not yet in the cache, waiting for each batch (the
+/// release's `--make-thumbnails --thumbnails-out`). Returns (rendered, failed).
+pub fn render_presets() -> (usize, usize) {
+    let todo: Vec<(u64, Material)> = (0..crate::presets::MATERIAL_NAMES.len())
+        .map(crate::presets::material)
+        .map(|m| (key(&m), m))
+        .filter(|(k, m)| !m.texture.contains(['`', '$']) && !file(*k).is_some_and(|f| f.is_file()))
+        .collect();
+    let (mut done, mut failed) = (0, 0);
+    for chunk in todo.chunks(BATCH) {
+        for (_, ok) in render(chunk.to_vec()) {
+            if ok {
+                done += 1;
+            } else {
+                failed += 1;
+            }
+        }
+    }
+    (done, failed)
+}
 fn load(ctx: &egui::Context, key: u64) -> Option<egui::TextureHandle> {
-    let bytes = std::fs::read(file(key)?).ok()?;
+    let bytes = file(key).and_then(|f| std::fs::read(f).ok()).or_else(|| {
+        let dir = crate::dirs::bundled_thumbnails()?;
+        std::fs::read(bundled(&dir, key)).ok()
+    })?;
     let img = image::load_from_memory(&bytes).ok()?.to_rgba8();
     let size = [img.width() as usize, img.height() as usize];
     let image = egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw());
@@ -293,5 +324,20 @@ mod tests {
         assert_eq!(key(&a), key(&b));
         b.roughness += 0.01;
         assert_ne!(key(&a), key(&b));
+    }
+    /// A bundled ball is found by the material's hash only: an edited material finds none.
+    #[test]
+    fn bundled_balls_are_found_by_material_hash() {
+        let dir = std::path::Path::new("/bundle");
+        let a = Material::default();
+        let mut b = Material::default();
+        b.roughness += 0.01;
+        let name = |p: PathBuf| p.file_name().unwrap().to_string_lossy().to_string();
+        assert_eq!(
+            name(bundled(dir, key(&a))),
+            format!("v1-{:016x}.png", key(&a))
+        );
+        assert_ne!(bundled(dir, key(&a)), bundled(dir, key(&b)));
+        assert!(bundled(dir, key(&a)).starts_with("/bundle/materials"));
     }
 }

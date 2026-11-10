@@ -1242,6 +1242,16 @@ impl App {
                 "The night sky must load without a sun"
             ),
             128 => anyhow::ensure!(!g.environment_loaded(), "The sky stayed loaded"),
+            // Walking (frames 247-251) draws the avatar into the frame's copy, the head hidden.
+            249 => anyhow::ensure!(
+                s.objects
+                    .iter()
+                    .filter(|o| crate::avatar::is_part(o))
+                    .count()
+                    == crate::avatar::PARTS
+                    && s.objects.iter().filter(|o| o.camera_hidden).count() == 1,
+                "The walk avatar is missing from the frame"
+            ),
             130 | 133 | 136 => anyhow::ensure!(emitters == 0, "Expected no emitters"),
             132 => anyhow::ensure!(
                 emitters > 0 && g.samples == s.spp,

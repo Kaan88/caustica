@@ -50,6 +50,10 @@ if ($AppImage) {
     # installer stages them (tools/fetch_assets.ps1 puts them in scenes\).
     cmd /c "tar -cf - -C scenes models hdri textures | ssh $Vm tar -x -C ~/$remote/scenes"
     if ($LASTEXITCODE) { throw "copying the assets to $Vm failed" }
+    # The thumbnails rendered for the installer (same scene files, so the same hashes): the VM
+    # has no GPU to render its own. tools/appimage.sh packs them as thumbnails\ beside the exe.
+    cmd /c "tar -cf - -C dist/$name thumbnails | ssh $Vm tar -x -C ~/$remote"
+    if ($LASTEXITCODE) { throw "copying the thumbnails to $Vm failed" }
     # The VM keeps cargo under its data disk (not in ~/.cargo), and the AppDir goes there too:
     # with the assets it is ~0.9 GB, more than the VM's tmpfs /tmp holds.
     $data = '/mnt/2b4bc8c0-2e4e-4fc1-b330-27648dcbbf49'

@@ -45,8 +45,14 @@ Details are in engine-notes under the section named in quotes.
 - Spectral rendering part 1 (path tracer, photons, dispersion, thin film, gratings, lens), 2026-11-03: "Spectral rendering".
 - CPU reference renderer (first version, UI entry), 2026-11-04: "CPU reference renderer".
 - Startup time first part (warm 5.9 to 2.2 s), 2026-11-04: "Startup time".
+- Flashlight beside the camera (0.3 right, 0.4 down, beam crossing the view axis 8 units ahead) with a reflector beam profile through the IES path, an IES default (`scenes/ies/flashlight.ies`) and its settings in its own outliner row, 2026-11-06: "Flashlight".
+- Achievements reworked (`src/stats.rs`): 37 in six groups, tiers sized for a fast card (about 200 million paths a second, so "billions" is no longer seconds), progress bars, 2026-11-06.
+- UI usability review, 2026-11-06 (`docs/ui-review.md`): 42 findings, 24 fixed, including the SDR UI gamma bug (the whole UI drawn too dark), undo of panel edits, unsaved-work warning and a restorable session; 18 open.
+- CPU mode (`--cpu`, and the GPU / CPU switch in the menu, top bar and Render tab), playable 2026-11-09: the CPU render shown full view through the display pass, previews while moving, samples and time in the status bar, saves, a list of what the scene still loses: "CPU reference renderer". Parity is in progress (Now e).
 
 ## Now
+
+Order and staffing of the big features: `docs/plan-big-features.md` (2026-11-10).
 
 Ordered. Each step ends with verify, review, snapshot, then a commit when the owner asks.
 
@@ -57,14 +63,14 @@ Ordered. Each step ends with verify, review, snapshot, then a commit when the ow
 - **BSDF-only vs light sampling at the bounce limit:** BSDF-only renders 0.4% darker at 6 bounces (light sampling at the last vertex adds one path length BSDF sampling doesn't); equal at 32. A convention, not a bug.
 - **shape-material-matrix's 0.93 blocks:** gone under the oracle's test (worst block 0.978, z −4.2). Explained 2026-11-06: the blocks are grounded glass, a coplanar contact (engine-notes "CPU reference renderer").
 - [keep] **GPU ReSTIR small excess, untraced:** fairy-lights 1.0010 (z 5.7) at 2048 spp, 1.0005 (z 6.4) at 8192, and 1.0002 with it off; preset 0's worst block unsteady, down to 0.993 (z -10.7). Shrinks with samples, under the oracle's floor (engine-notes "CPU reference renderer").
-- **Coplanar dielectric contacts (owner's decision):** cornell-water-tank, glass-of-water, aquarium, stained-glass-hall (8.5%, the worst, block 1.42), glass-stack, layered-cocktail and the matrix's grounded glass are the six oracle fails left in a sweep of every renderable built-in scene (2026-11-06; the matrix passes, with a block at 0.98). Two faces meet at equal t, which DXR and the CPU BVH order differently. Separated (by about 1 cm; 6 mm per column for the hall's panes) all of them agree. Either lift those scenes or add a grounded-dielectric offset in geometry that both renderers read; don't tune the CPU to match.
+- [done 2026-11-10] **Coplanar dielectric contacts:** a grounded transmissive object is lifted `geometry::DIELECTRIC_GAP` (4 mm) in geometry, which both renderers, physics (collider contact skin), picking and the gizmo read; object-object contacts have no safe general rule, so the built-in scenes separate them in tools/build_scenes.py. All seven scenes and sdf-gallery's cone now pass the oracle at 2048 spp (worst mean 1.0005; table in engine-notes "Grounded dielectric gap"). Open: user scenes with hand-placed dielectrics touching exactly still tie; the gap was not swept below 4 mm.
 
 Still open:
 - [keep] Integrator sweep rerun in full with matched filters (2026-11-04, 400 spp, 240 × 135, `captures/sweep-2026-11-04`): 15 of 174 comparisons beyond 5%. To trace, largest first: sunset-tank BDPT 112% / photon 57% (colour shifts, not noise-like), optics-bench 72% / 71% (slow PT caustic), birthday-cake photon 23%, underwater BDPT 17%, lava-lamp photon 11%, shape-material-matrix photon 11%, sunlit-room-day-cycle photon 10.5%, snow-globe photon 10%, bigger-on-the-inside 8% (portals), gem-display photon 7%. dark-side (553% / 214%) is near-black (means ~1e-4), not meaningful at this spp. Next: rerun the flagged scenes at 4096 spp before reading anything into them.
-- [keep] optics-bench (beam splitters) and lava-lamp (SDF emitters) can't be judged by the CPU reference; bigger-on-the-inside is a known gap (no portals in BDPT / photon mapping).
+- [keep] optics-bench (beam splitters) and lava-lamp (SDF emitters) could not be judged by the CPU reference; both now render on it (2026-11-10, Now e), so they can be re-measured against the path tracer. bigger-on-the-inside is a known gap in BDPT / photon mapping (no portals).
 - [keep] Photon mapping on the white furnace: 0.9945 (z −22) with box filters, a gather-radius bias (expected of progressive photon mapping at 1024 spp; check that it falls with more passes).
 - [keep] GPU photon mapping is dark inside sdf-gallery's green glass cone (2026-11-10, 1024 spp: 0.075 against 0.096-0.099 from the CPU's photon mapping and both path tracers; oracle block (5, 5) 0.976, z -7.8). Not traced: the walk is BDPT's, which passes there, so look at the photon side (deposits or the gather) on a procedural dielectric. The CPU reference renders photon mapping now (engine-notes "CPU reference renderer"), so this and the white-furnace item can be judged by `tools/oracle.py --integrator 2 --cpu-integrator 2` at equal spp.
-- [keep] Extend the reference to HDRIs, sphere and sun lights, the physical sky only if a new question needs them.
+- [done 2026-11-09] Extend the reference to HDRIs, sphere and sun lights and the physical sky: see Now e.
 - [done 2026-11-05, measured] give BDPT and photon mapping the path tracer's pixel filter, so all integrators render the same image by default. BDPT and photon camera rays take `filter_offset`; a light-tracing splat goes to one pixel of the filter's support picked with probability w / W, weighted by W (`splat_filtered`: unbiased, one atomic splat per sample; splatting the whole support hung the GPU on self-test frame 295). Box 1 px renders as before. At 1024 spp with the scenes' filters, BDPT / PT 0.998–1.001 and photon / PT 0.995–1.001 (cornell-caustic, veach-ajar, measured-cornell).
 
 ### b. Code health — done 2026-11-04
@@ -77,9 +83,12 @@ Work the [keep] items in "Open tails" below, grouped by area, smallest first. An
 
 ### Owner requests, to order with the owner (2026-11-06)
 
-- Rework and expand the achievements: some fall far too fast ("billions" takes a couple of seconds).
-- Offset the flashlight from the camera: it shoots straight from the eye, so its shadows are barely visible.
-- Proper first-person view in walk mode (2026-11-07): see your own legs when looking down and your reflection in mirrors and glass. An avatar of a few blocks is enough, in the spirit of a blocky game character but our own design, posed from the walker's stride, visible to reflections and to the camera below the neck.
+- Remove light painting and the screensaver mode from the app (owner, 2026-11-10: "so pointless"): code, UI, CLI switches, self-test frames, CPU twin, docs and README. Queued until the parity tree is quiet.
+
+- [done 2026-11-06] Rework and expand the achievements: some fell far too fast ("billions" took a couple of seconds). See Done.
+- [done 2026-11-06] Offset the flashlight from the camera: it shot straight from the eye, so its shadows were barely visible. See Done.
+- [done 2026-11-10, Vulkan measured, D3D12 and hand use not tried] Proper first-person view in walk mode (2026-11-07): see your own legs when looking down and your reflection in mirrors and glass. An avatar of a few blocks is enough, in the spirit of a blocky game character but our own design, posed from the walker's stride, visible to reflections and to the camera below the neck. Done as `avatar.rs` (engine-notes "Walk avatar"); open: measure `update_materials` on D3D12 and skip identical tables there too, a colour or skin choice, a body that lags the view and follows the movement direction (strafing slides the same stride now), foot-planting that matches the stride length (the legs are shorter than the walker's step), a collider, hands holding the flashlight.
+- The 18 open UI findings (scene browser tags, top bar, Look starting points, Stage inspector, settings search, import freeze and more) are in `docs/ui-review.md`, with sizes and proposed fixes, for the owner to order.
 
 ### Self-update, open items
 
@@ -97,12 +106,25 @@ Portability: Linux, and AMD / Intel drivers where Vulkan RT is stronger. The ups
   - Ray tracing: `VK_KHR_acceleration_structure` + `VK_KHR_ray_query`, mirroring the inline `RayQuery` design; no pipelines or SBT. `VK_NV_ray_tracing_invocation_reorder` (raygen-only, like D3D12 SER) is the later route to reordering, which measured slower on D3D12.
   - Shaders: the same HLSL to SPIR-V with `dxc -spirv` (`[[vk::binding]]` annotations or `-fvk-*-shift` flags for the register layout). One source of truth for the `Constants` layout.
 - **Shaders, checked 2026-11-04:** `tools/spirv_check.py` compiles all 24 compute / graphics entries of build.rs to SPIR-V (Vulkan 1.3) unchanged with the DXC release build (`vendor/dxc-spirv`, fetched by `tools/setup.ps1` `Get-DxcSpirv`; the Windows SDK's dxc has no SPIR-V codegen); the 7 SER libraries are left for a raygen port. Still to settle with the real descriptor layout: register spaces become descriptor sets one-to-one, and t / u / b registers of the same number in one space share a binding unless shifted (`-fvk-t-shift` etc.); the bindless texture array needs `VK_EXT_descriptor_indexing` (core in 1.2).
-- **Progress (phases in engine-notes "Vulkan backend: design"):** phases 1–6 are done on Windows (2026-11-05): the whole renderer runs on `--vulkan` (denoiser, every integrator, ReSTIR, glare, lens, LPE, maps, environment, LUT, HDR, readbacks, scopes, timestamps, DLSS RR / SR and XeSS), matching D3D12 within noise; BLAS reuse, compaction and TLAS refit as on D3D12; the "Compiling shaders N/22" screen on both backends. Open: FSR on Vulkan (the vendored FidelityFX SDK has only the DX12 loader: blocked until a Vulkan build of the SDK is vendored); XeSS on Linux (Intel ships no `libxess.so` up to SDK 3.0.2: blocked; `bridge/vk.cpp` would `dlopen` one placed beside the binary); DLSS RR / SR on Linux runs on NVIDIA (first run 2026-11-06, RTX 4070 Ti SUPER, driver 615.78; engine-notes "Linux on a real desktop"); shader hot reload on Vulkan (done 2026-11-05, verified by hand; it now also reloads while paused or converged, and compiles the entries in parallel, 84 s → 24 s: `hotreload` compiles SPIR-V with the SPIR-V DXC and build.rs flags, `reload_shaders` rebuilds the compute pipelines; the UI pipelines stay); the self-test under the validation layer (`--vulkan --self-test` passes on the RTX, which has no layer installed; with Windows HDR on, the RTX's Vulkan surface offers no HDR format, so its HDR checks are skipped with a note: HDR output on Vulkan is untested until a surface offers scRGB or HDR10; the VM covers headless runs only); pumping window messages during a cold shader compile (done 2026-11-05, untested: `progress::watch` peeks the queue with PM_NOREMOVE every 16 ms, which keeps Windows from marking the window as not responding).
+- **Progress (phases in engine-notes "Vulkan backend: design"):** phases 1–6 are done on Windows (2026-11-05): the whole renderer runs on `--vulkan` (denoiser, every integrator, ReSTIR, glare, lens, LPE, maps, environment, LUT, HDR, readbacks, scopes, timestamps, DLSS RR / SR and XeSS), matching D3D12 within noise; BLAS reuse, compaction and TLAS refit as on D3D12; the "Compiling shaders N/22" screen on both backends. Dropped by the owner (2026-11-10, see Won't do): FSR on Vulkan and XeSS on Linux. Status: DLSS RR / SR on Linux runs on NVIDIA (first run 2026-11-06, RTX 4070 Ti SUPER, driver 615.78; engine-notes "Linux on a real desktop"); shader hot reload on Vulkan (done 2026-11-05, verified by hand; it now also reloads while paused or converged, and compiles the entries in parallel, 84 s → 24 s: `hotreload` compiles SPIR-V with the SPIR-V DXC and build.rs flags, `reload_shaders` rebuilds the compute pipelines; the UI pipelines stay); the self-test under the validation layer (`--vulkan --self-test` passes on the RTX, which has no layer installed; with Windows HDR on, the RTX's Vulkan surface offers no HDR format, so its HDR checks are skipped with a note: HDR output on Vulkan is untested until a surface offers scRGB or HDR10; the VM covers headless runs only); pumping window messages during a cold shader compile (done 2026-11-05, untested: `progress::watch` peeks the queue with PM_NOREMOVE every 16 ms, which keeps Windows from marking the window as not responding).
 - **Owner reports, open (2026-11-05):**
   - [done 2026-11-05, verified] Anisotropic texture filtering had no effect on Vulkan: the map sampler (`vulkan/layout.rs`) was plain linear. It now has 16x anisotropy, as D3D12's, with `samplerAnisotropy` enabled where the device offers it. Checked: a low view of texture-loft-corner is 31% sharper at 16x than 1x on Vulkan (D3D12 36%), and the backends' 16x images differ by 0.3%.
   - [done 2026-11-05, verified by hand] Pausing froze the UI on Vulkan: `present` skipped the swap chain on frames that trace nothing (paused, and also converged). It now presents every frame unless the window is minimized, as D3D12 does.
 - **Risks and size:** the largest item on the list; budget weeks. Barriers and layouts, descriptor management and the NGX Vulkan device-extension requirements are the hard parts.
-- **Linux port:** done 2026-11-06 on an RTX under KDE Wayland (engine-notes "Linux on a real desktop"): exit crashes, `--self-test`, DLSS RR / SR, HDR output and `display::Monitor` (through `wp_color_manager_v1`, not KWin's config file), shader hot reload. Open: moving the window between monitors (coded; the owner has one monitor); highlights above the reference white, unmeasurable by screenshot; the `linux` CI job on GitHub runs once CI is back on.
+- **Linux port:** done 2026-11-06 on an RTX under KDE Wayland (engine-notes "Linux on a real desktop"): exit crashes, `--self-test`, DLSS RR / SR, HDR output and `display::Monitor` (through `wp_color_manager_v1`, not KWin's config file), shader hot reload. Open: highlights above the reference white, unmeasurable by screenshot; the `linux` CI job on GitHub runs once CI is back on.
+
+### e. CPU renderer parity - complete (2026-11-10)
+`reference::unsupported()` is empty: every scene and setting the GPU renders also renders on the CPU. Light painting needs no fix (it is being removed). What is left are GPU-side oracle failures, found by the CPU and not yet fixed:
+- Texture mip-prefilter bias: texture-showroom, texture-rock-garden (worst block 1.094) and texture-brick-box.
+- Emissive-map scenes: the checker scene and Lantern.
+- Sponza with alpha, direct light only: 1.0161.
+- Integrator 2 (photon mapping) against the CPU path tracer on mirror-room, bigger-on-the-inside and infinite-corridor; integrator 1 (BDPT) on diamond-fire and lava-lamp.
+- Battle preset 3 (photon mapping with the default pixel filter): 1.0067, z 23.8.
+- ReSTIR at one bounce on nighthawks (reuse correlation).
+- A steady 0.36% spectral gap on blackbody-forge.
+- Fireflies in the dark-side fog.
+
+The old "Software fallback and WARP" goal is replaced by this: the CPU view is the fallback when there is no ray-tracing GPU. Design and log: `docs/claude/windows-handoff.md`, `docs/claude/cpu-parity-audit.json`, engine-notes "CPU reference renderer".
 
 ## Open tails
 
@@ -140,7 +162,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 - [drop] Spectral leftovers listed under Future goals.
 
 ### Lights and sky
-- [keep] **Night sky redesign (owner):** stars and moon are physically scaled so they need Exposure 10 plus Sun intensity 1000 to show; Exposure tops out at 10x; no moon-position readout; the owner does not like the current look. Revisit with the owner (engine-notes "Physical sky: night, clock time, altitude").
+- [keep] **Night sky redesign (owner, 2026-11-10):** the owner wants a realistic starry night; mockups are being made. The current stars are big dots and hard to see: they are physically scaled so they need Exposure 10 plus Sun intensity 1000 to show; Exposure tops out at 10x; no moon-position readout. Revisit with the owner once the mockups exist (engine-notes "Physical sky: night, clock time, altitude"); the starry-observatory scene waits on it.
 - [done 2026-11-05, self-tests pass, not tried by hand] HDR10: a refusal is now retried after a display change (done 2026-11-04); still open: the R10G10B10A2 typed UAV store is not checked with `CheckFeatureSupport`. `set_hdr` checks D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE for R10G10B10A2 and falls back to scRGB as for a refused colour space.
 - [drop] HDR10: egui blends on PQ code values (text edges slightly off), `SetHDRMetaData` mastering metadata.
 - [drop] Sky: clouds, aerial perspective on geometry, moon declination and texture, fixed ozone / aerosol profiles, blocky stars when zoomed, first-look bake wait.
@@ -198,21 +220,13 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 ### Platform, CI and release
 - [keep] The first tag with the asset-fetch step and the ~870 MB installer exercises them for the first time: check installer size, build time and `LZMANumBlockThreads`, and run the installer on a clean machine.
 - [keep] Owner request (2026-11-05): pre-build the scene and material thumbnails at release time and ship them in the installer, zip and AppImage, so a fresh install doesn't spend minutes rendering them on first open. Seed the thumbnail cache from the bundled set, keyed so an edited scene still re-renders its own.
+  - **Rule (owner, 2026-11-10):** a change to a scene must re-render or remove its thumbnail. Thumbnails are keyed by a hash of the scene file, so an edited scene file orphans its old thumbnail; whoever changes a scene regenerates its thumbnail (CPU thumbnails exist: `--make-thumbnails --cpu`) or deletes the stale one, and a shipped set must hold no thumbnail whose hash no longer matches.
 - [drop] CI self-test: needs a GPU runner. Signed installer: needs a certificate (SmartScreen warns).
 - [drop] DXC on the runner not pinned; setting to move the data folder; leftover files after uninstall; downloaded assets not in the zip; local folder still called `cornell` (owner's choice).
-
-### CPU reference
-- [keep] Statistical GPU-vs-CPU check and the shape-material-matrix blocks: see Now a.
-- [keep] Reference support for HDRIs, the physical sky, sphere and sun lights, only as far as the oracle needs.
-- [drop] Reference support for fog, SDF objects, textures, layers, object media, portals, splitters, IES, depth of field, lenses, other projections, spectral; f64 accumulation.
-- [drop] UI: render with no GPU device at all, save the CPU image from the UI, full-view toggle, convergence-graph reference.
 
 ## Future goals
 
 Vulkan moved to "Now".
-
-### Software fallback and WARP
-Fallback when there is no DXR GPU: Microsoft's WARP adapter runs the same D3D12 + DXR 1.1 code on the CPU. First verify the current WARP build advertises raytracing tier 1.1; then `Gpu::new` falls back to `EnumWarpAdapter` when no hardware adapter has it. Slow (seconds per frame) but correct; upscalers unavailable, bicubic applies.
 
 ### Accuracy mode (owner request, 2026-10-30)
 Audit the GPU path tracer's shortcuts against the CPU reference (rough glass as a lerp toward a cosine sample instead of a GGX BTDF, Russian roulette after bounce 3 and the 6-bounce default, the ray-cone mip heuristic, RGB instead of spectral) and fix the cheap ones; then an "Accurate" quality bundle (up to 64 bounces, no clamps, LOD 0 textures, no denoiser) as the high-res still default. Software mode is the CPU reference plus spectral. Measure with the convergence graph and the oracle.
@@ -230,19 +244,13 @@ Mueller / Stokes transport after spectral; a rotatable polarizing filter (Brewst
 Null geodesics (Schwarzschild, RK4) in short `RayQuery` segments around a black hole in the Cornell box with an emissive accretion disk; hyperbolic or spherical rooms by ray marching. Expect the native denoiser (RR guides are approximate). Portals cover the cheap impossible rooms.
 
 ### DLSS Frame Generation and Reflex
-Through Streamline (FG needs its own swapchain hooks); doubles the presented rate in interactive use, not for stills. Done after HDR, which is now in; Streamline also has a Vulkan path.
+Dropped by the owner 2026-11-10: frame generation (see Won't do); Reflex stays. Through Streamline (FG needs its own swapchain hooks); doubles the presented rate in interactive use, not for stills. Done after HDR, which is now in; Streamline also has a Vulkan path.
 
 ### Neural radiance cache
 A tiny MLP trained online on path suffixes (NVIDIA's NRC SDK, or our own with cooperative vectors, SM 6.9); far less noise in heavy interiors (Sponza). Measure with the convergence graph and the CPU reference.
 
 ### 3D Gaussian splats
 Ray-traced splats (3DGRT-style) in proxy geometry, blended in depth order inside the `Proceed()` loop; a captured object inside the path-traced Cornell box.
-
-### VR via OpenXR
-Path-traced stereo at low render resolution with RR per eye (stereo motion vectors, two RR instances, 11 ms for both eyes at 90 Hz). Realistic in classic Cornell scenes; big scenes need the neural radiance cache.
-
-### Lightmap baker and texture painting
-Bake path-traced GI into UV lightmaps (needs a second, non-overlapping UV set) and export glTF; paint on surfaces through the object-id and UV buffers, with a live render.
 
 ## Won't do
 
@@ -255,4 +263,6 @@ Closed by owner decision or by the triage above (the [drop] lines in "Open tails
 - Gamepad testing, CI self-test on a GPU runner, signed installer, NGX GUID change: blocked on hardware, certificates, or moot for a never-published project.
 - True delta point and directional lights, light linking and gobos (by design).
 - Native TAA / SMAA, SVGF blotch fix (RR is the product; NRD is the real fix), ReSTIR GI / PT, VDB files, skin-tuned subsurface.
+- Removed by the owner 2026-11-10: light painting and the screensaver mode (being taken out of the app); VR via OpenXR; the lightmap baker and texture painting; FSR on Vulkan and XeSS on Linux (both blocked on vendor SDKs); moving the window between monitors (coded, untested, left as is).
+- Dropped by the owner 2026-11-10 from the big-feature plan (`docs/plan-big-features.md`): the OptiX denoiser, the D3D12 display-only device for GPUs without ray tracing, DLSS Frame Generation (Reflex stays).
 - Every other [drop] in "Open tails".

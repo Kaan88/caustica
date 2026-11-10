@@ -135,9 +135,27 @@ pub fn relative_to_scenes(path: &Path) -> Option<String> {
             .map(|r| r.to_string_lossy().replace('\\', "/"))
     })
 }
+static CACHE_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+/// Points `cache()` somewhere else for this run (`--make-thumbnails --thumbnails-out DIR` renders
+/// the release's bundled set there).
+pub fn set_cache_override(dir: PathBuf) {
+    let _ = CACHE_OVERRIDE.set(dir);
+}
+/// The thumbnails shipped with the app (`thumbnails` beside the exe, read-only, made at release
+/// time): scene thumbnails named by their scene's hash, and `materials/` with the material
+/// balls. `scenes::sync_thumbnails` and `balls` copy or read from here and ignore any file whose
+/// hash no longer matches. None in a development build or a snapshot, which have no such folder.
+pub fn bundled_thumbnails() -> Option<PathBuf> {
+    exe_dir()
+        .map(|e| e.join("thumbnails"))
+        .filter(|d| d.is_dir())
+}
 /// Scene thumbnails and the asset browser's catalogs and previews (deletable caches):
 /// %LOCALAPPDATA%\Caustica\thumbnails when installed, else `scenes/thumbnails`.
 pub fn cache() -> Option<PathBuf> {
+    if let Some(dir) = CACHE_OVERRIDE.get() {
+        return Some(dir.clone());
+    }
     match mode() {
         Mode::Installed => known("LOCALAPPDATA")
             .or_else(config)

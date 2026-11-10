@@ -3,7 +3,7 @@
 # (tools/fetch_assets.ps1).
 #   powershell -File tools/make_installer.ps1 [-Source target\release] [-Version 0.3.1-local]
 # Stages dist\caustica-v<version>\ (exe, DLLs, ffmpeg, README, the tracked scene files plus the
-# fetched models, HDRIs and textures; not scenes\user or the asset browser's assets.json, which
+# fetched models, HDRIs and textures, their prebuilt thumbnails; not scenes\user or the asset browser's assets.json, which
 # CI doesn't have) and writes dist\caustica-v<version>-setup.exe.
 param([string]$Source = "target\release", [string]$Version = "")
 $ErrorActionPreference = 'Stop'
@@ -56,6 +56,17 @@ foreach ($f in ($files | Sort-Object -Unique)) {
     Copy-Item -LiteralPath (Join-Path $root $f) -Destination $target
 }
 Write-Output "Staged $($files.Count) scene files into $dist"
+# The thumbnails of those scenes and of the material presets, rendered by the staged exe itself
+# (so from the staged scene files) into dist\...\thumbnails, which ships beside the exe: a fresh
+# install copies them into its cache instead of rendering for minutes. Each is named by the hash
+# of its scene file / material, so one that is edited later is ignored and re-rendered (src/scenes.rs).
+# Needs a GPU on this machine; a failure stops the build rather than ship without them.
+$thumbs = Join-Path $dist 'thumbnails'
+& (Join-Path $dist 'caustica.exe') --make-thumbnails --thumbnails-out $thumbs
+if ($LASTEXITCODE) { throw "--make-thumbnails failed with exit code $LASTEXITCODE" }
+$thumbCount = @(Get-ChildItem $thumbs -Recurse -File -Filter *.png).Count
+if ($thumbCount -eq 0) { throw "--make-thumbnails made no thumbnails" }
+Write-Output "Bundled $thumbCount thumbnails into $thumbs"
 & $iscc /Qp "/DAppVersion=$Version" "/DSourceDir=$dist" (Join-Path $root 'installer\caustica.iss')
 if ($LASTEXITCODE) { throw "ISCC failed with exit code $LASTEXITCODE" }
 $setup = Join-Path $root "dist\caustica-v$Version-setup.exe"

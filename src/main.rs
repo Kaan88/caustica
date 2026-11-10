@@ -5,7 +5,9 @@
 #![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 mod anim;
 mod assets;
+mod astro;
 mod audio;
+mod avatar;
 mod balls;
 mod browser;
 mod console;
@@ -253,6 +255,7 @@ pub(crate) fn painting_keeps(old: &str, new: &str) -> bool {
         let mut v: serde_json::Value = serde_json::from_str(key).ok()?;
         let o = v.as_object_mut()?;
         for k in [
+            "avatar",
             "yaw",
             "pitch",
             "distance",
@@ -337,12 +340,19 @@ fn transport_key(s: &Settings) -> String {
         format!("{:016x}", h.finish())
     };
     let mut bytes = vec![];
-    for o in &s.objects {
+    for o in s.objects.iter().filter(|o| !avatar::is_part(o)) {
         let mut o = o.clone();
         o.name.clear();
         serde_json::to_writer(&mut bytes, &o).unwrap();
     }
     j["objects"] = digest(&bytes).into();
+    bytes.clear();
+    // The walk avatar's pose moves with the camera: its own field, which the caller treats like
+    // a camera move (the history survives; the TLAS update comes from `geometry_key`).
+    for o in s.objects.iter().filter(|o| avatar::is_part(o)) {
+        serde_json::to_writer(&mut bytes, o).unwrap();
+    }
+    j["avatar"] = digest(&bytes).into();
     bytes.clear();
     for l in &s.lights {
         let mut l = l.clone();
@@ -397,7 +407,8 @@ fn geometry_key(s: &Settings) -> String {
                     o.tilt,
                     o.scale_xz,
                     o.elevation,
-                    o.grounded,
+                    // The last two pick the instance mask.
+                    (o.grounded, o.camera_hidden, o.casts_shadows),
                 )
             })
             .collect::<Vec<_>>(),
@@ -442,6 +453,7 @@ impl App {
         let mut capture = None;
         let mut capture_sequence = None;
         let mut orbit_test = false;
+        let mut walk_cli = false;
         let mut drag_test = false;
         let mut require_rr = false;
         let mut debug = false;
@@ -494,6 +506,9 @@ impl App {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--orbit-test" => orbit_test = true,
+                // Debug: start in walk mode at the given camera (the avatar is drawn; with
+                // --reference the CPU draws the standing one).
+                "--walk" => walk_cli = true,
                 "--turntable" => {
                     turntable_cli = Some(video::Options::turntable(
                         &Settings::default(),
@@ -771,7 +786,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -809,6 +824,7 @@ impl App {
             s = reference::at_time(&s, 0.);
             s.validate()?;
         }
+        let walking = walk_cli.then(|| walk::Walk::enter(&mut s));
         if let Some(spp) = reference {
             anyhow::ensure!(spp > 0, "--reference needs at least one sample");
             // A turntable or timeline export on the CPU, with no device: `--reference` gives
@@ -832,10 +848,17 @@ impl App {
                 std::process::exit(0);
             }
             let path = capture.context("--reference needs --capture out.exr|out.png")?;
-            let moments = match reference_time {
+            let mut moments = match reference_time {
                 Some(t) => reference::exposure(&s, t)?,
                 None => vec![reference::prepare(&s, 0.)],
             };
+            // The walker at rest at the camera, as the viewport draws it.
+            if walking.is_some() {
+                for m in &mut moments {
+                    let stance = avatar::standing(m);
+                    avatar::add(m, &stance);
+                }
+            }
             reference::run(&moments, size, spp, &path, cpu_denoise, reference_lenient)?;
             std::process::exit(0);
         }
@@ -924,7 +947,7 @@ impl App {
             pick_toggle: false,
             cursor_pick: None,
             painting: false,
-            walking: None,
+            walking,
             auto_key_base: None,
             keys_down: Default::default(),
             text_focus: false,
@@ -1201,7 +1224,11 @@ impl App {
         let now = Instant::now();
         let dt = (now - self.last).as_secs_f32().min(0.1);
         self.last = now;
-        if self.settings.rotate && !self.paused && self.export.is_none() {
+        if self.settings.rotate
+            && !self.paused
+            && self.export.is_none()
+            && self.cpu_export.is_none()
+        {
             self.settings.yaw += self.settings.rotate_speed * dt;
         }
         let window = self.window.as_ref().unwrap().clone();
@@ -1232,7 +1259,7 @@ impl App {
             .handle_platform_output(&window, output.platform_output);
         // Keyframes: the playhead moves while playing, and the animation drives its fields
         // whenever the playhead or the keys change. An export renders its own copy.
-        if self.export.is_none() {
+        if self.export.is_none() && self.cpu_export.is_none() {
             self.timeline.advance(&self.settings.animation, dt);
             let keys_edited = self.timeline.keys_changed(&self.settings);
             // An edit still in its field came before what the playhead is about to write.
@@ -1392,6 +1419,13 @@ impl App {
             let rods = laser::beam_objects(&frame, &self.laser.segments);
             frame.objects.extend(rods);
         }
+        // Walk mode's body (avatar.rs), after the scene's own objects and the rods: indices of
+        // everything the user can select stay put, and exports render `self.settings` without it.
+        if let Some(w) = &self.walking
+            && self.export.is_none()
+        {
+            avatar::add(&mut frame, &w.stance(&self.settings));
+        }
         if frame.audio.enabled && !self.hidden && self.export.is_none() {
             if self.audio.is_none() {
                 match audio::Audio::start() {
@@ -1416,7 +1450,7 @@ impl App {
             self.audio = None;
         }
         let g = self.gpu.as_mut().unwrap();
-        g.painting = self.painting && self.export.is_none();
+        g.painting = self.painting && self.export.is_none() && self.cpu_export.is_none();
         let s = &frame;
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
         // display setup (HDR toggled, calibration rerun, SDR brightness moved).
@@ -1548,7 +1582,7 @@ impl App {
                         g.reconfigure_upscalers()?;
                     }
                 }
-                for k in ["yaw", "pitch", "distance", "target", "fov"] {
+                for k in ["yaw", "pitch", "distance", "target", "fov", "avatar"] {
                     old.as_object_mut().unwrap().remove(k);
                     new.as_object_mut().unwrap().remove(k);
                 }
@@ -1566,11 +1600,8 @@ impl App {
             g.reset(true);
             self.actions.reset = false;
             // Restart means the CPU's render too, unless it is what the GPU is measured against.
-            if let Some(live) = self
-                .cpu_reference
-                .as_mut()
-                .filter(|_| !std::mem::take(&mut self.actions.keep_cpu))
-            {
+            let keep_cpu = std::mem::take(&mut self.actions.keep_cpu);
+            if let Some(live) = self.cpu_reference.as_mut().filter(|_| !keep_cpu) {
                 live.key.clear();
             }
         }
@@ -1807,6 +1838,12 @@ impl App {
                 let rods = laser::beam_objects(&picked, &self.laser.segments);
                 picked.objects.extend(rods);
             }
+            // And the walk avatar's boxes, which the frame appends after the rods.
+            if let Some(w) = &self.walking
+                && self.export.is_none()
+            {
+                avatar::add(&mut picked, &w.stance(&self.settings));
+            }
             let real = self.settings.objects.len();
             match gizmo::pick_from_probe(&picked, pixel, [g.width, g.height], p.id, p.depth)
                 .filter(|sel| !matches!(sel, ui::Selection::Object(i) if *i >= real))
@@ -2009,7 +2046,7 @@ impl App {
         }
         // The CPU renderer follows the scene: an edit or a resize restarts it. An export renders
         // at its own size with a stale key, so it waits for its end; the view's switch does too.
-        if self.export.is_none() {
+        if self.export.is_none() && self.cpu_export.is_none() {
             if self.cpu_view != self.cpu_reference.as_ref().is_some_and(|l| l.view) {
                 self.cpu_reference = self
                     .cpu_view
@@ -2312,10 +2349,17 @@ impl App {
                 _ => (0., 0., 0., [0.; 4]),
             };
             // The software view's EXR is the CPU's mean: the GPU's accumulation holds its one pass.
+            // A display-only device has no GPU picture at all, so its PNG and JPEG come from the
+            // CPU image too.
+            let display_only = !self.gpu.as_ref().unwrap().ray_tracing;
             let cpu_exr = self
                 .capture
                 .as_deref()
-                .filter(|p| video::ImageFormat::from_path(p) == Some(video::ImageFormat::Exr))
+                .filter(|p| match video::ImageFormat::from_path(p) {
+                    Some(video::ImageFormat::Exr) => true,
+                    Some(video::ImageFormat::Png | video::ImageFormat::Jpeg) => display_only,
+                    _ => false,
+                })
                 .and_then(|p| self.cpu_capture(p));
             let g = self.gpu.as_mut().unwrap();
             if let Some(path) = &self.capture {
@@ -2823,7 +2867,7 @@ impl ApplicationHandler for App {
             }
         }
         // A video export takes no viewport or shortcut input: the scene must not change under it.
-        if self.export.is_some()
+        if (self.export.is_some() || self.cpu_export.is_some())
             && !matches!(
                 event,
                 WindowEvent::CloseRequested
@@ -2841,7 +2885,7 @@ impl ApplicationHandler for App {
             // A close would throw the running export away, and no undo brings that back: the
             // export window asks for a second one.
             WindowEvent::CloseRequested
-                if self.export.is_some()
+                if (self.export.is_some() || self.cpu_export.is_some())
                     && self
                         .ui
                         .close_armed
@@ -3578,18 +3622,60 @@ fn run() -> Result<()> {
     }
     // Renders the missing scene thumbnails (each one a headless run of this exe, on the CPU
     // renderer with --cpu) and exits.
+    // `--thumbnails-out DIR` (the release scripts) renders the shipped scenes' thumbnails and the
+    // material presets' balls into DIR instead of the cache: the folder that ships beside the exe
+    // as `thumbnails` (dirs::bundled_thumbnails).
     if std::env::args().any(|a| a == "--make-thumbnails") {
         let cpu = std::env::args().any(|a| a == "--cpu");
-        let missing: Vec<_> = scenes::list()
+        let out = args
+            .iter()
+            .position(|a| a == "--thumbnails-out")
+            .and_then(|i| args.get(i + 1))
+            .map(std::path::PathBuf::from);
+        let mut entries = scenes::list();
+        // `--thumbnails-only a,b`: just the scenes with these file names (no .json), no balls.
+        let only: Option<Vec<String>> = args
+            .iter()
+            .position(|a| a == "--thumbnails-only")
+            .and_then(|i| args.get(i + 1))
+            .map(|v| v.split(',').map(str::to_string).collect());
+        if let Some(only) = &only {
+            entries.retain(|e| {
+                e.path
+                    .file_stem()
+                    .is_some_and(|s| only.iter().any(|o| s.to_string_lossy() == o.as_str()))
+            });
+        }
+        if let Some(dir) = &out {
+            std::fs::create_dir_all(dir)?;
+            dirs::set_cache_override(dir.clone());
+            // Only the shipped scenes: not the user's own.
+            let shipped = dirs::scenes();
+            entries.retain(|e| shipped.as_ref().is_some_and(|s| e.path.starts_with(s)));
+        }
+        scenes::sync_thumbnails(&entries);
+        let missing: Vec<_> = entries
             .into_iter()
             .filter(|e| e.thumbnail().is_some_and(|t| !t.is_file()))
             .collect();
         println!("{} thumbnails to render", missing.len());
+        let mut failed = 0;
         for result in scenes::render_thumbnails(missing, cpu) {
             match result {
                 Ok(path) => println!("THUMBNAIL {}", path.display()),
-                Err(title) => println!("THUMBNAIL FAILED {title}"),
+                Err(title) => {
+                    failed += 1;
+                    println!("THUMBNAIL FAILED {title}");
+                }
             }
+        }
+        if out.is_some() && (only.is_none() || args.iter().any(|a| a == "--with-balls")) {
+            let (done, bad) = balls::render_presets();
+            println!("{done} material balls rendered, {bad} failed");
+            failed += bad;
+        }
+        if failed > 0 && out.is_some() {
+            anyhow::bail!("{failed} thumbnails failed");
         }
         return Ok(());
     }

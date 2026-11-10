@@ -57,6 +57,10 @@ pub struct Entry {
 impl Entry {
     /// `<cache>/<pack folder>--<file>-<hash>.png` (`dirs::cache`).
     pub fn thumbnail(&self) -> Option<PathBuf> {
+        Some(crate::dirs::cache()?.join(self.thumbnail_name()?))
+    }
+    /// The thumbnail's file name: the hash is part of it, so a changed scene is a different name.
+    fn thumbnail_name(&self) -> Option<String> {
         let pack = self
             .path
             .parent()?
@@ -64,7 +68,94 @@ impl Entry {
             .to_string_lossy()
             .to_string();
         let stem = self.path.file_stem()?.to_string_lossy().to_string();
-        Some(crate::dirs::cache()?.join(format!("{pack}--{stem}-{:016x}.png", self.hash)))
+        Some(format!("{pack}--{stem}-{:016x}.png", self.hash))
+    }
+}
+
+/// A file name `<pack>--<stem>-<16 hex digits>.png` (what `Entry::thumbnail_name` makes).
+fn is_thumbnail_name(name: &str) -> bool {
+    let Some(base) = name.strip_suffix(".png") else {
+        return false;
+    };
+    base.contains("--")
+        && base
+            .rsplit_once('-')
+            .is_some_and(|(_, h)| h.len() == 16 && h.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+/// The rule: a scene that changes loses its thumbnail. A thumbnail is named by the hash of its
+/// scene file, so an edited scene has no thumbnail until one is rendered (or seeded from the
+/// bundle) under its new name, and this removes every scene thumbnail in `cache` that no scene in
+/// `entries` names any more: older hashes of an edited scene, and scenes that were deleted.
+/// Returns how many files were removed.
+fn remove_stale(cache: &Path, entries: &[Entry]) -> usize {
+    let current: std::collections::HashSet<String> =
+        entries.iter().filter_map(Entry::thumbnail_name).collect();
+    let mut removed = 0;
+    for f in std::fs::read_dir(cache).into_iter().flatten().flatten() {
+        let name = f.file_name().to_string_lossy().to_string();
+        if is_thumbnail_name(&name)
+            && !current.contains(&name)
+            && f.path().is_file()
+            && std::fs::remove_file(f.path()).is_ok()
+        {
+            removed += 1;
+        }
+    }
+    removed
+}
+/// Removes the other-hash thumbnails of the scene that `current` (a just-rendered thumbnail) is
+/// of: `<pack>--<stem>-<hash>.png` with any other hash.
+fn remove_older(current: &Path) {
+    let prefix = current
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .rsplit_once('-')
+        .map(|(p, _)| p.to_string());
+    if let (Some(prefix), Some(dir)) = (prefix, current.parent()) {
+        for old in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let name = old.file_name().to_string_lossy().to_string();
+            // The rest after the prefix must be just the hash: "room-2" is another scene.
+            let same_scene = name
+                .strip_prefix(&format!("{prefix}-"))
+                .is_some_and(|r| r.len() == 20 && is_thumbnail_name(&name));
+            if same_scene && old.path() != current {
+                let _ = std::fs::remove_file(old.path());
+            }
+        }
+    }
+}
+/// Copies the bundled thumbnail (shipped read-only next to the exe, made at release time by
+/// `--make-thumbnails --thumbnails-out`) of each scene that has none in the cache. Only a file
+/// of the same name is used, and the name carries the scene file's hash: a thumbnail of a scene
+/// that has since changed (or a scene the bundle never had) is not found, so it renders its own.
+/// Returns how many were copied.
+fn seed_from(bundled: &Path, cache: &Path, entries: &[Entry]) -> usize {
+    let mut copied = 0;
+    for name in entries.iter().filter_map(Entry::thumbnail_name) {
+        let (from, to) = (bundled.join(&name), cache.join(&name));
+        if to.is_file() || !from.is_file() {
+            continue;
+        }
+        let _ = std::fs::create_dir_all(cache);
+        let partial = to.with_extension("partial.png");
+        if std::fs::copy(&from, &partial).is_ok() && std::fs::rename(&partial, &to).is_ok() {
+            copied += 1;
+        } else {
+            let _ = std::fs::remove_file(&partial);
+        }
+    }
+    copied
+}
+/// Brings the cache up to date before thumbnails are rendered: stale ones removed, bundled ones
+/// copied in. What is still missing afterwards is rendered by `render_thumbnails`.
+pub fn sync_thumbnails(entries: &[Entry]) {
+    let Some(cache) = crate::dirs::cache() else {
+        return;
+    };
+    remove_stale(&cache, entries);
+    if let Some(bundled) = crate::dirs::bundled_thumbnails() {
+        seed_from(&bundled, &cache, entries);
     }
 }
 fn fnv(bytes: &[u8]) -> u64 {
@@ -390,20 +481,7 @@ pub fn render_thumbnails(
             let result = match command.status() {
                 Ok(s) if s.success() && std::fs::rename(&partial, &out).is_ok() => {
                     // Older thumbnails of the same scene (other hashes) are stale.
-                    let prefix = out
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .rsplit_once('-')
-                        .map(|(p, _)| p.to_string());
-                    if let (Some(prefix), Some(dir)) = (prefix, out.parent()) {
-                        for old in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-                            let name = old.file_name().to_string_lossy().to_string();
-                            if name.starts_with(&format!("{prefix}-")) && old.path() != out {
-                                let _ = std::fs::remove_file(old.path());
-                            }
-                        }
-                    }
+                    remove_older(&out);
                     Ok(out)
                 }
                 _ => Err(e.title.clone()),
@@ -427,6 +505,113 @@ mod tests {
         assert!(!cpu.contains(&"--headless"));
         assert_eq!(cpu.last(), Some(&"--scene"));
         assert_eq!(thumbnail_args(false).last(), Some(&"--scene"));
+    }
+    fn entry(pack: &str, stem: &str, bytes: &[u8]) -> Entry {
+        Entry {
+            path: PathBuf::from(format!("scenes/{pack}/{stem}.json")),
+            pack: pack.into(),
+            title: stem.into(),
+            description: String::new(),
+            tags: vec![],
+            credits: String::new(),
+            license: License::default(),
+            hash: fnv(bytes),
+        }
+    }
+    /// A scratch folder under the target dir (not /tmp), removed first.
+    fn scratch(name: &str) -> PathBuf {
+        let d = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("thumb-tests")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+    fn touch(dir: &Path, name: &str) {
+        std::fs::write(dir.join(name), b"png").unwrap();
+    }
+    /// The owner's rule: the thumbnail is named by the scene file's hash.
+    #[test]
+    fn a_changed_scene_has_a_different_thumbnail_name() {
+        let a = entry("builtin", "room", b"{\"v\":1}");
+        let b = entry("builtin", "room", b"{\"v\":2}");
+        assert_ne!(a.thumbnail_name(), b.thumbnail_name());
+        assert_eq!(
+            a.thumbnail_name(),
+            entry("builtin", "room", b"{\"v\":1}").thumbnail_name()
+        );
+        assert!(is_thumbnail_name(&a.thumbnail_name().unwrap()));
+        assert!(!is_thumbnail_name("catalog-polyhaven.json"));
+        assert!(!is_thumbnail_name(
+            "builtin--room-0123456789abcdef.partial.png"
+        ));
+    }
+    #[test]
+    fn a_bundled_thumbnail_is_used_when_the_hash_matches() {
+        let (bundle, cache) = (scratch("seed-match-b"), scratch("seed-match-c"));
+        let e = entry("builtin", "room", b"scene v1");
+        touch(&bundle, &e.thumbnail_name().unwrap());
+        assert_eq!(seed_from(&bundle, &cache, std::slice::from_ref(&e)), 1);
+        assert!(cache.join(e.thumbnail_name().unwrap()).is_file());
+        // The bundle is only read; a second call has nothing to do.
+        assert!(bundle.join(e.thumbnail_name().unwrap()).is_file());
+        assert_eq!(seed_from(&bundle, &cache, &[e]), 0);
+    }
+    #[test]
+    fn a_bundled_thumbnail_is_ignored_when_the_scene_changed() {
+        let (bundle, cache) = (scratch("seed-changed-b"), scratch("seed-changed-c"));
+        touch(
+            &bundle,
+            &entry("builtin", "room", b"scene v1")
+                .thumbnail_name()
+                .unwrap(),
+        );
+        let edited = entry("builtin", "room", b"scene v2");
+        let new = entry("user", "mine", b"brand new");
+        assert_eq!(
+            seed_from(&bundle, &cache, &[edited.clone(), new.clone()]),
+            0
+        );
+        // Both are still missing, so they get rendered.
+        assert!(!cache.join(edited.thumbnail_name().unwrap()).exists());
+        assert!(!cache.join(new.thumbnail_name().unwrap()).exists());
+    }
+    #[test]
+    fn stale_cached_thumbnails_are_removed() {
+        let cache = scratch("stale");
+        let old = entry("builtin", "room", b"scene v1");
+        let now = entry("builtin", "room", b"scene v2");
+        let other = entry("builtin", "hall", b"hall");
+        let gone = entry("user", "deleted", b"deleted");
+        for e in [&old, &now, &other, &gone] {
+            touch(&cache, &e.thumbnail_name().unwrap());
+        }
+        touch(&cache, "catalog-polyhaven.json");
+        std::fs::create_dir_all(cache.join("materials")).unwrap();
+        // Older hash of an edited scene and a deleted scene go; current ones, other files and
+        // folders stay.
+        assert_eq!(remove_stale(&cache, &[now.clone(), other.clone()]), 2);
+        assert!(!cache.join(old.thumbnail_name().unwrap()).exists());
+        assert!(!cache.join(gone.thumbnail_name().unwrap()).exists());
+        assert!(cache.join(now.thumbnail_name().unwrap()).is_file());
+        assert!(cache.join(other.thumbnail_name().unwrap()).is_file());
+        assert!(cache.join("catalog-polyhaven.json").is_file());
+        assert!(cache.join("materials").is_dir());
+    }
+    #[test]
+    fn a_rendered_thumbnail_replaces_the_older_ones_of_its_scene() {
+        let cache = scratch("older");
+        let old = entry("builtin", "room", b"scene v1");
+        let now = entry("builtin", "room", b"scene v2");
+        let other = entry("builtin", "room-2", b"other");
+        for e in [&old, &now, &other] {
+            touch(&cache, &e.thumbnail_name().unwrap());
+        }
+        remove_older(&cache.join(now.thumbnail_name().unwrap()));
+        assert!(!cache.join(old.thumbnail_name().unwrap()).exists());
+        assert!(cache.join(now.thumbnail_name().unwrap()).is_file());
+        assert!(cache.join(other.thumbnail_name().unwrap()).is_file());
     }
     #[test]
     fn slugs_are_file_safe() {

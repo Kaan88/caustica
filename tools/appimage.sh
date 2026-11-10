@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds dist/Caustica-<version>-x86_64.AppImage on Linux: the release exe (Vulkan), the shipped
-# scenes and the README, packed by a pinned appimagetool. Releases are built and uploaded from
+# scenes, their prebuilt thumbnails and the README, packed by a pinned appimagetool. Releases are built and uploaded from
 # here, not CI: `gh release upload v<version> dist/Caustica-<version>-x86_64.AppImage`.
 #
 # The AppImage mounts read-only, which is the app's installed mode (src/dirs.rs): settings, user
@@ -41,6 +41,18 @@ for d in models hdri textures; do
     [ -d "scenes/$d" ] || { echo "scenes/$d is missing: copy the fetched assets (tools/fetch_assets.ps1)" >&2; exit 1; }
 done
 cp -r scenes "$app/usr/bin/scenes"
+# Prebuilt thumbnails (scenes and material balls, named by the hash of the scene / material, so
+# an edited one is ignored and re-rendered): release.ps1 copies the set it rendered for the
+# Windows installer to ./thumbnails; failing that, render them here (needs a GPU); else the
+# AppImage ships without and a fresh install renders them on first open.
+if [ -d thumbnails ]; then
+    cp -r thumbnails "$app/usr/bin/thumbnails"
+elif "$app/usr/bin/caustica" --make-thumbnails --thumbnails-out "$app/usr/bin/thumbnails"; then
+    :
+else
+    echo "WARNING: no prebuilt thumbnails; this AppImage renders them on first open" >&2
+    rm -rf "$app/usr/bin/thumbnails"
+fi
 cp README.md THIRD-PARTY-NOTICES.md "$app/usr/bin/"
 mkdir -p "$app/usr/bin/licenses"
 cp vendor/dlss/LICENSE.txt "$app/usr/bin/licenses/NVIDIA-DLSS.txt"

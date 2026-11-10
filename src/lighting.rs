@@ -206,7 +206,18 @@ pub fn materials(s: &Settings) -> Vec<PackedMaterial> {
         out[4].phase[2] = -s.light_temperature;
         out[4].phase[3] = c[k] / b[k];
     }
-    out.extend(s.objects.iter().map(|o| pack(&o.material)));
+    out.extend(s.objects.iter().map(|o| {
+        let mut m = pack(&o.material);
+        // Hidden from camera rays (flag bit 1, `instance_mask` MASK_HIDDEN): the lights' rule.
+        if o.camera_hidden {
+            m.lobes[3] = (m.lobes[3] as u32 | 2) as f32;
+        }
+        // A surface that casts no shadows (flag bit 13, `MASK_NO_SHADOW`): the lights' rule.
+        if !o.casts_shadows {
+            m.lobes[3] = (m.lobes[3] as u32 | 8192) as f32;
+        }
+        m
+    }));
     let first_object = 5;
     out.extend(s.lights.iter().map(|l| {
         let mut m = pack(&Material {
@@ -331,7 +342,7 @@ fn sun_area(s: &Settings, d: Vec3) -> f32 {
         x = x.max(o.position[0].abs() + r);
         z = z.max(o.position[1].abs() + r);
         top = top.max(if o.grounded {
-            -1. + 2. * r + o.elevation
+            -1. + 2. * r + o.elevation + crate::geometry::ground_lift(o)
         } else {
             o.elevation + r
         });

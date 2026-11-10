@@ -12,8 +12,8 @@ use winit::keyboard::KeyCode;
 /// Body sizes in scene units at body scale 1 (the Cornell box is about 5.5 m tall, so an eye
 /// height of 0.62 is a person's), speeds per second.
 const RADIUS: f32 = 0.15;
-const EYE: f32 = 0.62;
-const CROUCH_EYE: f32 = 0.36;
+pub const EYE: f32 = 0.62;
+pub const CROUCH_EYE: f32 = 0.36;
 /// Ledges up to this high are stepped onto; the body spheres start above it.
 const STEP: f32 = 0.12;
 const SPEED: f32 = 1.2;
@@ -45,6 +45,9 @@ pub struct Walk {
     /// Head bob: stride phase and an amplitude that fades in and out.
     phase: f32,
     sway: f32,
+    /// How much of the stride the avatar shows: 1 walking on the ground, eased to 0 standing,
+    /// airborne or flying (no bob option involved).
+    gait: f32,
     jump_held: bool,
     /// A note for the UI (a toast), taken by `message`.
     note: Option<&'static str>,
@@ -84,6 +87,7 @@ impl Walk {
             crouch: 0.,
             phase: 0.,
             sway: 0.,
+            gait: 0.,
             jump_held: false,
             note: None,
         }
@@ -104,6 +108,19 @@ impl Walk {
         self.fly = !self.fly;
         self.vy = 0.;
         self.grounded = false;
+    }
+    /// What the avatar is drawn from (`avatar::parts`).
+    pub fn stance(&self, s: &Settings) -> crate::avatar::Stance {
+        crate::avatar::Stance {
+            feet: self.feet,
+            eye_height: self.eye_height(),
+            yaw: s.yaw,
+            pitch: s.pitch,
+            phase: self.phase,
+            gait: self.gait,
+            scale: self.scale,
+            crouch: self.crouch,
+        }
     }
     pub fn message(&mut self) -> Option<&'static str> {
         self.note.take()
@@ -170,6 +187,7 @@ impl Walk {
                 * FLY_SPEED
                 * k
                 * if run { 3. } else { 1. };
+            self.gait = 0.;
             let mut e = start + velocity * dt;
             let near = self.near(e, e, r);
             for _ in 0..2 {
@@ -262,6 +280,11 @@ impl Walk {
             self.sway += (target - self.sway) * (1. - (-8. * dt).exp());
             if self.sway < 0.01 && target == 0. {
                 self.sway = 0.;
+            }
+            let striding = (self.grounded && walked > 1e-5) as i32 as f32;
+            self.gait += (striding - self.gait) * (1. - (-10. * dt).exp());
+            if self.gait < 0.01 && striding == 0. {
+                self.gait = 0.;
             }
             self.phase += walked / (0.42 * k) * std::f32::consts::PI;
             let bob = self.sway * 0.012 * k * (2. * self.phase).sin();

@@ -475,6 +475,11 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                 },
             );
             check_row(ui, "Rest on floor", "Keep the object standing on the floor.", &mut o.grounded);
+            let mut seen = !o.camera_hidden;
+            if check_row(ui, "Visible to camera", "Off: camera rays pass through the object, while reflections, refractions and shadows still see it (the walk avatar's head).", &mut seen).changed() {
+                o.camera_hidden = !seen;
+            }
+            check_row(ui, "Casts shadows", "Off: lights shine through the object, while the camera and reflections still see it.", &mut o.casts_shadows);
             row(
                 ui,
                 if o.grounded {

@@ -154,6 +154,14 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    row(
+        ui,
+        "Year",
+        "The calendar year: it fixes where the stars stand (precession, sidereal time).",
+        |ui| {
+            ui.add(crate::slider(&mut p.year, 1900..=2100));
+        },
+    );
     row(ui, "Latitude", "Degrees north (negative: south).", |ui| {
         ui.add(crate::slider(&mut p.latitude, -90. ..=90.).suffix("°"));
     });
@@ -220,6 +228,30 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(ui, "Stars", "Star brightness at night (0: none).", |ui| {
         ui.add(crate::slider(&mut p.stars, 0. ..=1000.).logarithmic(true));
     });
+    row(
+        ui,
+        "Milky Way",
+        "Milky Way brightness (1: the real sky's, from the NASA SVS map; 0: none).",
+        |ui| {
+            ui.add(crate::slider(&mut p.milky_way, 0. ..=10.));
+        },
+    );
+    row(
+        ui,
+        "Airglow",
+        "The upper air's own faint glow, brightest a little above the horizon (1: a dark site).",
+        |ui| {
+            ui.add(crate::slider(&mut p.airglow, 0. ..=10.));
+        },
+    );
+    row(
+        ui,
+        "Light pollution",
+        "Skyglow from towns, rising to the horizon (1: dark rural, 0: none, 10: a suburb).",
+        |ui| {
+            ui.add(crate::slider(&mut p.light_pollution, 0. ..=10.));
+        },
+    );
     check_row(
         ui,
         "Moon",
@@ -397,6 +429,12 @@ pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
     section(ui, "Camera");
     grid("camera").show(ui, |ui| {
         check_row(ui, "Auto orbit", "Circle the scene (A).", &mut s.rotate);
+        check_row(
+            ui,
+            "Walk avatar",
+            "Walk mode (`) draws a blocky body under the camera: legs and hands in view when looking down, the whole figure in mirrors and reflections.",
+            &mut s.walk_avatar,
+        );
         row(
             ui,
             "Orbit speed",

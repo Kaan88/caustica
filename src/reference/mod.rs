@@ -49,8 +49,8 @@ pub fn unsupported(_s: &Settings) -> Vec<String> {
 
 /// `--reference SPP`: renders `moments` (one scene, `prepare`d, or a motion-blurred frame's,
 /// `exposure`) and writes a linear EXR, or a PNG or JPEG through the display transform
-/// (`display`), as the GPU's capture does. `denoise` (`--cpu-denoise`) filters the mean first
-/// (`denoise`); the oracle never asks for it. `lenient` renders the first moment alone. A
+/// (`display`), as the GPU's capture does. `denoise` (`--cpu-denoise`) filters the mean of a PNG or JPEG
+/// first (`denoise`), never an EXR's; the oracle never asks for it. `lenient` renders the first moment alone. A
 /// `name.layers.exr` holds every AOV as a layer (`aov`), as the GPU's capture does; with the light
 /// path expression view (view 12) the image is the expression `lpe_slot`'s light instead of the
 /// beauty (black for a slot not in use), as on the GPU.
@@ -75,6 +75,12 @@ pub fn run(
         })
         .context("--reference writes .exr, .layers.exr, .png or .jpg")?;
     let layers = format == crate::video::ImageFormat::Layers;
+    // An EXR (and its layers) is the plain mean, as the software view captures it.
+    let denoise = denoise
+        && matches!(
+            format,
+            crate::video::ImageFormat::Png | crate::video::ImageFormat::Jpeg
+        );
     anyhow::ensure!(!moments.is_empty(), "No scene to render");
     let mut moments = moments.to_vec();
     let progress = |f: f32| println!("REFERENCE_PROGRESS {:.0}%", f * 100.);

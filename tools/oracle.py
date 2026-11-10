@@ -90,6 +90,9 @@ def main():
     p.add_argument('--rgb', action='store_true', help='render spectral scenes in RGB on both sides')
     p.add_argument('--set', action='append', default=[], help='key=json for both sides (repeatable)')
     p.add_argument('--time', help='seconds on the timeline, frozen, for both sides')
+    p.add_argument('--walk', action='store_true',
+                   help='both sides start in walk mode: the standing walk avatar is drawn (put the '
+                        'camera 0.62 above the floor with --set target/yaw/pitch/distance)')
     p.add_argument('--blur-frame', type=int, help='frame of a timeline export, motion-blurred')
     p.add_argument('--fps', type=int, default=24, help="the scene's timeline rate (--blur-frame)")
     p.add_argument('--size', default='320x240')
@@ -116,6 +119,8 @@ def main():
         size += ['--set', kv]
     if a.time is not None:
         size += ['--time', a.time]
+    if a.walk:
+        size += ['--walk']
     cpu_integrator = a.integrator if a.cpu_integrator == 'same' else int(a.cpu_integrator)
     failed = 0
     print(f'{"scene":28} {"GPU/CPU":>8} {"z":>7}  worst block (ratio, z, row/col)')

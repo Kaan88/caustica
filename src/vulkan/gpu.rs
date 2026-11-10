@@ -121,6 +121,9 @@ pub struct Gpu {
     scene: Scene,
     /// t3 materials, t4 emitters, t5 emitter lookup, t7 instance table.
     tables: Vec<Buffer>,
+    /// What `tables` hold, to leave the buffers alone when an update changes none of it (a
+    /// transform-only change: physics, an animation, the walk avatar's pose).
+    table_bytes: Vec<Vec<u8>>,
     /// t10-t17: the shaders' constant tables (layers.hlsli, spectral_tables.hlsli).
     shader_tables: Vec<Buffer>,
     static_cache: Vec<Vertex>,
@@ -515,6 +518,7 @@ impl Gpu {
                 placeholder,
                 scene: Scene::default(),
                 tables: vec![],
+                table_bytes: vec![],
                 static_cache: vec![],
                 instances: vec![],
                 lean_scene: false,
@@ -780,18 +784,30 @@ impl Gpu {
             self.textured = lights.textured;
             self.sdf_emitters = lights.sdf_emitters;
             self.restir_history = false;
-            for b in self.tables.drain(..) {
-                d.free_buffer(b);
-            }
-            let usage = vk::BufferUsageFlags::STORAGE_BUFFER;
-            self.tables = vec![
-                d.upload(bytemuck::cast_slice(&materials), usage)?,
-                d.upload(bytemuck::cast_slice(&lights.table), usage)?,
-                d.upload(bytemuck::cast_slice(&lights.lookup), usage)?,
-                d.upload(bytemuck::cast_slice(&self.instances), usage)?,
+            // Four buffers made and freed per update cost 12 ms of allocations on a small scene
+            // (measured 2026-11-10, a moving walk avatar), so identical tables stay as they are.
+            let bytes: [&[u8]; 4] = [
+                bytemuck::cast_slice(&materials),
+                bytemuck::cast_slice(&lights.table),
+                bytemuck::cast_slice(&lights.lookup),
+                bytemuck::cast_slice(&self.instances),
             ];
-            for (b, binding) in self.tables.iter().zip([103, 104, 105, 107]) {
-                self.layout.buffer(d, 0, binding, b.handle);
+            let same = self.tables.len() == 4
+                && self.table_bytes.len() == 4
+                && self.table_bytes.iter().zip(bytes).all(|(a, b)| a == b);
+            if !same {
+                for b in self.tables.drain(..) {
+                    d.free_buffer(b);
+                }
+                let usage = vk::BufferUsageFlags::STORAGE_BUFFER;
+                self.tables = bytes
+                    .iter()
+                    .map(|b| d.upload(b, usage))
+                    .collect::<Result<_>>()?;
+                self.table_bytes = bytes.iter().map(|b| b.to_vec()).collect();
+                for (b, binding) in self.tables.iter().zip([103, 104, 105, 107]) {
+                    self.layout.buffer(d, 0, binding, b.handle);
+                }
             }
             if !self.st.painting {
                 self.reset(true);

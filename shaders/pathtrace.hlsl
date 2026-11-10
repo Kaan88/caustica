@@ -373,6 +373,7 @@ bool intersect(float3 o,float3 d,float limit,out Hit h,bool shadow,bool camera_r
             Instance pi=instances[q.CandidateInstanceID()];uint pm=pi.material;float t;
             if(camera_ray && (((uint)materials[pm].lobes.w&2u)!=0))continue;
             if(shadow && jitter.w<=0.5 && materials[pm].lobes.z>=0.5)continue;
+            if(shadow && (((uint)materials[pm].lobes.w&8192u)!=0))continue;
             if(sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
             continue;
         }
@@ -455,6 +456,7 @@ bool occluded(float3 o,float3 d,float limit){
     while(q.Proceed()){proceed_steps++;
         if(!lean && q.CandidateType()==CANDIDATE_PROCEDURAL_PRIMITIVE){
             Instance pi=instances[q.CandidateInstanceID()];float t;
+            if(((uint)materials[pi.material].lobes.w&8192u)!=0)continue;
             if((glass_blocks || jitter.w>0.5 || materials[pi.material].lobes.z<0.5) && sdf_hit(pi.vertex_base,q.CandidateObjectRayOrigin(),q.CandidateObjectRayDirection(),q.RayTMin(),q.CommittedRayT(),t))q.CommitProceduralPrimitiveHit(t);
             continue;
         }
@@ -1020,7 +1022,7 @@ bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,o
         Hit hh;
         if(q>0 && intersect(x,ld,1e4,hh,true,false) && hh.material==mat){
             Material lm=material_at(mat,hh.p);
-            if(lm.optical.w<0.5 || hh.front){le=lm.color_rough.rgb*lm.optical.y*spot(lm,-dot(ld,hh.n));pl=(1-p_env)*sdf_share()*q*pc;limit=nee_limit(hh.t,dot(hh.n,ld));lmat=mat;nee=true;}
+            if(lm.optical.w<0.5 || hh.front){le=lm.color_rough.rgb*lm.optical.y*spot(lm,-dot(ld,hh.front?hh.ng:-hh.ng));pl=(1-p_env)*sdf_share()*q*pc;limit=nee_limit(hh.t,dot(hh.n,ld));lmat=mat;nee=true;}
         }
     }else if(tri_nee){
     uint li=select_index(random());Emitter light=emitters[li];lmat=(uint)light.emission_material.w;
@@ -1570,7 +1572,9 @@ void trace_main(uint3 tid){
             // Emission: the flat colour or the emissive map, as light sampling sees it.
             float3 emitted=up_emission(m,emitted_color(m,h.emitter,h.p))*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
-            emitted*=spot(m,-dot(direction,h.n));
+            // Signed against the emitter's own (unflipped) face normal, as light sampling takes it: a spot's
+            // cone leaves the front face, so a two-sided spot seen from behind is outside it.
+            emitted*=spot(m,-dot(direction,h.front?h.ng:-h.ng));
             apply_maps(h,m);
             // A dielectric's film sits between the media on both sides (the transmission branch).
             float film_n1=1,film_n2=0;

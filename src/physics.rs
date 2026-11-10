@@ -72,6 +72,23 @@ pub struct Sim {
     /// Simulated seconds (wind gusts).
     time: f32,
 }
+/// Two transmissive colliders each carry a `DIELECTRIC_GAP` skin and rapier sums them: this hook
+/// takes one gap back so glass on glass rests the same `DIELECTRIC_GAP` apart as glass on the
+/// floor or on an opaque body (marked by the collider's `user_data`, 1 for a dielectric).
+struct GlassContacts;
+impl PhysicsHooks for GlassContacts {
+    fn modify_solver_contacts(&self, context: &mut ContactModificationContext) {
+        let glass = |h| context.colliders.get(h).is_some_and(|c| c.user_data == 1);
+        if !(glass(context.collider1) && glass(context.collider2)) {
+            return;
+        }
+        if let Some(rigid) = context.rigid_mut() {
+            for c in rigid.solver_contacts.iter_mut() {
+                c.dist += crate::geometry::DIELECTRIC_GAP;
+            }
+        }
+    }
+}
 /// Whether two objects give the same body: pose, shape and body settings, not colours or
 /// names (a material edit keeps the simulation and its velocities).
 fn same_body(x: &Object, y: &Object) -> bool {
@@ -87,6 +104,7 @@ fn same_shape(x: &Object, y: &Object) -> bool {
         y.shape, y.sphere, y.sdf, y.body, y.visible, y.portal, y.grounded,
     ) && (x.size, x.stretch, x.scale_xz, x.mass) == (y.size, y.stretch, y.scale_xz, y.mass)
         && x.mesh == y.mesh
+        && crate::geometry::transmissive(x) == crate::geometry::transmissive(y)
         && x.tether == y.tether
         && x.links == y.links
         && x.cloth == y.cloth
@@ -733,8 +751,25 @@ impl Sim {
         let h = self.bodies.insert(body);
         self.bodies[h].wake_up(true);
         let p = self.applied;
+        // A dielectric rests DIELECTRIC_GAP off the floor and other bodies, as a grounded one
+        // does (geometry::ground_lift), so a settled glass has no face coplanar with its support.
+        // Skins add up between two colliders, so a glass on glass would rest 2 gaps apart:
+        // `GlassContacts` gives one back for that pair.
+        let glass = crate::geometry::transmissive(o);
+        let skin = if glass {
+            crate::geometry::DIELECTRIC_GAP
+        } else {
+            0.
+        };
         self.colliders.insert_with_parent(
             collider(o)
+                .contact_skin(skin)
+                .active_hooks(if glass {
+                    ActiveHooks::MODIFY_SOLVER_CONTACTS
+                } else {
+                    ActiveHooks::empty()
+                })
+                .user_data(glass as u128)
                 .friction(p.friction)
                 .restitution(p.bounce)
                 .density(o.mass)
@@ -1063,7 +1098,7 @@ impl Sim {
                 &mut self.multibody_joints,
                 &mut self.soft,
                 &mut self.ccd,
-                &(),
+                &GlassContacts,
                 &(),
             );
             if !self.cloths.is_empty() {
@@ -1874,6 +1909,116 @@ mod tests {
         let y = s.objects[0].elevation;
         assert!((y + 0.65).abs() < 0.02, "rests at {y}");
         assert!(sim.matches(&s));
+    }
+
+    #[test]
+    fn a_grounded_glass_keeps_its_gap_when_simulated() {
+        // A dielectric rests DIELECTRIC_GAP above the floor, grounded or simulated, so its base
+        // is never coplanar with the floor (engine-notes "Grounded dielectric gap").
+        let gap = crate::geometry::DIELECTRIC_GAP;
+        let glass = |transmission: f32| Object {
+            shape: Shape::Box,
+            size: 1.,
+            stretch: 1.,
+            rotation: 0.,
+            position: [0.; 2],
+            grounded: true,
+            material: crate::scene::Material {
+                transmission,
+                ..Default::default()
+            },
+            ..Object::default()
+        };
+        let low = |o: &Object| {
+            crate::geometry::object_geometry(o, 0)
+                .iter()
+                .map(|v| v.position[1])
+                .fold(f32::INFINITY, f32::min)
+        };
+        assert!(
+            (low(&glass(0.)) + 1.).abs() < 1e-5,
+            "opaque rests on the floor"
+        );
+        assert!((low(&glass(1.)) + 1. - gap).abs() < 1e-5, "glass is lifted");
+        assert!((crate::geometry::object_frame(&glass(1.)).0.y - (-0.65 + gap)).abs() < 1e-5);
+        let mut s = Settings {
+            objects: vec![glass(1.)],
+            ..Settings::default()
+        };
+        s.physics.enabled = true;
+        let mut sim = Sim::new(&s);
+        sim.wake_all();
+        for _ in 0..240 {
+            sim.advance(&mut s, 1. / 60.);
+        }
+        let y = crate::geometry::object_frame(&s.objects[0]).0.y;
+        assert!((y - (-0.65 + gap)).abs() < 1e-3, "rests at {y}");
+    }
+
+    #[test]
+    fn changing_transmission_rebuilds_the_body() {
+        let mut s = Settings {
+            objects: vec![Object {
+                shape: Shape::Box,
+                grounded: true,
+                ..Object::default()
+            }],
+            ..Settings::default()
+        };
+        s.physics.enabled = true;
+        let sim = Sim::new(&s);
+        assert!(sim.matches(&s));
+        s.objects[0].material.transmission = 1.;
+        assert!(!sim.matches(&s), "the skin and start pose changed");
+        s.objects[0].material.transmission = 0.5;
+        let sim = Sim::new(&s);
+        s.objects[0].material.transmission = 0.8;
+        assert!(sim.matches(&s), "glass to glass keeps the body");
+    }
+
+    #[test]
+    fn glass_rests_one_gap_off_glass_and_off_opaque() {
+        let gap = crate::geometry::DIELECTRIC_GAP;
+        let boxed = |transmission: f32, grounded: bool, elevation: f32| Object {
+            shape: Shape::Box,
+            size: 1.,
+            stretch: 1.,
+            rotation: 0.,
+            position: [0.; 2],
+            grounded,
+            elevation,
+            material: crate::scene::Material {
+                transmission,
+                ..Default::default()
+            },
+            ..Object::default()
+        };
+        // Box pivot height: 0.35 above its base; the lower box's top is 0.7 above its own.
+        for (lower, upper) in [(1., 1.), (0., 1.), (1., 0.)] {
+            let mut s = Settings {
+                objects: vec![boxed(lower, true, 0.), boxed(upper, false, 0.)],
+                ..Settings::default()
+            };
+            let base = crate::geometry::object_frame(&s.objects[0]).0.y;
+            s.objects[1].elevation = base + 0.7 + 0.03;
+            s.physics.enabled = true;
+            let mut sim = Sim::new(&s);
+            sim.wake_all();
+            for _ in 0..480 {
+                sim.advance(&mut s, 1. / 60.);
+            }
+            let (a, b) = (
+                crate::geometry::object_frame(&s.objects[0]).0.y,
+                crate::geometry::object_frame(&s.objects[1]).0.y,
+            );
+            // Glass on glass, glass on opaque, and opaque on glass (which the static layout also
+            // floats one gap, engine-notes "Grounded dielectric gap"): one gap in each.
+            let rest = b - a - 0.7;
+            assert!(
+                (rest - gap).abs() < 1e-3,
+                "lower {lower} upper {upper}: gap {rest}"
+            );
+        }
     }
 
     #[test]

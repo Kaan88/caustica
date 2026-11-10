@@ -312,7 +312,7 @@
     "shape": "box",
     "position": [
      -3.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -356,7 +356,7 @@
     "shape": "box",
     "position": [
      -3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -400,7 +400,7 @@
     "shape": "box",
     "position": [
      -2.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -444,7 +444,7 @@
     "shape": "box",
     "position": [
      -3.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -488,7 +488,7 @@
     "shape": "box",
     "position": [
      -3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -532,7 +532,7 @@
     "shape": "box",
     "position": [
      -2.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -576,7 +576,7 @@
     "shape": "box",
     "position": [
      -3.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -620,7 +620,7 @@
     "shape": "box",
     "position": [
      -3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -664,7 +664,7 @@
     "shape": "box",
     "position": [
      -2.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -708,7 +708,7 @@
     "shape": "box",
     "position": [
      -3.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -752,7 +752,7 @@
     "shape": "box",
     "position": [
      -3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -796,7 +796,7 @@
     "shape": "box",
     "position": [
      -2.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -928,7 +928,7 @@
     "shape": "box",
     "position": [
      -1.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -972,7 +972,7 @@
     "shape": "box",
     "position": [
      -1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1016,7 +1016,7 @@
     "shape": "box",
     "position": [
      -0.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1060,7 +1060,7 @@
     "shape": "box",
     "position": [
      -1.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1104,7 +1104,7 @@
     "shape": "box",
     "position": [
      -1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1148,7 +1148,7 @@
     "shape": "box",
     "position": [
      -0.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1192,7 +1192,7 @@
     "shape": "box",
     "position": [
      -1.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1236,7 +1236,7 @@
     "shape": "box",
     "position": [
      -1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1280,7 +1280,7 @@
     "shape": "box",
     "position": [
      -0.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1324,7 +1324,7 @@
     "shape": "box",
     "position": [
      -1.47,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1368,7 +1368,7 @@
     "shape": "box",
     "position": [
      -1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1412,7 +1412,7 @@
     "shape": "box",
     "position": [
      -0.53,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1544,7 +1544,7 @@
     "shape": "box",
     "position": [
      0.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1588,7 +1588,7 @@
     "shape": "box",
     "position": [
      1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1632,7 +1632,7 @@
     "shape": "box",
     "position": [
      1.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1676,7 +1676,7 @@
     "shape": "box",
     "position": [
      0.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1720,7 +1720,7 @@
     "shape": "box",
     "position": [
      1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1764,7 +1764,7 @@
     "shape": "box",
     "position": [
      1.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1808,7 +1808,7 @@
     "shape": "box",
     "position": [
      0.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1852,7 +1852,7 @@
     "shape": "box",
     "position": [
      1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1896,7 +1896,7 @@
     "shape": "box",
     "position": [
      1.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1940,7 +1940,7 @@
     "shape": "box",
     "position": [
      0.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -1984,7 +1984,7 @@
     "shape": "box",
     "position": [
      1.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2028,7 +2028,7 @@
     "shape": "box",
     "position": [
      1.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2160,7 +2160,7 @@
     "shape": "box",
     "position": [
      2.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2204,7 +2204,7 @@
     "shape": "box",
     "position": [
      3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2248,7 +2248,7 @@
     "shape": "box",
     "position": [
      3.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2292,7 +2292,7 @@
     "shape": "box",
     "position": [
      2.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2336,7 +2336,7 @@
     "shape": "box",
     "position": [
      3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2380,7 +2380,7 @@
     "shape": "box",
     "position": [
      3.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2424,7 +2424,7 @@
     "shape": "box",
     "position": [
      2.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2468,7 +2468,7 @@
     "shape": "box",
     "position": [
      3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2512,7 +2512,7 @@
     "shape": "box",
     "position": [
      3.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2556,7 +2556,7 @@
     "shape": "box",
     "position": [
      2.53,
-     -2
+     -2.006
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2600,7 +2600,7 @@
     "shape": "box",
     "position": [
      3.0,
-     -2
+     -2.0
     ],
     "size": 1.0,
     "stretch": 0.86,
@@ -2644,7 +2644,7 @@
     "shape": "box",
     "position": [
      3.47,
-     -2
+     -1.994
     ],
     "size": 1.0,
     "stretch": 0.86,

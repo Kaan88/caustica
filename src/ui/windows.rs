@@ -146,6 +146,8 @@ impl App {
     }
     /// Starts rendering the thumbnails that are missing (or all of them).
     pub(super) fn request_thumbnails(&mut self, all: bool) {
+        // Stale thumbnails go and bundled ones are copied in first; "all" re-renders regardless.
+        crate::scenes::sync_thumbnails(&self.ui.scenes);
         let missing: Vec<_> = self
             .ui
             .scenes

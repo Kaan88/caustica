@@ -109,7 +109,9 @@ float3 hero_rgb(float3 v){return spectral_on?to_rgb(float3(3*v.x,0,0)):v;}
 // The emission a hit vertex sends toward w, as trace counts it (flat colour, one-sided, spot).
 float3 vertex_emission(BVertex x,float3 w){
     Material m=material_at(x.info&0xffffffu,x.p);float3 e=up_emission(m,emitted_color(m,x.emitter,x.p))*m.optical.y;
-    if(m.optical.w>0.5 && (x.info&V_FRONT)==0)e=0;return e*spot(m,dot(x.n,w));
+    if(m.optical.w>0.5 && (x.info&V_FRONT)==0)e=0;
+    // x.n faces the viewer; the spot cone is signed against the emitter's own normal (back faces flip it).
+    return e*spot(m,dot((x.info&V_FRONT)!=0?x.n:-x.n,w));
 }
 // f(v, l) with v toward the camera side and l toward the light side, and the density of sampling
 // l given v; 0 below the surface (n faces the ray that found the vertex).
@@ -387,6 +389,7 @@ float3 bdpt_sample(uint2 p,uint D,bool lt,float p_env,float pixel_angle,float pi
                 // Light tracing: the light subpath's last vertex seen by the camera.
                 if(!lt || s>S)continue;
                 BVertex qs=lig[s-1];if(!connectible(qs))continue;
+                if((qs.info&V_MEDIUM)==0 && ((uint)materials[qs.info&0xffffffu].lobes.w&2u)!=0)continue; // hidden from the camera: light tracing does not see it either
                 float2 film;if(!project(qs.p,film))continue;
                 float3 w=eye.xyz-qs.p;float d2=dot(w,w),dist=sqrt(d2);w/=dist;
                 float c=vcos(qs,w),ct=dot(-w,camera_forward());if(ct<=0)continue;

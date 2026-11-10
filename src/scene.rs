@@ -541,6 +541,16 @@ pub struct Object {
     /// `material.textures`, like a mesh's own maps. Empty = none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub maps_from: String,
+    /// Invisible to camera rays (the first bounce and the denoiser's guide), still seen by
+    /// reflections and refractions and still casting shadows: the material's hidden flag, the
+    /// same one a light's "Visible to camera" switches. The walk avatar's head uses it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub camera_hidden: bool,
+    /// Blocks shadow rays (the default). Off: lights shine through it, while camera rays and
+    /// reflections still see it: the light's "Casts shadows" switch (flag 8192, MASK_NO_SHADOW).
+    /// The avatar's head is off, or it would shade the body its camera looks down on.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub casts_shadows: bool,
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Link {
@@ -853,6 +863,8 @@ impl Default for Object {
             links: vec![],
             cloth: None,
             maps_from: String::new(),
+            camera_hidden: false,
+            casts_shadows: true,
         }
     }
 }
@@ -1020,6 +1032,9 @@ pub struct Settings {
     /// Battle mode (track 15): the image split into four quadrants rendered at equal GPU time
     /// by path tracing, path tracing with ReSTIR DI, BDPT and photon mapping.
     pub battle: bool,
+    /// Walk mode draws a blocky body under the camera (`avatar.rs`): legs and arms in view when
+    /// looking down, the whole figure in reflections. A viewer choice, kept across scene loads.
+    pub walk_avatar: bool,
     /// Track 17 physics sandbox: rigid-body simulation of the objects (see physics.rs).
     #[serde(skip_serializing_if = "Physics::is_off")]
     pub physics: Physics,
@@ -1185,6 +1200,7 @@ impl Default for Settings {
             photons: 1 << 18,
             photon_radius: 0.01,
             battle: false,
+            walk_avatar: true,
             physics: Physics::default(),
             puzzle: Puzzle::default(),
             audio: AudioReact::default(),
@@ -1285,6 +1301,7 @@ impl Settings {
         self.lpe = from.lpe.clone();
         self.lpe_slot = from.lpe_slot;
         self.battle = from.battle;
+        self.walk_avatar = from.walk_avatar;
     }
     pub fn preset(&mut self, id: usize) {
         // Presets 0–8 share the Cornell box, so moving between them keeps the
@@ -1301,6 +1318,7 @@ impl Settings {
             (self.hdr_mode, self.hdr_peak, self.hdr_white, self.hdr10),
             (self.pixel_filter, self.filter_width, self.anisotropy),
             (std::mem::take(&mut self.lpe), self.lpe_slot, self.battle),
+            self.walk_avatar,
         );
         *self = Self::default();
         match id {
@@ -1408,6 +1426,7 @@ impl Settings {
             (self.hdr_mode, self.hdr_peak, self.hdr_white, self.hdr10),
             (self.pixel_filter, self.filter_width, self.anisotropy),
             (self.lpe, self.lpe_slot, self.battle),
+            self.walk_avatar,
         ) = output;
     }
     pub fn validate(&mut self) -> anyhow::Result<()> {

@@ -94,7 +94,7 @@
      0
     ],
     "size": 1.0,
-    "stretch": 2.2857,
+    "stretch": 2.28,
     "rotation": 0.0,
     "tilt": [
      0,
@@ -104,7 +104,7 @@
      4.2857,
      1.7143
     ],
-    "elevation": -0.2,
+    "elevation": -0.198,
     "grounded": false,
     "visible": true,
     "material": {
@@ -191,8 +191,8 @@
      0
     ],
     "scale_xz": [
-     4.1429,
-     1.5714
+     4.1371,
+     1.5657
     ],
     "elevation": 0.52,
     "grounded": false,

@@ -21,6 +21,13 @@ OUT = Path(__file__).resolve().parent.parent / "scenes" / "builtin"
 # never touched), and the builder's entries are merged into an existing pack.json.
 OVERWRITE = False  # True, or a set of file stems
 
+# Dielectric contacts: two faces at exactly the same place give two hits at equal t, which the
+# GPU (DXR traversal order) and the CPU reference (its BVH) resolve differently (engine-notes
+# "Grounded dielectric gap"). Grounded transmissive objects get GAP from the engine itself
+# (geometry::DIELECTRIC_GAP); the hand-placed ones here keep the same gap off the floor and off
+# each other, and coincident side walls of nested liquids differ by GAP.
+GAP = 0.004
+
 
 def write_pack(out, entries, meta, ensure_ascii=False):
     """Writes `entries` ([(file name, data)]) into `out` and merges them into its pack.json."""
@@ -428,13 +435,13 @@ scene("ice-cubes", "Ice cubes",
 
 def glass_stack():
     o = []
-    y = -1.0
+    y = -1.0 + GAP
     tints = [(0.85, 0.95, 1.0), (1.0, 0.9, 0.8), (0.9, 1.0, 0.9), (1.0, 0.92, 0.97)]
     for i in range(6):
         h = 0.35 * 0.9 * 0.5
         o.append(float_at(f"Glass slab {i + 1}", "box", 0.1 * math.sin(i), y + h, 0.1 * math.cos(i), 0.9 - i * 0.07,
                           M(tints[i % 4], 0.0, trans=1, ior=1.5), stretch=0.5, rotation=i * 17))
-        y += 2 * h * (0.9 - i * 0.07) / 0.9
+        y += 2 * h * (0.9 - i * 0.07) / 0.9 + GAP
     o.append(float_at("Glass cone", "cone", 0, y + 0.3, 0, 0.9, GLASS))
     o.append(obj("Glass torus", "torus", -1.5, 0.4, 1.4, GLASS, tilt=(80, 10)))
     o.append(obj("Glass knot", "knot", 1.6, -0.2, 1.3, M((0.9, 0.95, 1.0), 0.0, trans=1, ior=1.5), elevation=0.1))
@@ -628,7 +635,7 @@ def stained_glass():
         cx = -3 + i * 2
         for r in range(4):
             for c in range(3):
-                o.append(float_at(f"Pane {i + 1}.{r + 1}.{c + 1}", "box", cx - 0.47 + c * 0.47, -0.15 + r * 0.62, -2, 1,
+                o.append(float_at(f"Pane {i + 1}.{r + 1}.{c + 1}", "box", cx - 0.47 + c * 0.47, -0.15 + r * 0.62, -2 + (c - 1) * 0.006, 1,
                                   M(random.choice(colors), 0.08, trans=1, ior=1.5), stretch=0.86, scale=(1.3, 0.45)))
         o.append(float_at(f"Sill {i + 1}", "box", cx, -0.5, -2, 1, stone, stretch=1.0, scale=(4.6, 0.6)))
         o.append(float_at(f"Head {i + 1}", "box", cx, 2.55, -2, 1, stone, stretch=1.2, scale=(4.6, 0.6)))
@@ -1322,10 +1329,10 @@ def cocktail():
     """A highball of three liquids (grenadine 4 > juice 3 > curaçao 2, each overlapping the next)
     under an air headspace (6), with ice (7) above everything; and a whisky tumbler beside it."""
     x0 = -0.45
-    out = [cyl("Highball glass", x0, 0, -1.0, 0.45, 0.42, CRYSTAL),
-           cyl("Headspace", x0, 0, 0.14, 0.55, 0.38, AIR),
+    out = [cyl("Highball glass", x0, 0, -1.0 + GAP, 0.45, 0.42, CRYSTAL),
+           cyl("Headspace", x0, 0, 0.14, 0.55, 0.38 - GAP, AIR),
            cyl("Grenadine", x0, 0, -0.9, -0.52, 0.38, clear((0.7, 0.02, 0.05), 1.45, 4)),
-           cyl("Orange juice", x0, 0, -0.53, -0.12, 0.38, clear((0.97, 0.5, 0.08), 1.35, 3)),
+           cyl("Orange juice", x0, 0, -0.53, -0.12, 0.38 - GAP, clear((0.97, 0.5, 0.08), 1.35, 3)),
            cyl("Blue curaçao", x0, 0, -0.13, 0.15, 0.38, clear((0.1, 0.4, 0.95), 1.36, 2))]
     ice = clear((0.96, 0.98, 1.0), 1.31, 7, rough=0.04)
     for i, (dx, dz, rot) in enumerate([(-0.12, 0.06, 20), (0.13, -0.05, 55)]):
@@ -1334,8 +1341,8 @@ def cocktail():
     out.append(float_at("Straw", "cylinder", x0 + 0.12, -0.1, -0.08, 1.0, lacquer((0.95, 0.9, 0.85), 0.3),
                         stretch=1.5 / 0.7, scale=(0.075, 0.075), tilt=(-9, -8)))
     x1, z1 = 0.6, 0.35
-    out += [cyl("Tumbler", x1, z1, -1.0, -0.3, 0.33, CRYSTAL),
-            cyl("Tumbler headspace", x1, z1, -0.56, -0.2, 0.29, AIR),
+    out += [cyl("Tumbler", x1, z1, -1.0 + GAP, -0.3, 0.33, CRYSTAL),
+            cyl("Tumbler headspace", x1, z1, -0.56, -0.2, 0.29 - GAP, AIR),
             cyl("Whisky", x1, z1, -0.92, -0.55, 0.29, clear((0.8, 0.42, 0.1), 1.36, 2)),
             ball("Ice sphere", x1 + 0.03, -0.58, z1 - 0.02, 0.15, ice)]
     return out + [backdrop_bars()]
@@ -1399,9 +1406,9 @@ def aquarium():
     """A glass tank (1) hollowed by water (2) and an air headspace (3) that reaches past its rim,
     with marbles (4) and bubbles (5) in the water, and gravel, plants, fish and a rock that are
     opaque and sit inside the water medium."""
-    out = [block("Tank", 0, 0, -1.0, 0.6, 3.0, 1.2, clear((0.9, 0.97, 0.95), 1.5, 1)),
+    out = [block("Tank", 0, 0, -1.0 + GAP, 0.6, 3.0, 1.2, clear((0.9, 0.97, 0.95), 1.5, 1)),
            block("Water", 0, 0, -0.92, 0.35, 2.9, 1.1, clear((0.75, 0.92, 0.95), 1.33, 2)),
-           block("Air above the water", 0, 0, 0.34, 0.7, 2.9, 1.1, clear((1, 1, 1), 1.0, 3))]
+           block("Air above the water", 0, 0, 0.34, 0.7, 2.9 - GAP, 1.1 - GAP, clear((1, 1, 1), 1.0, 3))]
     r = random.Random(12)
     for i in range(220):
         rad = r.uniform(0.03, 0.06)

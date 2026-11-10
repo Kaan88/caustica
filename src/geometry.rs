@@ -520,11 +520,37 @@ fn ray_triangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
     let t = e2.dot(q) / det;
     (u >= 0. && v >= 0. && u + v <= 1. && t > 0.).then_some(t)
 }
+/// Gap under a grounded dielectric (engine-notes "Grounded dielectric gap"). A transmissive
+/// object resting exactly on the floor (or a surface it is elevated onto) puts two faces at equal
+/// t, and DXR's traversal and the CPU BVH resolve that tie differently; lifting it removes the
+/// tie for both renderers, physics, picking and the gizmo alike, since all read `object_frame`.
+pub const DIELECTRIC_GAP: f32 = 0.004;
+/// The lift a grounded object gets above its resting height: `DIELECTRIC_GAP` for a
+/// transmissive material, else 0. Applied only here (via `grounded_y`). The parts of one mesh
+/// file are grounded together (`mesh::ground`), so they rise together: a part is lifted when
+/// any part of its file imported as transmissive (a bottle keeps its cap, a window its frame).
+pub fn ground_lift(o: &Object) -> f32 {
+    if o.grounded && (transmissive(o) || crate::mesh::file_has_glass(o)) {
+        DIELECTRIC_GAP
+    } else {
+        0.
+    }
+}
+/// Whether an object's material transmits (glass, liquids, any IOR medium): the objects that
+/// keep `DIELECTRIC_GAP` off what they rest on, grounded (`ground_lift`) or simulated (the
+/// physics collider's contact skin).
+pub fn transmissive(o: &Object) -> bool {
+    o.material.transmission > 0.
+}
+/// The pivot height of a grounded object whose rotated, scaled mesh reaches down to `ymin`.
+fn grounded_y(o: &Object, ymin: f32) -> f32 {
+    -1. - ymin + o.elevation + ground_lift(o)
+}
 /// The object's pivot (mesh origin in the world, as placed by `object_geometry`) and rotation.
 pub fn object_frame(o: &Object) -> (Vec3, glam::Mat3) {
     let (scale, r) = scale_rotation(o);
     let y = if o.grounded {
-        -1. - lowest_y(o, scale, r) + o.elevation
+        grounded_y(o, lowest_y(o, scale, r))
     } else {
         o.elevation
     };
@@ -548,7 +574,7 @@ pub fn object_geometry(o: &Object, id: u32) -> Vec<Vertex> {
     let center = Vec3::new(
         o.position[0],
         if o.grounded {
-            -1. - ymin + o.elevation
+            grounded_y(o, ymin)
         } else {
             o.elevation
         },

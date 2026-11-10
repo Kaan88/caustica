@@ -317,6 +317,19 @@ pub fn ground(o: &Object) -> Option<Arc<Mesh>> {
     of(o)?;
     load(&o.mesh).ok().map(|m| m.whole())
 }
+/// Whether the object is one part of a multi-part file (`file#n`) any of whose parts imported
+/// with a transmissive material: the group `geometry::ground_lift` raises together.
+pub fn file_has_glass(o: &Object) -> bool {
+    if o.cloth.is_some() || split(&o.mesh).1.is_none() {
+        return false;
+    }
+    load(&o.mesh).is_ok_and(|f| {
+        f.parts.len() > 1
+            && f.parts
+                .iter()
+                .any(|p| p.material.as_ref().is_some_and(|m| m.transmission > 0.))
+    })
+}
 /// One object for a mesh file, with the file's first material.
 pub fn import_object(path: &Path) -> Result<Object> {
     let stored = store(path);
@@ -1252,6 +1265,49 @@ f 1 3 4
         assert_eq!((lamp.emission, lamp.color), (4., [1., 0.5, 0.]));
         let glass = parts[1].material.as_ref().unwrap();
         assert!((glass.transmission - 0.8).abs() < 1e-5 && glass.ior == 1.33);
+    }
+    #[test]
+    fn the_parts_of_a_file_with_glass_rise_together() {
+        let dir = std::env::temp_dir();
+        std::fs::write(
+            dir.join("caustica-test-bottle.mtl"),
+            "newmtl cap\nKd 1 0 0\nnewmtl glass\nKd 1 1 1\nd 0.2\nNi 1.5\n",
+        )
+        .unwrap();
+        let p = temp(
+            "caustica-test-bottle.obj",
+            "mtllib caustica-test-bottle.mtl
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+usemtl cap
+f 1 2 3
+usemtl glass
+f 1 3 4
+",
+        );
+        let mut parts = import_objects(&p).unwrap();
+        assert_eq!(parts.len(), 2);
+        for o in &mut parts {
+            o.grounded = true;
+        }
+        let gap = crate::geometry::DIELECTRIC_GAP;
+        let (cap, glass) = (&parts[0], &parts[1]);
+        assert!(!crate::geometry::transmissive(cap));
+        assert!((crate::geometry::ground_lift(cap) - gap).abs() < 1e-9);
+        assert!((crate::geometry::ground_lift(glass) - gap).abs() < 1e-9);
+        let y = |o: &Object| crate::geometry::object_frame(o).0.y;
+        assert!((y(cap) - y(glass)).abs() < 1e-6, "parts stay together");
+        // Not grounded: no lift. A built-in opaque shape: none.
+        let mut up = parts[0].clone();
+        up.grounded = false;
+        assert_eq!(crate::geometry::ground_lift(&up), 0.);
+        let plain = Object {
+            grounded: true,
+            ..Object::default()
+        };
+        assert_eq!(crate::geometry::ground_lift(&plain), 0.);
     }
     #[test]
     fn gltf_lights_and_volume_import() {

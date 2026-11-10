@@ -95,7 +95,7 @@
      0
     ],
     "size": 1.0,
-    "stretch": 2.0714,
+    "stretch": 2.0657,
     "rotation": 0.0,
     "tilt": [
      0,
@@ -105,7 +105,7 @@
      1.2,
      1.2
     ],
-    "elevation": -0.275,
+    "elevation": -0.273,
     "grounded": false,
     "visible": true,
     "material": {
@@ -147,8 +147,8 @@
      0
     ],
     "scale_xz": [
-     1.0857,
-     1.0857
+     1.0743,
+     1.0743
     ],
     "elevation": 0.345,
     "grounded": false,
@@ -237,8 +237,8 @@
      0
     ],
     "scale_xz": [
-     1.0857,
-     1.0857
+     1.0743,
+     1.0743
     ],
     "elevation": -0.325,
     "grounded": false,
@@ -498,7 +498,7 @@
      0.35
     ],
     "size": 1.0,
-    "stretch": 1.0,
+    "stretch": 0.9943,
     "rotation": 0.0,
     "tilt": [
      0,
@@ -508,7 +508,7 @@
      0.9429,
      0.9429
     ],
-    "elevation": -0.65,
+    "elevation": -0.648,
     "grounded": false,
     "visible": true,
     "material": {
@@ -550,8 +550,8 @@
      0
     ],
     "scale_xz": [
-     0.8286,
-     0.8286
+     0.8171,
+     0.8171
     ],
     "elevation": -0.38,
     "grounded": false,

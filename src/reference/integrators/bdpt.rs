@@ -919,7 +919,8 @@ impl Scene<'_> {
                         continue;
                     }
                     let qs = &lig[s - 1];
-                    if !qs.connectible() {
+                    // A surface hidden from the camera is not seen by light tracing either.
+                    if !qs.connectible() || (qs.kind == Kind::Surface && flags(&qs.m) & 2 != 0) {
                         continue;
                     }
                     let Some(film) = self.project(qs.p) else {
