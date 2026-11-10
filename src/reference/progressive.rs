@@ -59,6 +59,23 @@ pub(super) fn for_rows<T: Send>(
     });
 }
 
+/// The integrators and the pixels (x0, y0, x1, y1) they render: battle mode's four quadrants
+/// (path tracing twice, the GPU's second one with ReSTIR, which only moves noise; then BDPT and
+/// photon mapping), split at the integer halves of the render size as on the GPU
+/// (`passes::battle_frame`), or the whole image with `Settings::integrator`.
+pub(super) fn quadrants(s: &Settings, [w, h]: [u32; 2]) -> Vec<(u32, [u32; 4])> {
+    if !s.battle {
+        return vec![(s.integrator, [0, 0, w, h])];
+    }
+    let (hw, hh) = (w / 2, h / 2);
+    vec![
+        (0, [0, 0, hw, hh]),
+        (0, [hw, 0, w, hh]),
+        (1, [0, hh, hw, h]),
+        (2, [hw, hh, w, h]),
+    ]
+}
+
 /// A render that grows by passes: per-pixel sums of samples `0..samples`, each seeded by pixel
 /// and sample index, so any split into passes gives the same bits as one pass. The sums are f64:
 /// past tens of thousands of samples an f32 sum drops the low bits of what it adds.
@@ -216,12 +233,23 @@ impl<'a> Progressive<'a> {
     ) -> bool {
         // Photon mapping's frames are `Settings::spp` samples each, with a map of their own
         // (`integrators::photon`): a pass runs frame by frame, so its split doesn't matter.
+        // Battle mode renders its quadrants one after another, each with its own integrator.
         let s = self.scenes[0].s;
+        let quadrants = quadrants(s, self.scenes[0].size);
+        let photons = quadrants.iter().any(|q| q.0 == 2);
         let (end, per) = (self.samples + spp, s.spp.max(1));
         while self.samples < end {
-            let n = if s.integrator == 2 {
-                let frame = self.samples / per;
-                if self.photon_maps.first().is_none_or(|m| m.frame != frame) {
+            let frame = self.samples / per;
+            let n = if photons {
+                ((frame + 1) * per).min(end) - self.samples
+            } else {
+                end - self.samples
+            };
+            for (i, &(integrator, region)) in quadrants.iter().enumerate() {
+                for scene in &mut self.scenes {
+                    scene.set_quadrant(integrator, region);
+                }
+                if integrator == 2 && self.photon_maps.first().is_none_or(|m| m.frame != frame) {
                     self.photon_maps.clear();
                     for scene in &self.scenes {
                         let Some(map) = scene.photon_map(frame, threads, cancel) else {
@@ -231,20 +259,28 @@ impl<'a> Progressive<'a> {
                         self.photon_maps.push(map);
                     }
                 }
-                ((frame + 1) * per).min(end) - self.samples
-            } else {
-                end - self.samples
-            };
-            if !self.samples_pass(n, threads, cancel, progress) {
-                return false;
+                let k = quadrants.len() as f32;
+                let progress = |f: f32| progress((i as f32 + f) / k);
+                if !self.samples_pass(n, region, threads, cancel, &progress) {
+                    return false;
+                }
+            }
+            self.samples += n;
+        }
+        if s.battle {
+            let [w, h] = self.scenes[0].size;
+            for scene in &mut self.scenes {
+                scene.set_quadrant(s.integrator, [0, 0, w, h]);
             }
         }
         true
     }
-    /// `pass` within one photon-mapping frame.
+    /// `pass` within one photon-mapping frame, over the pixels of `region` with the scenes'
+    /// integrator (`Scene::set_quadrant`). The caller counts the samples.
     fn samples_pass(
         &mut self,
         spp: u32,
+        region: [u32; 4],
         threads: usize,
         cancel: &AtomicBool,
         progress: &(dyn Fn(f32) + Sync),
@@ -273,7 +309,9 @@ impl<'a> Progressive<'a> {
             .collect();
         // BDPT's light-tracing terms land in any pixel: each row keeps its own, added after the
         // pass in row order, so the sums don't depend on the threads.
-        let bdpt = s.integrator == 1;
+        let integrator = scenes[0].integrator;
+        let bdpt = integrator == 1;
+        let [x0, y0, x1, y1] = region.map(|v| v as usize);
         let splats: Vec<Mutex<Vec<Splat>>> = (0..if bdpt { h } else { 0 })
             .map(|_| Mutex::new(vec![]))
             .collect();
@@ -285,7 +323,13 @@ impl<'a> Progressive<'a> {
             cancel,
             &|y, row| {
                 let mut row_splats = vec![];
+                let row = if (y0..y1).contains(&y) {
+                    &mut row[x0..x1]
+                } else {
+                    &mut row[..0]
+                };
                 for (x, (sum, moments, aov)) in row.iter_mut().enumerate() {
+                    let x = x + x0;
                     let mut rec = match aov {
                         Some(_) => Record::new(true, lpe, aov_guides[y * w + x].material),
                         None => Record::off(),
@@ -311,7 +355,9 @@ impl<'a> Progressive<'a> {
                                 // Its AOVs: the whole estimate as direct light, no specular.
                                 rec.direct = c;
                                 c
-                            } else if let Some(map) = photon_maps.get(moment) {
+                            } else if let Some(map) =
+                                photon_maps.get(moment).filter(|_| integrator == 2)
+                            {
                                 let c = scene.photon_gather(o, d, w, map, &mut waves, &mut r);
                                 rec.direct = c;
                                 c
@@ -320,7 +366,7 @@ impl<'a> Progressive<'a> {
                             }
                         });
                         // The firefly clamp is the path tracer's, as on the GPU.
-                        let scale = if s.integrator != 0 {
+                        let scale = if integrator != 0 {
                             1.
                         } else {
                             firefly_scale(s.firefly, c, **sum, k)
@@ -360,7 +406,6 @@ impl<'a> Progressive<'a> {
                 self.sums[i as usize] += c.as_dvec3();
             }
         }
-        self.samples += spp;
         true
     }
     /// The mean so far: linear RGBA, rows top first.

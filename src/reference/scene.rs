@@ -55,6 +55,14 @@ pub(super) struct Scene<'a> {
     /// Shadow rays stop at clear glass whatever `glass_shadow` says: BDPT's connections and
     /// photon mapping's next-event estimation see it as solid, as on the GPU (`glass_blocks`).
     pub(super) glass_blocks: bool,
+    /// The integrator (`Settings::integrator`, or battle mode's quadrant's) and the pixels it
+    /// renders (x0, y0, x1, y1): BDPT's light tracing splats only inside them, its film counts
+    /// their share of the image, and photon mapping traces that share of the photons
+    /// (`set_quadrant`).
+    pub(super) integrator: u32,
+    pub(super) region: [u32; 4],
+    pub(super) share: f32,
+    pub(super) photons: u32,
 }
 /// An entry of the light table.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -439,11 +447,32 @@ impl<'a> Scene<'a> {
             env,
             p_env,
             textures,
-            spectral: s.spectral && (s.integrator != 0 || s.lpe.iter().all(|e| e.is_empty())),
-            glass_blocks: s.integrator != 0,
+            spectral: false,
+            glass_blocks: false,
+            integrator: 0,
+            region: [0; 4],
+            share: 1.,
+            photons: 0,
         };
         scene.set_camera(s, size);
+        scene.set_quadrant(s.integrator, [0, 0, size[0], size[1]]);
         scene
+    }
+    /// Renders `region` with `integrator` from here on (battle mode: one quadrant's). Spectral
+    /// mode holds unless light path expressions force the path tracer to RGB; clear glass blocks
+    /// BDPT's and photon mapping's shadow rays; photon mapping traces the region's share of the
+    /// photons, at least 1024, as on the GPU (`passes.rs`, without battle mode's time balance,
+    /// which only moves noise).
+    pub(super) fn set_quadrant(&mut self, integrator: u32, region: [u32; 4]) {
+        let s = self.s;
+        let area = |r: [u32; 4]| (r[2] - r[0]) as f32 * (r[3] - r[1]) as f32;
+        self.integrator = integrator;
+        self.region = region;
+        self.share = area(region) / area([0, 0, self.size[0], self.size[1]]).max(1.);
+        self.spectral = s.spectral && (integrator != 0 || s.lpe.iter().all(|e| e.is_empty()));
+        self.glass_blocks = integrator != 0;
+        self.photons =
+            ((s.photons as f32 * self.share) as u32).clamp(1024.min(s.photons), s.photons);
     }
     /// A sample's wavelengths, from its own stream (`r` stays as it was, so RGB draws don't
     /// move), or RGB.
@@ -485,6 +514,9 @@ impl<'a> Scene<'a> {
             0 => vec![],
             e => vec![(e >> 13, (e & 0x1fff) - 1)],
         };
-        self.size = size;
+        if self.size != size {
+            self.size = size;
+            self.set_quadrant(self.integrator, [0, 0, size[0], size[1]]);
+        }
     }
 }

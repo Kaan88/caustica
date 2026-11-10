@@ -165,7 +165,7 @@ impl Scene<'_> {
         let (centre, radius) = bounds(self);
         let r0 = self.s.photon_radius * radius;
         let r = radius2(r0 * r0, frame).sqrt();
-        let n = self.s.photons.max(1) as usize;
+        let n = self.photons.max(1) as usize;
         let sdf = SdfLight::of(&self.sdfs, &self.materials);
         let chunks: Vec<std::sync::Mutex<Vec<(Photon, bool)>>> =
             (0..n.div_ceil(CHUNK)).map(|_| Default::default()).collect();

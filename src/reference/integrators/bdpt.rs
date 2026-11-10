@@ -216,9 +216,9 @@ fn mis_weight(
 
 /// The share of the pixel filter's support (5 pixels at most, clipped to [r0, r1]) one splat at
 /// film coordinate `f` picks, with probability w / W by `u`: the pixel and W (`pick_filtered`).
-fn pick_filtered(s: &crate::scene::Settings, f: f32, r1: i32, u: f32) -> (i32, f32) {
+fn pick_filtered(s: &crate::scene::Settings, f: f32, r0: i32, r1: i32, u: f32) -> (i32, f32) {
     let h = 0.5 * s.filter_width;
-    let lo = ((f - 0.5 - h).ceil() as i32).max(0);
+    let lo = ((f - 0.5 - h).ceil() as i32).max(r0);
     let hi = ((f - 0.5 + h).floor() as i32).min(r1).min(lo + 4);
     let weights: Vec<f32> = (lo..=hi)
         .map(|x| filter_density(s, f - (x as f32 + 0.5)))
@@ -711,16 +711,21 @@ impl Scene<'_> {
         self.intersect(o, d, limit, &self.accept(Ray::Shadow, o, d), true)
             .is_some()
     }
-    /// The pinhole's directional density over the whole film.
+    /// The film area light tracing spreads over: the region's share of the whole film's, since
+    /// only the region's pixels start light paths (battle mode).
+    fn film(&self) -> f32 {
+        self.film_area * self.share
+    }
+    /// The pinhole's directional density over the film (`film`).
     fn camera_pdf_w(&self, w: Vec3) -> f32 {
         let c = w.dot(self.frame.forward);
         if c > 0. {
-            1. / (self.film_area * c * c * c)
+            1. / (self.film() * c * c * c)
         } else {
             0.
         }
     }
-    /// The film coordinate (render pixels) point `q` projects to, inside the image.
+    /// The film coordinate (render pixels) point `q` projects to, inside the region.
     fn project(&self, q: Vec3) -> Option<Vec2> {
         let c = self.vp * Vec4::new(q.x, q.y, q.z, 1.);
         if c.w <= 0. {
@@ -728,7 +733,8 @@ impl Scene<'_> {
         }
         let size = Vec2::new(self.size[0] as f32, self.size[1] as f32);
         let f = Vec2::new(c.x / c.w * 0.5 + 0.5, 0.5 - c.y / c.w * 0.5) * size;
-        (f.x >= 0. && f.y >= 0. && f.x < size.x && f.y < size.y).then_some(f)
+        let [x0, y0, x1, y1] = self.region.map(|v| v as f32);
+        (f.x >= x0 && f.y >= y0 && f.x < x1 && f.y < y1).then_some(f)
     }
     /// One light-tracing term at film point `f`, filtered as camera rays are: one pixel per axis,
     /// picked with probability w / W by a hash of the point and the sample, takes c · Wx · Wy.
@@ -738,8 +744,9 @@ impl Scene<'_> {
         }
         let key = mix(f.x.to_bits() ^ mix(f.y.to_bits() ^ sample));
         let u = |k: u32| (k >> 8) as f32 * (1. / 16_777_216.);
-        let (x, wx) = pick_filtered(self.s, f.x, self.size[0] as i32 - 1, u(key));
-        let (y, wy) = pick_filtered(self.s, f.y, self.size[1] as i32 - 1, u(mix(key)));
+        let [x0, y0, x1, y1] = self.region.map(|v| v as i32);
+        let (x, wx) = pick_filtered(self.s, f.x, x0, x1 - 1, u(key));
+        let (y, wy) = pick_filtered(self.s, f.y, y0, y1 - 1, u(mix(key)));
         if wx * wy > 0. {
             out.push((y as u32 * self.size[0] + x as u32, c * wx * wy));
         }
@@ -931,7 +938,7 @@ impl Scene<'_> {
                     let (f, _) = self.vertex_f(qs, wv, wq, w);
                     let qsm_rev = to_area(self.vertex_pdf(qs, wv, wq, w), qs.p, &lig[s - 2]);
                     let tr = self.segment_tr(qs.medium, qs.p, wv, dist, w, r);
-                    let c_term = qs.beta * f * c * tr / (d2 * self.film_area * ct * ct * ct);
+                    let c_term = qs.beta * f * c * tr / (d2 * self.film() * ct * ct * ct);
                     if c_term.max_element() <= 0. {
                         continue;
                     }
@@ -1294,7 +1301,7 @@ mod tests {
             let mut got = [0f32; 20];
             let n = 20000;
             for i in 0..n {
-                let (x, w) = pick_filtered(&s, f, 19, (i as f32 + 0.5) / n as f32);
+                let (x, w) = pick_filtered(&s, f, 0, 19, (i as f32 + 0.5) / n as f32);
                 got[x as usize] += w / n as f32;
             }
             for (x, g) in got.iter().enumerate() {

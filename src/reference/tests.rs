@@ -232,20 +232,13 @@ fn the_bvh_finds_the_nearest_triangle() {
             .is_none()
     );
 }
-/// Each feature the reference does not have is refused, not rendered wrong.
+/// Nothing the scene format holds is refused any more (battle mode was the last); a profile's
+/// numbers in its light's record don't read as materials.
 #[test]
-fn every_missing_feature_is_refused() {
-    use crate::scene::{LightKind, Object};
-    let edit = |f: &dyn Fn(&mut Settings)| {
-        let mut s = Settings::default();
-        f(&mut s);
-        s
-    };
-    let cases: Vec<(&str, Settings)> = vec![("battle", edit(&|s| s.battle = true))];
-    for (what, s) in &cases {
-        assert!(!unsupported(s).is_empty(), "{what} was not refused");
-    }
-    // A profile's numbers in its light's record don't read as materials.
+fn nothing_is_refused() {
+    let mut battle = Settings::default();
+    battle.battle = true;
+    assert!(unsupported(&battle).is_empty());
     let ies = light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006));
     assert!(unsupported(&ies).is_empty(), "{:?}", unsupported(&ies));
 }
@@ -578,6 +571,10 @@ fn the_side_is_the_faces_not_the_interpolated_normals() {
         lens: None,
         camera_media: vec![],
         size: [1, 1],
+        integrator: 0,
+        region: [0, 0, 1, 1],
+        share: 1.,
+        photons: 0,
         env: None,
         p_env: 0.,
         textures: Default::default(),
@@ -744,21 +741,81 @@ fn the_view_follows_the_camera_and_the_scene() {
     let image = live.image(true).unwrap();
     assert_eq!(*image, render(&edited, [12, 10], 3, &|_| {}).unwrap());
 }
-/// The reference refuses what the view renders and lists.
+/// Battle mode renders in the reference and the view alike, with nothing listed as missing.
 #[test]
-fn the_view_lists_what_the_reference_refuses() {
+fn battle_mode_renders_in_the_reference_and_the_view() {
     let mut s = Settings::default();
     s.max_samples = 2;
     s.battle = true;
+    s.photons = 2048;
     let size = [8, 6];
-    let reference = Live::start(s.clone(), size, String::new(), false);
-    assert!(finish(&reference).error.unwrap().contains("battle"));
-    assert!(reference.image(true).is_none());
-    let view = Live::start(s, size, String::new(), true);
-    let st = finish(&view);
-    assert!(st.error.is_none());
-    assert_eq!(st.missing, ["battle mode (four integrators at once)"]);
-    assert!(view.image(false).is_some());
+    for lenient in [false, true] {
+        let live = Live::start(s.clone(), size, String::new(), lenient);
+        let st = finish(&live);
+        assert!(st.error.is_none(), "{:?}", st.error);
+        assert!(st.missing.is_empty());
+        assert!(live.image(true).is_some());
+    }
+}
+/// Battle mode's quadrants split at the integer halves, path tracing on top, then BDPT and
+/// photon mapping; without it, the whole image takes the scene's integrator.
+#[test]
+fn battle_quadrants_map_corners_to_their_integrators() {
+    use super::progressive::quadrants;
+    let mut s = Settings::default();
+    s.integrator = 1;
+    assert_eq!(quadrants(&s, [9, 7]), [(1, [0, 0, 9, 7])]);
+    s.battle = true;
+    let q = quadrants(&s, [9, 7]);
+    let at = |x: u32, y: u32| {
+        q.iter()
+            .find(|(_, r)| x >= r[0] && x < r[2] && y >= r[1] && y < r[3])
+            .unwrap()
+            .0
+    };
+    assert_eq!([at(0, 0), at(8, 0), at(0, 6), at(8, 6)], [0, 0, 1, 2]);
+    assert_eq!([at(3, 2), at(4, 2), at(3, 3), at(4, 3)], [0, 0, 1, 2]);
+}
+/// Each battle quadrant is its integrator's render of those pixels: the path-traced quadrants
+/// are bit for bit the plain render's, and BDPT's and photon mapping's match their own renders
+/// statistically (light tracing and photons stay inside their quadrant).
+#[test]
+fn battle_quadrants_are_their_integrators_renders() {
+    let mut s = Settings::default();
+    s.photons = 20_000;
+    s.spp = 4;
+    let size = [16, 12];
+    let spp = 64;
+    let mut b = s.clone();
+    b.battle = true;
+    let battle = render(&b, size, spp, &|_| {}).unwrap();
+    let mean = |img: &[f32], x0: usize, y0: usize| -> f32 {
+        let mut sum = 0.;
+        for y in y0..y0 + 6 {
+            for x in x0..x0 + 8 {
+                let i = (y * 16 + x) * 4;
+                sum += img[i] + img[i + 1] + img[i + 2];
+            }
+        }
+        sum / 48.
+    };
+    for (integrator, x0, y0) in [(0, 0, 0), (0, 8, 0), (1, 0, 6), (2, 8, 6)] {
+        let mut one = s.clone();
+        one.integrator = integrator;
+        let alone = render(&one, size, spp, &|_| {}).unwrap();
+        if integrator == 0 {
+            for y in y0..y0 + 6 {
+                let i = (y * 16 + x0) * 4;
+                assert_eq!(battle[i..i + 32], alone[i..i + 32]);
+            }
+        } else {
+            let (g, want) = (mean(&battle, x0, y0), mean(&alone, x0, y0));
+            assert!(
+                (g / want - 1.).abs() < 0.1,
+                "integrator {integrator}: {g} vs {want}"
+            );
+        }
+    }
 }
 #[test]
 fn a_paused_view_holds_after_its_pass_and_goes_on() {

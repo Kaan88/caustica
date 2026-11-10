@@ -39,19 +39,12 @@ pub use display::display;
 pub use prepare::{SHUTTER_MOMENTS, at_time, exposure, prepare};
 pub use progressive::{Live, LiveState, Progressive, render};
 
-/// What a scene uses that the reference does not render; empty when it can.
-pub fn unsupported(s: &Settings) -> Vec<String> {
-    let mut out = vec![];
-    let mut need = |c: bool, what: &str| {
-        if c {
-            out.push(what.to_string());
-        }
-    };
-    // `Fog::equiangular` only changes the GPU's sampling; the CPU ignores it.
-    need(s.battle, "battle mode (four integrators at once)");
-    // Measured spectra and blackbodies render as their RGB colour outside spectral mode, as on
-    // the GPU.
-    out
+/// What a scene uses that the reference does not render; empty when it can, which since battle
+/// mode is every scene. `Fog::equiangular` only changes the GPU's sampling, and measured spectra
+/// and blackbodies render as their RGB colour outside spectral mode, as on the GPU. The list
+/// stays the place a new GPU feature is refused until the reference has it.
+pub fn unsupported(_s: &Settings) -> Vec<String> {
+    vec![]
 }
 
 /// `--reference SPP`: renders `moments` (one scene, `prepare`d, or a motion-blurred frame's,
