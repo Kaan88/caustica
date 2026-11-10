@@ -104,7 +104,13 @@ impl App {
                 {
                     self.ui.panel_hidden = !self.ui.panel_hidden;
                 }
-                ui.with_layout(
+                // One row's height: with the window's full height a wrapped bar centres itself
+                // mid-screen and its separators run down the whole window. Extra rows grow down.
+                // A gap before the buttons: a combo box can run past the wrap point by its arrow.
+                ui.add_space(32.);
+                let row = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+                ui.allocate_ui_with_layout(
+                    row,
                     egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
                     |ui| {
                 ui.menu_button("Menu", |ui| {
@@ -365,7 +371,7 @@ impl App {
                 {
                     self.switch_scene("Seed of the day", |s| s.randomize(seed_of_the_day()));
                 }
-                cluster(ui, "Image", 290.);
+                cluster(ui, "Image", 340.);
                 self.quality_combo(ui);
                 let s = &mut self.settings;
                 egui::ComboBox::from_id_salt("top view")
@@ -741,7 +747,7 @@ impl App {
 fn cluster(ui: &mut egui::Ui, name: &str, width: f32) {
     let at_start = ui.cursor().min.x <= ui.max_rect().min.x + 1.;
     if !at_start {
-        if ui.available_width() < width {
+        if ui.available_size_before_wrap().x < width {
             ui.end_row();
         } else {
             ui.separator();
