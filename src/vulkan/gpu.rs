@@ -98,6 +98,10 @@ pub struct Gpu {
     env_scale: f32,
     env_inv_norm: f32,
     env_sun: Option<(crate::environment::Sun, f32)>,
+    /// Night sky N3: the stars' share of sky samples while on, and their table (t18, binding
+    /// 118; uploaded once, the placeholder stands in until then).
+    env_stars: Option<f32>,
+    star_buffer: Option<Buffer>,
     restarts: u32,
     sequence_base: u32,
     present_count: u32,
@@ -174,9 +178,14 @@ impl Drop for Gpu {
             for (_, (image, _, _)) in self.maps.drain() {
                 d.free_image(image);
             }
-            for b in [self.lpe_aov.take(), self.reservoirs.take(), self.aux.take()]
-                .into_iter()
-                .flatten()
+            for b in [
+                self.lpe_aov.take(),
+                self.reservoirs.take(),
+                self.aux.take(),
+                self.star_buffer.take(),
+            ]
+            .into_iter()
+            .flatten()
             {
                 d.free_buffer(b);
             }
@@ -501,6 +510,8 @@ impl Gpu {
                 env_scale: 1.,
                 env_inv_norm: 0.,
                 env_sun: None,
+                env_stars: None,
+                star_buffer: None,
                 restarts: 0,
                 sequence_base: 0,
                 present_count: 0,
@@ -809,7 +820,7 @@ impl Gpu {
                     self.layout.buffer(d, 0, binding, b.handle);
                 }
             }
-            if !self.st.painting {
+            if !self.st.keep_exposure {
                 self.reset(true);
             }
             Ok(())
@@ -886,6 +897,7 @@ impl Gpu {
                     env_scale: self.env_scale,
                     env_inv_norm: self.env_inv_norm,
                     env_sun: self.env_sun,
+                    env_stars: self.env_stars,
                     env,
                     lens_surfaces: self.lens_surfaces,
                     glare_grid: self.glare_grid(),
@@ -952,7 +964,7 @@ impl Gpu {
                 self.reset_pending = false;
                 self.previous_vp = vp;
             }
-            if !self.st.rr_active && s.denoise && !s.battle {
+            if !self.st.rr_active && s.native_filter() && !s.battle {
                 self.filter(s, &mut c, n > 0)?;
             } else {
                 self.st.denoiser_activity = "";

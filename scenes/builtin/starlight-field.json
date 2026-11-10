@@ -1,0 +1,64 @@
+{
+ "format": 1,
+ "title": "Starlight field",
+ "description": "A white floor under a clear moonless night at 45\u00b0 N, lit only by the catalogue's stars (83,479 to V 9, point lights), the Milky Way and airglow. Night skies are about a billionth of daylight: this scene waits for auto exposure (night sky N6); until then the sun intensity and exposure are at their maximum and the image is still dark. Used by tools/oracle.py for star light sampling and the camera's star cone.",
+ "tags": [
+  "night",
+  "sky",
+  "stars"
+ ],
+ "credits": "Caustica built-in scenes; stars: HYG database (CC BY-SA 4.0), see THIRD-PARTY-NOTICES.md",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.0,
+  "base": [
+   0.8,
+   0.8,
+   0.8
+  ],
+  "floor": {
+   "color": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "lights": [],
+  "objects": [],
+  "bounces": 6,
+  "yaw": 0,
+  "pitch": 12,
+  "distance": 6,
+  "target": [
+   0,
+   0.5,
+   0
+  ],
+  "fov": 60,
+  "exposure": 10.0,
+  "physical_sky": {
+   "on": true,
+   "time": 23.5,
+   "day": 30.0,
+   "latitude": 45.0,
+   "intensity": 1000.0,
+   "moon": false
+  }
+ }
+}

@@ -46,6 +46,11 @@ cbuffer Frame:register(b0) {
     float4 env_sun_color; // its radiance times the HDRI strength, the share of environment samples it takes
     float4 env_ground; // ground projection height above the floor (0 = off), the floor's height, shadow catcher (1/0), -
     float4 fog_noise; // heterogeneous fog: noise amount (0 = uniform), feature size, -, -
+    float4 star_x; // night sky N3 (stars.rs Frame::rows): J2000-to-world rotation row 0, w irradiance scale
+    float4 star_y; // row 1, w the stars' share of sky light samples (0 = none)
+    float4 star_z; // row 2, w the camera cone's chord
+    float4 star_tau; // zenith optical depth rgb, w 1 while stars are on
+    float4 star_limit; // the limiting magnitude's kept star count (a prefix of the table) and their CDF mass, -, -
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -64,6 +69,10 @@ StructuredBuffer<Instance> instances:register(t7);
 StructuredBuffer<uint> lpe_table:register(t8);
 // Track 16 lens system (lens.rs `pack`): header, surfaces, exit-pupil bounds per film band.
 StructuredBuffer<float4> lens_data:register(t9);
+// Night sky N3 (stars.rs Table::gpu_words): header (count, grid rows, columns, offsets word,
+// entries word), 8 words per star (J2000 direction, CDF, RGB irradiance over the sun's,
+// probability), the grid's cell offsets, then its star indices.
+StructuredBuffer<uint> star_data:register(t18);
 // Track 16 glare (post.hlsl): complex values, region r channel c at ((r*3+c)*512+y)*512+x;
 // region 0 the image being convolved, region 1 the kernel's spectrum.
 RWStructuredBuffer<float2> glare_data:register(u4,space2);

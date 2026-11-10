@@ -30,6 +30,7 @@ mod lpe;
 mod mesh;
 mod meshfmt;
 mod omm;
+mod palette;
 mod paths;
 mod physics;
 mod platform;
@@ -41,7 +42,6 @@ mod remote;
 mod render;
 #[cfg(windows)]
 mod renderer;
-mod saver;
 mod scene;
 mod scenes;
 mod script;
@@ -50,6 +50,7 @@ mod sky;
 mod snap;
 mod spectral_tables;
 mod spectrum;
+mod stars;
 mod stats;
 mod teapot_data;
 mod textscene;
@@ -200,8 +201,6 @@ struct App {
     pick_toggle: bool,
     /// Shift+right-click: the 3D cursor goes to the surface under this pixel (probe depth).
     cursor_pick: Option<[f64; 2]>,
-    /// Light painting (L): light edits keep the accumulation; progressive path only.
-    painting: bool,
     /// Walk mode (`): WASD and mouse look; the keys held down right now.
     walking: Option<walk::Walk>,
     /// Auto-key's reference state before the scene has keys (anim::Timeline::auto_key).
@@ -210,8 +209,6 @@ struct App {
     /// A text field holds the keyboard (see `ui::settle_focus`); the widget focused last frame.
     text_focus: bool,
     focus_seen: Option<egui::Id>,
-    /// Screensaver show mode (`/s`): cycles scenes and quits on input.
-    saver: Option<saver::Saver>,
     /// `--turntable PATH`: render the video in a headless run, then exit (size 0 = the window's).
     turntable_cli: Option<video::Options>,
     /// The running video export (item 6): rendered a pass at a time in `redraw`.
@@ -248,34 +245,6 @@ struct App {
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 308;
-/// Light painting's rule (both renderers): an edit keeps the long exposure when the transport
-/// keys differ only in the camera and the lights. Keys that don't parse never do.
-pub(crate) fn painting_keeps(old: &str, new: &str) -> bool {
-    let strip = |key: &str| {
-        let mut v: serde_json::Value = serde_json::from_str(key).ok()?;
-        let o = v.as_object_mut()?;
-        for k in [
-            "avatar",
-            "yaw",
-            "pitch",
-            "distance",
-            "target",
-            "fov",
-            "light_position",
-            "light_size",
-            "light_aspect",
-            "light_intensity",
-            "light_temperature",
-            "light_tint",
-            "light_on",
-            "lights",
-        ] {
-            o.remove(k);
-        }
-        Some(v)
-    };
-    matches!((strip(old), strip(new)), (Some(a), Some(b)) if a == b)
-}
 fn transport_key(s: &Settings) -> String {
     // The JSON tree without objects and lights (hashed below); the caller compares fields.
     let mut j = {
@@ -285,7 +254,12 @@ fn transport_key(s: &Settings) -> String {
             ..s.clone()
         })
         .unwrap();
-        top.as_object_mut().unwrap().remove("objects");
+        let top_map = top.as_object_mut().unwrap();
+        top_map.remove("objects");
+        // Native and Off share the accumulation (the filter is display-only); RR restarts it
+        // and the upscalers reconfigure (`rr` below).
+        top_map.remove("denoiser");
+        top_map.insert("rr".into(), s.rr().into());
         top
     };
     for k in [
@@ -300,7 +274,6 @@ fn transport_key(s: &Settings) -> String {
         "lpe_slot",
         "direct",
         "indirect",
-        "denoise",
         "denoise_strength",
         "compare",
         "split",
@@ -479,14 +452,7 @@ impl App {
         // switch: the command line then means the same in any order.
         let mut ordered: Vec<String> = vec![];
         let mut rest: Vec<String> = vec![];
-        // A screensaver run (`/s`, `/c`, `/p`) has no other switches.
         let raw: Vec<String> = std::env::args().skip(1).collect();
-        let screensaver = matches!(saver::mode(&raw), saver::Mode::Show);
-        let raw = if raw.first().is_some_and(|a| a.starts_with('/')) {
-            vec![]
-        } else {
-            raw
-        };
         let mut turntable_cli: Option<video::Options> = None;
         let mut all = raw.into_iter();
         while let Some(arg) = all.next() {
@@ -636,6 +602,12 @@ impl App {
                     // Override one top-level setting, e.g. --set direct=0.
                     let pair = args.next().context("--set needs key=value")?;
                     let (key, value) = pair.split_once('=').context("--set needs key=value")?;
+                    // The pre-0.12 bools still work: --set rr=false, --set denoise=false.
+                    if let Ok(on) = value.parse::<bool>()
+                        && s.denoiser.set_legacy(key, on)
+                    {
+                        continue;
+                    }
                     let mut j = serde_json::to_value(&s)?;
                     anyhow::ensure!(j.get(key).is_some(), "--set: unknown setting {key}");
                     j[key] = serde_json::from_str(value)
@@ -661,13 +633,14 @@ impl App {
                             .context("--reference-time needs seconds")?,
                     );
                 }
-                "--no-rr" => s.rr = false,
-                "--rr" => s.rr = true,
+                // Aliases for the denoiser choice; the last of --rr, --no-rr and --raw wins.
+                "--no-rr" => s.denoiser = s.denoiser.with_rr(false),
+                "--rr" => s.denoiser = scene::Denoiser::Rr,
                 "--require-rr" => {
-                    s.rr = true;
+                    s.denoiser = scene::Denoiser::Rr;
                     require_rr = true;
                 }
-                "--raw" => s.denoise = false,
+                "--raw" => s.denoiser = scene::Denoiser::Off,
                 "--debug" => debug = true,
                 "--vulkan" => vulkan = true,
                 // Overrides Menu → Renderer for one run.
@@ -710,6 +683,12 @@ impl App {
                 "--ui-advanced" => interface.advanced = true,
                 "--ui-scenes" => interface.show_scenes = true,
                 "--ui-shortcuts" => interface.show_shortcuts = true,
+                "--ui-palette" => {
+                    interface.palette.open = true;
+                    interface.palette.query = args
+                        .next()
+                        .context("--ui-palette needs a query (\"\" lists all)")?;
+                }
                 "--ui-assets" => interface.assets.open = true,
                 "--ui-video" => interface.show_video = true,
                 // Path visualizer open, recording the paths through output pixel X,Y (and
@@ -786,7 +765,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -946,13 +925,11 @@ impl App {
             pick_point: None,
             pick_toggle: false,
             cursor_pick: None,
-            painting: false,
             walking,
             auto_key_base: None,
             keys_down: Default::default(),
             text_focus: false,
             focus_seen: None,
-            saver: screensaver.then(saver::Saver::new),
             turntable_cli,
             export: None,
             cpu_export: None,
@@ -1365,23 +1342,6 @@ impl App {
                 }
             }
         }
-        if let Some(sv) = &mut self.saver
-            && Instant::now() >= sv.next_switch
-        {
-            // Presets except the empty stage, then every scene file.
-            let presets = PRESETS.len() - 1;
-            let count = presets + self.ui.scenes.len();
-            let i = sv.index % count;
-            sv.index += 1;
-            sv.next_switch = Instant::now() + Duration::from_secs(saver::Saver::SCENE_SECONDS);
-            if i < presets {
-                self.settings.preset(i);
-            } else {
-                self.load_scene_file(i - presets);
-            }
-            self.settings.rotate = true;
-            self.settings.rotate_speed = 4.;
-        }
         let g = self.gpu.as_mut().unwrap();
         if self.actions.frame_scene {
             self.settings
@@ -1412,6 +1372,12 @@ impl App {
         // not an edit; only the UI's changes before the next auto-key count.
         self.timeline
             .absorb(&self.settings, &mut self.auto_key_base);
+        // The frame loop runs continuously, so a finished import lands within a frame.
+        // A finished import waits while a video or timeline export renders: the scene must not
+        // change under it.
+        if self.export.is_none() && self.cpu_export.is_none() {
+            self.ui.land_mesh_imports(&mut self.settings);
+        }
         let mut frame = self.settings.clone();
         frame.add_flashlight();
         // Laser puzzle (track 17): the beam as glowing rods in this frame's copy.
@@ -1438,8 +1404,7 @@ impl App {
             }
             if let Some(a) = &mut self.audio {
                 a.update(&frame.audio, dt);
-                // Light painting keeps exposing through light changes, not emitter changes.
-                audio::apply(&mut frame, a.levels, a.beat, !self.painting);
+                audio::apply(&mut frame, a.levels, a.beat, true);
             }
             if let Some(Err(e)) = self.audio.as_mut().map(|a| a.recover()) {
                 self.audio = None;
@@ -1450,7 +1415,6 @@ impl App {
             self.audio = None;
         }
         let g = self.gpu.as_mut().unwrap();
-        g.painting = self.painting && self.export.is_none() && self.cpu_export.is_none();
         let s = &frame;
         // HDR output follows the monitor: re-read it after a move, or once Windows changed the
         // display setup (HDR toggled, calibration rerun, SDR brightness moved).
@@ -1586,12 +1550,8 @@ impl App {
                     old.as_object_mut().unwrap().remove(k);
                     new.as_object_mut().unwrap().remove(k);
                 }
-                // Light painting: moving or changing lights keeps the long exposure going.
                 let camera_moved = old != new;
-                let painted = self.painting && painting_keeps(&self.last_key, &key);
-                if !painted {
-                    g.reset(camera_moved);
-                }
+                g.reset(camera_moved);
                 self.last_key = key;
             }
             self.checked = Some(s.clone());
@@ -1612,7 +1572,7 @@ impl App {
         let draw = if self.cpu_view {
             g.samples == 0
         } else {
-            (!self.paused || g.samples == 0) && (g.samples < s.max_samples || self.painting)
+            (!self.paused || g.samples == 0) && g.samples < s.max_samples
         };
         // Look tools: zebras and scopes in the display pass, a light-meter texel under the cursor.
         // Zebras would be drawn into the exported frames.
@@ -1855,10 +1815,32 @@ impl App {
                         // A right click on part of the selection keeps all of it for the menu.
                         self.ui.select(sel);
                     }
-                    self.ui.tab = ui::Tab::Scene;
+                    // Look and Render keep their tab on a click (a double-click, which frames,
+                    // still opens Scene); the toast says where the inspector went.
+                    let keep_tab = pick_keeps_tab(self.ui.tab, frame_pick);
+                    if !keep_tab {
+                        self.ui.tab = ui::Tab::Scene;
+                    }
                     self.ui.panel_hidden = false;
-                    self.ui.scroll_to_inspector = !menu;
+                    self.ui.scroll_to_inspector = !menu && !keep_tab;
                     self.show_ui = true;
+                    if keep_tab && !menu {
+                        let name = match sel {
+                            ui::Selection::Object(i) => {
+                                self.settings.objects.get(i).map(|o| o.name.clone())
+                            }
+                            ui::Selection::Light(i) => {
+                                self.settings.lights.get(i).map(|l| l.name.clone())
+                            }
+                            ui::Selection::MainLight => Some("Main light".into()),
+                            _ => None,
+                        };
+                        if let Some(name) = name {
+                            self.ui.toast(format!(
+                                "Selected {name}: open Scene to edit it, Esc to deselect"
+                            ));
+                        }
+                    }
                     if frame_pick && let ui::Selection::Object(i) = sel {
                         self.settings
                             .focus_object(i, g.width as f32 / g.height as f32);
@@ -2055,7 +2037,6 @@ impl App {
             }
             if let Some(live) = &mut self.cpu_reference {
                 live.set_paused(self.paused);
-                live.set_painting(self.painting);
                 live.set_denoise(self.cpu_denoise, s.denoise_strength);
                 if live.key != self.last_key || live.size != size {
                     live.follow(s.clone(), self.last_key.clone(), size);
@@ -2278,7 +2259,7 @@ impl App {
                 "CPU"
             } else if g.rr_active {
                 "DLSS RR"
-            } else if s.denoise {
+            } else if s.native_filter() {
                 "À-trous"
             } else {
                 "Raw"
@@ -2620,18 +2601,9 @@ impl ApplicationHandler for App {
                         .with_window_icon(app_icon(None))
                         .with_taskbar_icon(app_icon(Some(256)))
                         .with_inner_size(winit::dpi::PhysicalSize::new(self.size[0], self.size[1]))
-                        .with_visible(!self.hidden)
-                        .with_fullscreen(
-                            self.saver
-                                .as_ref()
-                                .map(|_| winit::window::Fullscreen::Borderless(None)),
-                        ),
+                        .with_visible(!self.hidden),
                 )?,
             );
-            if self.saver.is_some() {
-                window.set_cursor_visible(false);
-                self.show_ui = false;
-            }
             let size = window.inner_size();
             startup("window");
             #[cfg(windows)]
@@ -2733,8 +2705,8 @@ impl ApplicationHandler for App {
                 self.ui.snap_to = self.ui.prefs.snap_to;
                 self.ui.panel_width = self.ui.prefs.panel_width;
                 // Undo for panel edits and the last session: not for frame-limited or scripted
-                // runs or the screensaver (nor headless runs and the self-test, above).
-                if self.frames.is_none() && self.script.is_none() && self.saver.is_none() {
+                // runs (nor headless runs and the self-test, above).
+                if self.frames.is_none() && self.script.is_none() {
                     self.ui.start_edit_tracking(&self.settings);
                 }
                 self.egui.set_zoom_factor(self.ui.prefs.zoom);
@@ -2746,13 +2718,12 @@ impl ApplicationHandler for App {
                     unsafe { std::env::remove_var(update::UPDATED_FROM) };
                 }
                 // Only interactive, installed runs ever look: not a build from source, a
-                // headless, scripted or frame-limited run, the screensaver or the self-test.
+                // headless, scripted or frame-limited run or the self-test.
                 if let Some(source) = &self.update_from {
                     self.updater.offer_from(source);
                 } else if self.ui.prefs.update_check
                     && self.frames.is_none()
                     && self.script.is_none()
-                    && self.saver.is_none()
                     && dirs::mode() == dirs::Mode::Installed
                     && !VERSION.contains('-')
                 {
@@ -2833,39 +2804,6 @@ impl ApplicationHandler for App {
         } else {
             false
         };
-        if let Some(sv) = &mut self.saver {
-            // Windows sends stray events while a fullscreen window takes focus (synthetic keys,
-            // an AltGr press on some layouts), so input counts after a short grace period and
-            // modifier keys never do.
-            let settled = sv.started.elapsed() > Duration::from_millis(1500);
-            let quit = settled
-                && match &event {
-                    WindowEvent::KeyboardInput {
-                        event,
-                        is_synthetic: false,
-                        ..
-                    } => !matches!(
-                        event.physical_key,
-                        PhysicalKey::Code(
-                            KeyCode::AltLeft
-                                | KeyCode::AltRight
-                                | KeyCode::ControlLeft
-                                | KeyCode::ControlRight
-                                | KeyCode::ShiftLeft
-                                | KeyCode::ShiftRight
-                                | KeyCode::SuperLeft
-                                | KeyCode::SuperRight
-                        )
-                    ),
-                    WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. } => true,
-                    WindowEvent::CursorMoved { position, .. } => sv.moved([position.x, position.y]),
-                    _ => false,
-                };
-            if quit {
-                event_loop.exit();
-                return;
-            }
-        }
         // A video export takes no viewport or shortcut input: the scene must not change under it.
         if (self.export.is_some() || self.cpu_export.is_some())
             && !matches!(
@@ -3213,8 +3151,14 @@ impl ApplicationHandler for App {
                                 }
                             }
                         }
-                        // Ctrl+D or Shift+D with nothing to copy: not the denoiser (D).
+                        // Ctrl+D or Shift+D with nothing to copy: not the denoiser (Alt+D).
                         KeyCode::KeyD if self.ctrl || self.shift => {}
+                        KeyCode::KeyD if self.alt => self.cycle_denoiser(),
+                        KeyCode::KeyK if self.ctrl => {
+                            self.ui.palette.open = !self.ui.palette.open;
+                            self.ui.palette.query.clear();
+                            self.ui.palette.at = 0;
+                        }
                         KeyCode::KeyH if self.alt => self.run_command(ui::Command::ShowAll),
                         KeyCode::KeyH if selected => self.run_command(ui::Command::Hide),
                         KeyCode::Home => self.reset_camera(),
@@ -3278,7 +3222,6 @@ impl ApplicationHandler for App {
                             self.ui.toast("Restarted");
                         }
                         KeyCode::KeyF => self.frame_selection(),
-                        KeyCode::KeyL => self.toggle_painting(),
                         KeyCode::KeyE
                             if self.settings.physics.enabled && self.walking.is_none() =>
                         {
@@ -3312,29 +3255,10 @@ impl ApplicationHandler for App {
                                 self.ui.toast(format!("Deleted {name}"));
                             }
                         }
-                        KeyCode::KeyA => {
-                            self.settings.rotate = !self.settings.rotate;
-                            let on = self.settings.rotate;
-                            self.ui.toast(if on {
-                                "Auto orbit on"
-                            } else {
-                                "Auto orbit off"
-                            });
-                        }
-                        KeyCode::KeyD => {
-                            self.settings.denoise = !self.settings.denoise;
-                            let text = match (self.settings.denoise, self.settings.rr) {
-                                (true, false) => "Native denoiser on",
-                                (false, false) => "Native denoiser off (raw samples)",
-                                (true, true) => {
-                                    "Native denoiser on (used when Ray Reconstruction is off)"
-                                }
-                                (false, true) => {
-                                    "Native denoiser off (used when Ray Reconstruction is off)"
-                                }
-                            };
-                            self.ui.toast(text);
-                        }
+                        KeyCode::KeyO if !self.alt => self.toggle_orbit(),
+                        // The old keys of these two, which WASD users hit by accident.
+                        KeyCode::KeyA => self.ui.toast("Auto orbit is O"),
+                        KeyCode::KeyD => self.ui.toast("Cycle the denoiser with Alt+D"),
                         KeyCode::KeyC => {
                             self.actions.reference = true;
                             self.ui
@@ -3423,6 +3347,24 @@ impl ApplicationHandler for App {
     }
 }
 impl App {
+    /// O: auto orbit.
+    fn toggle_orbit(&mut self) {
+        self.settings.rotate = !self.settings.rotate;
+        let on = self.settings.rotate;
+        self.ui.toast(if on {
+            "Auto orbit on"
+        } else {
+            "Auto orbit off"
+        });
+    }
+    /// Alt+D: Ray Reconstruction, Native, None.
+    fn cycle_denoiser(&mut self) {
+        let all = scene::Denoiser::ALL;
+        let at = all.iter().position(|d| *d == self.settings.denoiser);
+        self.settings.denoiser = all[(at.unwrap_or(0) + 1) % all.len()];
+        self.ui
+            .toast(format!("Denoiser: {}", self.settings.denoiser.label()));
+    }
     /// Shortcuts run unless a text field holds the keyboard, or a widget has just been given it:
     /// a DragValue's field only appears the frame after its click.
     fn keys_free(&self) -> bool {
@@ -3616,10 +3558,6 @@ fn run() -> Result<()> {
     if args.iter().any(|a| a == "--vulkan-smoke") {
         return vulkan::run(&args);
     }
-    if let saver::Mode::Preview(parent) = saver::mode(&args) {
-        saver::preview(parent);
-        return Ok(());
-    }
     // Renders the missing scene thumbnails (each one a headless run of this exe, on the CPU
     // renderer with --cpu) and exits.
     // `--thumbnails-out DIR` (the release scripts) renders the shipped scenes' thumbnails and the
@@ -3725,8 +3663,24 @@ fn run() -> Result<()> {
     }
     Ok(())
 }
+/// A viewport click keeps the Look or Render tab; a double-click (frame) and every other tab go
+/// to Scene, as the inspector lives there.
+fn pick_keeps_tab(tab: ui::Tab, frame_pick: bool) -> bool {
+    !frame_pick && matches!(tab, ui::Tab::Look | ui::Tab::Render)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_pick_keeps_look_and_render_but_not_a_double_click() {
+        use super::{pick_keeps_tab, ui::Tab};
+        assert!(pick_keeps_tab(Tab::Look, false));
+        assert!(pick_keeps_tab(Tab::Render, false));
+        assert!(!pick_keeps_tab(Tab::Render, true));
+        assert!(!pick_keeps_tab(Tab::Scene, false));
+        assert!(!pick_keeps_tab(Tab::Export, false));
+    }
+
     /// A double-click on a slider (driven through egui's real input) resets the field to the
     /// registered reference; a single click on the rail still sets it.
     #[test]

@@ -243,7 +243,8 @@ impl App {
                 );
             }
             egui::Area::new(egui::Id::new("transform header"))
-                .anchor(egui::Align2::CENTER_TOP, [0., 44.])
+                .anchor(egui::Align2::CENTER_TOP, [0., 8.])
+                .constrain_to(ctx.available_rect())
                 .order(egui::Order::Foreground)
                 .interactable(false)
                 .show(ctx, |ui| {

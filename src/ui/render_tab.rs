@@ -69,26 +69,48 @@ impl App {
             );
         }
         section(ui, "Reconstruction");
+        note(
+            ui,
+            "Denoiser and resolution are also set together by the top bar's Quality menu; Alt+D cycles the denoiser.",
+        );
         let caps = g.capabilities();
-        ui.add_enabled((caps.rr.available || s.rr) && !s.battle, egui::Checkbox::new(&mut s.rr, "DLSS Ray Reconstruction"))
-            .on_hover_text("NVIDIA's neural denoiser and upscaler in one. When off, the native denoiser and the upscaler below are used.")
-            .on_disabled_hover_text(if s.battle {
-                BATTLE_RAW.to_string()
-            } else {
-                format!("Unavailable: {}", caps.rr.reason)
-            });
-        if s.rr {
-            let color = if g.rr_active {
-                ui.visuals().text_color()
-            } else {
-                WARN
-            };
-            ui.label(egui::RichText::new(&g.rr_status).small().color(color));
-        }
         // At 100% only DLAA / Native AA runs an upscaler (`Gpu::prepare_upscaler`'s test).
         let at_native = g.rw >= g.width && !(s.native_aa && s.upscaler.temporal());
         grid("reconstruction").show(ui, |ui| {
-            if s.rr {
+            row(
+                ui,
+                "Denoiser",
+                "What cleans the noise. Ray Reconstruction is NVIDIA's neural denoiser and upscaler in one; Native is the built-in SVGF-style filter and works with the upscaler below; None shows raw samples. Ray Reconstruction falls back to Native when it cannot run. Alt+D cycles them.",
+                |ui| {
+                    ui.add_enabled_ui(!s.battle, |ui| {
+                        let r = egui::ComboBox::from_id_salt("denoiser")
+                            .selected_text(s.denoiser.label())
+                            .width(220.)
+                            .show_ui(ui, |ui| {
+                                for d in Denoiser::ALL {
+                                    let backend = caps.denoiser(d);
+                                    ui.add_enabled_ui(backend.is_none_or(|b| b.available) || s.denoiser == d, |ui| {
+                                        ui.selectable_value(&mut s.denoiser, d, d.label())
+                                            .on_disabled_hover_text(format!("Unavailable: {}", backend.map_or("", |b| b.reason.as_str())));
+                                    });
+                                }
+                            })
+                            .response;
+                        why_disabled(r, BATTLE_RAW);
+                    });
+                },
+            );
+            if s.rr() {
+                row(ui, "RR status", "Whether Ray Reconstruction is running, and why not.", |ui| {
+                    let color = if g.rr_active {
+                        ui.visuals().text_color()
+                    } else {
+                        WARN
+                    };
+                    ui.label(egui::RichText::new(&g.rr_status).small().color(color));
+                });
+            }
+            if s.rr() {
                 row(ui, "RR model", "The DLSS Ray Reconstruction model.", |ui| {
                     ui.add_enabled_ui(!s.battle, |ui| {
                         let r = egui::ComboBox::from_id_salt("rr model")
@@ -102,6 +124,24 @@ impl App {
                         why_disabled(r, BATTLE_RAW);
                     });
                 });
+            }
+            // The native denoiser's own rows sit with the Denoiser choice, shown when it is the
+            // choice (or under Show advanced, where Ray Reconstruction's fallback uses them).
+            if s.native_filter() && (advanced || s.denoiser == Denoiser::Native) {
+            let idle = denoiser_idle(g.rr_active, s.battle);
+                row(ui, "Denoise strength", "How strongly the native denoiser smooths.", |ui| {
+                    ui.add_enabled_ui(idle.is_none(), |ui| {
+                        why_disabled(ui.add(crate::slider(&mut s.denoise_strength, 0. ..=1.)), idle.unwrap_or_default());
+                    });
+                });
+                check_row_with(
+                    ui,
+                    "Reuse temporal history",
+                    "The native denoiser blends in earlier frames.",
+                    &mut s.temporal,
+                    idle,
+                    |_, _| {},
+                );
             }
             row(
                 ui,
@@ -122,8 +162,17 @@ impl App {
                         });
                 },
             );
+            if advanced || !RESOLUTIONS.iter().any(|(v, _)| (v - s.scale).abs() < 0.005) {
+                row(ui, "Render scale", "Any render scale from 25% to 100%.", |ui| {
+                    ui.add(
+                        crate::slider(&mut s.scale, 0.25..=1.)
+                            .custom_formatter(|v, _| format!("{:.0}%", v * 100.))
+                            .custom_parser(|t| t.trim_end_matches('%').trim().parse::<f64>().ok().map(|v| v / 100.)),
+                    );
+                });
+            }
             row(ui, "Upscaler", "Used below 100%, and as DLAA / Native AA at 100%. Ray Reconstruction does its own upscaling.", |ui| {
-                let idle = upscaler_idle(s.rr, s.battle);
+                let idle = upscaler_idle(s.rr(), s.battle);
                 ui.add_enabled_ui(idle.is_none(), |ui| {
                     let r = egui::ComboBox::from_id_salt("upscaler")
                         .selected_text(s.upscaler.label())
@@ -141,7 +190,7 @@ impl App {
                     why_disabled(r, idle.unwrap_or_default());
                 });
             });
-            if !s.rr && s.upscaler == Upscaler::Dlss {
+            if !s.rr() && s.upscaler == Upscaler::Dlss {
                 row(
                     ui,
                     "DLSS preset",
@@ -167,20 +216,12 @@ impl App {
                     },
                 );
             }
-            check_row_with(
-                ui,
-                "Native denoiser (D)",
-                "SVGF-style denoiser, used when Ray Reconstruction is off. Off shows raw samples.",
-                &mut s.denoise,
-                denoiser_idle(g.rr_active, s.battle),
-                |_, _| {},
-            );
             row(
                 ui,
                 "Pixel filter",
                 "How the progressive path spreads each pixel's samples. Box is the old sharp, slightly jagged look; Blackman-Harris and Gaussian give smoother edges. Ray Reconstruction and the temporal upscalers use their own jitter instead.",
                 |ui| {
-                    ui.add_enabled_ui(!s.rr, |ui| {
+                    ui.add_enabled_ui(!s.rr(), |ui| {
                         let r = egui::ComboBox::from_id_salt("pixel_filter")
                             .selected_text(
                                 *scene::PIXEL_FILTERS
@@ -203,7 +244,7 @@ impl App {
                     "Filter width",
                     "Full width of the pixel filter: wider is softer and hides more aliasing. 1.5 pixels matches Cycles.",
                     |ui| {
-                        ui.add_enabled_ui(!s.rr, |ui| {
+                        ui.add_enabled_ui(!s.rr(), |ui| {
                             why_disabled(
                                 ui.add(crate::slider(&mut s.filter_width, 0.5..=4.).suffix(" px")),
                                 RR_RECONSTRUCTS,
@@ -211,15 +252,6 @@ impl App {
                         });
                     },
                 );
-            }
-            if advanced || !RESOLUTIONS.iter().any(|(v, _)| (v - s.scale).abs() < 0.005) {
-                row(ui, "Render scale", "Any render scale from 25% to 100%.", |ui| {
-                    ui.add(
-                        crate::slider(&mut s.scale, 0.25..=1.)
-                            .custom_formatter(|v, _| format!("{:.0}%", v * 100.))
-                            .custom_parser(|t| t.trim_end_matches('%').trim().parse::<f64>().ok().map(|v| v / 100.)),
-                    );
-                });
             }
         });
         note(
@@ -229,9 +261,9 @@ impl App {
                 g.rw, g.rh, g.width, g.height
             ),
         );
-        if !s.rr && !g.upscale_status.is_empty() {
+        if !s.rr() && !g.upscale_status.is_empty() {
             note(ui, &g.upscale_status);
-        } else if !s.rr && !s.battle && at_native {
+        } else if !s.rr() && !s.battle && at_native {
             note(
                 ui,
                 "The upscaler is not running at Native; it sets the AA entry in Quality mode.",
@@ -318,21 +350,6 @@ impl App {
         more(ui, "render more", advanced, |ui| {
             section(ui, "Advanced");
             grid("render advanced").show(ui, |ui| {
-                if !g.rr_active && s.denoise {
-                    row(ui, "Denoise strength", "How strongly the native denoiser smooths.", |ui| {
-                        ui.add_enabled_ui(!s.battle, |ui| {
-                            why_disabled(ui.add(crate::slider(&mut s.denoise_strength, 0. ..=1.)), BATTLE_RAW);
-                        });
-                    });
-                    check_row_with(
-                        ui,
-                        "Reuse temporal history",
-                        "The native denoiser blends in earlier frames.",
-                        &mut s.temporal,
-                        s.battle.then_some(BATTLE_RAW),
-                        |_, _| {},
-                    );
-                }
                 row(ui, "Sample pattern", "Low-discrepancy (Owen-scrambled Sobol) converges faster. Ray Reconstruction always uses random samples.", |ui| {
                     let random = pattern_is_random(g.rr_active, s.integrator, s.battle);
                     ui.add_enabled_ui(!random, |ui| {

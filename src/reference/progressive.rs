@@ -215,9 +215,8 @@ impl<'a> Progressive<'a> {
             self.keep_aovs();
         }
     }
-    /// Moves the camera and keeps the sums: light painting's long exposure, which a camera move
-    /// smears as it would a photograph's.
-    pub(super) fn aim(&mut self, camera: &Settings, size: [u32; 2]) {
+    /// Moves the camera and keeps the sums.
+    fn aim(&mut self, camera: &Settings, size: [u32; 2]) {
         for scene in &mut self.scenes {
             scene.set_camera(camera, size);
         }
@@ -570,8 +569,6 @@ pub(super) fn same_but_camera(a: &Settings, b: &Settings) -> bool {
 struct Request {
     settings: Settings,
     size: [u32; 2],
-    /// Light painting keeps the exposure through this edit (`crate::painting_keeps`).
-    paint: bool,
 }
 /// A published image: linear RGBA, rows top first.
 pub type Image = Arc<Vec<f32>>;
@@ -585,8 +582,6 @@ pub struct Live {
     pub key: String,
     pub size: [u32; 2],
     pub view: bool,
-    /// The scene's sample cap, which light painting lifts.
-    cap: u32,
     shared: Arc<Shared>,
 }
 #[derive(Default)]
@@ -596,9 +591,6 @@ struct Shared {
     /// Ends the current pass: a request is waiting. Set and cleared under `inner`'s lock.
     cancel: AtomicBool,
     paused: AtomicBool,
-    /// Light painting (the app's L): edits of the lights and the camera keep the exposure, which
-    /// goes on past the sample cap, as the GPU's does.
-    painting: AtomicBool,
     /// The view's denoiser (`denoise`): on, and its strength's bits.
     denoise: AtomicBool,
     strength: std::sync::atomic::AtomicU32,
@@ -645,12 +637,7 @@ impl Live {
             inner.state.threads = threads;
         }
         let job = shared.clone();
-        let cap = s.max_samples.max(1);
-        let first = Request {
-            settings: s,
-            size,
-            paint: false,
-        };
+        let first = Request { settings: s, size };
         let spawned = std::thread::Builder::new()
             .name("cpu-render".into())
             .spawn(move || {
@@ -666,7 +653,6 @@ impl Live {
             key,
             size,
             view,
-            cap,
             shared,
         }
     }
@@ -674,42 +660,22 @@ impl Live {
     /// drag can't queue work. The view keeps its last image until the next one lands; the
     /// reference has none until then.
     pub fn follow(&mut self, s: Settings, key: String, size: [u32; 2]) {
-        let painting = self.shared.painting.load(Ordering::Relaxed);
-        let paint = painting && size == self.size && crate::painting_keeps(&self.key, &key);
         self.key = key;
         self.size = size;
-        self.cap = s.max_samples.max(1);
         let mut inner = lock(&self.shared.inner);
         let st = &mut inner.state;
-        st.cap = if painting { u32::MAX } else { self.cap };
+        st.cap = s.max_samples.max(1);
         st.error = None;
-        if !paint {
-            st.preview = self.view;
-            st.samples = 0;
-            st.seconds = 0.;
-            if !self.view {
-                st.image = None;
-                st.fresh = false;
-            }
+        st.preview = self.view;
+        st.samples = 0;
+        st.seconds = 0.;
+        if !self.view {
+            st.image = None;
+            st.fresh = false;
         }
-        inner.request = Some(Request {
-            settings: s,
-            size,
-            paint,
-        });
-        // A painted exposure lets the running pass finish: a cancelled one leaves some rows with
-        // a sample more than the rest.
-        if !paint {
-            self.shared.cancel.store(true, Ordering::Relaxed);
-        }
+        inner.request = Some(Request { settings: s, size });
+        self.shared.cancel.store(true, Ordering::Relaxed);
         self.shared.wake.notify_all();
-    }
-    /// Light painting on or off; turning it on or off doesn't restart (the app restarts it).
-    pub fn set_painting(&self, on: bool) {
-        if self.shared.painting.swap(on, Ordering::Relaxed) != on {
-            lock(&self.shared.inner).state.cap = if on { u32::MAX } else { self.cap };
-            self.shared.wake.notify_all();
-        }
     }
     /// Progress without the image.
     pub fn state(&self) -> LiveState {
@@ -836,8 +802,6 @@ impl Shared {
     /// The thread: builds the scene of each request whose scene differs from the last.
     fn run(&self, first: Request, view: bool, threads: usize) {
         let mut next = first;
-        // Light painting's exposure, carried from one scene to the next.
-        let mut carry: Option<(Vec<DVec3>, u32, f32)> = None;
         loop {
             let (s, size) = (next.settings, next.size);
             let built = if view {
@@ -850,20 +814,7 @@ impl Shared {
             let request = match built {
                 Ok(mut p) => {
                     p.background = true;
-                    let mut spent = 0.;
-                    if let Some((sums, samples, seconds)) = carry.take()
-                        && next.paint
-                        && sums.len() == p.sums.len()
-                    {
-                        (p.sums, p.samples, spent) = (sums, samples, seconds);
-                    }
-                    let request = self.drive(&s, &mut p, view, threads, spent);
-                    if let Some((r, seconds)) = &request
-                        && r.paint
-                    {
-                        carry = Some((std::mem::take(&mut p.sums), p.samples, *seconds));
-                    }
-                    request.map(|(r, _)| r)
+                    self.drive(&s, &mut p, view, threads)
                 }
                 Err(e) => {
                     self.refuse(format!("{e:#}"));
@@ -884,21 +835,19 @@ impl Shared {
             }
         }
     }
-    /// Renders one scene from whatever viewpoints arrive. Returns a request for another scene
-    /// (with the seconds spent, which light painting carries on), or None when told to stop. A
-    /// cancelled pass always has a request behind it, which starts the sums over, except under
-    /// light painting, whose request keeps them: the cancelled pass never added to them.
+    /// Renders one scene from whatever viewpoints arrive. Returns a request for another scene,
+    /// or None when told to stop. A cancelled pass always has a request behind it, which starts
+    /// the sums over.
     fn drive(
         &self,
         s: &Settings,
         p: &mut Progressive<'_>,
         view: bool,
         threads: usize,
-        mut spent: f32,
-    ) -> Option<(Request, f32)> {
+    ) -> Option<Request> {
+        let mut spent = 0.;
         let mut block = 8;
-        // A painted exposure has its image already; a preview would replace it.
-        let mut previewed = !view || p.samples > 0;
+        let mut previewed = !view;
         let mut spp = 1;
         // The denoiser setting the last image was made with.
         let mut shown = (false, 0);
@@ -915,22 +864,14 @@ impl Shared {
             }
             if let Some(r) = self.take() {
                 if !same_but_camera(s, &r.settings) {
-                    return Some((r, spent));
+                    return Some(r);
                 }
-                if r.paint {
-                    p.aim(&r.settings, r.size);
-                } else {
-                    p.move_camera(&r.settings, r.size);
-                    previewed = !view;
-                    spp = 1;
-                    spent = 0.;
-                }
+                p.move_camera(&r.settings, r.size);
+                previewed = !view;
+                spp = 1;
+                spent = 0.;
             }
-            let cap = if self.painting.load(Ordering::Relaxed) {
-                u32::MAX
-            } else {
-                s.max_samples.max(1)
-            };
+            let cap = s.max_samples.max(1);
             if !previewed {
                 previewed = true;
                 // Not cancelled by the next request: while the camera moves each frame brings one,

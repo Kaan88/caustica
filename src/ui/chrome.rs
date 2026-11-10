@@ -82,8 +82,31 @@ impl App {
     }
     pub(super) fn top_bar(&mut self, ctx: &egui::Context, known: bool) {
         egui::TopBottomPanel::top("top bar").show(ctx, |ui| {
-            // Wraps onto a second row when the window is too narrow, so no control is cut off.
-            ui.horizontal_wrapped(|ui| {
+            // Hide/Show panel and ? are laid out first, from the right, so they are never pushed
+            // off screen; the clusters wrap in what is left, and only between clusters.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                if ui
+                    .selectable_label(self.ui.show_shortcuts, "?")
+                    .on_hover_text("Keyboard and mouse (F1)")
+                    .clicked()
+                {
+                    self.ui.show_shortcuts = !self.ui.show_shortcuts;
+                }
+                let label = if self.ui.panel_hidden {
+                    "Show panel"
+                } else {
+                    "Hide panel"
+                };
+                if ui
+                    .button(label)
+                    .on_hover_text("Tab. A second Tab hides everything.")
+                    .clicked()
+                {
+                    self.ui.panel_hidden = !self.ui.panel_hidden;
+                }
+                ui.with_layout(
+                    egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                    |ui| {
                 ui.menu_button("Menu", |ui| {
                     ui.weak(format!("Caustica {}", crate::VERSION));
                     ui.separator();
@@ -158,15 +181,18 @@ impl App {
                         self.save_scene(true);
                         ui.close_menu();
                     }
-                    if ui.button("Save settings.json").clicked() {
+                    if ui.button("Save settings.json")
+                        .on_hover_text("A bare settings file, scene included, overwritten each time in the output folder. Save scene writes a titled scene file into your scenes instead.").clicked() {
                         self.actions.save = Some(crate::dirs::output("settings.json"));
                         ui.close_menu();
                     }
-                    if ui.button("Save settings as…").clicked() {
+                    if ui.button("Save settings as…")
+                        .on_hover_text("A bare settings file, scene included, at a place you pick. Save scene as… writes a titled scene file into your scenes instead.").clicked() {
                         self.actions.save = settings_dialog(true);
                         ui.close_menu();
                     }
-                    if ui.button("Load settings…").clicked() {
+                    if ui.button("Load settings…")
+                        .on_hover_text("Replaces the scene and every setting from a bare settings file. Open scene… loads a titled scene file.").clicked() {
                         self.actions.load = settings_dialog(false);
                         ui.close_menu();
                     }
@@ -218,9 +244,9 @@ impl App {
                         "Click: select an object or light · Delete: remove it · Esc: deselect",
                         "G / R / S over the viewport: move, rotate, scale · then X / Y / Z, a value, Enter",
                         "Ctrl+Z / Ctrl+Y: undo / redo · Ctrl+S / Ctrl+O: save / open",
-                        "Space: pause · R: restart (no object or light selected) · F: frame · A: auto orbit",
-                        "D: native denoiser · C: freeze A/B reference · 1–8: views",
-                        "F12: save PNG · Tab: hide panels · Ctrl +/−: UI size · F1: all keys",
+                        "Space: pause · R: restart (no object or light selected) · F: frame · O: auto orbit",
+                        "Alt+D: cycle the denoiser · C: freeze A/B reference · 1–8: views",
+                        "F12: save PNG · Tab: hide panels · Ctrl+K: find a setting · F1: all keys",
                     ] {
                         ui.label(egui::RichText::new(line).small());
                     }
@@ -232,6 +258,7 @@ impl App {
                     );
                 });
                 let traces = self.gpu.as_ref().is_some_and(|g| g.ray_tracing);
+                cluster(ui, "Render on", 110.);
                 ui.add_enabled_ui(traces, |ui| {
                     ui.selectable_value(&mut self.cpu_view, false, "GPU")
                         .on_hover_text("The viewport shows the GPU's path tracer")
@@ -239,10 +266,10 @@ impl App {
                 });
                 ui.selectable_value(&mut self.cpu_view, true, "CPU")
                     .on_hover_text(CPU_VIEW_HELP);
-                ui.separator();
+                cluster(ui, "Scene", 620.);
                 if ui
                     .button("◀")
-                    .on_hover_text("Previous scene (Page Up)")
+                    .on_hover_text("Previous scene (Page Up): in the Scenes list while a scene file is loaded, else in the presets")
                     .clicked()
                 {
                     self.step_scene(-1);
@@ -278,14 +305,22 @@ impl App {
                             }
                             ui.separator();
                         }
+                        if ui
+                            .button(format!("All scenes… ({})", self.ui.scenes.len()))
+                            .on_hover_text("The full list with search and tags (Ctrl+P)")
+                            .clicked()
+                        {
+                            self.ui.show_scenes = true;
+                            ui.close_menu();
+                        }
                     })
                     .response
                     .on_hover_text(
-                        "Pick a scene. Picking the current one again restores it. A * marks unsaved changes.",
+                        "The built-in presets; All scenes… opens the full list. Picking the current one again restores it. A * marks unsaved changes.",
                     );
                 if ui
                     .button("▶")
-                    .on_hover_text("Next scene (Page Down)")
+                    .on_hover_text("Next scene (Page Down): in the Scenes list while a scene file is loaded, else in the presets")
                     .clicked()
                 {
                     self.step_scene(1);
@@ -330,7 +365,7 @@ impl App {
                 {
                     self.switch_scene("Seed of the day", |s| s.randomize(seed_of_the_day()));
                 }
-                ui.separator();
+                cluster(ui, "Image", 290.);
                 self.quality_combo(ui);
                 let s = &mut self.settings;
                 egui::ComboBox::from_id_salt("top view")
@@ -343,6 +378,7 @@ impl App {
                     })
                     .response
                     .on_hover_text("What the viewport shows (keys 1–8)");
+                cluster(ui, "Playback", 380.);
                 if ui
                     .button(if self.paused {
                         "▶ Resume"
@@ -367,15 +403,6 @@ impl App {
                     .clicked()
                 {
                     self.frame_selection();
-                }
-                if ui
-                    .selectable_label(self.painting, "Paint light")
-                    .on_hover_text(
-                        "Light painting (L): lights you move leave trails in one long exposure",
-                    )
-                    .clicked()
-                {
-                    self.toggle_painting();
                 }
                 if ui
                     .selectable_label(self.walking.is_some(), "Walk")
@@ -403,7 +430,7 @@ impl App {
                 {
                     self.ui.show_timeline = !self.ui.show_timeline;
                 }
-                ui.separator();
+                cluster(ui, "Tools", 560.);
                 for (tool, label, tip) in [
                     (gizmo::Tool::Select, "Select", "Click to select, no handles"),
                     (
@@ -454,27 +481,8 @@ impl App {
                     })
                     .response
                     .on_hover_text("Hold Ctrl while transforming. Increment: 0.1 units, 15°, 0.1×. Surface / Vertex / Edge: a move goes to what is under the pointer");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .selectable_label(self.ui.show_shortcuts, "?")
-                        .on_hover_text("Keyboard and mouse (F1)")
-                        .clicked()
-                    {
-                        self.ui.show_shortcuts = !self.ui.show_shortcuts;
-                    }
-                    let label = if self.ui.panel_hidden {
-                        "Show panel"
-                    } else {
-                        "Hide panel"
-                    };
-                    if ui
-                        .button(label)
-                        .on_hover_text("Tab. A second Tab hides everything.")
-                        .clicked()
-                    {
-                        self.ui.panel_hidden = !self.ui.panel_hidden;
-                    }
-                });
+                    },
+                );
             });
         });
     }
@@ -565,31 +573,9 @@ impl App {
                     ui.label(format!("{} × {}", g.width, g.height));
                     return;
                 }
-                let [trace, rebuild, display, gui] = g.pass_ms;
-                let passes = format!(
-                    "Trace {trace:.2} ms · denoise / RR / upscale {rebuild:.2} ms · display {display:.2} ms · UI {gui:.2} ms"
-                );
-                if self.ui.advanced {
-                    ui.monospace(format!(
-                        "{:.2} ms GPU (trace {trace:.2} · reconstruct {rebuild:.2} · display {display:.2} · UI {gui:.2})",
-                        g.gpu_ms
-                    ));
-                } else {
-                    ui.monospace(format!("{:.2} ms GPU", g.gpu_ms))
-                        .on_hover_text(passes);
-                }
-                ui.separator();
-                ui.label(if fallback {
-                    egui::RichText::new(&text).color(WARN)
-                } else {
-                    egui::RichText::new(&text)
-                });
-                // What the denoiser is doing right now (Advanced): reprojecting, integrating,
-                // or starting over after an edit.
-                if self.ui.advanced && !g.denoiser_activity.is_empty() {
-                    ui.label(g.denoiser_activity);
-                }
-                ui.separator();
+                // Left to right is most to least useful: what clips first in a narrow window is
+                // at the end. State, spp and ETA are above; then size and HDR, the pipeline
+                // (so an amber fallback is never clipped), GPU time and, last, object counts.
                 if g.rw == g.width {
                     ui.label(format!("{} × {}", g.width, g.height));
                 } else {
@@ -605,6 +591,31 @@ impl App {
                             .color(ACCENT),
                     )
                     .on_hover_text("Real HDR output. Details in the Look tab.");
+                }
+                ui.separator();
+                ui.label(if fallback {
+                    egui::RichText::new(&text).color(WARN)
+                } else {
+                    egui::RichText::new(&text)
+                });
+                // What the denoiser is doing right now (Advanced): reprojecting, integrating,
+                // or starting over after an edit.
+                if self.ui.advanced && !g.denoiser_activity.is_empty() {
+                    ui.label(g.denoiser_activity);
+                }
+                ui.separator();
+                let [trace, rebuild, display, gui] = g.pass_ms;
+                let passes = format!(
+                    "Trace {trace:.2} ms · denoise / RR / upscale {rebuild:.2} ms · display {display:.2} ms · UI {gui:.2} ms"
+                );
+                if self.ui.advanced {
+                    ui.monospace(format!(
+                        "{:.2} ms GPU (trace {trace:.2} · reconstruct {rebuild:.2} · display {display:.2} · UI {gui:.2})",
+                        g.gpu_ms
+                    ));
+                } else {
+                    ui.monospace(format!("{:.2} ms GPU", g.gpu_ms))
+                        .on_hover_text(passes);
                 }
                 if self.ui.advanced {
                     ui.separator();
@@ -646,7 +657,8 @@ impl App {
         }
         let (mut restore, mut dismiss) = (false, false);
         egui::Area::new(egui::Id::new("toasts"))
-            .anchor(egui::Align2::RIGHT_BOTTOM, [-16., -40.])
+            .anchor(egui::Align2::RIGHT_BOTTOM, [-8., -8.])
+            .constrain_to(ctx.available_rect())
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 if let Some(name) = &offer {
@@ -721,6 +733,21 @@ impl App {
         }
         self.ui.panel_width = panel.response.rect.width();
     }
+}
+
+/// Starts a labelled group of top-bar controls. In a wrapping row it moves to the next row when
+/// `width` (the group's estimated size, in points) does not fit, so a group is never split;
+/// otherwise it follows the previous group after a separator.
+fn cluster(ui: &mut egui::Ui, name: &str, width: f32) {
+    let at_start = ui.cursor().min.x <= ui.max_rect().min.x + 1.;
+    if !at_start {
+        if ui.available_width() < width {
+            ui.end_row();
+        } else {
+            ui.separator();
+        }
+    }
+    ui.label(egui::RichText::new(name).small().weak());
 }
 
 #[cfg(test)]

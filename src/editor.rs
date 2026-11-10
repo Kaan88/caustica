@@ -1,7 +1,7 @@
 //! Inspectors for the Scene tab: objects, area lights and materials. Every range matches
 //! `Settings::validate`, and every slider goes through `crate::slider` (clamps edits only).
 use crate::scene::{AreaLight, LightKind, Material, Object, Pattern, Shape};
-use crate::ui::{cant_load, check_row, check_row_with, more, own_tip, row, why_disabled};
+use crate::ui::{cant_load, check_row, check_row_with, more, own_tip, row, row_if, why_disabled};
 
 pub fn pattern_label(p: Pattern) -> &'static str {
     match p {
@@ -96,10 +96,17 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
     egui::Grid::new((id, "material"))
         .num_columns(2)
         .spacing([12., 6.])
+        .min_col_width(crate::ui::LABEL_WIDTH)
         .show(ui, |ui| {
-            row(ui, "Colour", "Linear RGB base colour.", |ui| {
-                ui.color_edit_button_rgb(&mut m.color);
-            });
+            row_if(
+                ui,
+                "Colour",
+                "Base colour (the picker edits linear RGB, not screen colour).",
+                (m.spectrum > 0).then_some("A measured spectrum replaces it (Surface, below: set it to None)"),
+                |ui| {
+                    ui.color_edit_button_rgb(&mut m.color);
+                },
+            );
             row(
                 ui,
                 "Roughness",
@@ -136,235 +143,304 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 row(
                     ui,
                     "Temperature",
-                    "Glow as a blackbody: candles 1900 K, tungsten 2700–3200 K, daylight 6500 K, blue sky 10000 K and up. Off: the colour sets it.",
+                    "Glow colour from a heat temperature (blackbody): candles 1900 K, tungsten 2700–3200 K, daylight 6500 K, blue sky 10000 K and up. Off: the colour sets it.",
                     |ui| kelvin_ui(ui, &mut m.temperature),
                 );
             }
             texture_row(ui, m);
         });
+    let d = Material::default();
+    // A group opens by itself when something in it is in use, so an effect is never hidden.
+    let surface = m.splitter
+        || m.reflectivity != d.reflectivity
+        || m.ior != d.ior
+        || m.spectrum != d.spectrum;
+    let coatings = m.clearcoat > 0. || m.sheen > 0. || m.iridescence > 0.;
+    let brushed = m.anisotropy > 0. || m.grating > 0.;
+    let volume = m.dispersion > 0. || m.density > 0.;
+    let pattern = m.pattern != Pattern::Solid;
+    let other = m.priority != d.priority || m.unlit;
+    let glass = m.transmission > 0.;
     more(ui, (id, "material more"), advanced, |ui| {
-        egui::Grid::new((id, "material advanced"))
-            .num_columns(2)
-            .spacing([12., 6.])
-            .show(ui, |ui| {
-                check_row(ui, "Beam splitter", "A thin partial mirror (optics bench): Reflection sets the share reflected, the rest passes straight through (front faces only: a thin box splits once).", &mut m.splitter);
+        group(ui, id, "Surface", surface, |ui| {
+            row(
+                ui,
+                "Reflection",
+                "Strength of the clear specular reflection on non-metals.",
+                |ui| {
+                    ui.add(crate::slider(&mut m.reflectivity, 0. ..=1.));
+                },
+            );
+            row(
+                ui,
+                "Index of refraction",
+                "Glass 1.5, water 1.33, diamond 2.42.",
+                |ui| {
+                    ui.add(crate::slider(&mut m.ior, 1. ..=2.5));
+                },
+            );
+
+            row(
+                ui,
+                "Measured spectrum",
+                "Replaces the colour with a measured reflectance or emission spectrum: exact with Spectral on (Render tab), its colour under daylight otherwise. The Cornell box's walls and light were measured by Cornell's Program of Computer Graphics.",
+                |ui| {
+                    egui::ComboBox::from_id_salt("measured spectrum")
+                        .selected_text(
+                            crate::spectrum::MEASURED_NAMES[(m.spectrum as usize)
+                                .min(crate::spectrum::MEASURED_NAMES.len() - 1)],
+                        )
+                        .show_ui(ui, |ui| {
+                            for (i, n) in crate::spectrum::MEASURED_NAMES.iter().enumerate() {
+                                if ui.selectable_value(&mut m.spectrum, i as u32, *n).changed()
+                                    && i > 0
+                                {
+                                    m.color = crate::spectrum::measured(i as u32);
+                                }
+                            }
+                        });
+                },
+            );
+
+            check_row(
+                ui,
+                "Beam splitter",
+                "A thin partial mirror (optics bench): Reflection sets the share reflected, the rest passes straight through (front faces only: a thin box splits once).",
+                &mut m.splitter,
+            );
+        });
+        group(ui, id, "Coatings", coatings, |ui| {
+            row(
+                ui,
+                "Clear coat",
+                "A clear varnish over the surface (car paint, lacquer): a sharp reflection on top.",
+                |ui| {
+                    ui.add(crate::slider(&mut m.clearcoat, 0. ..=1.));
+                },
+            );
+            if m.clearcoat > 0. {
+                row(ui, "Coat roughness", "0 is a mirror-sharp varnish.", |ui| {
+                    ui.add(crate::slider(&mut m.clearcoat_roughness, 0. ..=1.));
+                });
+            }
+            row(
+                ui,
+                "Sheen",
+                "A soft glow at grazing angles from fibres or dust (velvet, felt, peach skin).",
+                |ui| {
+                    ui.add(crate::slider(&mut m.sheen, 0. ..=1.));
+                },
+            );
+            if m.sheen > 0. {
                 row(
                     ui,
-                    "Reflection",
-                    "Strength of the clear specular reflection on non-metals.",
+                    "Sheen colour",
+                    "Colour of the sheen (the picker edits linear RGB, not screen colour).",
                     |ui| {
-                        ui.add(crate::slider(&mut m.reflectivity, 0. ..=1.));
-                    },
-                );
-                row(
-                    ui,
-                    "Index of refraction",
-                    "Glass 1.5, water 1.33, diamond 2.42.",
-                    |ui| {
-                        ui.add(crate::slider(&mut m.ior, 1. ..=2.5));
-                    },
-                );
-                row(
-                    ui,
-                    "Clear coat",
-                    "A clear varnish over the surface (car paint, lacquer): a sharp reflection on top.",
-                    |ui| {
-                        ui.add(crate::slider(&mut m.clearcoat, 0. ..=1.));
-                    },
-                );
-                if m.clearcoat > 0. {
-                    row(ui, "Coat roughness", "0 is a mirror-sharp varnish.", |ui| {
-                        ui.add(crate::slider(&mut m.clearcoat_roughness, 0. ..=1.));
-                    });
-                }
-                row(
-                    ui,
-                    "Sheen",
-                    "A soft glow at grazing angles from fibres or dust (velvet, felt, peach skin).",
-                    |ui| {
-                        ui.add(crate::slider(&mut m.sheen, 0. ..=1.));
-                    },
-                );
-                if m.sheen > 0. {
-                    row(ui, "Sheen colour", "Linear RGB colour of the sheen.", |ui| {
                         ui.color_edit_button_rgb(&mut m.sheen_color);
-                    });
-                    row(
-                        ui,
-                        "Sheen roughness",
-                        "1 spreads the sheen over the whole silhouette; near 0 it hugs the edge.",
-                        |ui| {
-                            ui.add(crate::slider(&mut m.sheen_roughness, 0. ..=1.));
-                        },
-                    );
-                }
-                row(
-                    ui,
-                    "Anisotropy",
-                    "Brushed metal: highlights streak across the brushing direction.",
-                    |ui| {
-                        ui.add(crate::slider(&mut m.anisotropy, 0. ..=1.));
                     },
                 );
                 row(
                     ui,
-                    "Diffraction grating",
-                    "Fine grooves that split reflections into rainbows (a CD or DVD).",
+                    "Sheen roughness",
+                    "1 spreads the sheen over the whole silhouette; near 0 it hugs the edge.",
                     |ui| {
-                        ui.add(crate::slider(&mut m.grating, 0. ..=1.));
+                        ui.add(crate::slider(&mut m.sheen_roughness, 0. ..=1.));
                     },
                 );
-                if m.grating > 0. {
-                    row(
-                        ui,
-                        "Groove spacing",
-                        "Micrometres: CD 1.6, DVD 0.74, Blu-ray 0.32. Grooves follow the brush direction.",
-                        |ui| {
-                            ui.add(crate::slider(&mut m.grating_spacing, 0.3..=10.).suffix(" um"));
-                        },
-                    );
-                }
-                if m.anisotropy > 0. || m.grating > 0. {
-                    row(
-                        ui,
-                        "Brush direction",
-                        "Degrees about the surface normal, from the object's x axis.",
-                        |ui| {
-                            ui.add(crate::slider(&mut m.anisotropy_rotation, -180. ..=180.));
-                        },
-                    );
-                    check_row(ui, "Spun", "Brushed in circles around the object's y axis (a pan, a watch dial).", &mut m.anisotropy_spun);
-                }
+            }
+
+            row(
+                ui,
+                "Thin film",
+                "An iridescent film on the surface (soap bubble, oil slick, anodized titanium).",
+                |ui| {
+                    ui.add(crate::slider(&mut m.iridescence, 0. ..=1.));
+                },
+            );
+            if m.iridescence > 0. {
                 row(
                     ui,
-                    "Thin film",
-                    "An iridescent film on the surface (soap bubble, oil slick, anodized titanium).",
+                    "Film thickness",
+                    "Nanometres; 200–800 gives the strongest colours, thinner fades to plain.",
                     |ui| {
-                        ui.add(crate::slider(&mut m.iridescence, 0. ..=1.));
+                        ui.add(
+                            crate::slider(&mut m.iridescence_thickness, 0. ..=2000.).suffix(" nm"),
+                        );
                     },
                 );
-                if m.iridescence > 0. {
-                    row(
-                        ui,
-                        "Film thickness",
-                        "Nanometres; 200–800 gives the strongest colours, thinner fades to plain.",
-                        |ui| {
-                            ui.add(crate::slider(&mut m.iridescence_thickness, 0. ..=2000.).suffix(" nm"));
-                        },
-                    );
-                    row(ui, "Film IOR", "Soap and water 1.33, oil 1.47, titanium oxide 2.4.", |ui| {
+                row(
+                    ui,
+                    "Film IOR",
+                    "Soap and water 1.33, oil 1.47, titanium oxide 2.4.",
+                    |ui| {
                         ui.add(crate::slider(&mut m.iridescence_ior, 1. ..=2.5));
-                    });
+                    },
+                );
+            }
+        });
+        group(ui, id, "Brushed and grating", brushed, |ui| {
+            row(
+                ui,
+                "Anisotropy",
+                "Brushed metal: highlights streak across the brushing direction.",
+                |ui| {
+                    ui.add(crate::slider(&mut m.anisotropy, 0. ..=1.));
+                },
+            );
+            row(
+                ui,
+                "Diffraction grating",
+                "Fine grooves that split reflections into rainbows (a CD or DVD).",
+                |ui| {
+                    ui.add(crate::slider(&mut m.grating, 0. ..=1.));
+                },
+            );
+            if m.grating > 0. {
+                row(
+                    ui,
+                    "Groove spacing",
+                    "Micrometres: CD 1.6, DVD 0.74, Blu-ray 0.32. Grooves follow the brush direction.",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.grating_spacing, 0.3..=10.).suffix(" um"));
+                    },
+                );
+            }
+            if m.anisotropy > 0. || m.grating > 0. {
+                row(
+                    ui,
+                    "Brush direction",
+                    "Degrees about the surface normal, from the object's x axis.",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.anisotropy_rotation, -180. ..=180.));
+                    },
+                );
+                check_row(
+                    ui,
+                    "Spun",
+                    "Brushed in circles around the object's y axis (a pan, a watch dial).",
+                    &mut m.anisotropy_spun,
+                );
+            }
+        });
+        if glass {
+            group(ui, id, "Volume", volume, |ui| {
+                let mut on = m.dispersion > 0.;
+                let dispersion = check_row_with(
+                    ui,
+                    "Dispersion",
+                    "Splits white light into a rainbow, as a prism does (only with Spectral on, in the Render tab). Set by the Abbe number: lower splits more; crown glass 60, flint 30, dense flint 20.",
+                    &mut on,
+                    None,
+                    |ui, on| {
+                        if on {
+                            ui.add(crate::slider(&mut m.dispersion, 10. ..=100.));
+                        }
+                    },
+                );
+                if dispersion.changed() {
+                    m.dispersion = if on { 30. } else { 0. };
                 }
-                if m.transmission > 0. {
-                    let mut on = m.dispersion > 0.;
-                    let dispersion = check_row_with(
+                row(
+                    ui,
+                    "Volume density",
+                    "Fills the object with a scattering medium (smoke, milk, jade): how much light it scatters per unit length. 0 is clear; the colour above still tints by absorption.",
+                    |ui| {
+                        ui.add(crate::slider(&mut m.density, 0. ..=100.).logarithmic(true));
+                    },
+                );
+                if m.density > 0. {
+                    row(
                         ui,
-                        "Dispersion",
-                        "Splits white light into a rainbow by wavelength (only with Spectral on, in the Render tab). The Abbe number: lower disperses more; crown glass 60, flint 30, dense flint 20.",
-                        &mut on,
-                        None,
-                        |ui, on| {
-                            if on {
-                                ui.add(crate::slider(&mut m.dispersion, 10. ..=100.));
+                        "Scatter colour",
+                        "The share of light each scattering keeps, per channel.",
+                        |ui| {
+                            ui.color_edit_button_rgb(&mut m.scatter_color);
+                        },
+                    );
+                    row(
+                        ui,
+                        "Extinction colour",
+                        "How strongly each colour is scattered or absorbed, relative to the density. White treats all alike; more blue than red scatters blue out of a beam, so the object looks blue from the side and the light through it turns orange (opal glass, skimmed milk, a sunset).",
+                        |ui| {
+                            ui.color_edit_button_rgb(&mut m.extinction);
+                            // Black would fail validation on load; it means grey.
+                            if m.extinction.iter().all(|v| *v <= 0.) {
+                                m.extinction = [1.; 3];
                             }
                         },
                     );
-                    if dispersion.changed() {
-                        m.dispersion = if on { 30. } else { 0. };
-                    }
                     row(
                         ui,
-                        "Volume density",
-                        "Fills the object with a scattering medium (smoke, milk, jade): extinction per unit                          length. 0 is clear; the colour above still tints by absorption.",
+                        "Scatter direction",
+                        "Forward glow vs back-scatter (Henyey-Greenstein g): negative scatters back, 0 evenly, positive forward (fog, milk ~0.8).",
                         |ui| {
-                            ui.add(crate::slider(&mut m.density, 0. ..=100.).logarithmic(true));
+                            ui.add(crate::slider(&mut m.phase, -0.95..=0.95));
                         },
                     );
-                    if m.density > 0. {
-                        row(ui, "Scatter colour", "The share of light each scattering keeps, per channel.", |ui| {
-                            ui.color_edit_button_rgb(&mut m.scatter_color);
-                        });
-                        row(
-                            ui,
-                            "Extinction colour",
-                            "How strongly each colour is scattered or absorbed, relative to the density. White treats all alike; more blue than red scatters blue out of a beam, so the object looks blue from the side and the light through it turns orange (opal glass, skimmed milk, a sunset).",
-                            |ui| {
-                                ui.color_edit_button_rgb(&mut m.extinction);
-                                // Black would fail validation on load; it means grey.
-                                if m.extinction.iter().all(|v| *v <= 0.) {
-                                    m.extinction = [1.; 3];
-                                }
-                            },
-                        );
-                        row(
-                            ui,
-                            "Scatter direction",
-                            "Henyey-Greenstein g: negative scatters back, 0 evenly, positive forward (fog, milk ~0.8).",
-                            |ui| {
-                                ui.add(crate::slider(&mut m.phase, -0.95..=0.95));
-                            },
-                        );
-                    }
-                }
-                row(
-                    ui,
-                    "Measured spectrum",
-                    "Replaces the colour with a measured reflectance or emission spectrum: exact with Spectral on (Render tab), its colour under daylight otherwise. The Cornell box's walls and light were measured by Cornell's Program of Computer Graphics.",
-                    |ui| {
-                        egui::ComboBox::from_id_salt("measured spectrum")
-                            .selected_text(
-                                crate::spectrum::MEASURED_NAMES
-                                    [(m.spectrum as usize).min(crate::spectrum::MEASURED_NAMES.len() - 1)],
-                            )
-                            .show_ui(ui, |ui| {
-                                for (i, n) in crate::spectrum::MEASURED_NAMES.iter().enumerate() {
-                                    if ui.selectable_value(&mut m.spectrum, i as u32, *n).changed() && i > 0 {
-                                        m.color = crate::spectrum::measured(i as u32);
-                                    }
-                                }
-                            });
-                    },
-                );
-                row(
-                    ui,
-                    "Priority",
-                    "Where glass, water or ice overlap, the higher priority owns the overlap: \
-                     model water reaching into the glass wall and rank the glass above it.",
-                    |ui| {
-                        ui.add(crate::slider(&mut m.priority, 0..=7));
-                    },
-                );
-                check_row(ui, "Glow only", "The surface only emits light; rays stop there.", &mut m.unlit);
-                row(
-                    ui,
-                    "Pattern",
-                    "Procedural pattern, evaluated in world space.",
-                    |ui| {
-                        egui::ComboBox::from_id_salt((id, "pattern"))
-                            .selected_text(pattern_label(m.pattern))
-                            .show_ui(ui, |ui| {
-                                for p in [
-                                    Pattern::Solid,
-                                    Pattern::Checker,
-                                    Pattern::Stripes,
-                                    Pattern::Marble,
-                                ] {
-                                    ui.selectable_value(&mut m.pattern, p, pattern_label(p));
-                                }
-                            });
-                    },
-                );
-                if m.pattern != Pattern::Solid {
-                    row(ui, "Second colour", "The pattern's other colour.", |ui| {
-                        ui.color_edit_button_rgb(&mut m.secondary_color);
-                    });
-                    row(ui, "Pattern scale", "Repetitions per scene unit.", |ui| {
-                        ui.add(crate::slider(&mut m.pattern_scale, 0.1..=100.).logarithmic(true));
-                    });
                 }
             });
+        }
+        group(ui, id, "Pattern", pattern, |ui| {
+            row(
+                ui,
+                "Pattern",
+                "Procedural pattern, evaluated in world space.",
+                |ui| {
+                    egui::ComboBox::from_id_salt((id, "pattern"))
+                        .selected_text(pattern_label(m.pattern))
+                        .show_ui(ui, |ui| {
+                            for p in [
+                                Pattern::Solid,
+                                Pattern::Checker,
+                                Pattern::Stripes,
+                                Pattern::Marble,
+                            ] {
+                                ui.selectable_value(&mut m.pattern, p, pattern_label(p));
+                            }
+                        });
+                },
+            );
+            if m.pattern != Pattern::Solid {
+                row(ui, "Second colour", "The pattern's other colour.", |ui| {
+                    ui.color_edit_button_rgb(&mut m.secondary_color);
+                });
+                row(ui, "Pattern scale", "Repetitions per scene unit.", |ui| {
+                    ui.add(crate::slider(&mut m.pattern_scale, 0.1..=100.).logarithmic(true));
+                });
+            }
+        });
+        group(ui, id, "Other", other, |ui| {
+            row(
+                ui,
+                "Priority",
+                "Where glass, water or ice overlap, the higher priority owns the overlap: \
+                     model water reaching into the glass wall and rank the glass above it.",
+                |ui| {
+                    ui.add(crate::slider(&mut m.priority, 0..=7));
+                },
+            );
+            check_row(
+                ui,
+                "Glow only",
+                "The surface only emits light; rays stop there.",
+                &mut m.unlit,
+            );
+        });
     });
+}
+/// One collapsible block of the advanced material rows, with its own grid.
+fn group(ui: &mut egui::Ui, id: &str, title: &str, active: bool, add: impl FnOnce(&mut egui::Ui)) {
+    egui::CollapsingHeader::new(title)
+        .id_salt((id, "material group", title))
+        .default_open(active)
+        .show(ui, |ui| {
+            egui::Grid::new((id, "material group grid", title))
+                .num_columns(2)
+                .spacing([12., 6.])
+                .min_col_width(crate::ui::LABEL_WIDTH)
+                .show(ui, add);
+        });
 }
 pub fn shape_combo(ui: &mut egui::Ui, id: &str, shape: &mut Shape) {
     egui::ComboBox::from_id_salt(id)
@@ -384,7 +460,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
     ui.label(egui::RichText::new("Material").strong());
     if crate::mesh::has_maps(o) {
         ui.checkbox(&mut o.material.textures, "Texture maps").on_hover_text(
-            "Base colour, normal and metallic-roughness maps from the mesh file. Colour,              roughness and metallic below start at the maps' averages and scale them; off              shows those averages as flat values.",
+            "Base colour, normal and metallic-roughness maps from the mesh file. Colour, roughness and metallic below start at the maps' averages and scale them; off shows those averages as flat values.",
         );
     }
     material_ui(ui, "object", &mut o.material, advanced);
@@ -691,7 +767,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         .suffix("×"),
                 );
             });
-            row(ui, "Colour", "Linear RGB colour of the light.", |ui| {
+            row(ui, "Colour", "Colour of the light (the picker edits linear RGB, not screen colour).", |ui| {
                 ui.add_enabled_ui(l.temperature == 0., |ui| {
                     why_disabled(
                         ui.color_edit_button_rgb(&mut l.color),
@@ -702,7 +778,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
             row(
                 ui,
                 "Temperature",
-                "Colour as a blackbody: candles 1900 K, tungsten 2700–3200 K, daylight 6500 K, blue sky 10000 K and up. Exact with Spectral on. Off: the colour above sets it.",
+                "Colour from a heat temperature (blackbody): candles 1900 K, tungsten 2700–3200 K, daylight 6500 K, blue sky 10000 K and up. Exact with Spectral on. Off: the colour above sets it.",
                 |ui| kelvin_ui(ui, &mut l.temperature),
             );
             if !matches!(l.kind, LightKind::Sphere | LightKind::Sun) {
@@ -833,7 +909,8 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                     );
                 }
                 check_row(ui, "Casts shadows", "The light's own panel blocks other lights. Off: they shine through it, while reflections still see it.", &mut l.shadows);
-                if !matches!(l.kind, LightKind::Spot | LightKind::Sun) {
+                // A sphere looks the same turned any way, so it has no rotation to set.
+                if !matches!(l.kind, LightKind::Spot | LightKind::Sun | LightKind::Sphere) {
                     rotation_row(ui, l);
                 }
             });

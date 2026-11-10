@@ -9,7 +9,7 @@ mod render_tab;
 mod scene_tab;
 mod stage;
 mod windows;
-use crate::scene::{self, DLSS_PRESETS, PRESETS, Settings, Shape, Upscaler};
+use crate::scene::{self, DLSS_PRESETS, Denoiser, PRESETS, Settings, Shape, Upscaler};
 use crate::{App, editor, gizmo};
 use stage::*;
 use std::time::{Duration, Instant};
@@ -77,7 +77,7 @@ fn aa_name(u: Upscaler) -> Option<&'static str> {
 /// there is Native (progressive) and, for a temporal upscaler, its anti-aliasing mode.
 fn quality_modes(s: &Settings) -> Vec<(f32, bool, String)> {
     let mut modes = Vec::new();
-    if s.rr {
+    if s.rr() {
         modes.push((1., false, "DLAA (100%)".to_string()));
     } else {
         modes.push((1., false, "Native (100%)".to_string()));
@@ -92,7 +92,7 @@ fn quality_modes(s: &Settings) -> Vec<(f32, bool, String)> {
 }
 fn quality_label(s: &Settings) -> String {
     match quality_modes(s).into_iter().find(|(scale, aa, _)| {
-        (s.scale - scale).abs() < 0.005 && (*scale < 1. || s.native_aa == *aa || s.rr)
+        (s.scale - scale).abs() < 0.005 && (*scale < 1. || s.native_aa == *aa || s.rr())
     }) {
         Some((_, _, label)) => label,
         None => format!("Custom ({:.0}%)", s.scale * 100.),
@@ -201,6 +201,11 @@ fn same_but_camera(a: &mut Settings, b: &Settings) -> bool {
     set_camera(a, camera);
     same
 }
+/// A mesh import running on a worker thread.
+pub struct MeshImport {
+    pub name: String,
+    result: std::sync::mpsc::Receiver<anyhow::Result<(Vec<scene::Object>, Vec<scene::AreaLight>)>>,
+}
 pub struct UiState {
     pub tab: Tab,
     pub advanced: bool,
@@ -209,6 +214,8 @@ pub struct UiState {
     pub selection: Selection,
     /// Mesh imports stand Z-up files upright (scans, CAD exports).
     pub mesh_z_up: bool,
+    /// Mesh files being parsed on worker threads; `land_mesh_imports` adds them when done.
+    pub mesh_imports: Vec<MeshImport>,
     /// A viewport pick: the Scene tab brings the inspector into view once.
     pub scroll_to_inspector: bool,
     pub search: String,
@@ -312,6 +319,8 @@ pub struct UiState {
     pub context_menu: Option<egui::Pos2>,
     /// The keyboard and mouse sheet (F1).
     pub show_shortcuts: bool,
+    /// The command palette (Ctrl+K, palette.rs).
+    pub palette: crate::palette::State,
     /// The timeline strip (track 8); it opens when the scene gains keys, and can then be closed.
     pub show_timeline: bool,
     pub timeline_had_keys: bool,
@@ -331,7 +340,7 @@ pub struct UiState {
     redo: Vec<UndoStep>,
     /// Interactive runs only: panel edits become undo steps, the scene gets its unsaved mark
     /// and last-session.json is kept. Headless runs, the self-test, scripted and frame-limited
-    /// runs and the screensaver stay out of all of it.
+    /// runs stay out of all of it.
     pub edits_live: bool,
     /// The command line chose the tab or tool: the saved prefs don't replace them.
     pub tab_from_args: bool,
@@ -400,6 +409,7 @@ impl Default for UiState {
             panel_hidden: false,
             selection: Selection::Stage,
             mesh_z_up: false,
+            mesh_imports: vec![],
             scroll_to_inspector: false,
             search: String::new(),
             export_scale: 2,
@@ -478,6 +488,7 @@ impl Default for UiState {
             lut_error: None,
             context_menu: None,
             show_shortcuts: false,
+            palette: Default::default(),
             show_timeline: false,
             timeline_had_keys: false,
             physics_record: false,
@@ -541,6 +552,63 @@ impl UiState {
     /// A toast about a saved file, with Show in folder.
     pub fn toast_file(&mut self, text: impl Into<String>, file: std::path::PathBuf) {
         self.push(text.into(), false, Some(file));
+    }
+    /// Parses a mesh file on a worker thread (a big glTF takes seconds); the objects land in
+    /// the scene through `land_mesh_imports`, with one undo step.
+    pub fn import_mesh(&mut self, path: std::path::PathBuf, z_up: bool) {
+        let name = path.file_name().map_or_else(
+            || path.display().to_string(),
+            |n| n.to_string_lossy().into(),
+        );
+        let (send, result) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = send.send(crate::mesh::import_scene(&path, z_up));
+        });
+        self.toast(format!("Importing {name}…"));
+        self.mesh_imports.push(MeshImport { name, result });
+    }
+    /// Adds the imports that finished since the last frame. Returns whether any are still running.
+    pub fn land_mesh_imports(&mut self, s: &mut Settings) -> bool {
+        use std::sync::mpsc::TryRecvError;
+        let mut landed = vec![];
+        self.mesh_imports.retain(|job| match job.result.try_recv() {
+            Ok(r) => {
+                landed.push((job.name.clone(), r));
+                false
+            }
+            Err(TryRecvError::Empty) => true,
+            Err(TryRecvError::Disconnected) => {
+                landed.push((job.name.clone(), Err(anyhow::anyhow!("the import stopped"))));
+                false
+            }
+        });
+        for (name, result) in landed {
+            match result {
+                Ok((objects, lights)) => {
+                    self.checkpoint(s);
+                    let room = scene::MAX_LIGHTS.saturating_sub(s.lights.len());
+                    s.lights.extend(lights.into_iter().take(room));
+                    let first = s.objects.len();
+                    let room = scene::MAX_OBJECTS.saturating_sub(first);
+                    let total = objects.len();
+                    s.objects.extend(objects.into_iter().take(room));
+                    let added = s.objects.len() - first;
+                    if total > added {
+                        self.error(format!(
+                            "{name}: only {added} of {total} parts fit ({} objects)",
+                            scene::MAX_OBJECTS
+                        ));
+                    } else {
+                        self.toast(format!("Imported {name}: {added} object(s)"));
+                    }
+                    if added > 0 {
+                        self.selection = Selection::Object(first);
+                    }
+                }
+                Err(e) => self.error(format!("{name}: {e:#}")),
+            }
+        }
+        !self.mesh_imports.is_empty()
     }
     pub fn error(&mut self, text: impl Into<String>) {
         self.push(text.into(), true, None);
@@ -1188,6 +1256,24 @@ pub fn row(ui: &mut egui::Ui, label: &str, tip: &str, add: impl FnOnce(&mut egui
     let label = ui.label(label);
     row_controls(ui, label, tip, add);
 }
+/// `row` for a control that does nothing right now: `idle` says why. The controls stay visible
+/// but greyed with their stored values, and the row's tooltip leads with the reason.
+pub fn row_if(
+    ui: &mut egui::Ui,
+    label: &str,
+    tip: &str,
+    idle: Option<&str>,
+    add: impl FnOnce(&mut egui::Ui),
+) {
+    let label = ui.add_enabled(idle.is_none(), egui::Label::new(label));
+    let tip = match idle {
+        Some(why) => format!("{why}\n\n{tip}"),
+        None => tip.to_string(),
+    };
+    row_controls(ui, label, &tip, |ui| {
+        ui.add_enabled_ui(idle.is_none(), add);
+    });
+}
 /// A row whose control is a checkbox: clicking the label toggles it too. Returns the checkbox's
 /// response (`changed()` covers both).
 pub fn check_row(ui: &mut egui::Ui, label: &str, tip: &str, on: &mut bool) -> egui::Response {
@@ -1276,6 +1362,9 @@ pub(crate) fn section(ui: &mut egui::Ui, title: &str) {
     ui.add_space(4.);
     ui.label(egui::RichText::new(title).strong().color(ACCENT));
 }
+/// The label column of the Stage and material grids. Blocks that are separate grids give
+/// their columns the same minimum, so the controls line up from one block to the next.
+pub(crate) const LABEL_WIDTH: f32 = 128.;
 pub(crate) fn grid(id: &str) -> egui::Grid {
     egui::Grid::new(id).num_columns(2).spacing([12., 6.])
 }
@@ -1388,7 +1477,7 @@ fn pipeline(app: &App) -> (String, bool) {
             false,
         );
     }
-    let mut text = if s.denoise {
+    let mut text = if s.native_filter() {
         "Native denoiser"
     } else {
         "No denoiser (raw samples)"
@@ -1408,7 +1497,7 @@ fn pipeline(app: &App) -> (String, bool) {
     {
         text += &format!(" + {aa}");
     }
-    if s.rr {
+    if s.rr() {
         return (format!("Ray Reconstruction unavailable · {text}"), true);
     }
     (text, fallback)
@@ -1624,7 +1713,7 @@ impl App {
             || self.walking.is_some()
     }
     /// Replaces the scene from a UI control (scene picker, ◀ ▶, Randomize, Today, gamepad,
-    /// phone remote): undoable, with the old selection gone. Not for the screensaver, the
+    /// phone remote): undoable, with the old selection gone. Not for the
     /// self-test or headless runs, which call `Settings::preset` directly.
     pub fn switch_scene(&mut self, label: &str, change: impl FnOnce(&mut Settings)) {
         self.ui.checkpoint_scene(&self.settings);
@@ -1675,6 +1764,7 @@ impl App {
         self.overlay(ctx);
         self.context_menu(ctx);
         self.shortcuts_window(ctx);
+        self.palette_window(ctx);
         self.update_window(ctx);
         self.sync_prefs(ctx);
         self.toasts(ctx);
@@ -1716,6 +1806,7 @@ impl App {
                 self.laser = crate::laser::Laser::default();
                 match crate::scenes::load_into(&mut self.settings, path) {
                     Ok(()) => {
+                        self.ui.mesh_imports.clear();
                         self.ui.mark_clean(&self.settings);
                         self.ui.selection = Selection::Stage;
                         self.ui.loaded_file =
@@ -1825,12 +1916,16 @@ impl App {
         if self.ui.prefs_live && !self.ui.prefs.hint_seen {
             let mut seen = false;
             egui::Area::new(egui::Id::new("first run hint"))
-                .anchor(egui::Align2::CENTER_BOTTOM, [0., -48.])
+                .anchor(egui::Align2::CENTER_BOTTOM, [0., -8.])
+                .constrain_to(ctx.available_rect())
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label("Left drag orbits · right drag pans · wheel zooms · click selects · right-click opens a menu · F1 lists every shortcut");
+                            ui.vertical(|ui| {
+                                ui.label("Left drag orbits · right drag pans · wheel zooms · click selects · right-click opens a menu · F1 lists every shortcut");
+                                ui.label("Scenes: pick a scene · Look tab: adjust the image · F12: save PNG · Tab: hide the panel");
+                            });
                             seen = ui.button("Got it").clicked();
                         });
                     });
@@ -1967,7 +2062,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("Double-click", "Frame what is under the pointer"),
             ("Home", "Reset the camera to the scene's"),
             ("Ctrl+click", "Focus the lens there"),
-            ("A", "Auto orbit"),
+            ("O", "Auto orbit"),
             ("`", "Walk mode (WASD, Esc to leave)"),
             ("T", "Flashlight on or off (also while walking)"),
             (
@@ -2006,6 +2101,10 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         &[
             ("Ctrl+S / Ctrl+Shift+S", "Save the scene / save as"),
             ("Ctrl+O", "Open a scene file"),
+            (
+                "Ctrl+K",
+                "Command palette: find a setting or command by name",
+            ),
             ("Ctrl+P", "Scenes: type, arrows, Enter loads, Esc closes"),
             ("Ctrl + / −", "UI size"),
             (
@@ -2019,10 +2118,12 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         &[
             ("Space", "Pause"),
             ("R", "Restart, unless an object or light is selected"),
-            ("D", "Native denoiser"),
+            (
+                "Alt+D",
+                "Cycle the denoiser: Ray Reconstruction, native, none",
+            ),
             ("1 – 8", "Debug views"),
             ("C", "Freeze an A/B reference"),
-            ("L", "Light painting"),
             (
                 "P / Alt+click",
                 "Path visualizer / trace the paths of a pixel",
@@ -2143,24 +2244,24 @@ impl Bundle {
     }
     pub fn label(self) -> &'static str {
         match self {
-            Bundle::Best => "Best",
-            Bundle::Balanced => "Balanced",
-            Bundle::Fast => "Fast",
-            Bundle::Fastest => "Fastest",
-            Bundle::Native => "Native denoiser",
-            Bundle::NativeFast => "Native, upscaled",
+            // The render scale is part of the name, and no word here is a DLSS mode name
+            // ("Balanced" is 58% in the Render tab; "Native" is the denoiser, not 100%).
+            Bundle::Best => "Best 100%",
+            Bundle::Balanced => "Good 67%",
+            Bundle::Fast => "Fast 50%",
+            Bundle::Fastest => "Fastest 33%",
+            Bundle::Native => "Native denoiser 100%",
+            Bundle::NativeFast => "Native denoiser 67%",
             Bundle::Reference => "Reference",
         }
     }
     fn about(self, upscaler: Upscaler) -> String {
         match self {
-            Bundle::Best => "DLSS RR, DLAA (100%)".into(),
-            Bundle::Balanced => "DLSS RR, 67%".into(),
-            Bundle::Fast => "DLSS RR, 50%".into(),
-            Bundle::Fastest => "DLSS RR, 33%".into(),
-            Bundle::Native => "native denoiser, 100%".into(),
-            Bundle::NativeFast => format!("native denoiser + {}, 67%", upscaler.label()),
-            Bundle::Reference => "no denoiser, 100% (unbiased)".into(),
+            Bundle::Best => "DLSS Ray Reconstruction, DLAA".into(),
+            Bundle::Balanced | Bundle::Fast | Bundle::Fastest => "DLSS Ray Reconstruction".into(),
+            Bundle::Native => "no DLSS needed".into(),
+            Bundle::NativeFast => format!("upscaled by {}", upscaler.label()),
+            Bundle::Reference => "no denoiser (unbiased)".into(),
         }
     }
     /// The bundle the settings match, if any.
@@ -2169,26 +2270,26 @@ impl Bundle {
         Bundle::ALL.into_iter().find(|b| {
             near(*b)
                 && if b.rr() {
-                    s.rr
+                    s.rr()
                 } else {
-                    !s.rr
+                    !s.rr()
                         && !s.native_aa
                         && match b {
-                            Bundle::Native => s.denoise,
                             // Any upscaler: without a temporal one it falls back to bicubic.
-                            Bundle::NativeFast => s.denoise,
-                            _ => !s.denoise,
+                            Bundle::Native | Bundle::NativeFast => s.denoiser == Denoiser::Native,
+                            _ => s.denoiser == Denoiser::Off,
                         }
                 }
         })
     }
     pub fn apply(self, s: &mut Settings, upscaler: Upscaler) {
-        s.rr = self.rr();
+        s.denoiser = match self {
+            _ if self.rr() => Denoiser::Rr,
+            Bundle::Reference => Denoiser::Off,
+            _ => Denoiser::Native,
+        };
         s.scale = self.scale();
         s.native_aa = false;
-        if !self.rr() {
-            s.denoise = self != Bundle::Reference;
-        }
         if self == Bundle::NativeFast {
             s.upscaler = upscaler;
         }
@@ -2555,7 +2656,7 @@ mod tests {
         let mut ui = live(&s);
         s.yaw += 5.;
         s.view = 2;
-        s.rr = !s.rr;
+        s.denoiser = s.denoiser.with_rr(!s.rr());
         released(&mut ui, &s);
         assert!(!ui.scene_dirty);
         s.exposure += 1.;

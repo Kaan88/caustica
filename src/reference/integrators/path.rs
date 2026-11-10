@@ -130,7 +130,7 @@ impl Scene<'_> {
                             .is_none()
                     {
                         let pp = hg_pdf(direction.dot(ld), g);
-                        let density = if mis == 1 { pl } else { pl + pp };
+                        let density = super::super::lights::nee_density(pl, pp, mis == 1);
                         let e = throughput
                             * self.shadow_transmittance(&media, x, ld, limit, w, r)
                             * pp
@@ -197,20 +197,28 @@ impl Scene<'_> {
                     rec.add(aov::NONE, aov::B, e);
                     break;
                 };
-                let seen = if bounce == 0 && !env.visible {
+                let hidden = bounce == 0 && !env.visible;
+                let mut seen = if hidden {
                     Vec3::from(s.background)
                 } else if camera_chain {
                     env.radiance(env.background_dir(origin, direction))
                 } else {
                     env.radiance(direction)
                 };
+                // Stars: camera rays and pure-delta chains only (light sampling covers the rest).
+                if camera_chain && !hidden {
+                    seen += env.stars_seen(direction);
+                }
                 let weight = if bounce == 0 || previous_delta {
                     1.
                 } else {
                     match mis {
                         1 => 0.,
                         2 => 1.,
-                        _ => previous_pdf / (previous_pdf + self.p_env * env.pdf(direction)),
+                        _ => {
+                            previous_pdf
+                                / (previous_pdf + self.p_env * env.keep() * env.pdf(direction))
+                        }
                     }
                 };
                 let e = throughput * w.up(seen) * weight;
@@ -381,8 +389,10 @@ impl Scene<'_> {
             } else if restir {
                 match &self.env {
                     Some(env) if r.f() < self.p_env => {
-                        let (ld, pe) = env.sample(r);
-                        (pe > 0.).then(|| (ld, w.up(env.radiance(ld)), self.p_env * pe, 1e4, None))
+                        // The star pick's number only when there are stars: the stream
+                        // of a starless scene stays as it was.
+                        let u = if env.stars.is_some() { r.f() } else { 0. };
+                        Self::sample_sky(env, u, self.p_env, w, r)
                     }
                     _ => {
                         alone = true;
@@ -410,7 +420,7 @@ impl Scene<'_> {
                             )
                             .is_none()
                     {
-                        let density = if mis == 1 || alone { pl } else { pl + pdf };
+                        let density = super::super::lights::nee_density(pl, pdf, mis == 1 || alone);
                         let o = sf.p + sf.ng * 0.0003;
                         let tr = self.shadow_transmittance(&media, o, ld, limit, w, r);
                         let e = throughput * f * nl * le * tr / density.max(1e-8);
@@ -544,10 +554,10 @@ impl Scene<'_> {
                 continue;
             };
             let c = sf.n.dot(ld);
-            if c <= 0. || pl <= 0. {
+            if c <= 0. || pl == 0. {
                 continue;
             }
-            let lw = crate::environment::luminance(le.to_array()) * c / pl;
+            let lw = crate::environment::luminance(le.to_array()) * c / pl.abs();
             all += lw;
             let blocked = self
                 .intersect(

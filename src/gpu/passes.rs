@@ -58,6 +58,14 @@ impl Gpu {
             .SetComputeRootShaderResourceView(16, self.lens_buffer.GetGPUVirtualAddress());
         self.list
             .SetComputeRootUnorderedAccessView(17, self.glare_buffer.GetGPUVirtualAddress());
+        // Without stars no shader reads t18 (star_tau.w is 0).
+        self.list.SetComputeRootShaderResourceView(
+            18,
+            self.star_buffer
+                .as_ref()
+                .unwrap_or(&self.lens_buffer)
+                .GetGPUVirtualAddress(),
+        );
     }
     /// Sizes `aux` (u3 space 2) for the integrators in use: the photon grid and photons at 0
     /// (photon mapping), the light-tracing splats after them (BDPT, one rgb float triple per

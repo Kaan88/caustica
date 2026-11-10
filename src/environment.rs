@@ -25,6 +25,10 @@ pub struct EnvMap {
     /// samples it takes (its power over the total).
     pub sun: Option<Sun>,
     pub sun_share: f32,
+    /// The physical sky's catalogue stars are on (stars.rs), and the share of environment
+    /// light samples they take (0: none, a day sky).
+    pub stars: bool,
+    pub star_share: f32,
 }
 /// A sun taken out of an HDRI: a disc of uniform radiance around a direction in map space
 /// (θ from +y, φ as the map's u: φ = 2π (u − 0.5), at rotation 0).
@@ -258,6 +262,8 @@ fn build_capped(
         inv_norm: ((w * h) as f64 / (2. * (PI as f64).powi(2) * total)) as f32,
         sun: None,
         sun_share: 0.,
+        stars: false,
+        star_share: 0.,
     })
 }
 

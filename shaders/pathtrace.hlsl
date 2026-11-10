@@ -1008,11 +1008,47 @@ bool cone_interval(float3 o,float3 d,float3 p,float3 n,float k,float t0,float t1
 static float3 nee_anchor=0,nee_axis=0;
 static float nee_cos=-1;
 static bool nee_anchored=false;
+// Night sky N3 (stars.rs): catalogue stars as point lights in the J2000 frame, turned into the
+// world by star_x/y/z each frame. Light sampling takes them, by power, as a share star_y.w of
+// the sky's samples, only where star_nee is set (the path tracer; BDPT and photon mapping
+// leave them out, so their sky sampling and MIS stay as they were). A star is a delta
+// direction: its sample comes back with a negative pl (no MIS; nee_density), and BSDF-sampled
+// rays never find one. Camera rays and pure-delta chains see stars through a cone of chord
+// star_z.w (half a pixel) instead (star_seen); the two cover disjoint paths.
+static bool star_nee=false;
+bool stars_on(){return star_tau.w>0;}
+float star_share(){return star_nee?star_y.w:0;}
+// The share of sky samples the map (and its split sun) keeps: env_pdf's factor in MIS.
+float env_keep(){return 1-star_share();}
+float3 star_world(float3 c){return float3(dot(star_x.xyz,c),dot(star_y.xyz,c),dot(star_z.xyz,c));}
+float3 star_celestial(float3 d){return star_x.xyz*d.x+star_y.xyz*d.y+star_z.xyz*d.z;}
+// The air toward world height y: exp(-tau X), X Kasten and Young's air mass; 0 below the horizon.
+float3 star_air(float y){if(y<=0)return 0;float z=degrees(acos(min(y,1)));return exp(-star_tau.rgb/(y+0.50572*pow(96.07995-z,-1.6364)));}
+float3 star_dir(uint i){uint b=8+8*i;return asfloat(uint3(star_data[b],star_data[b+1],star_data[b+2]));}
+float3 star_rgb(uint i){uint b=8+8*i;return asfloat(uint3(star_data[b+4],star_data[b+5],star_data[b+6]));}
+uint star_pick(float u,out float prob){u*=star_limit.y;uint lo=0,hi=(uint)star_limit.x-1;while(lo<hi){uint mid=(lo+hi)/2;if(u<asfloat(star_data[8+8*mid+3]))hi=mid;else lo=mid+1;}prob=asfloat(star_data[8+8*lo+7])/star_limit.y;return lo;}
+// The stars inside the cone around world direction d, spread over its solid angle (π chord²).
+float3 star_seen(float3 d){
+    float3 c=star_celestial(d);float chord=star_z.w;uint rows=star_data[1],cols=star_data[2],ob=star_data[3],eb=star_data[4];
+    float dec=asin(clamp(c.z,-1,1)),ra=atan2(c.y,c.x);
+    uint row=min((uint)max(0,(0.5-dec/PI)*rows),rows-1),col=min((uint)(frac(ra/(2*PI))*cols),cols-1),cell=row*cols+col;
+    float3 sum=0;for(uint k=star_data[ob+cell];k<star_data[ob+cell+1];k++){uint i=star_data[eb+k];float3 v=c-star_dir(i);if(i<(uint)star_limit.x && dot(v,v)<chord*chord)sum+=star_rgb(i);}
+    return sum*star_x.w*star_air(d.y)/(PI*chord*chord);
+}
+// The density a light sample's contribution divides by: its pdf alone for a star (pl < 0) or
+// without MIS, else the balance heuristic's sum.
+float nee_density(float pl,float pp,bool alone){return max(pl<0?-pl:alone?pl:pl+pp,1e-8);}
 bool sample_light(float3 x,bool env_nee,bool tri_nee,float p_env,out float3 ld,out float3 le,out float pl,out float limit){
     bool nee=false;uint lmat=0xffffffffu;ld=float3(0,1,0);le=0;pl=0;limit=1e4;nee_anchored=false;if(lpe_on)lpe_env_sample=false;
-    if(env_nee && random()<p_env){
-        float pe;ld=sample_env(pe);if(lpe_on)lpe_env_sample=true;
-        if(pe>0){le=environment_radiance(ld);pl=p_env*pe;nee=true;}
+    // The sky's pick, subdivided for the stars (the same random number: no new dimension).
+    bool env_pick=false;float u=0;if(env_nee){u=random();env_pick=u<p_env;}
+    if(env_pick){
+        float us=u/p_env;if(lpe_on)lpe_env_sample=true;
+        if(us<star_share()){
+            float prob;uint i=star_pick(us/star_share(),prob);ld=star_world(star_dir(i));
+            if(ld.y>0 && prob>0){le=star_rgb(i)*star_x.w*star_air(ld.y);pl=-p_env*star_share()*prob;nee=true;}
+        }else{float pe;ld=sample_env(pe);
+        if(pe>0){le=environment_radiance(ld);pl=p_env*env_keep()*pe;nee=true;}}
     }else if(sdf_nee_on && (scene_info.x==0 || random()<0.5)){
         uint b=(uint)photon.w,n=(uint)photon.z,j=0;float u=random();
         for(;j+1<n && u>=emitters[b+2*j].edge1_cdf.y;j++){}
@@ -1396,7 +1432,7 @@ void trace_main(uint3 tid){
     if(recording){if(any(p!=0))return;p=min(path_record.xy,dimensions.xy-1);}
     else{p+=region.xy;if(any(p>=region.zw))return;}
     if(any(p>=dimensions.xy))return;
-    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;side_state=hash(rng_state^0x68e31da4u);
+    pixel_seed=hash(p.x+p.y*dimensions.x);rng_state=hash(pixel_seed+sampling.w*747796405);proceed_steps=0;side_state=hash(rng_state^0x68e31da4u);star_nee=true;
     sdf_nee_on=!lean && photon.z>0 && ((scene_info.w>>4)&3)!=2;float bounces_used=0;
     float3 mean=sampling.x>0?accumulation[p].rgb:0;float m2=sampling.x>0?accumulation[p].a:0;
     float3 dmean=sampling.x>0?direct_light[p].rgb:0,smean=sampling.x>0?specular_light[p].rgb:0;
@@ -1495,7 +1531,7 @@ void trace_main(uint3 tid){
                         float pp=hg_pdf(dot(direction,ld),g);
                         // MIS against the equiangular sample of the same light.
                         float we=1;if(equi && nee_anchored){float pd=flight_pdf(sigma,t0,ts),ea,eb;float pe=cone_interval(origin,direction,nee_anchor,nee_axis,nee_cos,t0,t1,ea,eb) && ts>=ea && ts<=eb?equiangular_pdf(origin,direction,nee_anchor,ea,eb,ts):0;we=pd/max(pd+pe,1e-30);}
-                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le*we/max(mis==1?pl:pl+pp,1e-8);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);lpe_add(4,lpe_env_sample?6:5,e);}
+                        if(!occluded(x,ld,limit)){float3 e=throughput*medium_transmittance(media,x,ld,limit)*pp*le*we/nee_density(pl,pp,mis==1);radiance+=e;if(bounce==0)direct+=e;record(11,bounce,x,e,limit,ld);lpe_add(4,lpe_env_sample?6:5,e);}
                         else record(12,bounce,x,0,limit,ld);
                     }
                     float pp;direction=hg_sample(direction,g,pp);
@@ -1508,8 +1544,12 @@ void trace_main(uint3 tid){
             if(!found){
                 if(bounce==0)first_diffuse.a=guide.material==0xffffffffu?1:0;
                 // The camera sees the background colour when the HDRI is hidden from it.
-                float3 env=up(bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(camera_chain?background_dir(origin,direction):direction));
-                float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_pdf(direction));
+                bool hidden=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0;
+                float3 env=hidden?background.rgb:environment_radiance(camera_chain?background_dir(origin,direction):direction);
+                // Stars: camera rays and pure-delta chains only (light sampling covers the rest).
+                if(stars_on() && camera_chain && !hidden)env+=star_seen(direction);
+                env=up(env);
+                float weight=1;if(hdri_on() && bounce>0 && !previous_delta)weight=mis==1?0:mis==2?1:previous_pdf/(previous_pdf+p_env*env_keep()*env_pdf(direction));
                 float3 e=throughput*env*weight;lpe_add(8,6,e);
                 // Suns (they lead the emitter table): seen inside their disk, weighted against
                 // light sampling as triangles are; a hidden one only from bounce 1 on.
@@ -1536,8 +1576,8 @@ void trace_main(uint3 tid){
                     bg=bounce==0 && hdri_on() && ((uint)environment_map.z&2u)==0?background.rgb:environment_radiance(seen);
                     bool ce=hdri_on(),ct=scene_info.x>0;float cp=ce?(ct || sdf_nee_on?0.5:1):0,all=0,lit=0;
                     for(uint k=0;k<4;k++){float3 ld,le;float pl,limit;
-                        if(sample_light(h.p,ce,ct,cp,ld,le,pl,limit) && pl>0){float c=dot(h.n,ld);
-                            if(c>0){float w=luminance(le)*c/pl;all+=w;if(!occluded(h.p+h.ng*0.0003,ld,limit))lit+=w;}}}
+                        if(sample_light(h.p,ce,ct,cp,ld,le,pl,limit) && pl!=0){float c=dot(h.n,ld);
+                            if(c>0){float w=luminance(le)*c/abs(pl);all+=w;if(!occluded(h.p+h.ng*0.0003,ld,limit))lit+=w;}}}
                     bg*=all>0?lit/all:1;
                 }else bg=environment_radiance(seen);
                 // The denoiser's guides: the background as the albedo, no specular.
@@ -1611,7 +1651,7 @@ void trace_main(uint3 tid){
             float nl=dot(h.n,ld);
             if(nee && nl>0){
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
-                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/max(reused?1:mis==1?pl:pl+pdf,1e-8);
+                if(!occluded(h.p+h.ng*0.0003,ld,limit)){float3 e=throughput*f*nl*le/(reused?1:nee_density(pl,pdf,mis==1));
                     if(fog_on() || density>0)e*=medium_transmittance(media,h.p+h.ng*0.0003,ld,limit);
                     radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);
                     if(lpe_on){float3 ed=e*lpe_diffuse/max(f,1e-30);uint light=lpe_env_sample?6:5;lpe_add(0,light,ed);lpe_add(lpe_glossy(m),light,e-ed);}}

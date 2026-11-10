@@ -19,7 +19,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(
         ui,
         "Fog",
-        "A homogeneous medium from the floor up to a height: god rays and visible light beams. Extinction per unit length; 0 is off.",
+        "Haze from the floor up to a height, which makes light beams and god rays visible. The density is how much light it scatters per unit length; 0 is off.",
         |ui| {
             ui.add(
                 crate::slider(&mut f.density, 0. ..=10.)
@@ -42,7 +42,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(
         ui,
         "Fog extinction",
-        "How strongly each colour is scattered, relative to the density. White treats all alike; more blue than red gives a Rayleigh-like haze: blue light scatters toward you and distant lights turn orange.",
+        "How strongly each colour is scattered, relative to the density. White treats all alike; more blue than red gives a bluish haze, and distant lights turn orange (as in Rayleigh scattering).",
         |ui| {
             ui.color_edit_button_rgb(&mut f.extinction);
             // Black would fail validation on load; it means grey.
@@ -54,7 +54,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(
         ui,
         "Fog scatter direction",
-        "Henyey-Greenstein g: positive scatters forward, which makes beams glow toward the camera.",
+        "Forward glow vs back-scatter (Henyey-Greenstein g). Positive scatters forward, so beams glow toward the camera.",
         |ui| {
             ui.add(crate::slider(&mut f.phase, -0.95..=0.95));
         },
@@ -78,7 +78,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     row(
         ui,
         "Fog noise",
-        "Heterogeneous fog: how much the density varies (0 = uniform; above 1 leaves clear gaps). Rendered exactly by delta and ratio tracking; equiangular sampling is off while it is on.",
+        "Patchy fog: how much the density varies (0 = even; above 1 leaves clear gaps). Exact, so slower than even fog; equiangular sampling is off while it is on.",
         |ui| {
             ui.add(crate::slider(&mut f.noise, 0. ..=4.));
         },
@@ -225,9 +225,46 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
-    row(ui, "Stars", "Star brightness at night (0: none).", |ui| {
-        ui.add(crate::slider(&mut p.stars, 0. ..=1000.).logarithmic(true));
-    });
+    check_row(
+        ui,
+        "Visible to camera",
+        "Off: the camera sees the background colour while the sky still lights.",
+        &mut p.visible,
+    );
+    ui.label(
+        egui::RichText::new("Night sky")
+            .strong()
+            .color(crate::ui::ACCENT),
+    );
+    ui.end_row();
+    row(
+        ui,
+        "Star brightness",
+        "The catalogue stars' brightness at night (1: the real sky's; 0: none). Stars are point lights: they light surfaces and show in mirrors and glass.",
+        |ui| {
+            ui.add(crate::slider(&mut p.stars, 0. ..=1000.).logarithmic(true));
+        },
+    );
+    row(
+        ui,
+        "Limiting magnitude",
+        "Stars fainter than this (V magnitude) are left out. 6.5 is the naked eye in a dark sky, about 9,000 stars; a long camera exposure reaches 9 and beyond, many times more.",
+        |ui| {
+            ui.add(crate::slider(&mut p.limiting_magnitude, -2. ..=16.));
+        },
+    );
+    row(
+        ui,
+        "Star size",
+        "How wide a star's disc is on screen, in pixels (1: a point). Larger spreads the same light over more pixels, like a soft or glowing star. Does not change how stars light the scene.",
+        |ui| {
+            ui.add(
+                crate::slider(&mut p.star_size, 0.5..=32.)
+                    .logarithmic(true)
+                    .suffix(" px"),
+            );
+        },
+    );
     row(
         ui,
         "Milky Way",
@@ -257,12 +294,6 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Moon",
         "The moon, its phase from the date; after twilight it lights the sky.",
         &mut p.moon,
-    );
-    check_row(
-        ui,
-        "Visible to camera",
-        "Off: the camera sees the background colour while the sky still lights.",
-        &mut p.visible,
     );
     row(
         ui,
@@ -305,22 +336,95 @@ pub(super) fn day_name(day: f32) -> String {
     }
     "31 Dec".into()
 }
+/// Why a Stage control does nothing right now (`None`: it is live). The stored values stay;
+/// the rows grey out with the reason as their tooltip.
+#[derive(Default, Debug, PartialEq)]
+pub(super) struct Overrides {
+    pub walls: Option<&'static str>,
+    pub base: Option<&'static str>,
+    pub sky_light: Option<&'static str>,
+    pub background: Option<&'static str>,
+    pub hdri: Option<&'static str>,
+}
+pub(super) fn overrides(s: &Settings, hdri_error: bool) -> Overrides {
+    let hdri_lights = !s.hdri.is_empty() && !hdri_error && !s.physical_sky.on;
+    let sky_seen = if s.physical_sky.on {
+        s.physical_sky.visible
+    } else {
+        hdri_lights && s.hdri_visible
+    };
+    let measured = "Measured walls use the original box's spectra";
+    Overrides {
+        walls: if s.measured_room {
+            Some(measured)
+        } else if !s.walls.texture.is_empty() {
+            Some("The wall texture replaces the colour (Wall material, below)")
+        } else {
+            None
+        },
+        base: if s.measured_room {
+            Some(measured)
+        } else if s.floor.texture.is_empty() || (s.cornell_room && s.walls.texture.is_empty()) {
+            None
+        } else {
+            Some("The textures replace the colour (Wall and Floor material, below)")
+        },
+        sky_light: if s.physical_sky.on {
+            Some("The physical sky replaces it")
+        } else if hdri_lights {
+            Some("The HDRI replaces it (Clear the HDRI to use it)")
+        } else {
+            None
+        },
+        background: if sky_seen {
+            Some(if s.physical_sky.on {
+                "The camera sees the physical sky (untick Visible to camera to see this colour)"
+            } else {
+                "The camera sees the HDRI (untick Visible to camera to see this colour)"
+            })
+        } else {
+            None
+        },
+        hdri: s.physical_sky.on.then_some("The physical sky replaces it"),
+    }
+}
+/// The Stage inspector in three blocks (Room, Sky and light, Fog), each its own grid with the
+/// same label column so the controls line up. Rows that something else overrides stay visible
+/// but greyed, with the reason (`overrides`).
 pub(super) fn stage_ui(
     ui: &mut egui::Ui,
     s: &mut Settings,
     advanced: bool,
     hdri_error: Option<&str>,
 ) {
-    section(ui, "Stage");
-    grid("stage").show(ui, |ui| {
+    let o = overrides(s, hdri_error.is_some());
+    section(ui, "Room");
+    grid("stage room").min_col_width(LABEL_WIDTH).show(ui, |ui| {
         check_row(ui, "Cornell box", "The closed box with coloured side walls.", &mut s.cornell_room);
-        if s.cornell_room {
+        // Shown while on even without the box, so the switch that greys the colours can be reached.
+        if s.cornell_room || s.measured_room {
             check_row(ui, "Measured walls", "The original Cornell box's measured spectra on the walls and the light (red left, green right; exact with Spectral on in the Render tab). The wall colours and the light's colour and temperature are then ignored.", &mut s.measured_room);
         }
+        if s.cornell_room {
+            row_if(ui, "Left wall", "Colour of the left wall (the picker edits linear RGB, not screen colour).", o.walls, |ui| {
+                ui.color_edit_button_rgb(&mut s.left);
+            });
+            row_if(ui, "Right wall", "Colour of the right wall (the picker edits linear RGB, not screen colour).", o.walls, |ui| {
+                ui.color_edit_button_rgb(&mut s.right);
+            });
+        }
+        let base = if s.cornell_room {
+            "Other walls"
+        } else {
+            "Floor colour"
+        };
+        row_if(ui, base, "Colour of the other walls and the floor (the picker edits linear RGB, not screen colour).", o.base, |ui| {
+            ui.color_edit_button_rgb(&mut s.base);
+        });
         row(
             ui,
-            "Ground size",
-            "Extent of the floor in scene units.",
+            "Floor size",
+            "How far the floor reaches, in scene units.",
             |ui| {
                 ui.add(
                     crate::slider(&mut s.floor_extent, 0.5..=40.)
@@ -329,20 +433,35 @@ pub(super) fn stage_ui(
                 );
             },
         );
-        row(
+        check_row(ui, "Shadow catcher", "The floor shows the background behind it, darkened only where objects shadow it: for compositing objects onto an HDRI (with Ground height) or a background colour.", &mut s.shadow_catcher);
+    });
+    more(ui, "stage more", advanced, |ui| {
+        if s.cornell_room {
+            ui.collapsing("Wall material", |ui| {
+                editor::material_ui(ui, "walls", &mut s.walls, advanced)
+            });
+        }
+        ui.collapsing("Floor material", |ui| {
+            editor::material_ui(ui, "floor", &mut s.floor, advanced)
+        });
+    });
+    section(ui, "Sky and light");
+    grid("stage sky").min_col_width(LABEL_WIDTH).show(ui, |ui| {
+        row_if(
             ui,
             "Sky light",
             "Light from the surroundings. 0 is a black void.",
+            o.sky_light,
             |ui| {
                 ui.add(crate::slider(&mut s.sky, 0. ..=4.).suffix("×"));
             },
         );
         physical_sky_ui(ui, s);
-        fog_ui(ui, s);
-        row(
+        row_if(
             ui,
             "HDRI",
-            "An equirectangular .hdr or .exr that lights the scene instead of the sky light, importance-sampled.",
+            "A 360° panorama (.hdr or .exr) that lights the scene and is seen behind it, instead of the sky light.",
+            o.hdri,
             |ui| {
                 let name = std::path::Path::new(&s.hdri)
                     .file_name()
@@ -396,49 +515,46 @@ pub(super) fn stage_ui(
                 },
             );
         }
-        check_row(ui, "Shadow catcher", "The floor shows the background behind it, darkened only where objects shadow it: for compositing objects onto an HDRI (with Ground height) or a background colour.", &mut s.shadow_catcher);
-        row(ui, "Left wall", "Linear RGB.", |ui| {
-            ui.color_edit_button_rgb(&mut s.left);
-        });
-        row(ui, "Right wall", "Linear RGB.", |ui| {
-            ui.color_edit_button_rgb(&mut s.right);
-        });
-        let base = if s.cornell_room {
-            "Other walls"
-        } else {
-            "Ground"
-        };
-        row(ui, base, "Linear RGB.", |ui| {
-            ui.color_edit_button_rgb(&mut s.base);
-        });
-        row(ui, "Background", "Colour seen where rays escape.", |ui| {
-            ui.color_edit_button_rgb(&mut s.background);
-        });
+        row_if(
+            ui,
+            "Background",
+            "The colour seen where rays escape the scene.",
+            o.background,
+            |ui| {
+                ui.color_edit_button_rgb(&mut s.background);
+            },
+        );
     });
-    more(ui, "stage more", advanced, |ui| {
-        ui.collapsing("Wall material", |ui| {
-            editor::material_ui(ui, "walls", &mut s.walls, advanced)
-        });
-        ui.collapsing("Floor material", |ui| {
-            editor::material_ui(ui, "floor", &mut s.floor, advanced)
-        });
+    section(ui, "Fog");
+    grid("stage fog").min_col_width(LABEL_WIDTH).show(ui, |ui| {
+        fog_ui(ui, s);
     });
 }
 /// Returns true when "Reset camera" was pressed.
 pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
     section(ui, "Camera");
+    // The mouse controls and the way back come first: they are what a new user looks for.
+    note(
+        ui,
+        "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom · Ctrl+click: focus",
+    );
+    let reset = ui
+        .button("Reset camera")
+        .on_hover_text("Back to the scene's own view")
+        .clicked();
     grid("camera").show(ui, |ui| {
-        check_row(ui, "Auto orbit", "Circle the scene (A).", &mut s.rotate);
+        check_row(ui, "Auto orbit", "Circle the scene (O).", &mut s.rotate);
         check_row(
             ui,
             "Walk avatar",
             "Walk mode (`) draws a blocky body under the camera: legs and hands in view when looking down, the whole figure in mirrors and reflections.",
             &mut s.walk_avatar,
         );
-        row(
+        row_if(
             ui,
             "Orbit speed",
             "Degrees per second; negative turns the other way.",
+            (!s.rotate).then_some("Auto orbit is off"),
             |ui| {
                 ui.add(crate::slider(&mut s.rotate_speed, -60. ..=60.).suffix("°/s"));
             },
@@ -460,13 +576,7 @@ pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
         );
     });
     lens_ui(ui, s);
-    note(
-        ui,
-        "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom · Ctrl+click: focus",
-    );
-    ui.button("Reset camera")
-        .on_hover_text("Back to the scene's own view")
-        .clicked()
+    reset
 }
 /// Camera model, lens system and aperture (Scene → Camera).
 pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
@@ -625,4 +735,54 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
             });
         });
     });
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_plain_stage_has_nothing_overridden() {
+        let s = Settings::default();
+        assert_eq!(overrides(&s, false), Overrides::default());
+    }
+
+    #[test]
+    fn measured_walls_grey_the_colours_and_the_physical_sky_the_sky_light() {
+        let mut s = Settings::default();
+        s.measured_room = true;
+        let o = overrides(&s, false);
+        assert!(o.walls.is_some() && o.base.is_some());
+        assert!(o.sky_light.is_none());
+        s.measured_room = false;
+        s.physical_sky.on = true;
+        let o = overrides(&s, false);
+        assert!(o.sky_light.is_some() && o.hdri.is_some());
+        // Visible to camera is on by default, so the background colour is not seen either.
+        assert_eq!(s.physical_sky.visible, o.background.is_some());
+        s.physical_sky.visible = false;
+        assert!(overrides(&s, false).background.is_none());
+    }
+
+    #[test]
+    fn an_hdri_that_failed_to_load_overrides_nothing() {
+        let mut s = Settings::default();
+        s.hdri = "sky.hdr".into();
+        assert!(overrides(&s, false).sky_light.is_some());
+        assert_eq!(overrides(&s, true), Overrides::default());
+        s.hdri_visible = false;
+        assert!(overrides(&s, false).background.is_none());
+    }
+
+    #[test]
+    fn textures_replace_the_wall_and_floor_colours() {
+        let mut s = Settings::default();
+        s.cornell_room = true;
+        s.walls.texture = "bricks.png".into();
+        let o = overrides(&s, false);
+        assert!(o.walls.is_some());
+        // The floor is still untextured, so its colour (the same swatch) still matters.
+        assert!(o.base.is_none());
+        s.floor.texture = "wood.png".into();
+        assert!(overrides(&s, false).base.is_some());
+    }
 }

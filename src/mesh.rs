@@ -244,12 +244,7 @@ pub fn load(path: &str) -> Result<Arc<Imported>> {
         }
     }
     let key = resolve(file);
-    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(hit) = cache.get(&key) {
-        return hit.clone().map_err(anyhow::Error::msg);
-    }
-    let result = read(&key).map(Arc::new).map_err(|e| format!("{e:#}"));
-    cache.insert(key.clone(), result.clone());
+    let result = load_cached(&CACHE, &key, read);
     if let Ok(hit) = &result {
         LOADED.lock().unwrap_or_else(|e| e.into_inner()).insert(
             file.to_string(),
@@ -257,6 +252,27 @@ pub fn load(path: &str) -> Result<Arc<Imported>> {
         );
     }
     result.map_err(anyhow::Error::msg)
+}
+/// The cached result for `key`, parsing with `parse` on a miss. The lock is held only for the
+/// lookup and for the insert, never across the parse, so a thread that wants a cached file
+/// (every frame's rebuild) never waits for one that is still being parsed. Two threads that miss
+/// together both parse; the first insert wins and both return its result, so a file is always
+/// one `Arc` however the threads interleave.
+fn load_cached(
+    cache: &Mutex<Cache>,
+    key: &Path,
+    parse: impl FnOnce(&Path) -> Result<Imported>,
+) -> Result<Arc<Imported>, String> {
+    if let Some(hit) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(key) {
+        return hit.clone();
+    }
+    let result = parse(key).map(Arc::new).map_err(|e| format!("{e:#}"));
+    cache
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .entry(key.to_path_buf())
+        .or_insert(result)
+        .clone()
 }
 /// The part an object uses, or None for the whole file, built-in shapes and unreadable files.
 fn part_of(o: &Object) -> Option<(Arc<Imported>, Option<usize>)> {
@@ -1212,6 +1228,81 @@ mod tests {
         let p = std::env::temp_dir().join(name);
         std::fs::write(&p, text).unwrap();
         p
+    }
+    fn empty() -> Imported {
+        Imported {
+            parts: vec![],
+            lights: vec![],
+            scale: 1.,
+            whole: OnceLock::new(),
+        }
+    }
+    /// The cache lock is free while a file parses, and two threads that import the same file
+    /// together end with one shared result whichever finishes first.
+    #[test]
+    fn cache_is_not_held_across_a_parse_and_inserts_once() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::mpsc::channel;
+        let cache: Mutex<Cache> = Mutex::default();
+        let parses = AtomicU32::new(0);
+        let key = PathBuf::from("a.obj");
+        let (started_tx, started_rx) = channel();
+        let (go_tx, go_rx) = channel::<()>();
+        std::thread::scope(|s| {
+            // Thread A: parses slowly, parked until released.
+            let (cache_r, key_r, parses_r) = (&cache, &key, &parses);
+            let a = s.spawn(move || {
+                load_cached(cache_r, key_r, |_| {
+                    parses_r.fetch_add(1, Ordering::SeqCst);
+                    started_tx.send(()).unwrap();
+                    go_rx.recv().unwrap();
+                    Ok(empty())
+                })
+            });
+            started_rx.recv().unwrap();
+            // A is mid-parse: the lock is free, other keys load, and so does the same key.
+            assert!(
+                cache.try_lock().is_ok(),
+                "the lock is held across the parse"
+            );
+            load_cached(&cache, Path::new("b.obj"), |_| Ok(empty())).unwrap();
+            let b = load_cached(&cache, &key, |_| {
+                parses.fetch_add(1, Ordering::SeqCst);
+                Ok(empty())
+            })
+            .unwrap();
+            go_tx.send(()).unwrap();
+            let a = a.join().unwrap().unwrap();
+            // B inserted first, so A returns B's result, not its own.
+            assert!(Arc::ptr_eq(&a, &b));
+            assert_eq!(parses.load(Ordering::SeqCst), 2);
+            // Now cached: no third parse, same Arc.
+            let c = load_cached(&cache, &key, |_| panic!("parsed again")).unwrap();
+            assert!(Arc::ptr_eq(&b, &c));
+        });
+        assert_eq!(cache.lock().unwrap().len(), 2);
+    }
+    /// Many threads on one file: every caller gets the same Arc and the cache holds one entry.
+    #[test]
+    fn concurrent_imports_of_one_file_agree() {
+        let cache: Mutex<Cache> = Mutex::default();
+        let key = PathBuf::from("same.obj");
+        let results: Vec<_> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..8)
+                .map(|_| s.spawn(|| load_cached(&cache, &key, |_| Ok(empty())).unwrap()))
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        assert!(results.iter().all(|r| Arc::ptr_eq(r, &results[0])));
+        assert_eq!(cache.lock().unwrap().len(), 1);
+        // A failure is cached too, and the first result stays.
+        let bad = PathBuf::from("bad.obj");
+        let e = load_cached(&cache, &bad, |_| anyhow::bail!("nope"))
+            .err()
+            .unwrap();
+        assert!(e.contains("nope"));
+        let again = load_cached(&cache, &bad, |_| Ok(empty())).err().unwrap();
+        assert_eq!(again, e);
     }
     /// Khronos' ToyCar has a clear-coated body and a sheen fabric (track 11); skipped when the
     /// asset browser has not downloaded it.

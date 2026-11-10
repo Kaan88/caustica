@@ -53,8 +53,14 @@ pub struct PhysicalSky {
     pub utc_offset: f32,
     /// Observer altitude above the ground, km (the sky darkens and the horizon drops).
     pub altitude: f32,
-    /// Star brightness (0: none).
+    /// Star brightness (0: none): the catalogue's stars as point lights (stars.rs).
     pub stars: f32,
+    /// Stars fainter than this V magnitude are left out (6.5: the naked eye's limit in a dark
+    /// sky; a camera on a long exposure reaches 9 and beyond).
+    pub limiting_magnitude: f32,
+    /// A star's disc on screen, pixels across (1: sharp; larger spreads its light, as an
+    /// out-of-focus or glowing point).
+    pub star_size: f32,
     /// The moon: its phase follows the date, and at night it lights the sky.
     pub moon: bool,
     /// Milky Way brightness (1: the real sky's, from `scenes/sky/milkyway.exr`).
@@ -83,6 +89,8 @@ impl Default for PhysicalSky {
             utc_offset: 0.,
             altitude: 0.05,
             stars: 1.,
+            limiting_magnitude: 6.5,
+            star_size: 1.,
             moon: true,
             milky_way: 1.,
             airglow: 1.,
@@ -109,6 +117,8 @@ impl PhysicalSky {
                 && (-14. ..=14.).contains(&self.utc_offset)
                 && (0. ..=20.).contains(&self.altitude)
                 && (0. ..=1000.).contains(&self.stars)
+                && (-2. ..=16.).contains(&self.limiting_magnitude)
+                && (0.5..=32.).contains(&self.star_size)
                 && (0. ..=10.).contains(&self.milky_way)
                 && (0. ..=10.).contains(&self.airglow)
                 && (0. ..=10.).contains(&self.light_pollution),
@@ -206,7 +216,7 @@ impl PhysicalSky {
     /// which the GPU applies).
     pub fn map_key(&self) -> String {
         format!(
-            "sky:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            "sky:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
             self.solar_time(),
             self.day,
             self.year,
@@ -218,11 +228,18 @@ impl PhysicalSky {
             self.ground,
             self.altitude,
             self.stars,
+            self.limiting_magnitude,
             self.moon,
             self.milky_way,
             self.airglow,
             self.light_pollution
         )
+    }
+    /// The air's transmittance straight up from the observer (the stars' optical depth).
+    pub fn zenith_transmittance(&self) -> Vec3 {
+        Atmosphere::bare(self.turbidity)
+            .march_transmittance(self.observer(), 1.)
+            .unwrap_or(Vec3::ZERO)
     }
     fn observer(&self) -> f32 {
         GROUND + self.altitude.max(0.001)
@@ -523,35 +540,6 @@ pub fn bake(sky: &PhysicalSky) -> anyhow::Result<crate::environment::EnvMap> {
     let solid = |y: usize| {
         (PI / h as f32) * (2. * PI / w as f32) * (PI * (y as f32 + 0.5) / h as f32).sin().max(1e-4)
     };
-    // Stars: about one texel in 150 above the horizon, a steep brightness distribution, a
-    // colour from blue-white to orange, dimmed by the air along the view (a day sky drowns
-    // them on its own). Energy per star, so the map size changes only their count.
-    if sky.stars > 0. {
-        for y in 0..h / 2 {
-            for x in 0..w {
-                let hash = |k: u32| {
-                    let mut v = (x as u32).wrapping_mul(0x9e37_79b9)
-                        ^ (y as u32).wrapping_mul(0x85eb_ca6b)
-                        ^ k.wrapping_mul(0xc2b2_ae35);
-                    v ^= v >> 16;
-                    v = v.wrapping_mul(0x7feb_352d);
-                    v ^= v >> 15;
-                    v = v.wrapping_mul(0x846c_a68b);
-                    (v ^ (v >> 16)) as f32 / u32::MAX as f32
-                };
-                if hash(1) > 1. / 150. {
-                    continue;
-                }
-                let d = direction(x, y);
-                let Some(t) = atmosphere.march_transmittance(atmosphere.observer, d.y) else {
-                    continue;
-                };
-                let tint = Vec3::new(0.75, 0.85, 1.).lerp(Vec3::new(1., 0.8, 0.55), hash(2));
-                let e = 7.5e-8 * hash(3).powi(4).max(0.002) * sky.stars * sky.intensity;
-                texels[y * w + x] += tint * t * e / solid(y);
-            }
-        }
-    }
     // The moon's disc (at least a texel across): sunlight 2.5e-6 times as strong at full moon.
     if sky.moon && moon.y > 0. {
         let t = atmosphere
@@ -572,11 +560,20 @@ pub fn bake(sky: &PhysicalSky) -> anyhow::Result<crate::environment::EnvMap> {
             texels[k] += Vec3::new(1., 0.97, 0.92) * t * e / area.max(1e-9);
         }
     }
-    crate::environment::build(
+    let mut map = crate::environment::build(
         w,
         h,
         texels.into_iter().map(|l| (l + night).to_array()).collect(),
-    )
+    )?;
+    // The catalogue's stars are point lights (stars.rs), not texels: the map only says whether
+    // they are on and the share of sky samples they take.
+    if let Some(table) =
+        crate::stars::Table::get().filter(|t| sky.stars > 0. && t.kept(sky.limiting_magnitude) > 0)
+    {
+        map.stars = true;
+        map.star_share = crate::stars::share(sky, table, map.inv_norm);
+    }
+    Ok(map)
 }
 
 /// Surface brightness (V mag/arcsec²) to scene radiance for a sun of intensity 1:

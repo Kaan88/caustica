@@ -193,6 +193,12 @@ impl Script {
 /// Sets a top-level setting or a `/` path inside the settings to a JSON value, through the
 /// same validation as a loaded file.
 pub fn set(s: &mut crate::scene::Settings, key: &str, value: &str) -> anyhow::Result<()> {
+    // The pre-0.12 bools still work: set("rr", "false").
+    if let Ok(on) = value.parse::<bool>()
+        && s.denoiser.set_legacy(key, on)
+    {
+        return Ok(());
+    }
     let mut j = serde_json::to_value(&*s)?;
     let pointer = format!("/{}", key.trim_start_matches('/'));
     let slot = j

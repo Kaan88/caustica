@@ -29,7 +29,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `src/script.rs` | Track 19 Rhai scripting: `--script` runs on its own thread; each call is a `Request` the app answers between frames (`App::poll_script`). `set` applies a JSON-pointer edit through `validate()`. See engine-notes "Scripting". |
 | `src/laser.rs` | Track 17 laser puzzle: CPU beam trace (`trace`), `Laser` state (segments, solved, moves) and its overlay. See engine-notes "Laser puzzle". |
 | `src/look.rs` | Roadmap 5c: `read_cube` (.cube 3D LUT) and `color_wheel` (lift/gamma/gain widget: chroma from a dragged dot in an orthonormal RGB chroma plane, level from a slider, double-click resets). |
-| `src/walk.rs`, `video.rs`, `saver.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), screensaver mode, phone remote (see "Toys"). |
+| `src/walk.rs`, `video.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), phone remote (see "Toys"). |
 | `src/sky.rs` | Track 9 physical sky: `PhysicalSky` (`Settings::physical_sky`), solar position, atmosphere bake, the sun light, `environment_key` / `upload_environment`. See "Physical sky". |
 | `src/anim.rs`, `timeline_ui.rs` | Track 8 keyframes and the timeline strip; see "Animation and timeline". |
 | `src/video_ui.rs` | The video export dialog and the progress window shown during an export. |

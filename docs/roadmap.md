@@ -47,7 +47,7 @@ Details are in engine-notes under the section named in quotes.
 - Startup time first part (warm 5.9 to 2.2 s), 2026-11-04: "Startup time".
 - Flashlight beside the camera (0.3 right, 0.4 down, beam crossing the view axis 8 units ahead) with a reflector beam profile through the IES path, an IES default (`scenes/ies/flashlight.ies`) and its settings in its own outliner row, 2026-11-06: "Flashlight".
 - Achievements reworked (`src/stats.rs`): 37 in six groups, tiers sized for a fast card (about 200 million paths a second, so "billions" is no longer seconds), progress bars, 2026-11-06.
-- UI usability review, 2026-11-06 (`docs/ui-review.md`): 42 findings, 24 fixed, including the SDR UI gamma bug (the whole UI drawn too dark), undo of panel edits, unsaved-work warning and a restorable session; 18 open.
+- UI usability review, 2026-11-06 (`docs/ui-review.md`): 42 findings, fixed in the working tree and since, including the SDR UI gamma bug (the whole UI drawn too dark), undo of panel edits, unsaved-work warning and a restorable session; the rest are listed open in the file.
 - CPU mode (`--cpu`, and the GPU / CPU switch in the menu, top bar and Render tab), playable 2026-11-09: the CPU render shown full view through the display pass, previews while moving, samples and time in the status bar, saves, a list of what the scene still loses: "CPU reference renderer". Parity is in progress (Now e).
 
 ## Now
@@ -83,12 +83,12 @@ Work the [keep] items in "Open tails" below, grouped by area, smallest first. An
 
 ### Owner requests, to order with the owner (2026-11-06)
 
-- Remove light painting and the screensaver mode from the app (owner, 2026-11-10: "so pointless"): code, UI, CLI switches, self-test frames, CPU twin, docs and README. Queued until the parity tree is quiet.
+- [done 2026-11-10] Remove light painting and the screensaver mode from the app (owner: "so pointless"): `src/saver.rs`, `tools/make_screensaver.ps1`, the L key, *Paint light* button, `--` switches and self-test frames 240-242 (free now) are gone; the engine's keep-the-sums path stays for the motion-blur export as `Gpu::keep_exposure` (engine-notes "Keep-exposure mode").
 
 - [done 2026-11-06] Rework and expand the achievements: some fell far too fast ("billions" took a couple of seconds). See Done.
 - [done 2026-11-06] Offset the flashlight from the camera: it shot straight from the eye, so its shadows were barely visible. See Done.
 - [done 2026-11-10, Vulkan measured, D3D12 and hand use not tried] Proper first-person view in walk mode (2026-11-07): see your own legs when looking down and your reflection in mirrors and glass. An avatar of a few blocks is enough, in the spirit of a blocky game character but our own design, posed from the walker's stride, visible to reflections and to the camera below the neck. Done as `avatar.rs` (engine-notes "Walk avatar"); open: measure `update_materials` on D3D12 and skip identical tables there too, a colour or skin choice, a body that lags the view and follows the movement direction (strafing slides the same stride now), foot-planting that matches the stride length (the legs are shorter than the walker's step), a collider, hands holding the flashlight.
-- The 18 open UI findings (scene browser tags, top bar, Look starting points, Stage inspector, settings search, import freeze and more) are in `docs/ui-review.md`, with sizes and proposed fixes, for the owner to order.
+- The UI review's findings are all fixed (`docs/ui-review.md`); what is left there are the per-batch notes of defaults taken, plus R's meaning (restart against modal rotate) for the owner to decide.
 
 ### Self-update, open items
 
@@ -114,7 +114,7 @@ Portability: Linux, and AMD / Intel drivers where Vulkan RT is stronger. The ups
 - **Linux port:** done 2026-11-06 on an RTX under KDE Wayland (engine-notes "Linux on a real desktop"): exit crashes, `--self-test`, DLSS RR / SR, HDR output and `display::Monitor` (through `wp_color_manager_v1`, not KWin's config file), shader hot reload. Open: highlights above the reference white, unmeasurable by screenshot; the `linux` CI job on GitHub runs once CI is back on.
 
 ### e. CPU renderer parity - complete (2026-11-10)
-`reference::unsupported()` is empty: every scene and setting the GPU renders also renders on the CPU. Light painting needs no fix (it is being removed). What is left are GPU-side oracle failures, found by the CPU and not yet fixed:
+`reference::unsupported()` is empty: every scene and setting the GPU renders also renders on the CPU. Light painting is gone. What is left are GPU-side oracle failures, found by the CPU and not yet fixed:
 - Texture mip-prefilter bias: texture-showroom, texture-rock-garden (worst block 1.094) and texture-brick-box.
 - Emissive-map scenes: the checker scene and Lantern.
 - Sponza with alpha, direct light only: 1.0161.
@@ -162,7 +162,9 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 - [drop] Spectral leftovers listed under Future goals.
 
 ### Lights and sky
-- [keep] **Night sky redesign (owner, 2026-11-10):** the owner wants a realistic starry night; mockups are being made. The current stars are big dots and hard to see: they are physically scaled so they need Exposure 10 plus Sun intensity 1000 to show; Exposure tops out at 10x; no moon-position readout. Revisit with the owner once the mockups exist (engine-notes "Physical sky: night, clock time, altitude"); the starry-observatory scene waits on it.
+- [keep] **Night sky redesign (owner, 2026-11-10):** plan in `docs/night-sky.md` and `docs/plan-big-features.md`. Done: data (N1), astronomy (N2, N2b), Milky Way / airglow / light pollution (N4), catalogue stars as point lights (N3, 2026-11-10, engine-notes "Night sky: stars as point lights"). N5 tweaks done (limiting magnitude, star size, one Night sky group, engine-notes "Night sky: tweaks"). Still to come: N6 auto exposure (until then night scenes need Exposure 10 plus Sun intensity 1000 and are still dark), N7 Eyes look, N8 scenes; the starry-observatory scene waits on N6.
+- [open] **Planets (N5, later):** Mercury to Saturn as point lights from `astro.rs` ephemerides, coloured and with magnitudes, through the same table as the stars; not started. Star size is a render-side cone, not a display-side point spread: a glow or diffraction spike for bright stars would be a post effect (not started).
+- [open] **Stars, N3 leftovers (2026-11-10):** (a) metal mirrors are GGX at α 0.001 here, not delta, so stars reach them only by light sampling: a star's reflection in a roughness-0 metal converges slowly (water and glass, which are delta, use the cone and are sharp at once); a "near-delta" partition (cone for lobes at the α floor, their specular part left out of star NEE) would fix it. (b) BDPT and photon mapping leave the stars out (no light sampling, no cone): night scenes under them miss starlight. (c) The air uses Kasten-Young air mass on the zenith optical depth, not the sun's exact `march_transmittance` (both renderers the same; a few % off near the horizon). (d) Star picks are by catalogue power, not horizon-culled: about half the star samples land below the horizon and count zero. (e) D3D12 side (root SRV t18) written but not compiled here (Linux); build and self-test it on Windows. (f) A floor material with metallic 1, roughness 0 under the night sky disagrees GPU/CPU by 0.4% (z −45) with stars off too; and a roughness-0 metal box by 5%: pre-existing, not star-related, for the accuracy audit.
 - [done 2026-11-05, self-tests pass, not tried by hand] HDR10: a refusal is now retried after a display change (done 2026-11-04); still open: the R10G10B10A2 typed UAV store is not checked with `CheckFeatureSupport`. `set_hdr` checks D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE for R10G10B10A2 and falls back to scRGB as for a refused colour space.
 - [drop] HDR10: egui blends on PQ code values (text edges slightly off), `SetHDRMetaData` mastering metadata.
 - [drop] Sky: clouds, aerial perspective on geometry, moon declination and texture, fixed ozone / aerosol profiles, blocky stars when zoomed, first-look bake wait.
@@ -220,7 +222,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 ### Platform, CI and release
 - [keep] The first tag with the asset-fetch step and the ~870 MB installer exercises them for the first time: check installer size, build time and `LZMANumBlockThreads`, and run the installer on a clean machine.
 - [keep] Owner request (2026-11-05): pre-build the scene and material thumbnails at release time and ship them in the installer, zip and AppImage, so a fresh install doesn't spend minutes rendering them on first open. Seed the thumbnail cache from the bundled set, keyed so an edited scene still re-renders its own.
-  - **Rule (owner, 2026-11-10):** a change to a scene must re-render or remove its thumbnail. Thumbnails are keyed by a hash of the scene file, so an edited scene file orphans its old thumbnail; whoever changes a scene regenerates its thumbnail (CPU thumbnails exist: `--make-thumbnails --cpu`) or deletes the stale one, and a shipped set must hold no thumbnail whose hash no longer matches.
+  - **Rule (owner, 2026-11-10):** a change to a scene must re-render or remove its thumbnail. Thumbnails are keyed by a hash of the scene file, so an edited scene file orphans its old thumbnail; whoever changes a scene regenerates its thumbnail (CPU thumbnails exist: `--make-thumbnails --cpu`) or deletes the stale one, and a shipped set must hold no thumbnail whose hash no longer matches. The key also mixes `scenes::RENDER_VERSION`: an engine change that alters images without touching the scene files (astronomy, glass lift, shader fixes) bumps it, which re-renders every thumbnail by the same rule.
 - [drop] CI self-test: needs a GPU runner. Signed installer: needs a certificate (SmartScreen warns).
 - [drop] DXC on the runner not pinned; setting to move the data folder; leftover files after uninstall; downloaded assets not in the zip; local folder still called `cornell` (owner's choice).
 
@@ -233,6 +235,7 @@ Audit the GPU path tracer's shortcuts against the CPU reference (rough glass as 
 
 ### Other denoisers (owner request, low priority)
 Intel OIDN 2 (best offline quality for stills, CUDA sharing with D3D12), NVIDIA OptiX (temporal mode), NVIDIA NRD (ReBLUR / ReLAX; would also fix the native filter's blotches). Compare against RR with `tools/motion_error.py`.
+The `Denoiser` enum (engine-notes "Denoiser enum") has the room: a variant, a label, a `Capabilities` entry and a pipeline arm in frame.rs / the Vulkan `render`. Done 2026-11-10: enum, serde migration, Render-tab combo.
 
 ### Spectral rendering, part 2
 Part 1 is done (path tracer, photons, dispersion, exact thin film, gratings, lens). Open: BDPT, the photon gather's camera side, LPE and the path visualizer stay RGB; exact blackbody Kelvin lights; fluorescence (black-light mode); Jakob-Hanika uplift; colour noise under RR and the native filter unmeasured; four wavelengths instead of three.
@@ -263,6 +266,6 @@ Closed by owner decision or by the triage above (the [drop] lines in "Open tails
 - Gamepad testing, CI self-test on a GPU runner, signed installer, NGX GUID change: blocked on hardware, certificates, or moot for a never-published project.
 - True delta point and directional lights, light linking and gobos (by design).
 - Native TAA / SMAA, SVGF blotch fix (RR is the product; NRD is the real fix), ReSTIR GI / PT, VDB files, skin-tuned subsurface.
-- Removed by the owner 2026-11-10: light painting and the screensaver mode (being taken out of the app); VR via OpenXR; the lightmap baker and texture painting; FSR on Vulkan and XeSS on Linux (both blocked on vendor SDKs); moving the window between monitors (coded, untested, left as is).
+- Removed by the owner 2026-11-10: light painting and the screensaver mode (taken out of the app the same day); VR via OpenXR; the lightmap baker and texture painting; FSR on Vulkan and XeSS on Linux (both blocked on vendor SDKs); moving the window between monitors (coded, untested, left as is).
 - Dropped by the owner 2026-11-10 from the big-feature plan (`docs/plan-big-features.md`): the OptiX denoiser, the D3D12 display-only device for GPUs without ray tracing, DLSS Frame Generation (Reflex stays).
 - Every other [drop] in "Open tails".

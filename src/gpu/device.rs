@@ -194,8 +194,8 @@ impl Gpu {
             self.upscale_status = "Upscaling needs a perspective camera; bicubic".into();
             return None;
         }
-        if self.painting {
-            self.upscale_status = "Light painting accumulates at render resolution".into();
+        if self.keep_exposure {
+            self.upscale_status = "Kept exposures accumulate at render resolution".into();
             return None;
         }
         if s.battle {
@@ -441,6 +441,10 @@ impl Gpu {
     pub fn environment_loaded(&self) -> bool {
         self.env_inv_norm > 0.
     }
+    /// The catalogue's stars are on the GPU and on in this sky (night sky N3).
+    pub fn stars_loaded(&self) -> bool {
+        self.env_stars.is_some() && self.star_buffer.is_some()
+    }
     /// Uploads an HDRI and its sampling tables (environment.rs); `None` clears it.
     pub unsafe fn set_environment(
         &mut self,
@@ -450,9 +454,18 @@ impl Gpu {
         let Some(env) = env else {
             self.env_inv_norm = 0.;
             self.env_sun = None;
+            self.env_stars = None;
             return Ok(());
         };
         self.env_sun = env.sun.map(|s| (s, env.sun_share));
+        self.env_stars = None;
+        if let Some(table) = crate::stars::Table::get().filter(|_| env.stars) {
+            if self.star_buffer.is_none() {
+                let words = table.gpu_words();
+                self.star_buffer = Some(upload(&self.device, bytemuck::cast_slice(&words))?);
+            }
+            self.env_stars = Some(env.star_share);
+        }
         let (w, h) = (env.width as u32, env.height as u32);
         // Half floats: an 8k map is 256 MB instead of 512 MB.
         let peak = env

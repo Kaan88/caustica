@@ -2,7 +2,7 @@
 //! values it exchanges with one, whichever backend draws (D3D12 `gpu`, Vulkan `vulkan::gpu`).
 pub mod plan;
 pub mod progress;
-use crate::scene::Upscaler;
+use crate::scene::{Denoiser, Upscaler};
 /// Size of the scopes counter texture (u28).
 pub const SCOPES: [u32; 2] = [256, 260];
 /// A light-meter / click-to-focus reading at one pixel: linear beauty, diffuse albedo and
@@ -132,6 +132,13 @@ pub struct Capabilities {
     pub xess: Backend,
 }
 impl Capabilities {
+    /// The backend behind a denoiser; `None` for the ones that always run (Off, Native).
+    pub fn denoiser(&self, d: Denoiser) -> Option<&Backend> {
+        match d {
+            Denoiser::Rr => Some(&self.rr),
+            Denoiser::Native | Denoiser::Off => None,
+        }
+    }
     /// The backend behind a temporal upscaler; `None` for the spatial ones (always available).
     pub fn upscaler(&self, u: Upscaler) -> Option<&Backend> {
         match u {
@@ -168,8 +175,9 @@ pub struct GpuState {
     /// Wayland: the compositor's reference white in nits, 0 elsewhere. It treats an HDR surface
     /// as relative, showing a signal of 203 nits at its reference, so `hdr_signal` rescales.
     pub hdr_reference: f32,
-    /// Light painting (roadmap 5d): progressive path only, and scene edits keep the accumulation.
-    pub painting: bool,
+    /// Keep the exposure: scene edits keep the accumulated sums, and RR and temporal upscaling
+    /// are off. Set by the motion-blur video export for the passes of one frame; progressive path only.
+    pub keep_exposure: bool,
     /// Look tools (roadmap 5b): zebras, scopes (read back into `scopes` each frame) and a
     /// light-meter probe at an output pixel (read back into `probe_result`: linear beauty and
     /// diffuse albedo).
@@ -336,6 +344,16 @@ pub struct Constants {
     pub env_ground: [f32; 4],
     /// Heterogeneous fog: noise amount (0 = uniform), feature size, -, -.
     pub fog_noise: [f32; 4],
+    /// Night sky N3 (stars.rs `Frame::rows`): the rows of the J2000-to-world rotation with,
+    /// in w, the irradiance scale, the stars' share of sky light samples (0 = no light
+    /// sampling) and the camera cone's chord; then the zenith optical depth, w 1 while stars
+    /// are on (0 = off).
+    pub star_x: [f32; 4],
+    pub star_y: [f32; 4],
+    pub star_z: [f32; 4],
+    pub star_tau: [f32; 4],
+    /// The limiting magnitude's kept star count and their CDF mass (stars.rs `Frame::rows`).
+    pub star_limit: [f32; 4],
 }
 
 /// What `constants` needs beyond the settings and `GpuState`: the camera, this frame's sample
@@ -356,6 +374,8 @@ pub struct FrameInputs {
     pub env_scale: f32,
     pub env_inv_norm: f32,
     pub env_sun: Option<(crate::environment::Sun, f32)>,
+    /// The environment's stars (`EnvMap::stars`): their share of sky samples, `None` = off.
+    pub env_stars: Option<f32>,
     /// Environment strength, rotation (radians) and visibility.
     pub env: (f32, f32, bool),
     pub lens_surfaces: u32,
@@ -373,6 +393,19 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
     let (n, reset, flags, jitter) = (x.n, x.reset, x.flags, x.jitter);
     let (env_strength, env_rotation, env_visible) = x.env;
     let lc = s.light_color();
+    let stars = match x.env_stars {
+        Some(share) if s.physical_sky.on && x.env_inv_norm > 0. => {
+            let f = crate::stars::Frame::new(
+                &s.physical_sky,
+                share,
+                crate::stars::chord(s.fov, st.height, s.physical_sky.star_size),
+            );
+            // A limit that keeps no star, before the sky is rebuilt: off, never a zero count
+            // beside the old share (the shader's pick would read before the table).
+            if f.count == 0 { [[0.; 4]; 5] } else { f.rows() }
+        }
+        _ => [[0.; 4]; 5],
+    };
     Constants {
         inverse_vp: vp.inverse().to_cols_array(),
         current_vp: vp.to_cols_array(),
@@ -393,7 +426,7 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
         modes: [
             s.view,
             s.tonemap,
-            (s.denoise && !s.battle) as u32,
+            (s.native_filter() && !s.battle) as u32,
             st.rr_active as u32,
         ],
         options: [
@@ -525,6 +558,11 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
             0.,
         ],
         fog_noise: [s.fog.noise, s.fog.noise_size, 0., 0.],
+        star_x: stars[0],
+        star_y: stars[1],
+        star_z: stars[2],
+        star_tau: stars[3],
+        star_limit: stars[4],
         path_record: [0; 4],
         lpe: [st.lpe_slots, s.lpe_slot, 0, 0],
         restir: [
@@ -778,6 +816,7 @@ mod tests {
                 env_scale: 1.,
                 env_inv_norm: 1.,
                 env_sun: None,
+                env_stars: None,
                 env: (1., 0., true),
                 lens_surfaces: 0,
                 glare_grid: 0,

@@ -30,7 +30,7 @@ Four lanes in parallel; file collisions noted. (CPU AOVs, LPE, BDPT, photons and
 
 1. **Cleanup and UI** (sonnet), one lane, in this order because they share `main.rs`, `ui.rs`, `chrome.rs`:
    - Remove the screensaver (S) and light painting (S+M). Keep the engine's keep-the-sums path that motion-blur video export and CPU timeline export use; rename it `keep_exposure`. Free self-test frames 240-242.
-   - Denoiser enum `{Off, Native, Rr, ...}` replacing the `rr` / `denoise` bools, with serde migration (M). Do it before anything else adds Settings fields.
+   - Denoiser enum `{Off, Native, Rr, ...}` replacing the `rr` / `denoise` bools, with serde migration (M). DONE 2026-11-10 (engine-notes "Denoiser enum"). Do it before anything else adds Settings fields.
    - UI review batches A (chrome, overlays), B (Stage and Object inspectors), C (Look/Render/Export tabs), E (scene browser, mesh import thread; opus-low review of the lock change), then D (`main.rs` input), each M.
 2. **Night sky** (N3-N8):
    - N4 Milky Way, airglow, light pollution in the bake; random stars gone (opus-low, M). Visible result first.

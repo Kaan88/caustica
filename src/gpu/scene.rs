@@ -283,7 +283,7 @@ impl Gpu {
         self.instances = table;
         self.triangle_count = triangle_count;
         self.update_materials(s)?;
-        if !self.painting {
+        if !self.keep_exposure {
             self.reset(true);
         }
         Ok(())
@@ -718,10 +718,10 @@ impl Gpu {
         self.emitter_buffer = upload(&self.device, bytemuck::cast_slice(&table))?;
         self.emitter_lookup = upload(&self.device, bytemuck::cast_slice(&lookup))?;
         self.instance_table = upload(&self.device, bytemuck::cast_slice(&self.instances))?;
-        // Light painting keeps the exposure, but reservoirs made for the old lights would be
+        // A kept exposure survives the edit, but reservoirs made for the old lights would be
         // reused with stale weights.
         self.restir_history = false;
-        if !self.painting {
+        if !self.keep_exposure {
             self.reset(true);
         }
         Ok(())

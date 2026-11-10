@@ -78,7 +78,18 @@ impl SdfLight {
 /// emitter's plane than the sampled line and cross it 0.0003 / |c| before the point: the stop is
 /// twice that off the plane, measured along the normal. Near-tangent rays and rays to nearby
 /// points cap it, so it can't skip a real occluder.
-/// A light sample (`Scene::sample_light`).
+/// The density a light sample's contribution divides by: its pdf alone for a delta light (a
+/// star: `pl` < 0) or without MIS (`alone`), else the balance heuristic's sum with the BSDF's.
+pub(super) fn nee_density(pl: f32, pdf: f32, alone: bool) -> f32 {
+    if pl < 0. {
+        -pl
+    } else if alone {
+        pl
+    } else {
+        pl + pdf
+    }
+}
+/// A light sample (`Scene::sample_light`); a negative pdf marks a delta light (a star).
 pub(super) type LightSample = (Vec3, Vec3, f32, f32, Option<u32>);
 pub(super) fn shadow_limit(dist: f32, c: f32) -> f32 {
     (dist - (0.5 * dist).min(0.0006 / c.abs().max(0.02))).max(0.0002)
@@ -192,16 +203,37 @@ impl Scene<'_> {
     /// One light sample: direction, radiance arriving (at the path's wavelengths, `w`),
     /// solid-angle pdf, shadow-ray length, and the light's material (None: the environment).
     pub(super) fn sample_light(&self, x: Vec3, w: &Waves, r: &mut Rng) -> Option<LightSample> {
-        if let Some(env) = &self.env
-            && r.f() < self.p_env
-        {
-            let (ld, pe) = env.sample(r);
-            return (pe > 0.).then(|| (ld, w.up(env.radiance(ld)), self.p_env * pe, 1e4, None));
+        if let Some(env) = &self.env {
+            let u = r.f();
+            if u < self.p_env {
+                return Self::sample_sky(env, u / self.p_env, self.p_env, w, r);
+            }
         }
         if !self.sdf_lights.is_empty() && (self.lights.is_empty() || r.f() < 0.5) {
             return self.sample_sdf(x, w, r);
         }
         self.sample_table(x, w, r)
+    }
+    /// A sample of the sky picked with probability `p` (`u` uniform in [0, 1), what is left of
+    /// the pick's number): a star by power with the stars' share (a delta direction, so its pdf
+    /// comes back negative: `nee_density`), else the map.
+    pub(super) fn sample_sky(
+        env: &super::environment::Env,
+        u: f32,
+        p: f32,
+        w: &Waves,
+        r: &mut Rng,
+    ) -> Option<LightSample> {
+        if let Some((table, f)) = &env.stars
+            && u < f.share
+        {
+            let (i, prob) = table.pick(u / f.share, f.count);
+            let (ld, le) = f.light(table, i);
+            return (ld.y > 0. && prob > 0.)
+                .then(|| (ld, w.up(le), -p * f.share * prob, 1e4, None));
+        }
+        let (ld, pe) = env.sample(r);
+        (pe > 0.).then(|| (ld, w.up(env.radiance(ld)), p * env.keep() * pe, 1e4, None))
     }
     /// One sample of the light table alone; its pdf is still the full `sample_light` pick's.
     pub(super) fn sample_table(&self, x: Vec3, w: &Waves, r: &mut Rng) -> Option<LightSample> {

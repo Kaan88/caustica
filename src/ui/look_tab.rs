@@ -1,6 +1,114 @@
 //! The Look and Export tabs.
 use super::*;
 
+/// A starting point for the Look tab: the fields it writes are the tone map, the film fields
+/// and lift / gamma / gain, nothing else (not exposure, glare, the LUT or the grade's
+/// neighbours). The selection is derived from the current values, never stored.
+pub(super) struct Look {
+    pub name: &'static str,
+    about: &'static str,
+    tonemap: u32,
+    halation: f32,
+    grain: f32,
+    grain_size: u32,
+    vignette: f32,
+    lift: [f32; 3],
+    gamma: [f32; 3],
+    gain: [f32; 3],
+}
+/// Neutral is the default state of every field it writes. The tone maps are indices into
+/// `TONE_MAPS` (1 Reinhard, 3 ACES filmic, 5 High contrast, 6 AgX). Changeable by editing
+/// this table.
+pub(super) const LOOKS: &[Look] = &[
+    Look {
+        name: "Neutral",
+        about: "Plain ACES filmic, no film effects, no grade.",
+        tonemap: 3,
+        halation: 0.,
+        grain: 0.,
+        grain_size: 1,
+        vignette: 0.,
+        lift: [0.; 3],
+        gamma: [1.; 3],
+        gain: [1.; 3],
+    },
+    Look {
+        name: "Warm film",
+        about: "AgX with a little halation, medium grain, a soft vignette and an amber cast.",
+        tonemap: 6,
+        halation: 0.2,
+        grain: 0.2,
+        grain_size: 1,
+        vignette: 0.2,
+        lift: [0.01, 0.005, 0.],
+        gamma: [1.04, 1., 0.94],
+        gain: [1.06, 1., 0.92],
+    },
+    Look {
+        name: "Cool",
+        about: "AgX with fine grain and a blue cast in the shadows and highlights.",
+        tonemap: 6,
+        halation: 0.,
+        grain: 0.05,
+        grain_size: 0,
+        vignette: 0.1,
+        lift: [0., 0.005, 0.015],
+        gamma: [0.96, 1., 1.05],
+        gain: [0.94, 1., 1.08],
+    },
+    Look {
+        name: "Punchy",
+        about: "High-contrast curve, darker midtones, brighter highlights, a light vignette.",
+        tonemap: 5,
+        halation: 0.,
+        grain: 0.,
+        grain_size: 1,
+        vignette: 0.15,
+        lift: [0.; 3],
+        gamma: [0.92; 3],
+        gain: [1.08; 3],
+    },
+    Look {
+        name: "Soft",
+        about: "Reinhard with glowing highlights, lifted blacks and flatter contrast.",
+        tonemap: 1,
+        halation: 0.35,
+        grain: 0.,
+        grain_size: 1,
+        vignette: 0.1,
+        lift: [0.03; 3],
+        gamma: [1.05; 3],
+        gain: [0.97; 3],
+    },
+];
+impl Look {
+    /// The bundle the settings match, if any (floats to the precision of a slider drag).
+    pub(super) fn of(s: &Settings) -> Option<&'static Look> {
+        let near = |a: f32, b: f32| (a - b).abs() < 1e-3;
+        let near3 = |a: [f32; 3], b: [f32; 3]| a.iter().zip(b).all(|(a, b)| near(*a, b));
+        LOOKS.iter().find(|l| {
+            s.tonemap == l.tonemap
+                && near(s.halation, l.halation)
+                && near(s.grain, l.grain)
+                && s.grain_size == l.grain_size
+                && near(s.vignette, l.vignette)
+                && near3(s.lift, l.lift)
+                && near3(s.grade_gamma, l.gamma)
+                && near3(s.gain, l.gain)
+        })
+    }
+    pub(super) fn apply(&self, s: &mut Settings) {
+        s.tonemap = self.tonemap;
+        s.halation = self.halation;
+        s.grain = self.grain;
+        s.grain_size = self.grain_size;
+        s.vignette = self.vignette;
+        s.lift = self.lift;
+        s.grade_gamma = self.gamma;
+        s.gain = self.gain;
+    }
+}
+
 impl App {
     pub(super) fn look_tab(&mut self, ui: &mut egui::Ui) {
         let hdr_text = hdr_line(self);
@@ -9,6 +117,27 @@ impl App {
         let advanced = self.ui.advanced;
         section(ui, "Image");
         grid("look").show(ui, |ui| {
+            row(
+                ui,
+                "Look",
+                "A starting point: sets the tone map, the film fields (halation, grain, vignette) and lift / gamma / gain together. Exposure, glare, the LUT and everything else stay as they are. Tweak any field after and this reads Custom.",
+                |ui| {
+                    let current = Look::of(s);
+                    egui::ComboBox::from_id_salt("look bundle")
+                        .selected_text(current.map_or("Custom", |l| l.name))
+                        .show_ui(ui, |ui| {
+                            for l in LOOKS {
+                                if ui
+                                    .selectable_label(current.is_some_and(|c| c.name == l.name), l.name)
+                                    .on_hover_text(l.about)
+                                    .clicked()
+                                {
+                                    l.apply(s);
+                                }
+                            }
+                        });
+                },
+            );
             row(ui, "View", "What the viewport shows (keys 1–8).", |ui| {
                 egui::ComboBox::from_id_salt("view")
                     .selected_text(VIEWS[s.view as usize])
@@ -87,7 +216,7 @@ impl App {
                     ui.add(crate::slider(&mut s.glare, 0. ..=4.).logarithmic(true).smallest_positive(0.01));
                 },
             );
-            if s.glare > 0. {
+            if s.glare > 0. && (advanced || s.glare_size != 0.5 || s.glare_threshold != 1.) {
                 row(ui, "Glare size", "How far the spikes and rings reach.", |ui| {
                     ui.add(crate::slider(&mut s.glare_size, 0. ..=1.));
                 });
@@ -126,16 +255,18 @@ impl App {
                     ui.add(crate::slider(&mut s.grain, 0. ..=1.));
                 },
             );
-            row(ui, "Grain size", "How coarse the grain is.", |ui| {
-                egui::ComboBox::from_id_salt("grain size")
-                    .selected_text(["Fine", "Medium", "Coarse"][s.grain_size.min(2) as usize])
-                    .width(80.)
-                    .show_ui(ui, |ui| {
-                        for (i, n) in ["Fine", "Medium", "Coarse"].iter().enumerate() {
-                            ui.selectable_value(&mut s.grain_size, i as u32, *n);
-                        }
-                    });
-            });
+            if advanced || s.grain > 0. {
+                row(ui, "Grain size", "How coarse the grain is.", |ui| {
+                    egui::ComboBox::from_id_salt("grain size")
+                        .selected_text(["Fine", "Medium", "Coarse"][s.grain_size.min(2) as usize])
+                        .width(80.)
+                        .show_ui(ui, |ui| {
+                            for (i, n) in ["Fine", "Medium", "Coarse"].iter().enumerate() {
+                                ui.selectable_value(&mut s.grain_size, i as u32, *n);
+                            }
+                        });
+                });
+            }
             row(ui, "Vignette", "Darkens toward the corners.", |ui| {
                 ui.add(crate::slider(&mut s.vignette, 0. ..=1.));
             });
@@ -150,29 +281,32 @@ impl App {
             ui,
             "Drag a wheel to tint, the slider for the level; double-click either to reset.",
         );
+        // A 3D LUT is an expert tool: hidden until Show advanced, or while one is loaded.
         grid("lut").show(ui, |ui| {
-            row(
-                ui,
-                "LUT",
-                "A .cube 3D LUT applied after the grade, on the display-encoded image.",
-                |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut s.lut_path)
-                            .hint_text(field_hint("path to .cube"))
-                            .desired_width(170.),
-                    );
-                    if ui.small_button("Browse…").clicked()
-                        && let Some(p) = rfd::FileDialog::new()
-                            .add_filter("3D LUT", &["cube"])
-                            .pick_file()
-                    {
-                        s.lut_path = crate::mesh::store(&p);
-                    }
-                    if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
-                        s.lut_path.clear();
-                    }
-                },
-            );
+            if advanced || !s.lut_path.is_empty() {
+                row(
+                    ui,
+                    "LUT",
+                    "A .cube 3D LUT applied after the grade, on the display-encoded image.",
+                    |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut s.lut_path)
+                                .hint_text(field_hint("path to .cube"))
+                                .desired_width(170.),
+                        );
+                        if ui.small_button("Browse…").clicked()
+                            && let Some(p) = rfd::FileDialog::new()
+                                .add_filter("3D LUT", &["cube"])
+                                .pick_file()
+                        {
+                            s.lut_path = crate::mesh::store(&p);
+                        }
+                        if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
+                            s.lut_path.clear();
+                        }
+                    },
+                );
+            }
             // A row of its own: this one already fills the panel.
             if !s.lut_path.is_empty()
                 && let Some(e) = &self.ui.lut_error
@@ -200,13 +334,13 @@ impl App {
                     }
                 });
             });
-            if g.hdr_active || s.hdr_mode != 1 {
+            if (g.hdr_active || s.hdr_mode != 1) && (advanced || s.hdr10) {
                 row(ui, "Swapchain", "scRGB: 16-bit float, the desktop converts it for the panel. HDR10: 10-bit PQ in BT.2020, sent to the panel as it is (for comparison).", |ui| {
                     ui.selectable_value(&mut s.hdr10, false, "scRGB (FP16)");
                     ui.selectable_value(&mut s.hdr10, true, "HDR10 (PQ)");
                 });
             }
-            if g.hdr_active {
+            if g.hdr_active && (advanced || s.hdr_peak != 0. || s.hdr_white != 0.) {
                 row(ui, "Peak brightness", if cfg!(windows) { "From Windows HDR Calibration, or set by hand." } else { "From the desktop's display settings, or set by hand." }, |ui| {
                     let mut windows = s.hdr_peak == 0.;
                     if ui.checkbox(&mut windows, if cfg!(windows) { "Windows" } else { "Desktop" }).changed() {
@@ -234,21 +368,6 @@ impl App {
                 "In HDR, midtones look as in SDR and the tone map's highlights expand up to the panel peak. Linear shows true scene brightness with a roll-off near the peak.",
             );
         }
-        section(ui, "Tools");
-        ui.horizontal_wrapped(|ui| {
-            ui.checkbox(&mut self.ui.zebras, "Zebras")
-                .on_hover_text("Stripes where the displayed image clips");
-            ui.checkbox(&mut self.ui.show_scopes, "Scopes")
-                .on_hover_text("Histogram, luma waveform and vectorscope");
-            ui.checkbox(&mut self.ui.meter, "Light meter")
-                .on_hover_text("Luminance and illuminance under the cursor");
-            ui.checkbox(&mut self.ui.show_graph, "Convergence graph")
-                .on_hover_text("Error against a reference image as samples grow");
-            ui.checkbox(&mut self.ui.paths.open, "Path visualizer (P)")
-                .on_hover_text("Click a pixel to see its light paths in 3D");
-        });
-        section(ui, "Light path expressions");
-        lpe_section(ui, s, &mut self.ui.lpe_edit);
         section(ui, "Compare");
         let cpu = self
             .cpu_reference
@@ -315,6 +434,28 @@ impl App {
                 });
             });
         }
+        section(ui, "Tools");
+        ui.horizontal_wrapped(|ui| {
+            ui.checkbox(&mut self.ui.zebras, "Zebras")
+                .on_hover_text("Stripes where the displayed image clips");
+            ui.checkbox(&mut self.ui.show_scopes, "Scopes")
+                .on_hover_text("Histogram, luma waveform and vectorscope");
+            ui.checkbox(&mut self.ui.meter, "Light meter")
+                .on_hover_text("Luminance and illuminance under the cursor");
+            ui.checkbox(&mut self.ui.show_graph, "Convergence graph")
+                .on_hover_text("Error against a reference image as samples grow");
+            ui.checkbox(&mut self.ui.paths.open, "Path visualizer (P)")
+                .on_hover_text("Click a pixel to see its light paths in 3D");
+        });
+        // Closed unless one is in use, so an active expression is never hidden.
+        let lpe_used = s.view == 12 || s.lpe.iter().any(|e| !e.is_empty());
+        egui::CollapsingHeader::new(
+            egui::RichText::new("Light path expressions")
+                .strong()
+                .color(ACCENT),
+        )
+        .open(lpe_used.then_some(true))
+        .show(ui, |ui| lpe_section(ui, s, &mut self.ui.lpe_edit));
     }
     pub(super) fn export_tab(&mut self, ui: &mut egui::Ui) {
         let g = self.gpu.as_ref().unwrap();
@@ -539,18 +680,6 @@ impl App {
         if ui.button("Export video…").clicked() {
             self.open_video_dialog();
         }
-        section(ui, "Scene file");
-        ui.horizontal(|ui| {
-            if ui.button("Save settings.json").clicked() {
-                self.actions.save = Some(crate::dirs::output("settings.json"));
-            }
-            if ui.button("Save as…").clicked() {
-                self.actions.save = settings_dialog(true);
-            }
-            if ui.button("Load…").clicked() {
-                self.actions.load = settings_dialog(false);
-            }
-        });
     }
 }
 /// The state of the image a quick save would write, as the status bar judges it, and whether
@@ -572,7 +701,55 @@ fn save_state(samples: u32, cap: u32, paused: bool, rate: f32) -> (String, bool)
 }
 #[cfg(test)]
 mod tests {
-    use super::save_state;
+    use super::{LOOKS, Look, save_state};
+    use crate::scene::Settings;
+    #[test]
+    fn looks_write_only_their_fields_and_are_recognised() {
+        // Neutral is the default state, so a fresh start reads Neutral.
+        assert_eq!(
+            Look::of(&Settings::default()).map(|l| l.name),
+            Some("Neutral")
+        );
+        for l in LOOKS {
+            let mut s = Settings::default();
+            s.exposure = 0.37;
+            s.glare = 1.5;
+            s.gamma = 2.0;
+            s.lut_strength = 0.4;
+            s.direct = 0.8;
+            let before = s.clone();
+            l.apply(&mut s);
+            s.validate().unwrap_or_else(|e| panic!("{}: {e}", l.name));
+            assert_eq!(Look::of(&s).map(|x| x.name), Some(l.name));
+            // Nothing outside the bundle changed.
+            let mut back = s.clone();
+            back.tonemap = before.tonemap;
+            back.halation = before.halation;
+            back.grain = before.grain;
+            back.grain_size = before.grain_size;
+            back.vignette = before.vignette;
+            back.lift = before.lift;
+            back.grade_gamma = before.grade_gamma;
+            back.gain = before.gain;
+            assert!(back == before, "{} touched another field", l.name);
+            // Moving one field off the bundle reads Custom.
+            s.grain += 0.05;
+            assert!(Look::of(&s).is_none());
+        }
+        // No two bundles are the same.
+        for (i, a) in LOOKS.iter().enumerate() {
+            let mut s = Settings::default();
+            a.apply(&mut s);
+            assert_eq!(
+                LOOKS
+                    .iter()
+                    .filter(|b| Look::of(&s).is_some_and(|f| f.name == b.name))
+                    .count(),
+                1,
+                "{i}"
+            );
+        }
+    }
     #[test]
     fn a_quick_save_says_what_state_the_image_is_in() {
         assert_eq!(

@@ -2688,7 +2688,7 @@ def write_generated():
         for seed in seeds:
             name = f"{family}-{seed}.json"
             data = {"format": 1, "title": f"{label} {seed}", "description": f"Generated scene: {label.lower()}, seed {seed}. Regenerated from the seed on every load.",
-                    "tags": ["generated", family], "credits": "Caustica generators", "generator": {"family": family, "seed": seed}}
+                    "tags": ["generated", family.replace("still-life", "still life")], "credits": "Caustica generators", "generator": {"family": family, "seed": seed}}
             files.append((name, data))
     write_pack(OUT.parent / "generated", files,
                {"name": "Generated scenes", "version": 1, "license": "Own work", "commercial_use": True, "attribution": "Caustica",

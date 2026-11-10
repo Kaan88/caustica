@@ -65,6 +65,7 @@ The emitter buffer (t4) holds the `n` emitters, then the alias records (`lightin
 | 15 | Root UAV u3 space 2, raw: the photon grid and photons at 0, BDPT's light-tracing splats at `splat_offset` (the path buffer stands in while neither runs) |
 | 16 | Root SRV t9 lens system (`lens::pack`, an upload buffer of `lens::FLOAT4S` float4s; track 16) |
 | 17 | Root UAV u4 space 2 glare grid: two regions of 3 × 512² complex values (track 16) |
+| 18 | Root SRV t18 star table (night sky N3, `stars::Table::gpu_words`, u32 words): header (count, grid rows 180, columns 360, offsets word, entries word, 0, 0, 0), 8 words per star (J2000 direction xyz, CDF, RGB irradiance over the sun's, probability), the grid's `rows·cols + 1` cell offsets, then the star indices. Stars are sorted brightest first; a limiting magnitude keeps a prefix, whose count and CDF mass travel in `Constants.star_limit` (x, y), not in this buffer. Uploaded once with the first starry sky; the lens buffer stands in until then. Vulkan: set 0 binding 118 (the placeholder until uploaded). |
 
 Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips (texture maps). The heap holds 512 + 4096 descriptors: UAVs 0–31, egui textures 32–511, texture maps from 512.
 

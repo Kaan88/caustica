@@ -3,7 +3,7 @@
 //! `tools/spirv_bindings.py` lists what the shaders declare; this must hold their union.
 //!
 //! - set 0: u0-u31 storage images (0-31), t0 the TLAS (100), t1 and t3-t17 storage buffers
-//!   (101, 103-109), t2 the egui texture (102), b0 the frame constants (200, a dynamic uniform
+//!   (101, 103-109; t18 the star table, 118), t2 the egui texture (102), b0 the frame constants (200, a dynamic uniform
 //!   buffer: one `CB_STRIDE` slot per pass), s0 / s1 immutable samplers (300, 301).
 //! - set 1: `maps[]`, up to `MAX_MAPS` sampled images (binding 100, variable count).
 //! - set 2: space 2's raw buffers u0-u4 (0-4).
@@ -14,8 +14,8 @@ use anyhow::Result;
 use ash::vk;
 
 pub const MAX_MAPS: u32 = 4096;
-pub const SET0_BUFFERS: [u32; 16] = [
-    101, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117,
+pub const SET0_BUFFERS: [u32; 17] = [
+    101, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118,
 ];
 
 pub struct Layout {

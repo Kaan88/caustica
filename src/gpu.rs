@@ -287,6 +287,10 @@ pub struct Gpu {
     env_cdf: Texture,
     env_inv_norm: f32,
     env_sun: Option<(crate::environment::Sun, f32)>,
+    /// Night sky N3: the stars' share of sky samples while on, and their table (root SRV t18,
+    /// uploaded once; the lens buffer stands in until then).
+    env_stars: Option<f32>,
+    star_buffer: Option<ID3D12Resource>,
     /// The map is stored as RGBA16F divided by this (≥ 1), so a sun brighter than half-float's
     /// 65504 keeps its value; strength and the pdf normalization are multiplied back.
     env_scale: f32,

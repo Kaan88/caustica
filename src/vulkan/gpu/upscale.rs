@@ -329,13 +329,13 @@ impl Gpu {
 
     /// Before the constants: whether RR runs this frame (it is created after `frame.begin`).
     pub(super) fn decide_rr(&mut self, s: &Settings) {
-        self.st.rr_active = s.rr
+        self.st.rr_active = s.rr()
             && self.rr_available()
             && !self.up.rr_failed
             && s.perspective()
-            && !self.st.painting
+            && !self.st.keep_exposure
             && !s.battle;
-        if !s.rr && self.rr_available() {
+        if !s.rr() && self.rr_available() {
             self.st.rr_status = "DLSS RR ready (disabled)".into();
         } else if !self.rr_available() {
             self.st.rr_status = format!("DLSS RR unavailable: {}", self.up.reasons[0]);
@@ -354,8 +354,8 @@ impl Gpu {
             st.upscale_status = "Upscaling needs a perspective camera; bicubic".into();
             return None;
         }
-        if st.painting {
-            st.upscale_status = "Light painting accumulates at render resolution".into();
+        if st.keep_exposure {
+            st.upscale_status = "Kept exposures accumulate at render resolution".into();
             return None;
         }
         if s.battle {
@@ -532,7 +532,7 @@ impl Gpu {
         let (code, _) = (0u32, (kind, s, &c, jitter, history_reset, dt));
         #[cfg(upscalers)]
         let code = unsafe {
-            let color = self.image_ref(if s.denoise { 8 } else { 1 });
+            let color = self.image_ref(if s.native_filter() { 8 } else { 1 });
             let (depth, motion, out) = (self.image_ref(25), self.image_ref(6), self.image_ref(14));
             let (cmd, w, h) = (self.frame.cmd, self.st.rw, self.st.rh);
             let code = match kind {

@@ -24,7 +24,7 @@ pub const KEYS: [&str; 15] = [
     "aperture",
     "focus_distance",
     "sky",
-    "denoise",
+    "denoiser",
 ];
 pub struct Remote {
     pub url: String,

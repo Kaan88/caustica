@@ -51,7 +51,8 @@ pub struct Entry {
     pub tags: Vec<String>,
     pub credits: String,
     pub license: License,
-    /// FNV-1a of the file, so a thumbnail is re-rendered when the scene changes.
+    /// FNV-1a of `RENDER_VERSION` and the file, so a thumbnail is re-rendered when the scene or the
+    /// engine's look changes.
     pub hash: u64,
 }
 impl Entry {
@@ -158,10 +159,21 @@ pub fn sync_thumbnails(entries: &[Entry]) {
         seed_from(&bundled, &cache, entries);
     }
 }
-fn fnv(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
-        (h ^ *b as u64).wrapping_mul(0x100_0000_01b3)
-    })
+/// Bump this when an engine change alters what a scene looks like without changing its file
+/// (the sun / moon astronomy, the glass lift, a shader fix). It is mixed into every thumbnail's
+/// hash, so every thumbnail made before the bump gets a different name: `remove_stale` deletes
+/// the old ones and the missing ones are re-rendered. Bundled sets made earlier are never found.
+/// Material balls have their own `balls::VERSION`.
+pub const RENDER_VERSION: u32 = 2;
+/// FNV-1a of the render version, then the scene file: the thumbnail key.
+fn thumbnail_hash(bytes: &[u8]) -> u64 {
+    RENDER_VERSION
+        .to_le_bytes()
+        .iter()
+        .chain(bytes)
+        .fold(0xcbf2_9ce4_8422_2325, |h, b| {
+            (h ^ *b as u64).wrapping_mul(0x100_0000_01b3)
+        })
 }
 
 /// The shipped scenes folder (see `dirs::scenes`).
@@ -276,7 +288,7 @@ fn entry(path: PathBuf, pack: String, license: License) -> Option<Entry> {
         title,
         credits: text("credits"),
         license,
-        hash: fnv(&bytes),
+        hash: thumbnail_hash(&bytes),
         description: text("description"),
         tags: value
             .get("tags")
@@ -378,7 +390,7 @@ pub fn save_generated(family: &str, seed: u64, title: &str) -> Result<PathBuf> {
     let path = dir.join(format!("{}.json", slug(title)));
     let file = serde_json::json!({
         "format": 1, "title": title, "description": format!("Generated: {family}, seed {seed}."),
-        "tags": ["user", "generated", family], "generator": {"family": family, "seed": seed}
+        "tags": ["user", "generated", family.replace("still-life", "still life")], "generator": {"family": family, "seed": seed}
     });
     std::fs::write(&path, serde_json::to_string_pretty(&file)?)?;
     Ok(path)
@@ -515,7 +527,7 @@ mod tests {
             tags: vec![],
             credits: String::new(),
             license: License::default(),
-            hash: fnv(bytes),
+            hash: thumbnail_hash(bytes),
         }
     }
     /// A scratch folder under the target dir (not /tmp), removed first.
@@ -546,6 +558,20 @@ mod tests {
         assert!(!is_thumbnail_name(
             "builtin--room-0123456789abcdef.partial.png"
         ));
+    }
+    /// The render version is part of the key: a bump orphans every older thumbnail.
+    #[test]
+    fn the_render_version_is_part_of_the_thumbnail_hash() {
+        let fnv = |bytes: &[u8]| {
+            bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
+                (h ^ *b as u64).wrapping_mul(0x100_0000_01b3)
+            })
+        };
+        let scene = b"{\"v\":1}";
+        let with = |version: u32| fnv(&[&version.to_le_bytes()[..], scene].concat());
+        assert_eq!(thumbnail_hash(scene), with(RENDER_VERSION));
+        assert_ne!(thumbnail_hash(scene), with(RENDER_VERSION - 1));
+        assert_ne!(thumbnail_hash(scene), fnv(scene));
     }
     #[test]
     fn a_bundled_thumbnail_is_used_when_the_hash_matches() {

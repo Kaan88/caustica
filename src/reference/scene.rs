@@ -403,10 +403,14 @@ impl<'a> Scene<'a> {
             cdf.push(acc / total);
         }
         // A map that fails to load leaves the plain sky; `Progressive::new` refuses that.
-        let env = super::environment::Env::load(s).unwrap_or_else(|e| {
+        let mut env = super::environment::Env::load(s).unwrap_or_else(|e| {
             eprintln!("CPU reference: {e:#}");
             None
         });
+        // The stars' camera cone: half an output pixel, as the GPU's constants (`render.rs`).
+        if let Some((_, f)) = env.as_mut().and_then(|e| e.stars.as_mut()) {
+            f.chord = crate::stars::chord(s.fov, size[1], s.physical_sky.star_size);
+        }
         // Procedural emitters take light samples only alongside a light-sampling strategy (with
         // BSDF sampling alone, their hits count in full); with triangles too, half of them.
         let sdf_lights = if s.mis_mode.min(2) == 2 {

@@ -27,6 +27,9 @@ pub(super) struct Env {
     norm: f32,
     /// The split sun: direction, 1 − cos of its half angle, radiance, share of the samples.
     sun: Option<(Vec3, f32, Vec3, f32)>,
+    /// The physical sky's catalogue stars (night sky N3) and this frame's rotation, scale,
+    /// share of sky samples and camera cone (`Scene::new` sets the cone).
+    pub(super) stars: Option<(&'static crate::stars::Table, crate::stars::Frame)>,
 }
 
 /// The floor's height (`geometry::static_geometry`); ground projection and the shadow catcher
@@ -36,28 +39,28 @@ pub(super) const FLOOR: f32 = -1.;
 impl Env {
     /// The scene's environment, if it has one.
     pub(super) fn load(s: &Settings) -> Result<Option<Env>> {
-        let (map, strength, rotation, visible, ground) = if s.physical_sky.on {
+        if s.physical_sky.on {
             // Baked at strength 1 with north at −z (as `Gpu::frame` sets it).
             let sky = &s.physical_sky;
-            (
-                crate::sky::bake_cached(sky)?,
-                1.,
-                sky.rotation(),
-                sky.visible,
-                0.,
-            )
-        } else if !s.hdri.is_empty() {
-            (
-                Arc::new(crate::environment::load(&s.hdri, s.hdri_sun)?),
-                s.hdri_strength,
-                s.hdri_rotation.to_radians(),
-                s.hdri_visible,
-                s.hdri_ground,
-            )
-        } else {
+            let map = crate::sky::bake_cached(sky)?;
+            let stars = crate::stars::Table::get()
+                .filter(|_| map.stars)
+                .map(|t| (t, crate::stars::Frame::new(sky, map.star_share, 0.)));
+            let mut env = Self::new(map, 1., sky.rotation(), sky.visible, 0.);
+            env.stars = stars;
+            return Ok(Some(env));
+        }
+        if s.hdri.is_empty() {
             return Ok(None);
-        };
-        Ok(Some(Self::new(map, strength, rotation, visible, ground)))
+        }
+        let map = Arc::new(crate::environment::load(&s.hdri, s.hdri_sun)?);
+        Ok(Some(Self::new(
+            map,
+            s.hdri_strength,
+            s.hdri_rotation.to_radians(),
+            s.hdri_visible,
+            s.hdri_ground,
+        )))
     }
     pub(super) fn new(
         map: Arc<EnvMap>,
@@ -108,7 +111,17 @@ impl Env {
             columns,
             norm,
             sun,
+            stars: None,
         }
+    }
+    /// The share of sky light samples the map (and its split sun) keeps; the stars take the
+    /// rest (`env_keep` in the shader).
+    pub(super) fn keep(&self) -> f32 {
+        1. - self.stars.map_or(0., |(_, f)| f.share)
+    }
+    /// What camera rays and pure-delta chains see of the stars along `d`.
+    pub(super) fn stars_seen(&self, d: Vec3) -> Vec3 {
+        self.stars.map_or(Vec3::ZERO, |(t, f)| f.seen(t, d))
     }
     fn texel(&self, x: usize, y: usize) -> Vec3 {
         let t = self.map.texels[y * self.map.width + x];

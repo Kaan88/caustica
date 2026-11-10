@@ -1243,57 +1243,12 @@ fn a_beam_splitter_mixes_a_clear_sheet_and_a_mirror() {
     let mix = 0.5 * (clear + mirror);
     assert!((half / mix - 1.).abs() < 0.03, "{half} {mix}");
 }
-/// Light painting's rule: lights and the camera keep the exposure, anything else starts over.
-#[test]
-fn painting_keeps_the_exposure_through_lights_and_the_camera_only() {
-    let s = Settings::default();
-    let key = crate::transport_key(&s);
-    let mut lit = s.clone();
-    lit.light_position[0] += 0.1;
-    lit.yaw += 10.;
-    assert!(crate::painting_keeps(&key, &crate::transport_key(&lit)));
-    let mut edited = s.clone();
-    edited.bounces += 1;
-    assert!(!crate::painting_keeps(&key, &crate::transport_key(&edited)));
-    assert!(!crate::painting_keeps("", &key));
-}
 fn samples_reach(live: &Live, n: u32) -> u32 {
     let start = std::time::Instant::now();
     while live.state().samples < n && start.elapsed().as_secs() < 60 {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
     live.state().samples
-}
-/// Painting goes on past the cap and through a light edit; another edit starts over.
-#[test]
-fn a_painting_view_keeps_its_exposure_through_a_light_edit() {
-    let mut s = Settings::default();
-    s.bounces = 2;
-    s.max_samples = 2;
-    let size = [6, 4];
-    let mut live = Live::start(s.clone(), size, crate::transport_key(&s), true);
-    live.set_painting(true);
-    assert!(samples_reach(&live, 4) >= 4);
-    let mut lit = s.clone();
-    lit.light_position[0] += 0.2;
-    let before = live.state().samples;
-    live.follow(lit.clone(), crate::transport_key(&lit), size);
-    let start = std::time::Instant::now();
-    while live.state().images < 2 && start.elapsed().as_secs() < 60 {
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
-    assert!(samples_reach(&live, before + 2) >= before + 2);
-    // Off again: the cap holds, and an edit that isn't a light's restarts from nothing.
-    live.set_painting(false);
-    let mut edited = lit.clone();
-    edited.bounces = 3;
-    live.follow(edited.clone(), crate::transport_key(&edited), size);
-    let st = finish(&live);
-    assert_eq!(st.samples, 2);
-    assert_eq!(
-        *live.image(true).unwrap(),
-        render(&edited, size, 2, &|_| {}).unwrap()
-    );
 }
 /// A keyed object under an open shutter: the frame averages moments around its time, and any
 /// split into passes still gives the bits of one pass.

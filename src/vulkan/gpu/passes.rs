@@ -529,6 +529,10 @@ impl Gpu {
     pub fn environment_loaded(&self) -> bool {
         self.env_inv_norm > 0.
     }
+    /// The catalogue's stars are on the GPU and on in this sky (night sky N3).
+    pub fn stars_loaded(&self) -> bool {
+        self.env_stars.is_some() && self.star_buffer.is_some()
+    }
 
     /// Uploads an HDRI and its sampling tables (environment.rs); `None` clears it.
     pub unsafe fn set_environment(
@@ -539,9 +543,25 @@ impl Gpu {
         let Some(env) = env else {
             self.env_inv_norm = 0.;
             self.env_sun = None;
+            self.env_stars = None;
             return Ok(());
         };
         self.env_sun = env.sun.map(|s| (s, env.sun_share));
+        self.env_stars = None;
+        if let Some(table) = crate::stars::Table::get().filter(|_| env.stars) {
+            if self.star_buffer.is_none() {
+                let words = table.gpu_words();
+                unsafe {
+                    let b = self.device.upload(
+                        bytemuck::cast_slice(&words),
+                        vk::BufferUsageFlags::STORAGE_BUFFER,
+                    )?;
+                    self.layout.buffer(&self.device, 0, 118, b.handle);
+                    self.star_buffer = Some(b);
+                }
+            }
+            self.env_stars = Some(env.star_share);
+        }
         let (w, h) = (env.width as u32, env.height as u32);
         let peak = env
             .texels

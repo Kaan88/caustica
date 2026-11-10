@@ -137,6 +137,9 @@ impl Renderer {
     pub fn environment_loaded(&self) -> bool {
         each!(self, g => g.environment_loaded())
     }
+    pub fn stars_loaded(&self) -> bool {
+        each!(self, g => g.stars_loaded())
+    }
     pub unsafe fn set_environment(
         &mut self,
         env: Option<&crate::environment::EnvMap>,

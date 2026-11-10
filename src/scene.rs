@@ -339,6 +339,70 @@ pub enum Pattern {
     Stripes,
     Marble,
 }
+/// Which denoiser cleans the image. `Rr` is NVIDIA's neural denoiser and upscaler in one; when it
+/// cannot run (no NGX, a real lens, a failed start) the native filter takes over, as `Native`
+/// would. Room for more (OIDN, NRD): add a variant, its label and its `Capabilities::denoiser`.
+/// Scene and prefs files written before 0.12 carry the two bools `rr` and `denoise`; `Settings`
+/// folds them into this choice on `validate` (`from_legacy`).
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Denoiser {
+    /// Raw samples.
+    Off,
+    /// The SVGF-style filter (post.hlsl), with the à-trous passes.
+    Native,
+    #[default]
+    Rr,
+}
+impl Denoiser {
+    pub const ALL: [Self; 3] = [Self::Rr, Self::Native, Self::Off];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Off => "None (raw samples)",
+            Self::Native => "Native (SVGF-style)",
+            Self::Rr => "NVIDIA DLSS Ray Reconstruction",
+        }
+    }
+    /// The choice the old pair of bools made: RR whenever it was asked for, else the native
+    /// filter if it was on. (`rr` with `denoise` off used to fall back to raw samples when RR
+    /// could not run; it now falls back to the native filter.)
+    pub fn from_legacy(rr: bool, denoise: bool) -> Self {
+        if rr {
+            Self::Rr
+        } else if denoise {
+            Self::Native
+        } else {
+            Self::Off
+        }
+    }
+    /// `--set rr=…` / `--rr` / `--no-rr`: true picks RR; false leaves RR for the native filter
+    /// and keeps Native or Off as they are.
+    pub fn with_rr(self, rr: bool) -> Self {
+        match (rr, self) {
+            (true, _) => Self::Rr,
+            (false, Self::Rr) => Self::Native,
+            (false, d) => d,
+        }
+    }
+    /// `--set denoise=…` / `--raw`: false picks raw samples; true turns Off into Native and
+    /// leaves RR alone.
+    pub fn with_native(self, on: bool) -> Self {
+        match (on, self) {
+            (false, _) => Self::Off,
+            (true, Self::Off) => Self::Native,
+            (true, d) => d,
+        }
+    }
+    /// Applies a legacy bool key (`rr`, `denoise`); false when `key` is neither.
+    pub fn set_legacy(&mut self, key: &str, value: bool) -> bool {
+        match key {
+            "rr" => *self = self.with_rr(value),
+            "denoise" => *self = self.with_native(value),
+            _ => return false,
+        }
+        true
+    }
+}
 /// How the native renderer reaches output resolution when Ray Reconstruction is off and the
 /// render scale is below 1. The temporal upscalers fall back to bicubic when unavailable.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -936,9 +1000,14 @@ pub struct Settings {
     pub view: u32,
     pub direct: f32,
     pub indirect: f32,
-    pub denoise: bool,
+    pub denoiser: Denoiser,
     pub denoise_strength: f32,
-    pub rr: bool,
+    /// Pre-0.12 files: read from `rr` and `denoise`, folded into `denoiser` by `validate`,
+    /// never written.
+    #[serde(rename = "rr", skip_serializing)]
+    pub(crate) legacy_rr: Option<bool>,
+    #[serde(rename = "denoise", skip_serializing)]
+    pub(crate) legacy_denoise: Option<bool>,
     pub rr_preset: u32,
     pub upscaler: Upscaler,
     /// DLSS Super Resolution preset: 0 = NVIDIA's choice per quality mode, 10–13 = J, K, L, M.
@@ -1142,9 +1211,10 @@ impl Default for Settings {
             view: 0,
             direct: 1.,
             indirect: 1.,
-            denoise: true,
+            denoiser: Denoiser::Rr,
             denoise_strength: 0.5,
-            rr: true,
+            legacy_rr: None,
+            legacy_denoise: None,
             rr_preset: 6,
             upscaler: Upscaler::Dlss,
             dlss_preset: 0,
@@ -1281,11 +1351,10 @@ impl Settings {
         self.light_temperature = 2800. + rand() * 5200.;
     }
     /// Takes the viewer's render and display choices from `from` (used when a scene file
-    /// replaces the scene): resolution, RR and its model, upscaler, DLSS preset, DLAA, VSync, HDR.
+    /// replaces the scene): resolution, denoiser and the RR model, upscaler, DLSS preset, DLAA, VSync, HDR.
     pub fn keep_output(&mut self, from: &Settings) {
         self.scale = from.scale;
-        self.rr = from.rr;
-        self.denoise = from.denoise;
+        self.denoiser = from.denoiser;
         self.vsync = from.vsync;
         self.rr_preset = from.rr_preset;
         self.upscaler = from.upscaler;
@@ -1310,7 +1379,7 @@ impl Settings {
         let camera = (self.yaw, self.pitch, self.distance, self.target, self.fov);
         let output = (
             self.scale,
-            (self.rr, self.denoise),
+            self.denoiser,
             self.vsync,
             self.rr_preset,
             self.upscaler,
@@ -1418,7 +1487,7 @@ impl Settings {
         }
         (
             self.scale,
-            (self.rr, self.denoise),
+            self.denoiser,
             self.vsync,
             self.rr_preset,
             self.upscaler,
@@ -1429,7 +1498,24 @@ impl Settings {
             self.walk_avatar,
         ) = output;
     }
+    /// RR is the chosen denoiser (whether it can run is the renderer's call: `rr_active`).
+    pub fn rr(&self) -> bool {
+        self.denoiser == Denoiser::Rr
+    }
+    /// The native filter runs when RR does not: chosen outright, or as RR's fallback.
+    pub fn native_filter(&self) -> bool {
+        self.denoiser != Denoiser::Off
+    }
+    /// Folds the pre-0.12 `rr` / `denoise` keys into `denoiser` (a file with either key was
+    /// written before `denoiser` existed, so they win).
+    fn migrate_legacy(&mut self) {
+        let (rr, denoise) = (self.legacy_rr.take(), self.legacy_denoise.take());
+        if rr.is_some() || denoise.is_some() {
+            self.denoiser = Denoiser::from_legacy(rr.unwrap_or(true), denoise.unwrap_or(true));
+        }
+    }
     pub fn validate(&mut self) -> anyhow::Result<()> {
+        self.migrate_legacy();
         let f = &self.fog;
         anyhow::ensure!(
             (0. ..=10.).contains(&f.density)
@@ -1857,6 +1943,80 @@ pub fn geometry(s: &Settings) -> Vec<Vertex> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn loaded(json: &str) -> Settings {
+        let mut s: Settings = serde_json::from_str(json).unwrap();
+        s.validate().unwrap();
+        s
+    }
+    #[test]
+    fn old_rr_and_denoise_keys_load_as_the_same_choice() {
+        for (json, want) in [
+            (r#"{"rr":true,"denoise":true}"#, Denoiser::Rr),
+            (r#"{"rr":true,"denoise":false}"#, Denoiser::Rr),
+            (r#"{"rr":false,"denoise":true}"#, Denoiser::Native),
+            (r#"{"rr":false,"denoise":false}"#, Denoiser::Off),
+            // A key the file leaves out keeps its old default (both true).
+            (r#"{"rr":false}"#, Denoiser::Native),
+            (r#"{"denoise":false}"#, Denoiser::Rr),
+            (r#"{}"#, Denoiser::Rr),
+            (r#"{"denoiser":"off"}"#, Denoiser::Off),
+            (r#"{"denoiser":"native"}"#, Denoiser::Native),
+        ] {
+            assert_eq!(loaded(json).denoiser, want, "{json}");
+        }
+    }
+    #[test]
+    fn the_old_keys_are_never_written_and_the_choice_round_trips() {
+        for d in Denoiser::ALL {
+            let s = Settings {
+                denoiser: d,
+                ..Settings::default()
+            };
+            let j = serde_json::to_value(&s).unwrap();
+            assert!(j.get("rr").is_none() && j.get("denoise").is_none());
+            assert_eq!(j["denoiser"], serde_json::to_value(d).unwrap());
+            assert!(loaded(&j.to_string()) == s);
+        }
+        // A migrated file equals the same choice made directly.
+        let old = loaded(r#"{"rr":false,"denoise":false}"#);
+        let new = Settings {
+            denoiser: Denoiser::Off,
+            ..Settings::default()
+        };
+        assert!(old == new);
+    }
+    #[test]
+    fn a_scene_file_with_the_old_keys_migrates_inside_its_wrapper() {
+        let v = serde_json::json!({"format": 1, "title": "t", "settings": {"rr": false, "denoise": true}});
+        let mut s = crate::scenes::parse(v).unwrap();
+        s.validate().unwrap();
+        assert_eq!(s.denoiser, Denoiser::Native);
+    }
+    #[test]
+    fn the_flag_aliases_keep_their_old_meaning() {
+        use Denoiser::*;
+        assert_eq!(Rr.with_rr(false), Native);
+        assert_eq!(Off.with_rr(false), Off);
+        assert_eq!(Native.with_rr(true), Rr);
+        assert_eq!(Rr.with_native(false), Off);
+        assert_eq!(Off.with_native(true), Native);
+        assert_eq!(Rr.with_native(true), Rr);
+        // `--no-rr --raw` and `--raw --no-rr` both give raw samples.
+        assert_eq!(Rr.with_rr(false).with_native(false), Off);
+        assert_eq!(Rr.with_native(false).with_rr(false), Off);
+        let mut d = Rr;
+        assert!(d.set_legacy("rr", false) && d == Native);
+        assert!(!d.set_legacy("exposure", true));
+    }
+    #[test]
+    fn rr_falls_back_to_the_native_filter_and_off_shows_raw() {
+        let mut s = Settings::default();
+        assert!(s.rr() && s.native_filter());
+        s.denoiser = Denoiser::Native;
+        assert!(!s.rr() && s.native_filter());
+        s.denoiser = Denoiser::Off;
+        assert!(!s.rr() && !s.native_filter());
+    }
     #[test]
     fn the_flashlight_hangs_beside_the_eye_and_aims_down_the_view() {
         let s = Settings::default();

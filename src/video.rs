@@ -937,13 +937,13 @@ impl Job {
         Ok(())
     }
     /// Before each pass. With motion blur every pass is one moment inside the open shutter,
-    /// centred on the frame (light painting's mode: scene changes keep the accumulation, and
+    /// centred on the frame (the keep-exposure mode: scene changes keep the accumulation, and
     /// RR, which would see only the last pass, is off).
     pub unsafe fn before_render(&mut self, g: &mut Gpu) -> Result<()> {
         if !self.blur() || self.pending.is_some() || self.frame >= self.options.frames {
             return Ok(());
         }
-        g.painting = true;
+        g.keep_exposure = true;
         // Stratified over the passes of the frame, in a scrambled order (golden-ratio steps).
         self.pass += 1;
         let u = (self.pass as f32 * 0.618_034).fract();
@@ -980,7 +980,7 @@ impl Job {
             return Ok(());
         }
         if self.blur() {
-            g.painting = false;
+            g.keep_exposure = false;
         }
         let rgba = g.read_rgba8(10)?;
         self.preview = Some(preview(&rgba, g.width, g.height));
@@ -1027,7 +1027,7 @@ impl Job {
     /// written; a cancelled video is deleted, cancelled frames stay.
     pub unsafe fn finish(mut self, g: &mut Gpu, s: &Settings, cancel: bool) -> Result<String> {
         let written = self.writer.finish(cancel);
-        g.painting = false;
+        g.keep_exposure = false;
         let [w, h] = g.swap_size;
         g.resize_output(w, h, s)?;
         // The GPU holds the animated scene: give it the user's back.

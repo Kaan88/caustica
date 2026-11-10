@@ -17,7 +17,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
   - The FSR and XeSS licenses allow binary redistribution only, with no modification or reverse engineering.
 - Startup defaults: RR on, RR2/F preset, DLAA (scale 1), 4 spp per frame, 6 bounces, sample cap 4096, ACES tonemap, Blackman-Harris 1.5 px pixel filter (native path), 16× texture anisotropy.
 - **Public since 2026-11-06:** the code is MIT; what ships keeps its own terms (`THIRD-PARTY-NOTICES.md`, ground rules in `docs/roadmap.md`).
-  - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, light painting, portals, screensaver).
+  - Near term: DLSS presets, native HDR, UI phase 1, Blender-style gizmos and scene files (42 scenes) are done (2026-10-30); next are the quick wins (hot reload, debug views, depth of field, portals).
   - Medium term: the core engine track (generators → mesh import → HDRI → instancing → textures → UI), then feature tracks 7–20 (lights, animation, volumes, SDFs, path visualizer, integrators, physics, SER).
   - Future: Vulkan, software fallback / CPU reference, spectral, curved space, frame generation, neural radiance cache, splats, VR.
 - **Git:** the repo root is the local folder `cornell/` (it kept the old name), with a private GitHub remote, `Kaan88/caustica`. `main` is the verified state. Commit and push only when the user asks.

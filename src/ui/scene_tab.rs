@@ -192,30 +192,18 @@ impl App {
                     .set_directory(crate::scenes::folder().unwrap_or_default())
                     .pick_file()
                 {
-                    match crate::mesh::import_scene(&path, state.mesh_z_up) {
-                        Ok((parts, lights)) => {
-                            state.checkpoint(s);
-                            let room = scene::MAX_LIGHTS - s.lights.len();
-                            s.lights.extend(lights.into_iter().take(room));
-                            let first = s.objects.len();
-                            let room = scene::MAX_OBJECTS - first;
-                            if parts.len() > room {
-                                state.error(format!(
-                                    "Only {room} of {} parts fit ({} objects)",
-                                    parts.len(),
-                                    scene::MAX_OBJECTS
-                                ));
-                            }
-                            s.objects.extend(parts.into_iter().take(room));
-                            state.selection = Selection::Object(first);
-                        }
-                        Err(e) => state.error(format!("{e:#}")),
-                    }
+                    state.import_mesh(path, state.mesh_z_up);
                 }
             }
         })
         .response
         .on_hover_text("Add an object, a light or a mesh file");
+        if let Some(job) = state.mesh_imports.first() {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(format!("Importing {}…", job.name));
+            });
+        }
         // A selection can outlive its item (preset switch, load, undo-free deletes).
         state.selection = match state.selection {
             Selection::Object(i) if i >= s.objects.len() => Selection::Stage,
@@ -433,7 +421,7 @@ impl App {
         feature(
             ui,
             "Audio: lights follow the music",
-            "Captures what the PC plays (loopback) and scales the lights by bass, mid and treble: the main light follows the bass, area light and emitter i band i mod 3. Every frame changes, so use DLSS RR. The scene's intensities are not changed.",
+            "Lights pulse with whatever sound the PC is playing (not the microphone). Each light follows bass, mid or treble (choose per light under Follows); the main light defaults to bass. The lighting changes every frame, so the picture never settles on its own: set Render → Reconstruction → Denoiser to Ray Reconstruction. The scene's own light settings are not changed.",
             &mut s.audio.enabled,
         )
         .body(|ui| {
@@ -901,7 +889,7 @@ mod tests {
         let open = std::cell::Cell::new(false);
         let id = std::cell::Cell::new(egui::Id::NULL);
         let mut on = false;
-        let mut draw = |on: &mut bool| {
+        let draw = |on: &mut bool| {
             frame(&ctx, vec![], |ui| {
                 id.set(ui.make_persistent_id(("feature", "F")));
                 let header = feature(ui, "F", "", on);

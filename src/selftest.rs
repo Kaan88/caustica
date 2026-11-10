@@ -24,8 +24,8 @@ impl App {
                         .resize(800, 600, &self.settings)?;
                 }
             }
-            8 => self.settings.rr = false,
-            9 => self.settings.rr = true,
+            8 => self.settings.denoiser = crate::scene::Denoiser::Native,
+            9 => self.settings.denoiser = crate::scene::Denoiser::Rr,
             // Frames 10–125 cycle all presets; 23 is the empty stage.
             // Physical sky (track 9): noon, then night, then off.
             126 => {
@@ -147,7 +147,7 @@ impl App {
             // The other pixel filters on the native path (sample albedo and coverage too).
             158 => {
                 self.settings.view = 0;
-                self.settings.rr = false;
+                self.settings.denoiser = crate::scene::Denoiser::Native;
                 self.settings.pixel_filter = 1;
                 self.settings.filter_width = 3.;
             }
@@ -157,15 +157,14 @@ impl App {
             }
             160 => {
                 self.settings.view = 0;
-                self.settings.rr = false;
-                self.settings.denoise = false;
+                self.settings.denoiser = crate::scene::Denoiser::Off;
             }
             161 => {
-                self.settings.denoise = true;
+                self.settings.denoiser = crate::scene::Denoiser::Native;
                 self.settings.pixel_filter = 2;
                 self.settings.filter_width = 1.5;
             }
-            162 => self.settings.rr = true,
+            162 => self.settings.denoiser = crate::scene::Denoiser::Rr,
             163 => self.settings.temporal = false,
             164 => self.settings.temporal = true,
             165 => {
@@ -230,11 +229,11 @@ impl App {
                         && video::ImageFormat::Png.file("caustica-high-res").is_file(),
                     "The high-resolution still did not finish"
                 );
-                self.settings.rr = false;
+                self.settings.denoiser = crate::scene::Denoiser::Native;
                 self.settings.scale = 0.5;
                 self.settings.upscaler = scene::Upscaler::ALL[(self.rendered - 172) as usize];
             }
-            177 => self.settings.rr = true,
+            177 => self.settings.denoiser = crate::scene::Denoiser::Rr,
             // A loaded value must survive drawing its slider (the Render tab is open).
             178 => {
                 self.ui.tab = ui::Tab::Render;
@@ -242,14 +241,14 @@ impl App {
             }
             // Every DLSS Super Resolution preset recreates the feature, then back to RR.
             180..=184 => {
-                self.settings.rr = false;
+                self.settings.denoiser = crate::scene::Denoiser::Native;
                 self.settings.scale = 0.5;
                 self.settings.upscaler = scene::Upscaler::Dlss;
                 self.settings.dlss_preset = scene::DLSS_PRESETS[(self.rendered - 180) as usize].0;
             }
             185 => {
                 self.settings.dlss_preset = 0;
-                self.settings.rr = true;
+                self.settings.denoiser = crate::scene::Denoiser::Rr;
             }
             // scRGB output with fixed levels (works on SDR monitors too), then SDR, then Auto.
             186 => {
@@ -287,14 +286,14 @@ impl App {
             194 => self.ui.tab = ui::Tab::Look,
             // DLAA: DLSS Super Resolution at 100% as anti-aliasing, then back to RR.
             196 => {
-                self.settings.rr = false;
+                self.settings.denoiser = crate::scene::Denoiser::Native;
                 self.settings.scale = 1.;
                 self.settings.upscaler = scene::Upscaler::Dlss;
                 self.settings.native_aa = true;
             }
             197 => {
                 self.settings.native_aa = false;
-                self.settings.rr = true;
+                self.settings.denoiser = crate::scene::Denoiser::Rr;
             }
             // Gizmos: each tool drawn on an object and on the main light, then a modal
             // G X 0.5 Enter through the same code the keys use, and its undo.
@@ -715,22 +714,15 @@ impl App {
             232 => {
                 // The check compares render-size AOVs with the output-size beauty.
                 self.settings.scale = 1.;
-                self.settings.rr = false;
-                self.settings.denoise = false;
+                self.settings.denoiser = crate::scene::Denoiser::Off;
                 self.settings.view = 0;
                 self.settings.lpe = ["C [LB]", "C D .* [LB]", "C [GS] .* [LB]", "C [TV] .* [LB]"]
                     .map(String::from)
                     .to_vec();
             }
-            // Light painting: a light edit keeps the accumulation going.
-            240 => {
-                self.settings.preset(0);
-                self.toggle_painting();
-            }
-            241 => self.settings.light_position[0] += 0.1,
-            242 => self.toggle_painting(),
             // Portals: a paired pair of boxes, then removed.
             243 => {
+                self.settings.preset(0);
                 let mut a = editor::new_object(scene::Shape::Box, 2);
                 a.position = [-0.5, 0.3];
                 a.stretch = 2.;
@@ -1035,6 +1027,27 @@ impl App {
                     "Home did not reset the camera"
                 );
             }
+            // The command palette (Ctrl+K): open with a query, drawn once, a setting entry
+            // goes to its tab and selects what shows it; 242 closes it.
+            241 => {
+                use crate::palette::{Act, Focus};
+                self.ui.palette.open = true;
+                self.ui.palette.query = "script".into();
+                self.ui.tab = ui::Tab::Scene;
+                self.run_palette(Act::Go(ui::Tab::Look, Focus::Stage, "Sky and light"));
+                anyhow::ensure!(
+                    self.ui.tab == ui::Tab::Look && self.ui.selection == ui::Selection::Stage,
+                    "A palette setting did not open its tab"
+                );
+                anyhow::ensure!(
+                    !crate::palette::matches("script").is_empty(),
+                    "The palette found no Script console"
+                );
+            }
+            242 => {
+                self.ui.palette.open = false;
+                self.ui.tab = ui::Tab::Scene;
+            }
             280 => {
                 let name = self.settings.scene_name.clone();
                 self.step_scene(1);
@@ -1238,8 +1251,8 @@ impl App {
                 "The physical sky's map or sun is missing"
             ),
             127 => anyhow::ensure!(
-                g.environment_loaded() && g.sun_count == suns(s),
-                "The night sky must load without a sun"
+                g.environment_loaded() && g.sun_count == suns(s) && g.stars_loaded(),
+                "The night sky must load without a sun, with its stars"
             ),
             128 => anyhow::ensure!(!g.environment_loaded(), "The sky stayed loaded"),
             // Walking (frames 247-251) draws the avatar into the frame's copy, the head hidden.
@@ -1339,11 +1352,6 @@ impl App {
                 g.restir_layers() == 2,
                 "ReSTIR did not run with two layers ({})",
                 g.restir_layers()
-            ),
-            241 => anyhow::ensure!(
-                g.samples >= 2 * s.spp,
-                "Light painting restarted the exposure ({} samples)",
-                g.samples
             ),
             244 => {
                 let packed = lighting::materials(s);
@@ -1467,8 +1475,7 @@ impl App {
                     "LPE partition sums to {sum}, beauty {b}"
                 );
                 self.settings.lpe.clear();
-                self.settings.rr = true;
-                self.settings.denoise = true;
+                self.settings.denoiser = crate::scene::Denoiser::Rr;
             }
             209 => {
                 let [w, h] = gpu::SCOPES.map(|v| v as usize);

@@ -291,6 +291,8 @@ impl Gpu {
                 },
                 ShaderVisibility: D3D12_SHADER_VISIBILITY_ALL,
             },
+            // Night sky N3: the star table (t18).
+            root_srv(18),
         ];
         let gui_sampler = D3D12_STATIC_SAMPLER_DESC {
             Filter: D3D12_FILTER_MIN_MAG_MIP_LINEAR,
@@ -628,6 +630,8 @@ impl Gpu {
             env_cdf,
             env_inv_norm: 0.,
             env_sun: None,
+            env_stars: None,
+            star_buffer: None,
             env_scale: 1.,
             present_count: 0,
             readback: None,
@@ -690,7 +694,7 @@ impl Gpu {
                 hdr_refused: false,
                 hdr_levels: [200., 1000.],
                 hdr_reference: 0.,
-                painting: false,
+                keep_exposure: false,
                 zebras: false,
                 scopes_on: false,
                 scopes: vec![],

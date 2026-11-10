@@ -19,10 +19,10 @@ impl Gpu {
         let reset = self.rr_reset;
         self.poll_ngx(false);
         // RR and the temporal upscalers need a perspective camera (motion vectors, guides).
-        self.rr_active = s.rr && !self.ngx.is_null() && !self.rr_failed && s.perspective() && !self.painting
+        self.rr_active = s.rr() && !self.ngx.is_null() && !self.rr_failed && s.perspective() && !self.keep_exposure
                 // Battle mode compares raw samples.
                 && !s.battle;
-        if !s.rr && !self.ngx.is_null() {
+        if !s.rr() && !self.ngx.is_null() {
             self.rr_status = "DLSS RR ready (disabled)".into();
         }
         if self.rr_active && self.rr_created {
@@ -125,6 +125,7 @@ impl Gpu {
                 env_scale: self.env_scale,
                 env_inv_norm: self.env_inv_norm,
                 env_sun: self.env_sun,
+                env_stars: self.env_stars,
                 env: (env_strength, env_rotation, env_visible),
                 lens_surfaces: self.lens_surfaces,
                 glare_grid: self.glare_grid(),
@@ -237,7 +238,7 @@ impl Gpu {
             self.previous_vp = vp;
             self.rr_reset = false;
         }
-        if !self.rr_active && s.denoise && !s.battle {
+        if !self.rr_active && s.native_filter() && !s.battle {
             // Pass 0 warps the last integrated frame into this view after a camera move; a
             // still camera keeps that history frozen. Pass 1 integrates new samples (skipped
             // while paused). Passes 2–6 are the à-trous filter.
@@ -301,7 +302,7 @@ impl Gpu {
             } else {
                 "accumulating over its history"
             };
-        } else if !s.denoise || s.battle {
+        } else if !s.native_filter() || s.battle {
             self.denoiser_activity = "";
         }
         if n > 0 {
@@ -517,7 +518,7 @@ impl Gpu {
         history_reset: i32,
         dt: f32,
     ) {
-        let color = if s.denoise { 8 } else { 1 };
+        let color = if s.native_filter() { 8 } else { 1 };
         let inputs = [color, 25, 6];
         for i in inputs {
             transition(

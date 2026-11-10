@@ -1,5 +1,6 @@
 //! Context menu, shortcut sheet, Scenes window and the tool windows (scopes, convergence graph, remote, stats).
 use super::*;
+use crate::palette;
 
 /// The browser's arrow keys, with no modifier (Shift+Left and Right step the timeline frame): Up
 /// and Down, and in the search box they alone, as Left and Right move its cursor.
@@ -32,6 +33,38 @@ fn enter_card(visible: &[usize], selected: Option<usize>) -> Option<usize> {
     selected
         .filter(|s| visible.contains(s))
         .or(visible.first().copied())
+}
+/// The tags the Scenes window shows as chips, in this order (the ones that exist).
+const TOP_TAGS: [&str; 10] = [
+    "material",
+    "glass",
+    "interior",
+    "emissive",
+    "night",
+    "caustics",
+    "physics",
+    "still life",
+    "outdoor",
+    "generated",
+];
+/// The scene tags split into the chips (`TOP_TAGS` that occur) and the rest with their scene
+/// counts, alphabetical, for the 'More tags' popup.
+fn split_tags<'a>(all: impl Iterator<Item = &'a str>) -> (Vec<&'static str>, Vec<(String, usize)>) {
+    let mut count: std::collections::BTreeMap<&str, usize> = Default::default();
+    for t in all {
+        *count.entry(t).or_default() += 1;
+    }
+    let top = TOP_TAGS
+        .iter()
+        .copied()
+        .filter(|t| count.contains_key(t))
+        .collect();
+    let more = count
+        .into_iter()
+        .filter(|(t, _)| !TOP_TAGS.contains(t))
+        .map(|(t, n)| (t.to_string(), n))
+        .collect();
+    (top, more)
 }
 impl App {
     /// The viewport's right-click menu, kept open at its position until a click elsewhere.
@@ -118,6 +151,190 @@ impl App {
             });
         self.ui.show_shortcuts = open;
     }
+    /// Ctrl+K: type a setting or command, arrows and Enter go there, Esc closes.
+    pub(super) fn palette_window(&mut self, ctx: &egui::Context) {
+        if !self.ui.palette.open {
+            self.ui.palette.was_open = false;
+            return;
+        }
+        let opened = !self.ui.palette.was_open;
+        self.ui.palette.was_open = true;
+        // Before the box: it would take Up and Down for the ends of its text.
+        let (down, enter, esc, toggle) = ctx.input_mut(|i| {
+            let mut k = |m, key| i.consume_key(m, key);
+            let none = egui::Modifiers::NONE;
+            (
+                k(none, egui::Key::ArrowDown) as i32 - k(none, egui::Key::ArrowUp) as i32,
+                k(none, egui::Key::Enter),
+                k(none, egui::Key::Escape),
+                k(egui::Modifiers::COMMAND, egui::Key::K),
+            )
+        });
+        let mut run = None;
+        // The opening press is still in egui's input on the first frame: it must not close the box again.
+        let mut close = esc || (toggle && !opened);
+        let mut changed = false;
+        egui::Area::new(egui::Id::new("command palette"))
+            .order(egui::Order::Foreground)
+            .anchor(egui::Align2::CENTER_TOP, [0., 70.])
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.set_width(460.);
+                    let st = &mut self.ui.palette;
+                    let r = ui.add(
+                        egui::TextEdit::singleline(&mut st.query)
+                            .hint_text(field_hint("Find a setting or command…"))
+                            .desired_width(f32::INFINITY),
+                    );
+                    if opened {
+                        r.request_focus();
+                    }
+                    changed = r.changed();
+                    if changed {
+                        st.at = 0;
+                    }
+                    let hits = palette::matches(&st.query);
+                    st.at = (st.at as i32 + down).clamp(0, hits.len().max(1) as i32 - 1) as usize;
+                    if hits.is_empty() {
+                        note(ui, "Nothing matches");
+                    }
+                    egui::ScrollArea::vertical()
+                        .max_height(340.)
+                        .show(ui, |ui| {
+                            for (n, &i) in hits.iter().enumerate() {
+                                let e = &palette::ENTRIES[i];
+                                let r = ui
+                                    .horizontal(|ui| {
+                                        let r = ui.selectable_label(n == st.at, e.label);
+                                        if !e.key.is_empty() {
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    ui.weak(e.key);
+                                                },
+                                            );
+                                        }
+                                        r
+                                    })
+                                    .inner;
+                                if n == st.at && down != 0 {
+                                    r.scroll_to_me(None);
+                                }
+                                if r.clicked() {
+                                    run = Some(e.act);
+                                }
+                            }
+                        });
+                    if enter && let Some(&i) = hits.get(st.at) {
+                        run = Some(palette::ENTRIES[i].act);
+                    }
+                });
+            });
+        if run.is_some() {
+            close = true;
+        }
+        if close {
+            self.ui.palette.open = false;
+        }
+        if let Some(a) = run {
+            self.run_palette(a);
+        }
+    }
+    /// What a palette entry does. A setting opens its tab and selects what shows it.
+    pub fn run_palette(&mut self, a: palette::Act) {
+        use palette::{Act, Do, Focus, Win};
+        match a {
+            Act::Go(tab, focus, section) => {
+                let s = &self.settings;
+                let sel = match focus {
+                    Focus::Keep => None,
+                    Focus::Stage => Some(Selection::Stage),
+                    Focus::Camera => Some(Selection::Camera),
+                    Focus::MainLight => Some(Selection::MainLight),
+                    Focus::Flashlight => Some(Selection::Flashlight),
+                    Focus::Object => match self.ui.selection {
+                        sel @ Selection::Object(_) => Some(sel),
+                        _ if !s.objects.is_empty() => Some(Selection::Object(0)),
+                        _ => {
+                            self.ui.toast("No object in the scene yet");
+                            return;
+                        }
+                    },
+                    Focus::AreaLight => match self.ui.selection {
+                        sel @ Selection::Light(_) => Some(sel),
+                        _ if !s.lights.is_empty() => Some(Selection::Light(0)),
+                        _ => {
+                            self.ui.toast("No area light in the scene yet");
+                            return;
+                        }
+                    },
+                };
+                self.ui.tab = tab;
+                if let Some(sel) = sel {
+                    self.ui.select(sel);
+                    self.ui.scroll_to_inspector = true;
+                }
+                self.ui.panel_hidden = false;
+                self.show_ui = true;
+                let tab = match tab {
+                    Tab::Scene => "Scene",
+                    Tab::Render => "Render",
+                    Tab::Look => "Look",
+                    Tab::Export => "Export",
+                };
+                self.ui.toast(format!("{section}: {tab} tab"));
+            }
+            Act::Window(w) => match w {
+                Win::Remote => self.ui.show_remote = true,
+                Win::Console => self.ui.console.open = true,
+                Win::Stats => self.ui.show_stats = true,
+                Win::Shortcuts => self.ui.show_shortcuts = true,
+                Win::Scenes => self.ui.show_scenes = true,
+                Win::Assets => self.ui.assets.open = true,
+                Win::Video => self.ui.show_video = true,
+                Win::Scopes => self.ui.show_scopes = true,
+                Win::Graph => self.ui.show_graph = true,
+                Win::Paths => self.ui.paths.open = true,
+            },
+            Act::Do(d) => match d {
+                Do::OpenScene => self.open_scene_dialog(),
+                Do::SaveScene => self.save_scene(false),
+                Do::SaveSceneAs => self.save_scene(true),
+                Do::SaveSettings => {
+                    self.actions.save = Some(crate::dirs::output("settings.json"));
+                }
+                Do::Advanced => self.ui.advanced = !self.ui.advanced,
+                Do::CpuView => {
+                    if self.gpu.as_ref().is_some_and(|g| g.ray_tracing) {
+                        self.cpu_view = !self.cpu_view;
+                    } else {
+                        self.ui.toast(chrome::NO_RT_HELP);
+                    }
+                }
+                Do::Orbit => self.toggle_orbit(),
+                Do::Walk => self.toggle_walk(),
+                Do::Flashlight => self.toggle_flashlight(),
+                Do::Denoiser => self.cycle_denoiser(),
+                Do::FreezeReference => {
+                    self.actions.reference = true;
+                    self.ui
+                        .toast("Reference frozen: turn on Show split in the Look tab");
+                }
+                Do::Restart => {
+                    self.actions.reset = true;
+                    self.ui.toast("Restarted");
+                }
+                Do::FrameScene => self.run_command(Command::FrameScene),
+                Do::ResetCamera => self.reset_camera(),
+                Do::SavePng => self.actions.save_image = Some(crate::video::ImageFormat::Png),
+                Do::HidePanel => self.ui.panel_hidden = !self.ui.panel_hidden,
+                Do::UpdateCheck => {
+                    self.ui.prefs.update_check = !self.ui.prefs.update_check;
+                    self.ui.save_prefs();
+                }
+            },
+        }
+    }
     /// The loaded scene file's entry, if the current scene came from one.
     pub(super) fn scene_entry(&self) -> Option<usize> {
         self.ui
@@ -133,6 +350,8 @@ impl App {
         self.laser = crate::laser::Laser::default();
         match crate::scenes::load_into(&mut self.settings, &e.path) {
             Ok(()) => {
+                // Imports still parsing were meant for the old scene.
+                self.ui.mesh_imports.clear();
                 self.ui.mark_clean(&self.settings);
                 self.ui.selection = Selection::Stage;
                 self.ui.scene_selected = Some(index);
@@ -231,6 +450,7 @@ impl App {
             .default_size([760., 640.])
             .default_pos([120., 50.])
             .collapsible(false)
+            .constrain(true)
             .show(ctx, |ui| {
                 let state = &mut self.ui;
                 let search_id = ui.make_persistent_id("scene search");
@@ -271,25 +491,47 @@ impl App {
                         }
                     }
                 });
-                let mut tags: Vec<String> = state.scenes.iter().flat_map(|e| e.tags.clone()).collect();
-                tags.sort();
-                tags.dedup();
-                ui.horizontal_wrapped(|ui| {
+                let (top, more) = split_tags(state.scenes.iter().flat_map(|e| e.tags.iter().map(String::as_str)));
+                ui.horizontal(|ui| {
                     for (i, name) in ["All", "Favorites", "Recent"].iter().enumerate() {
                         if ui.selectable_label(state.scene_list == i as u8, *name).clicked() {
                             state.scene_list = i as u8;
                         }
                     }
                     ui.separator();
-                    if ui.selectable_label(state.scene_tag.is_none(), "all").clicked() {
+                    if ui
+                        .selectable_label(state.scene_tag.is_none(), "Any tag")
+                        .on_hover_text("Do not filter by tag (click the active tag again to clear it too)")
+                        .clicked()
+                    {
                         state.scene_tag = None;
                     }
-                    for t in tags {
-                        let on = state.scene_tag.as_deref() == Some(t.as_str());
-                        if ui.selectable_label(on, &t).clicked() {
-                            state.scene_tag = if on { None } else { Some(t) };
+                    for t in &top {
+                        let on = state.scene_tag.as_deref() == Some(*t);
+                        if ui.selectable_label(on, *t).clicked() {
+                            state.scene_tag = if on { None } else { Some(t.to_string()) };
                         }
                     }
+                    // A tag chosen from the popup stays visible as a chip while it is active.
+                    let hidden = state.scene_tag.clone().filter(|t| more.iter().any(|(m, _)| m == t));
+                    if let Some(t) = hidden
+                        && ui.selectable_label(true, &t).on_hover_text("Click to clear").clicked()
+                    {
+                        state.scene_tag = None;
+                    }
+                    ui.menu_button(format!("More tags ({})", more.len()), |ui| {
+                        egui::ScrollArea::vertical().max_height(320.).show(ui, |ui| {
+                            for (t, n) in &more {
+                                let on = state.scene_tag.as_deref() == Some(t.as_str());
+                                if ui.selectable_label(on, format!("{t}  ({n})")).clicked() {
+                                    state.scene_tag = if on { None } else { Some(t.clone()) };
+                                    ui.close_menu();
+                                }
+                            }
+                        });
+                    })
+                    .response
+                    .on_hover_text("Every other tag, with how many scenes have it. Search matches all tags too.");
                 });
                 ui.separator();
                 let search = state.scene_search.to_lowercase();
@@ -310,6 +552,9 @@ impl App {
                 if state.scene_list == 2 {
                     visible.sort_by_key(|i| state.prefs.recency(&state.scenes[*i].path));
                 }
+                // The picker, the details and the Generate and Save rows below it need about 330
+                // px: on a small screen the grid gives way, not the window.
+                let grid_height = (ctx.screen_rect().height() - 330.).clamp(120., 360.);
                 let move_card = step != 0;
                 if move_card {
                     state.scene_selected = step_card(&visible, state.scene_selected, step).or(state.scene_selected);
@@ -322,7 +567,7 @@ impl App {
                 if visible.is_empty() && state.scene_list > 0 {
                     note(ui, if state.scene_list == 1 { "No favourites yet: tick Favorite on a scene." } else { "No scenes opened yet." });
                 }
-                egui::ScrollArea::vertical().id_salt("scene grid").max_height(360.).auto_shrink([false, true]).show(ui, |ui| {
+                egui::ScrollArea::vertical().id_salt("scene grid").max_height(grid_height).auto_shrink([false, true]).show(ui, |ui| {
                     let mut start = 0;
                     while start < visible.len() {
                         let pack = state.scenes[visible[start]].pack.clone();
@@ -476,16 +721,6 @@ impl App {
         if let Some(i) = load {
             self.load_scene_file(i);
         }
-    }
-    /// L: light painting on or off. Turning it on restarts once in the progressive mode.
-    pub fn toggle_painting(&mut self) {
-        self.painting = !self.painting;
-        self.actions.reset = true;
-        self.ui.toast(if self.painting {
-            "Light painting: move lights and they leave trails (L to stop)"
-        } else {
-            "Light painting off"
-        });
     }
     /// T: the flashlight on or off, also while walking.
     pub fn toggle_flashlight(&mut self) {
@@ -1188,5 +1423,46 @@ mod scene_browser_tests {
         assert_eq!(enter_card(&[3, 7], Some(5)), Some(3));
         assert_eq!(enter_card(&[3, 7], None), Some(3));
         assert_eq!(enter_card(&[], Some(5)), None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn tags_split_into_chips_and_a_counted_rest() {
+        let all = [
+            "glass",
+            "glass",
+            "bokeh",
+            "night",
+            "bokeh",
+            "water",
+            "still life",
+        ];
+        let (top, more) = split_tags(all.into_iter());
+        // Chips keep TOP_TAGS order and only the ones that occur.
+        assert_eq!(top, ["glass", "night", "still life"]);
+        assert_eq!(more, [("bokeh".to_string(), 2), ("water".to_string(), 1)]);
+        assert!(split_tags(std::iter::empty()).0.is_empty());
+    }
+    /// The shipped scenes: every chip is used, and the hyphenated generator tag is gone.
+    #[test]
+    fn shipped_tags_have_no_duplicate_spellings() {
+        let entries = crate::scenes::list();
+        let tags: Vec<&str> = entries
+            .iter()
+            .flat_map(|e| e.tags.iter().map(String::as_str))
+            .collect();
+        if tags.is_empty() {
+            return; // scenes folder not found from this working directory
+        }
+        assert!(!tags.contains(&"still-life"));
+        let (top, _) = split_tags(tags.into_iter());
+        assert_eq!(
+            top.len(),
+            TOP_TAGS.len(),
+            "a TOP_TAGS entry no scene uses: {top:?}"
+        );
     }
 }
