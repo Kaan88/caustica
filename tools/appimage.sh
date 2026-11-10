@@ -45,7 +45,8 @@ done
 for d in models hdri textures; do
     [ -d "scenes/$d" ] || { echo "scenes/$d is missing: copy the fetched assets (tools/fetch_assets.ps1)" >&2; exit 1; }
 done
-cp -r scenes "$app/usr/bin/scenes"
+# -L: a checkout may link the fetched assets in from elsewhere; the AppImage needs the files.
+cp -rL scenes "$app/usr/bin/scenes"
 # Prebuilt thumbnails (scenes and material balls, named by the hash of the scene / material, so
 # an edited one is ignored and re-rendered): release.ps1 copies the set it rendered for the
 # Windows installer to ./thumbnails; failing that, render them here (needs a GPU); else the
