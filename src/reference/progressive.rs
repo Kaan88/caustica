@@ -3,6 +3,7 @@ use super::aov::{GuideAov, Lpe, PixelAov, Record};
 use super::camera::filter_offset;
 use super::denoise::{Guide, Moments, luminance};
 use super::integrators::bdpt::Splat;
+use super::integrators::photon::PhotonMap;
 use super::sampling::Rng;
 use super::scene::Scene;
 use super::unsupported;
@@ -78,6 +79,8 @@ pub struct Progressive<'a> {
     lpe: Option<Lpe>,
     /// Its threads run at low priority: a render behind a window.
     background: bool,
+    /// Photon mapping's map of the frame the last samples belong to, one per moment.
+    photon_maps: Vec<PhotonMap>,
 }
 impl<'a> Progressive<'a> {
     pub fn new(s: &'a Settings, size: [u32; 2]) -> Result<Self> {
@@ -127,6 +130,7 @@ impl<'a> Progressive<'a> {
             aov_guides: vec![],
             lpe: None,
             background: false,
+            photon_maps: vec![],
         }
     }
     /// Records the AOVs from here on (`layers`), starting the render over; the sums' bits don't
@@ -210,7 +214,43 @@ impl<'a> Progressive<'a> {
         cancel: &AtomicBool,
         progress: &(dyn Fn(f32) + Sync),
     ) -> bool {
+        // Photon mapping's frames are `Settings::spp` samples each, with a map of their own
+        // (`integrators::photon`): a pass runs frame by frame, so its split doesn't matter.
+        let s = self.scenes[0].s;
+        let (end, per) = (self.samples + spp, s.spp.max(1));
+        while self.samples < end {
+            let n = if s.integrator == 2 {
+                let frame = self.samples / per;
+                if self.photon_maps.first().is_none_or(|m| m.frame != frame) {
+                    self.photon_maps.clear();
+                    for scene in &self.scenes {
+                        let Some(map) = scene.photon_map(frame, threads, cancel) else {
+                            self.photon_maps.clear();
+                            return false;
+                        };
+                        self.photon_maps.push(map);
+                    }
+                }
+                ((frame + 1) * per).min(end) - self.samples
+            } else {
+                end - self.samples
+            };
+            if !self.samples_pass(n, threads, cancel, progress) {
+                return false;
+            }
+        }
+        true
+    }
+    /// `pass` within one photon-mapping frame.
+    fn samples_pass(
+        &mut self,
+        spp: u32,
+        threads: usize,
+        cancel: &AtomicBool,
+        progress: &(dyn Fn(f32) + Sync),
+    ) -> bool {
         let scenes = &self.scenes;
+        let photon_maps = &self.photon_maps;
         let s = scenes[0].s;
         let (w, h) = (scenes[0].size[0] as usize, scenes[0].size[1] as usize);
         let first = self.samples;
@@ -254,10 +294,11 @@ impl<'a> Progressive<'a> {
                         let mut r = Rng::new((y * w + x) as u64, k as u64);
                         // Drawn only when there are moments to choose from, so a still keeps
                         // its sample sequences.
-                        let scene = match scenes.len() {
-                            1 => &scenes[0],
-                            m => &scenes[((r.f() * m as f32) as usize).min(m - 1)],
+                        let moment = match scenes.len() {
+                            1 => 0,
+                            m => ((r.f() * m as f32) as usize).min(m - 1),
                         };
+                        let scene = &scenes[moment];
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
                         let mut waves = scene.waves(&r);
@@ -270,12 +311,16 @@ impl<'a> Progressive<'a> {
                                 // Its AOVs: the whole estimate as direct light, no specular.
                                 rec.direct = c;
                                 c
+                            } else if let Some(map) = photon_maps.get(moment) {
+                                let c = scene.photon_gather(o, d, w, map, &mut waves, &mut r);
+                                rec.direct = c;
+                                c
                             } else {
                                 scene.radiance(o, d, w, &mut waves, &mut r, &mut rec)
                             }
                         });
                         // The firefly clamp is the path tracer's, as on the GPU.
-                        let scale = if bdpt {
+                        let scale = if s.integrator != 0 {
                             1.
                         } else {
                             firefly_scale(s.firefly, c, **sum, k)

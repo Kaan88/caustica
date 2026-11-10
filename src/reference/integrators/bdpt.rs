@@ -24,7 +24,9 @@ use crate::reference::bvh::Hit;
 use crate::reference::camera::filter_density;
 use crate::reference::integrators::shading::{sample_lobes, spectral_material};
 use crate::reference::lights::{cone_sample, shadow_limit};
-use crate::reference::media::{extinction, flight, hg_pdf, hg_sample, push, remove, top};
+use crate::reference::media::{
+    extinction, flight, fog_density, hg_pdf, hg_sample, push, remove, top,
+};
 use crate::reference::sampling::{Rng, basis, cosine_sample, reflect};
 use crate::reference::scene::{Light, Ray, Scene, Surface, mix};
 use crate::reference::spectral::Waves;
@@ -38,7 +40,7 @@ pub(in crate::reference) const BOUNCES: u32 = 24;
 pub(in crate::reference) type Splat = (u32, Vec3);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum Kind {
+pub(super) enum Kind {
     Camera,
     Light,
     Surface,
@@ -48,47 +50,47 @@ enum Kind {
 /// A point on a table emitter: its entry, where, its own normal (a triangle's face normal turned
 /// to its shading side, a sphere's outward one), the material there and the emission colour.
 #[derive(Clone, Copy)]
-struct LightPoint {
-    k: usize,
-    p: Vec3,
-    n: Vec3,
-    sphere: bool,
-    m: PackedMaterial,
-    colour: Vec3,
-    area: f32,
+pub(super) struct LightPoint {
+    pub(super) k: usize,
+    pub(super) p: Vec3,
+    pub(super) n: Vec3,
+    pub(super) sphere: bool,
+    pub(super) m: PackedMaterial,
+    pub(super) colour: Vec3,
+    pub(super) area: f32,
 }
 
 /// A subpath vertex. `beta`: the subpath's throughput arriving there; `pdf_fwd` / `pdf_rev`: the
 /// area densities of reaching it from its own subpath's side / from the other side.
 #[derive(Clone, Copy)]
-struct Vertex {
-    kind: Kind,
-    p: Vec3,
+pub(super) struct Vertex {
+    pub(super) kind: Kind,
+    pub(super) p: Vec3,
     /// The shading normal facing the arrival (a light's: the side it emitted from); zero for the
     /// camera and in a medium.
-    n: Vec3,
+    pub(super) n: Vec3,
     /// The face normal facing the arrival: what offsets leave along.
-    ng: Vec3,
-    front: bool,
+    pub(super) ng: Vec3,
+    pub(super) front: bool,
     /// It sampled a delta event (a dielectric, a beam splitter) to continue its subpath.
-    delta: bool,
-    beta: Vec3,
-    pdf_fwd: f32,
-    pdf_rev: f32,
-    material: u32,
+    pub(super) delta: bool,
+    pub(super) beta: Vec3,
+    pub(super) pdf_fwd: f32,
+    pub(super) pdf_rev: f32,
+    pub(super) material: u32,
     /// The material after its pattern and maps, before the film and the uplift (`material`).
-    m: PackedMaterial,
-    tangent: Vec3,
-    lambda: Wavelength,
+    pub(super) m: PackedMaterial,
+    pub(super) tangent: Vec3,
+    pub(super) lambda: Wavelength,
     /// The light-table entry + 1 the surface belongs to (0: none).
-    emitter: u32,
+    pub(super) emitter: u32,
     /// What the surface emits toward where its subpath came from.
-    le: Vec3,
+    pub(super) le: Vec3,
     /// The innermost dielectric on the side it was reached from (None: air, so the fog box).
-    medium: Option<(u32, u32)>,
+    pub(super) medium: Option<(u32, u32)>,
     /// A medium vertex's Henyey-Greenstein g.
-    g: f32,
-    light: Option<LightPoint>,
+    pub(super) g: f32,
+    pub(super) light: Option<LightPoint>,
 }
 impl Vertex {
     fn blank(kind: Kind, p: Vec3, beta: Vec3, pdf_fwd: f32) -> Self {
@@ -235,27 +237,28 @@ fn pick_filtered(s: &crate::scene::Settings, f: f32, r1: i32, u: f32) -> (i32, f
 }
 
 /// A walk's next event (`Scene::walk_step`).
-enum Step {
+pub(super) enum Step {
     Escape,
     Surface(Hit, Surface),
-    /// A scatter at a point, with the medium's albedo and g.
-    Scatter(Vec3, Vec3, f32),
+    /// A scatter at a point, with the medium's albedo, g and extinction there (what photon
+    /// mapping's volume gather divides by).
+    Scatter(Vec3, Vec3, f32, Vec3),
 }
 
 /// A vertex's sampled continuation.
-struct Sampled {
-    next: Vec3,
-    pf: f32,
-    pr: f32,
-    delta: bool,
+pub(super) struct Sampled {
+    pub(super) next: Vec3,
+    pub(super) pf: f32,
+    pub(super) pr: f32,
+    pub(super) delta: bool,
     /// The media past a refraction.
-    after: Option<Vec<(u32, u32)>>,
+    pub(super) after: Option<Vec<(u32, u32)>>,
 }
 
 impl Scene<'_> {
     /// The share of next-event samples and light-path origins the environment takes: half beside
     /// the table, all without one (procedural emitters take none here).
-    fn bdpt_env_share(&self) -> f32 {
+    pub(super) fn bdpt_env_share(&self) -> f32 {
         match (&self.env, self.lights.is_empty()) {
             (None, _) => 0.,
             (Some(_), true) => 1.,
@@ -263,7 +266,7 @@ impl Scene<'_> {
         }
     }
     /// The power CDF's probability of entry `k`.
-    fn entry_probability(&self, k: usize) -> f32 {
+    pub(super) fn entry_probability(&self, k: usize) -> f32 {
         self.cdf[k] - if k > 0 { self.cdf[k - 1] } else { 0. }
     }
     /// The area density of light-path origin `l`.
@@ -271,7 +274,7 @@ impl Scene<'_> {
         (1. - pe) * self.entry_probability(l.k) / l.area.max(1e-12)
     }
     /// A uniform point on table entry `k` (None for a sun).
-    fn light_point(&self, k: usize, r: &mut Rng) -> Option<LightPoint> {
+    pub(super) fn light_point(&self, k: usize, r: &mut Rng) -> Option<LightPoint> {
         match self.lights[k] {
             Light::Sun { .. } => None,
             Light::Sphere {
@@ -339,11 +342,11 @@ impl Scene<'_> {
             _ => self.tri_point(k, hit.tri, x.p, hit.b),
         }
     }
-    fn two_sided(l: &LightPoint) -> bool {
+    pub(super) fn two_sided(l: &LightPoint) -> bool {
         !l.sphere && l.m.optical[3] < 0.5
     }
     /// A one-sided spot's cone cosine, out of which it emits nothing (0: no cone).
-    fn spot_cone(l: &LightPoint) -> f32 {
+    pub(super) fn spot_cone(l: &LightPoint) -> f32 {
         if !l.sphere && flags(&l.m) & 32 != 0 && l.m.optical[3] >= 0.5 {
             l.m.secondary[0].clamp(-1., 0.9999)
         } else {
@@ -368,7 +371,7 @@ impl Scene<'_> {
         }
     }
     /// The radiance `l` sends along `w`, at the path's wavelengths.
-    fn emission_toward(&self, l: &LightPoint, w: Vec3, waves: &Waves) -> Vec3 {
+    pub(super) fn emission_toward(&self, l: &LightPoint, w: Vec3, waves: &Waves) -> Vec3 {
         let c = l.n.dot(w);
         let raw = &self.materials[match self.lights[l.k] {
             Light::Tri(tri) => self.bvh.tris[tri].material,
@@ -385,7 +388,7 @@ impl Scene<'_> {
     }
     /// The material at `x` as seen from `v`: the film at that cosine (the indices of a single
     /// dielectric against air, as the GPU's vertices take them), then the spectral uplift.
-    fn vertex_material(&self, x: &Vertex, v: Vec3, w: &Waves) -> PackedMaterial {
+    pub(super) fn vertex_material(&self, x: &Vertex, v: Vec3, w: &Waves) -> PackedMaterial {
         let mut m = x.m;
         let film = (m.surface_scale[2] > 0.).then(|| {
             let c = v.dot(x.n).clamp(0., 1.);
@@ -424,7 +427,7 @@ impl Scene<'_> {
     }
     /// The vertex a walk arriving along `d` makes at hit `h`.
     #[allow(clippy::too_many_arguments)]
-    fn surface_vertex(
+    pub(super) fn surface_vertex(
         &self,
         h: &Hit,
         sf: &Surface,
@@ -500,7 +503,7 @@ impl Scene<'_> {
     /// in (the innermost object's, else the fog box), false hits passed straight through (at most
     /// 32), absorption applied to `beta`. `o` ends at the last segment's start.
     #[allow(clippy::too_many_arguments)]
-    fn walk_step(
+    pub(super) fn walk_step(
         &self,
         o: &mut Vec3,
         d: Vec3,
@@ -522,19 +525,28 @@ impl Scene<'_> {
                         fw,
                         w.up(Vec3::from(self.s.fog.color)),
                         self.s.fog.phase,
+                        self.fog_sigma(w),
                     )
                 })
             } else {
                 self.object_medium(media, w).map(|(sigma, albedo, g)| {
                     let (ts, fw) = flight(sigma, 0., tmax, r);
-                    (ts, tmax, fw, albedo, g)
+                    (ts, tmax, fw, albedo, g, sigma)
                 })
             };
-            if let Some((ts, t1, fw, albedo, g)) = medium {
+            if let Some((ts, t1, fw, albedo, g, sigma)) = medium {
                 *beta *= fw;
                 if ts < t1 {
                     *beta *= self.transmittance(media, ts, w);
-                    return Step::Scatter(*o + d * ts, albedo, g);
+                    let p = *o + d * ts;
+                    // Noisy fog's extinction where it scattered (none of the walk's draws).
+                    let f = &self.s.fog;
+                    let sigma = if media.is_empty() && f.noise > 0. {
+                        sigma * fog_density(p, f.noise, f.noise_size)
+                    } else {
+                        sigma
+                    };
+                    return Step::Scatter(p, albedo, g, sigma);
                 }
             }
             let Some(h) = hit else {
@@ -553,7 +565,7 @@ impl Scene<'_> {
     /// Camera subpaths (`radiance`) carry a refraction's eta², light subpaths don't. `pf`: the
     /// density of `next` given −d; `pr`: of −d given `next` (both 0 for a delta event).
     #[allow(clippy::too_many_arguments)]
-    fn sample_vertex(
+    pub(super) fn sample_vertex(
         &self,
         x: &Vertex,
         d: Vec3,
@@ -621,7 +633,14 @@ impl Scene<'_> {
     /// What a ray leaving along `d` finds at infinity (`escape`): the sky or the environment (the
     /// camera's first segment may see the background instead) and the suns, the environment and
     /// the suns weighted against next-event estimation as the path tracer weights them.
-    fn escape(&self, d: Vec3, camera: bool, prev_delta: bool, prev_pdf: f32, w: &Waves) -> Vec3 {
+    pub(super) fn escape(
+        &self,
+        d: Vec3,
+        camera: bool,
+        prev_delta: bool,
+        prev_pdf: f32,
+        w: &Waves,
+    ) -> Vec3 {
         let pe = self.bdpt_env_share();
         let mut e = match &self.env {
             None => w.up(self.plain_sky(d)),
@@ -659,7 +678,7 @@ impl Scene<'_> {
     }
     /// What the media along a connection from `a` (in `medium`) let through over `len`: the
     /// object's extinction and Beer colour, else the fog box.
-    fn segment_tr(
+    pub(super) fn segment_tr(
         &self,
         medium: Option<(u32, u32)>,
         a: Vec3,
@@ -688,7 +707,7 @@ impl Scene<'_> {
                 .intersect(a, e / l, l, &self.accept(Ray::Shadow, a, e / l), true)
                 .is_none()
     }
-    fn occluded(&self, o: Vec3, d: Vec3, limit: f32) -> bool {
+    pub(super) fn occluded(&self, o: Vec3, d: Vec3, limit: f32) -> bool {
         self.intersect(o, d, limit, &self.accept(Ray::Shadow, o, d), true)
             .is_some()
     }
@@ -783,7 +802,7 @@ impl Scene<'_> {
                     );
                     break;
                 }
-                Step::Scatter(p, albedo, g) => {
+                Step::Scatter(p, albedo, g, _) => {
                     beta *= albedo;
                     let x = Vertex {
                         medium: top(&media).copied(),
@@ -1101,7 +1120,7 @@ impl Scene<'_> {
             let from = lig[lig.len() - 1].p;
             let x = match self.walk_step(&mut o, d, Ray::Bounce, &mut media, &mut beta, w, r) {
                 Step::Escape => break,
-                Step::Scatter(p, albedo, g) => {
+                Step::Scatter(p, albedo, g, _) => {
                     beta *= albedo;
                     Vertex {
                         medium: top(&media).copied(),

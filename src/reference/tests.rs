@@ -241,10 +241,7 @@ fn every_missing_feature_is_refused() {
         f(&mut s);
         s
     };
-    let cases: Vec<(&str, Settings)> = vec![
-        ("battle", edit(&|s| s.battle = true)),
-        ("photon mapping", edit(&|s| s.integrator = 2)),
-    ];
+    let cases: Vec<(&str, Settings)> = vec![("battle", edit(&|s| s.battle = true))];
     for (what, s) in &cases {
         assert!(!unsupported(s).is_empty(), "{what} was not refused");
     }
@@ -2169,11 +2166,49 @@ fn bdpt_agrees_with_the_path_tracer() {
 fn bdpt_sees_glass_as_solid() {
     let mut s = Settings::default();
     s.glass_shadow = false;
-    for (integrator, blocks) in [(0, false), (1, true)] {
+    for (integrator, blocks) in [(0, false), (1, true), (2, true)] {
         s.integrator = integrator;
         let mut scene = Scene::new(&s, [4, 4]);
         scene.materials[0].lobes[2] = 1.;
         let accept = scene.accept(Ray::Shadow, Vec3::ZERO, Vec3::X);
         assert_eq!(accept(0, 0, Vec2::ZERO), blocks, "integrator {integrator}");
     }
+}
+/// Photon mapping's passes give the same bits as one render, whatever the threads and however
+/// the passes cut its frames (a frame is `spp` samples with its own photon map).
+#[test]
+fn photon_passes_match_one_render() {
+    let mut s = Settings::default();
+    s.bounces = 3;
+    s.integrator = 2;
+    s.spp = 2;
+    s.photons = 1 << 12;
+    let one = render(&s, [16, 12], 5, &|_| {}).unwrap();
+    let mut p = Progressive::new(&s, [16, 12]).unwrap();
+    let stop = AtomicBool::new(false);
+    for (n, threads) in [(1, 3), (2, 1), (2, 4)] {
+        assert!(p.pass(n, threads, &stop, &|_| {}));
+    }
+    assert_eq!(p.image(), one);
+}
+/// Photon mapping converges to the path tracer's image: within its radius bias after a few
+/// frames on the default box, at bounces where the walks' limits don't matter.
+#[test]
+fn photon_mapping_agrees_with_the_path_tracer() {
+    let mut s = Settings::default();
+    s.bounces = 8;
+    let mean = |s: &Settings, spp| {
+        let image = render(s, [24, 18], spp, &|_| {}).unwrap();
+        let sum: f64 = image
+            .chunks(4)
+            .map(|c| (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) as f64)
+            .sum();
+        sum / (24. * 18.)
+    };
+    let path = mean(&s, 256);
+    s.integrator = 2;
+    s.spp = 4;
+    s.photons = 1 << 15;
+    let pm = mean(&s, 64);
+    assert!((pm / path - 1.).abs() < 0.04, "photons {pm} vs path {path}");
 }

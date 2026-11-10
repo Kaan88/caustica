@@ -52,8 +52,8 @@ pub(super) struct Scene<'a> {
     /// Spectral mode (`spectral`): on unless light path expressions force the path tracer to RGB,
     /// as on the GPU (`passes.rs`).
     pub(super) spectral: bool,
-    /// Shadow rays stop at clear glass whatever `glass_shadow` says: BDPT's connections and next-
-    /// event estimation see it as solid, as on the GPU (`glass_blocks`).
+    /// Shadow rays stop at clear glass whatever `glass_shadow` says: BDPT's connections and
+    /// photon mapping's next-event estimation see it as solid, as on the GPU (`glass_blocks`).
     pub(super) glass_blocks: bool,
 }
 /// An entry of the light table.
@@ -440,7 +440,7 @@ impl<'a> Scene<'a> {
             p_env,
             textures,
             spectral: s.spectral && (s.integrator != 0 || s.lpe.iter().all(|e| e.is_empty())),
-            glass_blocks: s.integrator == 1,
+            glass_blocks: s.integrator != 0,
         };
         scene.set_camera(s, size);
         scene
