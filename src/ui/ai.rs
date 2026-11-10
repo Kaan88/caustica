@@ -292,12 +292,12 @@ impl App {
                     egui::ScrollArea::vertical().max_height(300.).show(ui, |ui| {
                         if ui.button("Default").clicked() {
                             self.ui.prefs.ai.model.clear();
-                            ui.close_menu();
+                            ui.close();
                         }
                         for n in &names {
                             if ui.button(n).clicked() {
                                 self.ui.prefs.ai.model = n.clone();
-                                ui.close_menu();
+                                ui.close();
                             }
                         }
                     });

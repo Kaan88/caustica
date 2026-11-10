@@ -60,6 +60,9 @@ const DISPLAY_PIPES: [&str; 3] = ["filter", "display", "glare"];
 pub struct Gpu {
     pub st: GpuState,
     swap: Swapchain,
+    /// A headless run's stand-in for the swap chain image (`GpuState::headless`), in the swap
+    /// chain's format and size; made on first use.
+    offscreen: Option<Image>,
     frame: Frame,
     accel_fns: khr::acceleration_structure::Device,
     layout: Layout,
@@ -203,6 +206,9 @@ impl Drop for Gpu {
             d.free_buffer(std::ptr::read(&self.readback));
             if let Some((b, _)) = self.ui_frame.take() {
                 d.free_buffer(b);
+            }
+            if let Some(o) = self.offscreen.take() {
+                d.free_image(o);
             }
             self.frame.destroy(d);
             self.swap.destroy(d);
@@ -480,6 +486,7 @@ impl Gpu {
             let mut gpu = Self {
                 st,
                 swap,
+                offscreen: None,
                 frame,
                 accel_fns,
                 layout,
@@ -1047,7 +1054,8 @@ impl Gpu {
             let (swap, frame) = (&mut self.swap, &self.frame);
             let cmd = frame.cmd;
             let shown = !self.st.swap_size.contains(&0);
-            let index = if shown {
+            let offscreen = self.st.headless && shown;
+            let index = if shown && !offscreen {
                 match swap.fns.acquire_next_image(
                     swap.handle,
                     u64::MAX,
@@ -1061,8 +1069,32 @@ impl Gpu {
             } else {
                 None
             };
-            if let Some(i) = index {
-                let image = swap.images[i as usize];
+            if offscreen {
+                let size = [swap.extent.width, swap.extent.height, 1];
+                if self
+                    .offscreen
+                    .as_ref()
+                    .is_none_or(|o| o.size != size || o.format != swap.format)
+                {
+                    // The previous frame's fence wait has finished with the old image.
+                    if let Some(old) = self.offscreen.take() {
+                        d.free_image(old);
+                    }
+                    self.offscreen = Some(d.image(
+                        size,
+                        swap.format,
+                        vk::ImageUsageFlags::COLOR_ATTACHMENT
+                            | vk::ImageUsageFlags::TRANSFER_SRC
+                            | vk::ImageUsageFlags::TRANSFER_DST,
+                    )?);
+                }
+            }
+            let target = match (index, &self.offscreen) {
+                (Some(i), _) => Some((swap.images[i as usize], swap.views[i as usize])),
+                (None, Some(o)) if offscreen => Some((o.handle, o.view)),
+                _ => None,
+            };
+            if let Some((image, view)) = target {
                 let barrier = |old, new, src, dst| {
                     [vk::ImageMemoryBarrier2::default()
                         .src_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
@@ -1136,7 +1168,7 @@ impl Gpu {
                 self.gui.draw(
                     d,
                     cmd,
-                    swap.views[i as usize],
+                    view,
                     swap.extent,
                     primitives,
                     ppp,
@@ -1186,16 +1218,18 @@ impl Gpu {
                     );
                     last = vk::ImageLayout::TRANSFER_SRC_OPTIMAL;
                 }
-                let to_present = barrier(
-                    last,
-                    vk::ImageLayout::PRESENT_SRC_KHR,
-                    vk::AccessFlags2::COLOR_ATTACHMENT_WRITE | vk::AccessFlags2::TRANSFER_READ,
-                    vk::AccessFlags2::NONE,
-                );
-                d.device.cmd_pipeline_barrier2(
-                    cmd,
-                    &vk::DependencyInfo::default().image_memory_barriers(&to_present),
-                );
+                if index.is_some() {
+                    let to_present = barrier(
+                        last,
+                        vk::ImageLayout::PRESENT_SRC_KHR,
+                        vk::AccessFlags2::COLOR_ATTACHMENT_WRITE | vk::AccessFlags2::TRANSFER_READ,
+                        vk::AccessFlags2::NONE,
+                    );
+                    d.device.cmd_pipeline_barrier2(
+                        cmd,
+                        &vk::DependencyInfo::default().image_memory_barriers(&to_present),
+                    );
+                }
             }
             d.device.cmd_write_timestamp2(
                 cmd,
@@ -1240,7 +1274,7 @@ impl Gpu {
                         Err(e) => return Err(e.into()),
                     }
                 }
-                None if shown => swap.recreate(d, self.st.swap_size)?,
+                None if shown && !offscreen => swap.recreate(d, self.st.swap_size)?,
                 None => {}
             }
             Ok(())

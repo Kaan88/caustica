@@ -80,7 +80,7 @@ impl App {
             Selection::Object(_) | Selection::Light(_)
         );
         let mut chosen = None;
-        let r = egui::Area::new(egui::Id::new("viewport menu"))
+        let r = egui::Area::new(egui::Id::unique("viewport menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(at)
             .show(ctx, |ui| {
@@ -174,7 +174,7 @@ impl App {
         // The opening press is still in egui's input on the first frame: it must not close the box again.
         let mut close = esc || (toggle && !opened);
         let mut changed = false;
-        egui::Area::new(egui::Id::new("command palette"))
+        egui::Area::new(egui::Id::unique("command palette"))
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_TOP, [0., 70.])
             .show(ctx, |ui| {
@@ -525,7 +525,7 @@ impl App {
                                 let on = state.scene_tag.as_deref() == Some(t.as_str());
                                 if ui.selectable_label(on, format!("{t}  ({n})")).clicked() {
                                     state.scene_tag = if on { None } else { Some(t.clone()) };
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             }
                         });
@@ -554,7 +554,7 @@ impl App {
                 }
                 // The picker, the details and the Generate and Save rows below it need about 330
                 // px: on a small screen the grid gives way, not the window.
-                let grid_height = (ctx.screen_rect().height() - 330.).clamp(120., 360.);
+                let grid_height = (ctx.content_rect().height() - 330.).clamp(120., 360.);
                 let move_card = step != 0;
                 if move_card {
                     state.scene_selected = step_card(&visible, state.scene_selected, step).or(state.scene_selected);
@@ -796,10 +796,7 @@ impl App {
                         )
                     })
                     .collect();
-                egui::ColorImage {
-                    size: [cw, ch],
-                    pixels,
-                }
+                egui::ColorImage::new([cw, ch], pixels)
             };
             let wave = image(0, 4, 256, 128, [0.75, 1., 0.8]);
             let vector = image(0, 132, 128, 128, [0.85, 0.95, 1.]);

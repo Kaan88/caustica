@@ -68,7 +68,7 @@ impl App {
         self.timeline.time =
             Timeline::snap(a, self.timeline.time + frames as f32 / a.fps.max(1) as f32);
     }
-    pub(crate) fn timeline_panel(&mut self, ctx: &egui::Context) {
+    pub(crate) fn timeline_panel(&mut self, root: &mut egui::Ui) {
         // In one place, not in each of the paths that replace the settings (file, generators, AI,
         // undo, startup). From one keyed scene to the next it stays as left.
         let keys = !self.settings.animation.is_empty();
@@ -77,7 +77,7 @@ impl App {
             return;
         }
         let prefixes = anim::prefixes(self.ui.selection);
-        egui::TopBottomPanel::bottom("timeline").show(ctx, |ui| {
+        egui::Panel::bottom("timeline").show(root, |ui| {
             ui.add_space(2.);
             ui.horizontal(|ui| {
                 let a = &self.settings.animation;
@@ -179,7 +179,7 @@ impl App {
                         ] {
                             if ui.button(label).clicked() {
                                 retime = Some(r);
-                                ui.close_menu();
+                                ui.close();
                             }
                         }
                         let others = self.ui.also.len();
@@ -192,7 +192,7 @@ impl App {
                             .clicked()
                         {
                             copy = true;
-                            ui.close_menu();
+                            ui.close();
                         }
                     })
                     .response

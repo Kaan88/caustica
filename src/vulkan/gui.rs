@@ -186,80 +186,81 @@ impl Gui {
             for b in self.buffers.drain(..) {
                 d.free_buffer(b);
             }
-            for (id, change) in &delta.set {
-                let size = change.image.size();
-                let pixels: Vec<egui::Color32> = match &change.image {
-                    egui::ImageData::Color(i) => i.pixels.clone(),
-                    egui::ImageData::Font(i) => i.srgba_pixels(None).collect(),
-                };
-                let old = self.textures.remove(id);
-                let (mut data, mut full, set) = match old {
-                    Some(t) => {
-                        self.retired.push(t.image);
-                        (t.pixels, t.size, t.set)
-                    }
-                    None => (
-                        vec![],
-                        [0, 0],
-                        d.device.allocate_descriptor_sets(
-                            &vk::DescriptorSetAllocateInfo::default()
-                                .descriptor_pool(self.pool)
-                                .set_layouts(&[self.set_layout]),
-                        )?[0],
-                    ),
-                };
-                if let Some(pos) = change.pos {
-                    for y in 0..size[1] {
-                        let start = ((pos[1] + y) * full[0] + pos[0]) * 4;
-                        for x in 0..size[0] {
-                            data[start + x * 4..start + x * 4 + 4]
-                                .copy_from_slice(&pixels[y * size[0] + x].to_array());
+            for (id, changes) in &delta.set {
+                for change in changes {
+                    let size = change.image.size();
+                    let pixels: Vec<egui::Color32> = match &change.image {
+                        egui::ImageData::Color(i) => i.pixels.clone(),
+                    };
+                    let old = self.textures.remove(id);
+                    let (mut data, mut full, set) = match old {
+                        Some(t) => {
+                            self.retired.push(t.image);
+                            (t.pixels, t.size, t.set)
                         }
+                        None => (
+                            vec![],
+                            [0, 0],
+                            d.device.allocate_descriptor_sets(
+                                &vk::DescriptorSetAllocateInfo::default()
+                                    .descriptor_pool(self.pool)
+                                    .set_layouts(&[self.set_layout]),
+                            )?[0],
+                        ),
+                    };
+                    if let Some(pos) = change.pos {
+                        for y in 0..size[1] {
+                            let start = ((pos[1] + y) * full[0] + pos[0]) * 4;
+                            for x in 0..size[0] {
+                                data[start + x * 4..start + x * 4 + 4]
+                                    .copy_from_slice(&pixels[y * size[0] + x].to_array());
+                            }
+                        }
+                    } else {
+                        full = size;
+                        data = pixels.iter().flat_map(|p| p.to_array()).collect();
                     }
-                } else {
-                    full = size;
-                    data = pixels.iter().flat_map(|p| p.to_array()).collect();
+                    let image = d.image(
+                        [full[0] as u32, full[1] as u32, 1],
+                        vk::Format::R8G8B8A8_UNORM,
+                        vk::ImageUsageFlags::SAMPLED,
+                    )?;
+                    let staging =
+                        d.buffer(data.len() as u64, vk::BufferUsageFlags::TRANSFER_SRC, true)?;
+                    d.write(&staging, 0, &data)?;
+                    let region = vk::BufferImageCopy::default()
+                        .image_subresource(vk::ImageSubresourceLayers {
+                            aspect_mask: vk::ImageAspectFlags::COLOR,
+                            mip_level: 0,
+                            base_array_layer: 0,
+                            layer_count: 1,
+                        })
+                        .image_extent(vk::Extent3D {
+                            width: full[0] as u32,
+                            height: full[1] as u32,
+                            depth: 1,
+                        });
+                    d.one_shot(|cmd| {
+                        d.device.cmd_copy_buffer_to_image(
+                            cmd,
+                            staging.handle,
+                            image.handle,
+                            vk::ImageLayout::GENERAL,
+                            &[region],
+                        )
+                    })?;
+                    d.free_buffer(staging);
+                    self.write_set(d, set, image.view);
+                    self.textures.insert(
+                        *id,
+                        Texture {
+                            image,
+                            set,
+                            pixels: data,
+                            size: full,
+                        },
+                    );
                 }
-                let image = d.image(
-                    [full[0] as u32, full[1] as u32, 1],
-                    vk::Format::R8G8B8A8_UNORM,
-                    vk::ImageUsageFlags::SAMPLED,
-                )?;
-                let staging =
-                    d.buffer(data.len() as u64, vk::BufferUsageFlags::TRANSFER_SRC, true)?;
-                d.write(&staging, 0, &data)?;
-                let region = vk::BufferImageCopy::default()
-                    .image_subresource(vk::ImageSubresourceLayers {
-                        aspect_mask: vk::ImageAspectFlags::COLOR,
-                        mip_level: 0,
-                        base_array_layer: 0,
-                        layer_count: 1,
-                    })
-                    .image_extent(vk::Extent3D {
-                        width: full[0] as u32,
-                        height: full[1] as u32,
-                        depth: 1,
-                    });
-                d.one_shot(|cmd| {
-                    d.device.cmd_copy_buffer_to_image(
-                        cmd,
-                        staging.handle,
-                        image.handle,
-                        vk::ImageLayout::GENERAL,
-                        &[region],
-                    )
-                })?;
-                d.free_buffer(staging);
-                self.write_set(d, set, image.view);
-                self.textures.insert(
-                    *id,
-                    Texture {
-                        image,
-                        set,
-                        pixels: data,
-                        size: full,
-                    },
-                );
             }
             Ok(())
         }

@@ -3,6 +3,19 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders");
     println!("cargo:rerun-if-changed=bridge/ngx.cpp");
     println!("cargo:rerun-if-env-changed=DXC_PATH");
+    // Cross-check mode (tools/check_windows.sh): on a Windows target, skip what only a Windows
+    // machine can do (vendor SDK asserts, rc.exe, the C++ bridges, DLL copies, link args). `1`
+    // writes empty .dxil stubs; `dxil` compiles real DXIL with the Linux DXC. Unset: normal build.
+    println!("cargo:rerun-if-env-changed=CAUSTICA_CHECK_ONLY");
+    let check_only = env::var("CAUSTICA_CHECK_ONLY")
+        .ok()
+        .filter(|v| !v.is_empty() && v != "0");
+    // The switch is for type-checking the Windows side from Linux only: on a Windows host it would
+    // build an exe with empty shaders and no bridges without failing, so refuse it there.
+    if check_only.is_some() && cfg!(windows) {
+        panic!("CAUSTICA_CHECK_ONLY is set on a Windows host; unset it for a real build");
+    }
+    let check_dxil = check_only.as_deref() == Some("dxil");
     // The release version: CI sets CAUSTICA_VERSION (the tag it is about to create, without
     // the v); local builds are the Cargo.toml version marked -dev.
     println!("cargo:rerun-if-env-changed=CAUSTICA_VERSION");
@@ -14,6 +27,10 @@ fn main() {
     let dxc = env::var_os("DXC_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
+            if check_dxil {
+                return PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
+                    .join("vendor/dxc-linux/bin/dxc");
+            }
             let root = PathBuf::from(
                 env::var_os("ProgramFiles(x86)")
                     .unwrap_or_else(|| "C:\\Program Files (x86)".into()),
@@ -280,7 +297,7 @@ fn main() {
     let dxc_spirv = env::var_os("DXC_SPIRV")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(if windows {
+            PathBuf::from(if windows && check_only.is_none() {
                 "vendor/dxc-spirv/bin/x64/dxc.exe"
             } else {
                 "vendor/dxc-linux/bin/dxc"
@@ -325,6 +342,15 @@ fn main() {
             dxc_spirv.display()
         );
     }
+    // Intel Open Image Denoise (src/oidn.rs loads it at run time): its shared libraries go next to
+    // the exe like the upscaler runtimes. Missing, the build goes on and the feature stays off.
+    // A check-only build (tools/check_windows.sh) links nothing, so it copies nothing.
+    if check_only.is_none() {
+        oidn_runtime(
+            out.ancestors().nth(3).expect("Cargo profile directory"),
+            windows,
+        );
+    }
     // cfg(upscalers): bridge/vk.cpp is linked (NGX and XeSS on Vulkan). Always on Windows; on
     // Linux when tools/setup.sh fetched the DLSS SDK (engine-notes "Linux DLSS").
     println!("cargo::rustc-check-cfg=cfg(upscalers)");
@@ -335,6 +361,10 @@ fn main() {
         return;
     }
     println!("cargo:rustc-cfg=upscalers");
+    if check_only.is_some() {
+        check_only_dxil(&out, &dxc, check_dxil, entries, &ser_bits, shader_debug);
+        return;
+    }
     assert!(
         env::var("TARGET").unwrap().contains("windows-msvc"),
         "Caustica requires 64-bit Windows and the MSVC Rust toolchain"
@@ -344,26 +374,11 @@ fn main() {
         "Run powershell -File tools/setup.ps1 to fetch the pinned NVIDIA SDK"
     );
     resources(&version);
-    for &(file, entry, profile, name, defines) in entries {
-        // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
-        let entry_args = if profile.starts_with("lib_") {
-            ["-exports", entry, "-Wno-misplaced-attributes"]
-        } else {
-            ["-E", entry, "-Ges"]
-        };
-        let status = Command::new(&dxc)
-            .args(["-T", profile])
-            .args(entry_args)
-            .args(["-HV", "2021", "-O3", "-I", "shaders"])
-            .args(defines)
-            .args(ser_bits.iter().filter(|_| profile.starts_with("lib_")))
-            .args(shader_debug)
-            .arg("-Fo")
-            .arg(out.join(format!("{name}.dxil")))
-            .arg(format!("shaders/{file}"))
+    for e in entries {
+        let status = dxil_command(&dxc, e, &ser_bits, shader_debug, &out)
             .status()
             .expect("DXC missing: install Windows SDK 26100 or set DXC_PATH");
-        assert!(status.success(), "DXC failed for {entry}");
+        assert!(status.success(), "DXC failed for {}", e.1);
     }
     for (dir, what) in [
         ("vendor/fsr/Kits/FidelityFX/api/include", "AMD FSR SDK"),
@@ -451,6 +466,73 @@ fn main() {
     println!("cargo:rustc-link-arg-bins=/EXPORT:D3D12SDKVersion,DATA");
     println!("cargo:rustc-link-arg-bins=/EXPORT:D3D12SDKPath,DATA");
 }
+
+type Entry<'a> = (&'a str, &'a str, &'a str, &'a str, &'a [&'a str]);
+
+/// The DXC command line for one DXIL entry. tools/check_dxil.py parses the flag lists below, so
+/// keep each as one `.args([...])` / array literal of plain strings.
+fn dxil_command(
+    dxc: &std::path::Path,
+    &(file, entry, profile, name, defines): &Entry,
+    ser_bits: &[String],
+    shader_debug: &[&str],
+    out: &std::path::Path,
+) -> Command {
+    // A library (lib_*) exports its entry; its compute kernels' numthreads are ignored.
+    let entry_args = if profile.starts_with("lib_") {
+        ["-exports", entry, "-Wno-misplaced-attributes"]
+    } else {
+        ["-E", entry, "-Ges"]
+    };
+    let mut c = Command::new(dxc);
+    c.args(["-T", profile])
+        .args(entry_args)
+        .args(["-HV", "2021", "-O3", "-I", "shaders"])
+        .args(defines)
+        .args(ser_bits.iter().filter(|_| profile.starts_with("lib_")))
+        .args(shader_debug)
+        .arg("-Fo")
+        .arg(out.join(format!("{name}.dxil")))
+        .arg(format!("shaders/{file}"));
+    c
+}
+
+/// CAUSTICA_CHECK_ONLY on a Windows target: the .dxil files the crate embeds, either empty
+/// stubs or (`real`) compiled by the host's DXC, several at a time.
+fn check_only_dxil(
+    out: &std::path::Path,
+    dxc: &std::path::Path,
+    real: bool,
+    entries: &[Entry],
+    ser_bits: &[String],
+    shader_debug: &[&str],
+) {
+    if !real {
+        for e in entries {
+            std::fs::write(out.join(format!("{}.dxil", e.3)), []).expect("write a DXIL stub");
+        }
+        return;
+    }
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let workers = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .clamp(1, 8);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(e) = entries.get(i) else { break };
+                    let status = dxil_command(dxc, e, ser_bits, shader_debug, out)
+                        .status()
+                        .expect("run the Linux DXC (vendor/dxc-linux, sh tools/setup.sh)");
+                    assert!(status.success(), "DXC failed for {}", e.3);
+                }
+            });
+        }
+    });
+}
+
 /// The exe's icon (assets/caustica.ico, drawn by tools/make_icon.py) and version info, compiled
 /// by the Windows SDK's rc.exe (`RC_PATH` overrides) and linked into the binary. Without
 /// rc.exe the build goes on with a warning and a plain exe.
@@ -588,6 +670,36 @@ fn linux_upscalers(out: &std::path::Path) {
             == std::fs::metadata(&source).map(|m| m.len()).ok();
         if !fresh {
             std::fs::copy(&source, &dest).expect("copy the DLSS runtime next to the exe");
+        }
+    }
+}
+
+/// Copies the OIDN CPU device's libraries (vendor/oidn, tools/setup.ps1 / setup.sh) beside the exe.
+/// Windows: the four DLLs. Linux: the versioned `.so` files, not the symlinks (the loader opens
+/// them by file name). A copy that is already the same size is left alone: a running app locks
+/// its DLLs.
+fn oidn_runtime(destination: &std::path::Path, windows: bool) {
+    let dir = PathBuf::from("vendor/oidn").join(if windows { "windows/bin" } else { "linux/lib" });
+    println!("cargo:rerun-if-changed={}", dir.display());
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        println!(
+            "cargo:warning=no OIDN in {} (tools/setup): the still denoiser is left out",
+            dir.display()
+        );
+        return;
+    };
+    for entry in entries.flatten() {
+        let source = entry.path();
+        let is_link = std::fs::symlink_metadata(&source).is_ok_and(|m| m.file_type().is_symlink());
+        if is_link || !source.is_file() {
+            continue;
+        }
+        let name = source.file_name().unwrap();
+        let dest = destination.join(name);
+        let same = std::fs::metadata(&dest).map(|m| m.len()).ok()
+            == std::fs::metadata(&source).map(|m| m.len()).ok();
+        if !same {
+            std::fs::copy(&source, &dest).expect("copy OIDN next to the exe");
         }
     }
 }

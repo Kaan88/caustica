@@ -704,6 +704,7 @@ impl Gpu {
                 emitter_count: 0,
                 sun_count: 0,
                 keep_ui_frame: false,
+                headless: false,
                 rr_status,
                 upscale_status: String::new(),
                 rr_active: false,

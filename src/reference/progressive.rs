@@ -14,7 +14,8 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-/// Renders `spp` samples per pixel on every core: linear RGBA, rows top first.
+/// Renders `spp` samples per pixel on every core: linear RGBA, rows top first. Tests only.
+#[cfg(test)]
 pub fn render(
     s: &Settings,
     size: [u32; 2],
@@ -131,7 +132,7 @@ impl<'a> Progressive<'a> {
         Ok(p)
     }
     /// The first (or only) moment: what the camera, the size and the preview read.
-    fn scene(&self) -> &Scene<'a> {
+    pub(super) fn scene(&self) -> &Scene<'a> {
         &self.scenes[0]
     }
     /// A render of what the renderer knows of the scene, whatever `unsupported` lists: for looking
@@ -594,6 +595,8 @@ struct Shared {
     /// The view's denoiser (`denoise`): on, and its strength's bits.
     denoise: AtomicBool,
     strength: std::sync::atomic::AtomicU32,
+    /// The finished image goes through Intel OIDN (`oidn`): only once the render has stopped.
+    oidn: AtomicBool,
     inner: Mutex<Inner>,
     wake: Condvar,
 }
@@ -704,6 +707,11 @@ impl Live {
         self.shared
             .strength
             .store(strength.to_bits(), Ordering::Relaxed);
+    }
+    /// Intel OIDN on the finished image (the cap reached, or paused), for the view; the render
+    /// goes on untouched, and what a save writes as the light stays the plain mean.
+    pub fn set_oidn(&self, on: bool) {
+        self.shared.oidn.store(on && self.view, Ordering::Relaxed);
     }
     /// The plain mean behind the latest image when that is denoised: what a save writes.
     pub fn raw(&self) -> Option<Arc<Vec<f32>>> {
@@ -849,12 +857,14 @@ impl Shared {
         let mut block = 8;
         let mut previewed = !view;
         let mut spp = 1;
-        // The denoiser setting the last image was made with.
-        let mut shown = (false, 0);
+        // The denoiser setting the last image was made with, and whether it was a final image
+        // (only a final image goes through OIDN, so a running one doesn't count for a pause).
+        let mut shown = ((false, 0, false), false);
         while !self.stopped() {
             let want = (
                 self.denoise.load(Ordering::Relaxed),
                 self.strength.load(Ordering::Relaxed),
+                self.oidn.load(Ordering::Relaxed),
             );
             if want.0 && !p.denoising() {
                 p.keep_guides();
@@ -888,9 +898,9 @@ impl Shared {
                 continue;
             }
             if p.samples >= cap || (self.paused.load(Ordering::Relaxed) && p.samples > 0) {
-                if shown != want && p.samples > 0 {
-                    self.show(p, want, threads, spent);
-                    shown = want;
+                if shown != (want, true) && p.samples > 0 {
+                    self.show(p, want, threads, spent, true);
+                    shown = (want, true);
                 }
                 self.wait();
                 continue;
@@ -904,13 +914,30 @@ impl Shared {
             spent += t.elapsed().as_secs_f32();
             spp = ((0.5 / per_sample.max(1e-6)) as u32).clamp(1, 64);
             block = preview_block(per_sample);
-            self.show(p, want, threads, spent);
-            shown = want;
+            let last = p.samples >= cap;
+            self.show(p, want, threads, spent, last);
+            shown = (want, last);
         }
         None
     }
     /// Publishes the mean, through the denoiser when `want` says so (and its inputs are there).
-    fn show(&self, p: &Progressive<'_>, want: (bool, u32), threads: usize, spent: f32) {
+    /// `last`: the render has stopped, so the finished image may go through OIDN (`want.2`).
+    fn show(
+        &self,
+        p: &Progressive<'_>,
+        want: (bool, u32, bool),
+        threads: usize,
+        spent: f32,
+        last: bool,
+    ) {
+        if want.2 && last {
+            match p.oidn_image(threads) {
+                Ok(image) => {
+                    return self.publish(image, Some(p.image()), false, p.samples, spent);
+                }
+                Err(e) => eprintln!("OIDN skipped: {e:#}"),
+            }
+        }
         if want.0 && p.denoising() {
             let image = p.denoised(f32::from_bits(want.1), threads);
             self.publish(image, Some(p.image()), false, p.samples, spent);

@@ -25,6 +25,7 @@ mod environment;
 mod integrators;
 mod lights;
 mod media;
+mod oidn;
 mod prepare;
 mod progressive;
 mod sampling;
@@ -36,8 +37,12 @@ mod tests;
 mod textures;
 
 pub use display::display;
-pub use prepare::{SHUTTER_MOMENTS, at_time, exposure, prepare};
-pub use progressive::{Live, LiveState, Progressive, render};
+#[cfg(test)]
+pub use prepare::SHUTTER_MOMENTS;
+pub use prepare::{at_time, exposure, prepare};
+#[cfg(test)]
+pub use progressive::render;
+pub use progressive::{Live, LiveState, Progressive};
 
 /// What a scene uses that the reference does not render; empty when it can, which since battle
 /// mode is every scene. `Fog::equiangular` only changes the GPU's sampling, and measured spectra
@@ -120,6 +125,18 @@ pub fn run(
     let rgba = if lpe_view {
         p.lpe_image(frame.lpe_slot)
             .unwrap_or_else(|| [0., 0., 0., 1.].repeat((size[0] * size[1]) as usize))
+    } else if frame.still_denoise
+        && !lenient
+        && matches!(
+            format,
+            crate::video::ImageFormat::Png | crate::video::ImageFormat::Jpeg
+        )
+    {
+        // Intel OIDN on the finished mean, guided by albedo and normal (a PNG or JPEG only).
+        p.oidn_image(threads).unwrap_or_else(|e| {
+            eprintln!("OIDN skipped: {e:#}");
+            p.image()
+        })
     } else if denoise {
         p.denoised(frame.denoise_strength, threads)
     } else {

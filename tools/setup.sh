@@ -41,7 +41,41 @@ get_dxc() {
     "$target/bin/dxc" --version
 }
 
+# Intel Open Image Denoise (Apache-2.0), CPU device only: as Get-Oidn in setup.ps1, into
+# vendor/oidn/linux (the .so files, with their symlinks, and the headers) and vendor/oidn/doc.
+get_oidn() {
+    version=2.5.1
+    file=oidn-$version.x86_64.linux.tar.gz
+    sha256=743c3e2aff8c220d5d70fe6cb970fb3d36f2702d2693c61d1d148e404cf37cd6
+    target="$root/vendor/oidn"
+    if [ -f "$target/linux/lib/libOpenImageDenoise.so.2" ] && [ -f "$target/VERSION-linux-$version" ]; then
+        echo "OIDN $version present"
+        return
+    fi
+    tmp=$(mktemp -d)
+    curl -fsSL -o "$tmp/$file" "https://github.com/RenderKit/oidn/releases/download/v$version/$file"
+    echo "$sha256  $tmp/$file" | sha256sum -c -
+    tar -xzf "$tmp/$file" -C "$tmp"
+    src="$tmp/oidn-$version.x86_64.linux"
+    rm -rf "$target/linux"
+    mkdir -p "$target/linux/lib" "$target/doc"
+    cp -a "$src/include" "$target/linux/"
+    for f in libOpenImageDenoise.so libOpenImageDenoise.so.2 "libOpenImageDenoise.so.$version" \
+        "libOpenImageDenoise_core.so.$version" "libOpenImageDenoise_device_cpu.so.$version" \
+        libtbb.so libtbb.so.12 libtbb.so.12.19; do
+        cp -a "$src/lib/$f" "$target/linux/lib/"
+    done
+    for f in LICENSE.txt third-party-programs.txt third-party-programs-oneTBB.txt README.md CHANGELOG.md; do
+        cp "$src/doc/$f" "$target/doc/"
+    done
+    rm -rf "$tmp"
+    rm -f "$target"/VERSION-linux-*
+    echo "$sha256" > "$target/VERSION-linux-$version"
+    echo "OIDN $version"
+}
+
 get_dxc
+get_oidn
 get_sdk 'NVIDIA DLSS SDK' https://github.com/NVIDIA/DLSS.git dlss 9981c6350dc58c0ce21f024fd65e31e851c31689 \
     /include/ /lib/Linux_x86_64/libnvsdk_ngx.a '/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.*' \
     '/lib/Linux_x86_64/rel/libnvidia-ngx-dlssd.so.*' /LICENSE.txt /README.md

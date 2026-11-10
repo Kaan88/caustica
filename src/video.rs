@@ -379,8 +379,46 @@ pub unsafe fn save_current(
     quality: u32,
     path: &Path,
 ) -> Result<()> {
-    let frame = read_image(g, format)?;
+    unsafe { save_still(g, format, quality, path, false) }
+}
+/// `save_current`; with `denoise` a PNG or JPEG goes through Intel OIDN first (`oidn`), guided
+/// by the renderer's albedo and normal. An EXR (or layers, or HDR) stays the raw samples. When
+/// OIDN is not available the image is saved as it is, with the reason in the log.
+pub unsafe fn save_still(
+    g: &mut Gpu,
+    format: ImageFormat,
+    quality: u32,
+    path: &Path,
+    denoise: bool,
+) -> Result<()> {
+    let mut frame = read_image(g, format)?;
+    if denoise && let Frame::Rgba8(rgba) = &mut frame {
+        let (w, h) = (g.width as usize, g.height as usize);
+        let layers = unsafe { g.read_layers() }.ok();
+        let guides = layers
+            .as_deref()
+            .and_then(|l| crate::oidn::guides_from_layers(l, w, h));
+        if let Err(e) = crate::oidn::denoise_rgba8(w, h, rgba, guides.as_ref()) {
+            eprintln!("OIDN skipped: {e:#}");
+        }
+    }
     write_image(path, format, quality, &frame, g.width, g.height)
+}
+/// A PNG or JPEG the backend wrote itself (`Gpu::capture`) through Intel OIDN, in place, when the
+/// setting asks for it and the file is one OIDN handles (not an EXR, not an HDR image).
+pub unsafe fn denoise_capture(g: &mut Gpu, s: &Settings, path: &Path) -> Result<()> {
+    let name = path.to_string_lossy().to_lowercase();
+    let plain = name.ends_with(".png") && !name.ends_with(".hdr.png")
+        || name.ends_with(".jpg")
+        || name.ends_with(".jpeg");
+    if !s.still_denoise || !plain {
+        return Ok(());
+    }
+    let layers = unsafe { g.read_layers() }.ok();
+    if let Err(e) = crate::oidn::denoise_file(path, layers.as_deref()) {
+        eprintln!("OIDN skipped: {e:#}");
+    }
+    Ok(())
 }
 /// Writes a linear RGBA image of `w` × `h` as an EXR (the software view's plain mean).
 pub fn save_linear(path: &Path, rgba: &[f32], w: u32, h: u32) -> Result<()> {
@@ -1366,10 +1404,7 @@ fn preview(rgba: &[u8], w: u32, h: u32) -> egui::ColorImage {
             pixels.push(egui::Color32::from_rgb(rgba[i], rgba[i + 1], rgba[i + 2]));
         }
     }
-    egui::ColorImage {
-        size: [pw as usize, ph as usize],
-        pixels,
-    }
+    egui::ColorImage::new([pw as usize, ph as usize], pixels)
 }
 /// Renders a whole export before returning (headless `--turntable`, the self-test).
 pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<String> {

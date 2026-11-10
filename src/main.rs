@@ -29,6 +29,7 @@ mod look;
 mod lpe;
 mod mesh;
 mod meshfmt;
+mod oidn;
 mod omm;
 mod palette;
 mod paths;
@@ -275,6 +276,7 @@ fn transport_key(s: &Settings) -> String {
         "direct",
         "indirect",
         "denoise_strength",
+        "still_denoise",
         "compare",
         "split",
         "vsync",
@@ -641,6 +643,8 @@ impl App {
                     require_rr = true;
                 }
                 "--raw" => s.denoiser = scene::Denoiser::Off,
+                // Intel OIDN on finished PNG and JPEG stills and the CPU view's converged image.
+                "--oidn" => s.still_denoise = true,
                 "--debug" => debug = true,
                 "--vulkan" => vulkan = true,
                 // Overrides Menu → Renderer for one run.
@@ -765,7 +769,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -1066,6 +1070,9 @@ impl App {
                     done(match (self.cpu_capture(&path), self.gpu.as_mut()) {
                         (Some(cpu), _) => cpu,
                         (None, Some(g)) => unsafe { g.capture(&path, hdr, false) }
+                            .and_then(|_| unsafe {
+                                video::denoise_capture(g, &self.settings, &path)
+                            })
                             .and_then(|_| video::tag_capture(&path, g.width, g.height)),
                         (None, None) => Err(anyhow::anyhow!("no GPU yet")),
                     })
@@ -1212,13 +1219,14 @@ impl App {
         let mut input = self.input.as_mut().unwrap().take_egui_input(&window);
         ui::keep_tab_for_app(&mut input, self.text_focus && self.ui.transform.is_none());
         let ctx = self.egui.clone();
-        let output = ctx.run(input, |ctx| {
+        let mut output = ctx.run_ui(input, |ui| {
             // During an export only its progress window is drawn (and takes input): the scene
             // must not change under it.
             if self.export.is_some() || self.cpu_export.is_some() {
-                self.export_window(ctx);
+                let ctx = ui.ctx().clone();
+                self.export_window(&ctx);
             } else if self.show_ui {
-                self.ui(ctx);
+                self.ui(ui);
             }
         });
         self.text_focus = ui::settle_focus(
@@ -1234,6 +1242,7 @@ impl App {
             .as_mut()
             .unwrap()
             .handle_platform_output(&window, output.platform_output);
+        let textures = ui::Textures(std::mem::take(&mut output.textures_delta));
         // Keyframes: the playhead moves while playing, and the animation drives its fields
         // whenever the playhead or the keys change. An export renders its own copy.
         if self.export.is_none() && self.cpu_export.is_none() {
@@ -1582,7 +1591,7 @@ impl App {
         let probe_at = self.pick_point.or(self.cursor_pick).unwrap_or(self.cursor);
         // No hover outline (owner, 2026-11-05: outlines only for the clicked selection; in
         // Sponza something is under the pointer everywhere), so no probe while hovering.
-        g.probe = ((self.ui.meter && !self.egui.is_pointer_over_area())
+        g.probe = ((self.ui.meter && !self.egui.is_pointer_over_egui())
             || self.focus_pending
             || self.pick_point.is_some()
             || self.cursor_pick.is_some())
@@ -1692,7 +1701,7 @@ impl App {
             // Passes until about 30 ms have gone, so the UI keeps about 30 fps; each pass
             // presents the same UI.
             let started = Instant::now();
-            let mut delta = Some(&output.textures_delta);
+            let mut delta = Some(&textures.0);
             let empty = egui::TexturesDelta::default();
             let step = loop {
                 let pass = unsafe {
@@ -1760,7 +1769,7 @@ impl App {
                     draw,
                     dt,
                     &primitives,
-                    &output.textures_delta,
+                    &textures.0,
                     output.pixels_per_point,
                 )?;
             }
@@ -2038,6 +2047,7 @@ impl App {
             if let Some(live) = &mut self.cpu_reference {
                 live.set_paused(self.paused);
                 live.set_denoise(self.cpu_denoise, s.denoise_strength);
+                live.set_oidn(s.still_denoise);
                 if live.key != self.last_key || live.size != size {
                     live.follow(s.clone(), self.last_key.clone(), size);
                     // The old image no longer matches; the split shows the GPU until the first
@@ -2111,7 +2121,15 @@ impl App {
                 // The view shows the denoised mean; the EXR keeps the plain one.
                 video::save_linear(&path, &raw, g.width, g.height)
             } else {
-                unsafe { video::save_current(g, format, self.ui.jpeg_quality, &path) }
+                unsafe {
+                    video::save_still(
+                        g,
+                        format,
+                        self.ui.jpeg_quality,
+                        &path,
+                        self.settings.still_denoise,
+                    )
+                }
             };
             match saved {
                 Ok(()) => {
@@ -2369,7 +2387,8 @@ impl App {
                         if self.capture_ui {
                             Ok(())
                         } else {
-                            video::tag_capture(path, g.width, g.height)
+                            unsafe { video::denoise_capture(g, &self.settings, path) }
+                                .and_then(|_| video::tag_capture(path, g.width, g.height))
                         }
                     })
                 };
@@ -2462,7 +2481,7 @@ pub struct Slider<'a> {
 }
 impl<'a> Slider<'a> {
     pub fn suffix(mut self, s: impl ToString) -> Self {
-        self.inner = self.inner.suffix(s);
+        self.inner = self.inner.suffix(s.to_string());
         self
     }
     pub fn logarithmic(mut self, on: bool) -> Self {
@@ -2658,6 +2677,7 @@ impl ApplicationHandler for App {
                 Gpu::new(&window, size.width, size.height, &self.settings, self.debug)?
             });
             gpu.keep_ui_frame = self.capture_ui;
+            gpu.headless = self.hidden;
             // A GPU that can't ray trace still displays: the CPU renders the view.
             if !gpu.ray_tracing {
                 let why = if vulkan::rt_disabled() {
@@ -2888,7 +2908,7 @@ impl ApplicationHandler for App {
                     } else if self.drag == Some(MouseButton::Left)
                         && self.drag_distance < 3.
                         && (self.ui.paths.open || self.alt)
-                        && !self.egui.is_pointer_over_area()
+                        && !self.egui.is_pointer_over_egui()
                     {
                         // Path visualizer (track 14): trace the pixel's paths instead of picking.
                         self.ui.paths.request([
@@ -2898,7 +2918,7 @@ impl ApplicationHandler for App {
                     } else if self.drag == Some(MouseButton::Left)
                         && self.drag_distance < 3.
                         && self.settings.perspective()
-                        && !self.egui.is_pointer_over_area()
+                        && !self.egui.is_pointer_over_egui()
                     {
                         // A click selects what is under the pointer, read from the GPU's
                         // object-id buffer next frame; empty space deselects, as in Blender.
@@ -2916,20 +2936,20 @@ impl ApplicationHandler for App {
                         && self.drag_distance < 3.
                         && !self.settings.perspective()
                         && self.walking.is_none()
-                        && !self.egui.is_pointer_over_area()
+                        && !self.egui.is_pointer_over_egui()
                     {
                         self.ui.toast(ui::PICKING_OFF);
                     } else if self.drag == Some(MouseButton::Right)
                         && self.drag_distance < 3.
                         && self.shift
                         && self.settings.perspective()
-                        && !self.egui.is_pointer_over_area()
+                        && !self.egui.is_pointer_over_egui()
                     {
                         // Shift+right-click places the 3D cursor, as in Blender.
                         self.cursor_pick = Some(self.cursor);
                     } else if self.drag == Some(MouseButton::Right)
                         && self.drag_distance < 3.
-                        && !self.egui.is_pointer_over_area()
+                        && !self.egui.is_pointer_over_egui()
                     {
                         // A right click selects what is under the pointer (when the camera
                         // allows picking) and opens the menu there.
@@ -3133,7 +3153,7 @@ impl ApplicationHandler for App {
                         return;
                     }
                     let selected = !self.ui.targets().is_empty();
-                    let over_view = !self.egui.is_pointer_over_area();
+                    let over_view = !self.egui.is_pointer_over_egui();
                     match code {
                         code if self.global_key(code) => {}
                         KeyCode::KeyD if self.ctrl && selected => {
@@ -3716,13 +3736,13 @@ mod tests {
                 3 | 5 => input.events.push(click(false)),
                 _ => {}
             }
-            let _ = ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
+            let _ = crate::ui::discard(ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
                     crate::reset_source(&live, &reference);
                     rect = ui.add(crate::slider(&mut live.a, 0. ..=1.)).rect;
                     crate::clear_reset_sources();
                 });
-            });
+            }));
             values.push(live.a);
         }
         assert!(
@@ -3749,8 +3769,21 @@ mod tests {
     #[test]
     fn ui_strings_have_glyphs() {
         let ctx = egui::Context::default();
-        let _ = ctx.run(Default::default(), |_| {});
+        crate::ui::theme(&ctx);
+        let _ = crate::ui::discard(ctx.run_ui(Default::default(), |_| {}));
+        let _ = crate::ui::discard(ctx.run_ui(Default::default(), |_| {}));
         let font = egui::FontId::proportional(14.);
+        // The check must be able to fail: with egui's `default_fonts` feature off there is no
+        // font at all, and the loop below would otherwise pass or fail for the wrong reason.
+        assert!(
+            ctx.fonts_mut(|f| f.has_glyph(&font, 'A')),
+            "no default font"
+        );
+        assert!(
+            !ctx.fonts_mut(|f| f.has_glyph(&font, '\u{0378}')),
+            "has_glyph reports an unassigned code point as covered"
+        );
+        let mut missing = vec![];
         for (file, source) in [
             ("main.rs", include_str!("main.rs")),
             ("editor.rs", include_str!("editor.rs")),
@@ -3765,18 +3798,28 @@ mod tests {
             ("remote.rs", include_str!("remote.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
+            ("browser.rs", include_str!("browser.rs")),
+            ("console.rs", include_str!("console.rs")),
+            ("ui/ai.rs", include_str!("ui/ai.rs")),
+            ("ui/chrome.rs", include_str!("ui/chrome.rs")),
+            ("ui/look_tab.rs", include_str!("ui/look_tab.rs")),
+            ("ui/overlay.rs", include_str!("ui/overlay.rs")),
+            ("ui/render_tab.rs", include_str!("ui/render_tab.rs")),
+            ("ui/scene_tab.rs", include_str!("ui/scene_tab.rs")),
+            ("ui/stage.rs", include_str!("ui/stage.rs")),
+            ("ui/windows.rs", include_str!("ui/windows.rs")),
         ] {
             for line in source.lines().filter(|l| !l.trim_start().starts_with("//")) {
                 for literal in line.split('"').skip(1).step_by(2) {
                     for c in literal.chars().filter(|c| !c.is_ascii()) {
-                        assert!(
-                            ctx.fonts(|f| f.has_glyph(&font, c)),
-                            "{file}: {c:?} (U+{:04X}) in {literal:?} has no glyph",
-                            c as u32
-                        );
+                        if !ctx.fonts_mut(|f| f.has_glyph(&font, c)) {
+                            missing
+                                .push(format!("{file}: {c:?} (U+{:04X}) in {literal:?}", c as u32));
+                        }
                     }
                 }
             }
         }
+        assert!(missing.is_empty(), "no glyph for:\n{}", missing.join("\n"));
     }
 }

@@ -35,6 +35,11 @@ cp "$exe" "$app/usr/bin/caustica"
 for so in "$(dirname "$exe")"/libnvidia-ngx-dlss*.so.*; do
     if [ -f "$so" ]; then cp "$so" "$app/usr/bin/"; fi
 done
+# Intel Open Image Denoise (src/oidn.rs loads these by path from the exe's folder; build.rs copied
+# the versioned files). Missing, the still denoiser is off with a log line.
+for so in "$(dirname "$exe")"/libOpenImageDenoise*.so.* "$(dirname "$exe")"/libtbb.so.*; do
+    if [ -f "$so" ]; then cp "$so" "$app/usr/bin/"; fi
+done
 # dirs::scenes() looks beside the exe. The fetched assets must be there too (release.ps1 copies
 # them from Windows; the mesh, environment and material scenes load them).
 for d in models hdri textures; do
@@ -56,6 +61,9 @@ fi
 cp README.md THIRD-PARTY-NOTICES.md "$app/usr/bin/"
 mkdir -p "$app/usr/bin/licenses"
 cp vendor/dlss/LICENSE.txt "$app/usr/bin/licenses/NVIDIA-DLSS.txt"
+cp vendor/oidn/doc/LICENSE.txt "$app/usr/bin/licenses/OIDN-Apache-2.0.txt"
+cp vendor/oidn/doc/third-party-programs.txt "$app/usr/bin/licenses/OIDN-third-party-programs.txt"
+cp vendor/oidn/doc/third-party-programs-oneTBB.txt "$app/usr/bin/licenses/OIDN-oneTBB-third-party-programs.txt"
 cp LICENSE "$app/usr/bin/licenses/Caustica-MIT.txt"
 cp assets/THREE-LICENSE.txt "$app/usr/bin/licenses/three.js-MIT.txt"
 cp assets/CREDITS.md "$app/usr/bin/licenses/Mesh-credits.md"

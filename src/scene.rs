@@ -1002,6 +1002,9 @@ pub struct Settings {
     pub indirect: f32,
     pub denoiser: Denoiser,
     pub denoise_strength: f32,
+    /// Intel OIDN cleans finished stills: captures, Save image and the CPU renderer's converged
+    /// view (`oidn`). Off by default; display-only, so it stays out of the transport key.
+    pub still_denoise: bool,
     /// Pre-0.12 files: read from `rr` and `denoise`, folded into `denoiser` by `validate`,
     /// never written.
     #[serde(rename = "rr", skip_serializing)]
@@ -1213,6 +1216,7 @@ impl Default for Settings {
             indirect: 1.,
             denoiser: Denoiser::Rr,
             denoise_strength: 0.5,
+            still_denoise: false,
             legacy_rr: None,
             legacy_denoise: None,
             rr_preset: 6,
@@ -1355,6 +1359,7 @@ impl Settings {
     pub fn keep_output(&mut self, from: &Settings) {
         self.scale = from.scale;
         self.denoiser = from.denoiser;
+        self.still_denoise = from.still_denoise;
         self.vsync = from.vsync;
         self.rr_preset = from.rr_preset;
         self.upscaler = from.upscaler;
@@ -1388,6 +1393,7 @@ impl Settings {
             (self.pixel_filter, self.filter_width, self.anisotropy),
             (std::mem::take(&mut self.lpe), self.lpe_slot, self.battle),
             self.walk_avatar,
+            self.still_denoise,
         );
         *self = Self::default();
         match id {
@@ -1496,6 +1502,7 @@ impl Settings {
             (self.pixel_filter, self.filter_width, self.anisotropy),
             (self.lpe, self.lpe_slot, self.battle),
             self.walk_avatar,
+            self.still_denoise,
         ) = output;
     }
     /// RR is the chosen denoiser (whether it can run is the renderer's call: `rr_active`).
@@ -1964,6 +1971,20 @@ mod tests {
         ] {
             assert_eq!(loaded(json).denoiser, want, "{json}");
         }
+    }
+    #[test]
+    fn the_still_denoiser_is_off_for_old_files_and_survives_a_preset() {
+        assert!(!loaded("{}").still_denoise);
+        assert!(loaded(r#"{"still_denoise":true}"#).still_denoise);
+        let mut s = Settings {
+            still_denoise: true,
+            ..Settings::default()
+        };
+        s.preset(3);
+        assert!(s.still_denoise);
+        let mut t = Settings::default();
+        t.keep_output(&s);
+        assert!(t.still_denoise);
     }
     #[test]
     fn the_old_keys_are_never_written_and_the_choice_round_trips() {

@@ -19,6 +19,8 @@ The logos in the About box (`assets/nvidia-logo.png`, `assets/amd-fsr-logo.png`,
 - **NVIDIA DLSS SDK** (`nvngx_dlss*`, `libnvidia-ngx-dlss*`): Copyright NVIDIA Corporation, under the NVIDIA RTX SDKs license (`licenses/NVIDIA-DLSS.txt`). You may not reverse engineer, decompile or disassemble these files, or redistribute them on their own. Caustica is not sponsored or endorsed by NVIDIA.
 - **AMD FSR SDK / FidelityFX** (`amd_fidelityfx_*`, Windows): Copyright Advanced Micro Devices, Inc. (`licenses/AMD-FSR.md`).
 - **Intel XeSS SDK** (`libxess.dll`, Windows): Copyright Intel Corporation, under the Intel Simplified Software License (`licenses/Intel-XeSS.txt`).
+- **Intel Open Image Denoise 2.5.1** (`OpenImageDenoise*.dll` and `tbb12.dll` on Windows, `libOpenImageDenoise*.so` and `libtbb.so*` on Linux; CPU device only): Copyright Intel Corporation, under the Apache License 2.0 (`licenses/OIDN-Apache-2.0.txt`). Source: https://github.com/RenderKit/oidn. Its third-party notices are in `licenses/OIDN-third-party-programs.txt`.
+- **Intel oneAPI Threading Building Blocks (oneTBB)** (`tbb12.dll`, `libtbb.so*`, shipped with Open Image Denoise): Copyright Intel Corporation, under the Apache License 2.0 (`licenses/OIDN-Apache-2.0.txt`); notices in `licenses/OIDN-oneTBB-third-party-programs.txt`.
 - **Microsoft D3D12 Agility SDK** (`D3D12\`, Windows): Copyright Microsoft Corporation (`licenses/Microsoft-Agility.txt`).
 - **FFmpeg** (`ffmpeg.exe`, Windows): a separate program the app runs for video export, from the gyan.dev "essentials" build, licensed under the GNU GPL version 3 (`licenses/FFmpeg.txt`). Source: https://ffmpeg.org and https://github.com/GyanD/codexffmpeg
 

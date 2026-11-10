@@ -8,7 +8,7 @@
 // The night-sky passes (N3 on) are the callers.
 #![allow(dead_code)]
 use glam::{DMat3, DVec3};
-use std::f64::consts::{PI, TAU};
+use std::f64::consts::TAU;
 
 /// Julian date of a Gregorian calendar date at `ut_hours` UT (Meeus, Astronomical Algorithms,
 /// ch. 7; `day` may exceed the month's length, the date rolls on).
@@ -353,6 +353,7 @@ pub fn load_stars(path: &std::path::Path) -> anyhow::Result<Vec<Star>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::PI;
 
     const DEG: f64 = PI / 180.;
     // J2000 positions (HYG / SIMBAD).

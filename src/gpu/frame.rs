@@ -451,7 +451,11 @@ impl Gpu {
             );
         }
         self.submit()?;
-        self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
+        // A headless run skips Present: the backbuffer stays the current one, so the next frame
+        // draws into it again (it is back in PRESENT state, which is where each frame starts).
+        if !self.headless {
+            self.swap.Present(s.vsync as u32, DXGI_PRESENT(0)).ok()?;
+        }
         self.finish_readbacks(probe)?;
         if path_request.is_some() {
             let mut p = null_mut();
@@ -605,95 +609,96 @@ impl Gpu {
         delta: &egui::TexturesDelta,
         keep: &mut Vec<ID3D12Resource>,
     ) -> Result<()> {
-        for (id, change) in &delta.set {
-            let size = change.image.size();
-            let pixels: Vec<egui::Color32> = match &change.image {
-                egui::ImageData::Color(i) => i.pixels.clone(),
-                egui::ImageData::Font(i) => i.srgba_pixels(None).collect(),
-            };
-            let (mut data, mut full, slot) = match self.gui_textures.remove(id) {
-                Some(old) => {
-                    keep.push(old.texture.resource);
-                    (old.pixels, old.size, old.slot)
-                }
-                None => (
-                    vec![],
-                    [0, 0],
-                    self.free_slots.pop().context("Out of egui texture slots")?,
-                ),
-            };
-            if let Some(pos) = change.pos {
-                for y in 0..size[1] {
-                    let start = ((pos[1] + y) * full[0] + pos[0]) * 4;
-                    for x in 0..size[0] {
-                        data[start + x * 4..start + x * 4 + 4]
-                            .copy_from_slice(&pixels[y * size[0] + x].to_array());
+        for (id, changes) in &delta.set {
+            for change in changes {
+                let size = change.image.size();
+                let pixels: Vec<egui::Color32> = match &change.image {
+                    egui::ImageData::Color(i) => i.pixels.clone(),
+                };
+                let (mut data, mut full, slot) = match self.gui_textures.remove(id) {
+                    Some(old) => {
+                        keep.push(old.texture.resource);
+                        (old.pixels, old.size, old.slot)
                     }
+                    None => (
+                        vec![],
+                        [0, 0],
+                        self.free_slots.pop().context("Out of egui texture slots")?,
+                    ),
+                };
+                if let Some(pos) = change.pos {
+                    for y in 0..size[1] {
+                        let start = ((pos[1] + y) * full[0] + pos[0]) * 4;
+                        for x in 0..size[0] {
+                            data[start + x * 4..start + x * 4 + 4]
+                                .copy_from_slice(&pixels[y * size[0] + x].to_array());
+                        }
+                    }
+                } else {
+                    full = size;
+                    data = pixels.iter().flat_map(|p| p.to_array()).collect();
                 }
-            } else {
-                full = size;
-                data = pixels.iter().flat_map(|p| p.to_array()).collect();
-            }
-            let t = texture(
-                &self.device,
-                full[0] as _,
-                full[1] as _,
-                DXGI_FORMAT_R8G8B8A8_UNORM,
-                D3D12_RESOURCE_FLAG_NONE,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-            )?;
-            let (layout, bytes) = footprint(&self.device, &t.resource);
-            let staging = buffer(
-                &self.device,
-                bytes,
-                D3D12_HEAP_TYPE_UPLOAD,
-                D3D12_RESOURCE_FLAG_NONE,
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-            )?;
-            for y in 0..full[1] {
-                let row = &data[y * full[0] * 4..(y + 1) * full[0] * 4];
-                write_buffer(&staging, y as u64 * layout.Footprint.RowPitch as u64, row)?;
-            }
-            let mut dst = location(&t.resource);
-            let mut src = D3D12_TEXTURE_COPY_LOCATION {
-                pResource: ManuallyDrop::new(Some(staging.clone())),
-                Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
-                Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
-                    PlacedFootprint: layout,
-                },
-            };
-            self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
-            ManuallyDrop::drop(&mut src.pResource);
-            ManuallyDrop::drop(&mut dst.pResource);
-            transition(
-                &self.list,
-                &t.resource,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-            );
-            let srv = D3D12_SHADER_RESOURCE_VIEW_DESC {
-                Format: t.format,
-                ViewDimension: D3D12_SRV_DIMENSION_TEXTURE2D,
-                Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
-                Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
-                    Texture2D: D3D12_TEX2D_SRV {
-                        MipLevels: 1,
-                        ..Default::default()
+                let t = texture(
+                    &self.device,
+                    full[0] as _,
+                    full[1] as _,
+                    DXGI_FORMAT_R8G8B8A8_UNORM,
+                    D3D12_RESOURCE_FLAG_NONE,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                )?;
+                let (layout, bytes) = footprint(&self.device, &t.resource);
+                let staging = buffer(
+                    &self.device,
+                    bytes,
+                    D3D12_HEAP_TYPE_UPLOAD,
+                    D3D12_RESOURCE_FLAG_NONE,
+                    D3D12_RESOURCE_STATE_GENERIC_READ,
+                )?;
+                for y in 0..full[1] {
+                    let row = &data[y * full[0] * 4..(y + 1) * full[0] * 4];
+                    write_buffer(&staging, y as u64 * layout.Footprint.RowPitch as u64, row)?;
+                }
+                let mut dst = location(&t.resource);
+                let mut src = D3D12_TEXTURE_COPY_LOCATION {
+                    pResource: ManuallyDrop::new(Some(staging.clone())),
+                    Type: D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+                    Anonymous: D3D12_TEXTURE_COPY_LOCATION_0 {
+                        PlacedFootprint: layout,
                     },
-                },
-            };
-            self.device
-                .CreateShaderResourceView(&t.resource, Some(&srv), self.cpu(slot));
-            self.gui_textures.insert(
-                *id,
-                GuiTexture {
-                    texture: t,
-                    slot,
-                    pixels: data,
-                    size: full,
-                },
-            );
-            keep.push(staging);
+                };
+                self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+                ManuallyDrop::drop(&mut src.pResource);
+                ManuallyDrop::drop(&mut dst.pResource);
+                transition(
+                    &self.list,
+                    &t.resource,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                );
+                let srv = D3D12_SHADER_RESOURCE_VIEW_DESC {
+                    Format: t.format,
+                    ViewDimension: D3D12_SRV_DIMENSION_TEXTURE2D,
+                    Shader4ComponentMapping: D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                    Anonymous: D3D12_SHADER_RESOURCE_VIEW_DESC_0 {
+                        Texture2D: D3D12_TEX2D_SRV {
+                            MipLevels: 1,
+                            ..Default::default()
+                        },
+                    },
+                };
+                self.device
+                    .CreateShaderResourceView(&t.resource, Some(&srv), self.cpu(slot));
+                self.gui_textures.insert(
+                    *id,
+                    GuiTexture {
+                        texture: t,
+                        slot,
+                        pixels: data,
+                        size: full,
+                    },
+                );
+                keep.push(staging);
+            }
         }
         Ok(())
     }

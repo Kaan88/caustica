@@ -193,6 +193,10 @@ pub struct GpuState {
     /// When set, each frame's backbuffer (with UI) is copied here before Present, because a
     /// FLIP_DISCARD buffer's contents are undefined once presented. Kept in COPY_DEST.
     pub keep_ui_frame: bool,
+    /// A `--headless` run: no swap chain image is acquired or presented (the compositor would
+    /// throttle the presents to the monitor rate); the display pass and the UI draw into an
+    /// offscreen image of the swap chain's format and size, so captures are the same.
+    pub headless: bool,
     pub upscale_status: String,
     pub rr_status: String,
     pub rr_active: bool,

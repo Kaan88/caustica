@@ -62,7 +62,7 @@ impl App {
                             .show_ui(ui, |ui| {
                                 for f in Format::ALL {
                                     let usable = (!f.video() || ffmpeg) && (f != Format::Hdr10 || hdr);
-                                    let r = ui.add_enabled(usable, egui::SelectableLabel::new(o.format == f, f.label()));
+                                    let r = ui.add_enabled(usable, egui::Button::selectable(o.format == f, f.label()));
                                     let r = if f == Format::Hdr10 && !hdr {
                                         r.on_disabled_hover_text("Needs HDR output (Render tab, Display).")
                                     } else if f.video() && !ffmpeg {

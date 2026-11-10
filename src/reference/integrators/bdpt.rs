@@ -90,7 +90,6 @@ pub(super) struct Vertex {
     pub(super) medium: Option<(u32, u32)>,
     /// A medium vertex's Henyey-Greenstein g.
     pub(super) g: f32,
-    pub(super) light: Option<LightPoint>,
 }
 impl Vertex {
     fn blank(kind: Kind, p: Vec3, beta: Vec3, pdf_fwd: f32) -> Self {
@@ -112,7 +111,6 @@ impl Vertex {
             le: Vec3::ZERO,
             medium: None,
             g: 0.,
-            light: None,
         }
     }
     /// Whether a strategy can end its subpath here: a scatter point, or a surface whose material
@@ -1117,7 +1115,6 @@ impl Scene<'_> {
             n,
             ng: n,
             emitter: lp.k as u32 + 1,
-            light: Some(lp),
             ..Vertex::blank(Kind::Light, lp.p, Vec3::splat(1. / po), po)
         });
         let mut beta = le * n.dot(d) / (po * pd);

@@ -34,7 +34,7 @@ impl App {
         let ppp = ctx.pixels_per_point();
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Background,
-            egui::Id::new("gizmo"),
+            egui::Id::unique("gizmo"),
         ));
         let targets = self.ui.targets();
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, &targets);
@@ -76,11 +76,11 @@ impl App {
         }
         // A/B compare: the split line can be dragged (a 12-point strip over the line).
         if self.settings.compare {
-            let screen = ctx.screen_rect();
+            let screen = ctx.content_rect();
             let x = screen.left() + self.settings.split * screen.width();
-            egui::Area::new(egui::Id::new("ab split"))
+            egui::Area::new(egui::Id::unique("ab split"))
                 .fixed_pos(egui::pos2(x - 6., screen.top()))
-                .order(egui::Order::Background)
+                .order(egui::Order::Middle)
                 .show(ctx, |ui| {
                     let (rect, r) = ui
                         .allocate_exact_size(egui::vec2(12., screen.height()), egui::Sense::drag());
@@ -102,10 +102,10 @@ impl App {
         }
         // Battle mode (track 15): the quadrant split and each integrator's samples and GPU time.
         if self.settings.battle {
-            let screen = ctx.screen_rect();
+            let screen = ctx.content_rect();
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Background,
-                egui::Id::new("battle"),
+                egui::Id::unique("battle"),
             ));
             let c = screen.center();
             let line = egui::Stroke::new(1.5_f32, egui::Color32::from_white_alpha(150));
@@ -242,9 +242,9 @@ impl App {
                     Some(t),
                 );
             }
-            egui::Area::new(egui::Id::new("transform header"))
+            egui::Area::new(egui::Id::unique("transform header"))
                 .anchor(egui::Align2::CENTER_TOP, [0., 8.])
-                .constrain_to(ctx.available_rect())
+                .constrain_to(super::central_rect(ctx))
                 .order(egui::Order::Foreground)
                 .interactable(false)
                 .show(ctx, |ui| {
@@ -267,7 +267,7 @@ impl App {
         else {
             return;
         };
-        if !ctx.is_pointer_over_area()
+        if !ctx.is_pointer_over_egui()
             && let Some(p) = ctx.pointer_hover_pos()
         {
             let mouse = glam::Vec2::new(p.x * ppp, p.y * ppp);

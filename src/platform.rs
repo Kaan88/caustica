@@ -88,6 +88,7 @@ impl WindowAttributesExtWindows for winit::window::WindowAttributes {
 
 /// The app id / window class desktop rules match ("caustica"): the Wayland
 /// xdg app id and the X11 WM_CLASS. Other platforms have no such name.
+#[cfg(target_os = "linux")]
 pub const APP_ID: &str = "caustica";
 
 /// Tags a window with [`APP_ID`] for whichever Linux backend winit picks.

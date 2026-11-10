@@ -84,6 +84,33 @@ function Get-DxcSpirv([string]$tag, [string]$file, [string]$sha256) {
     Get-ChildItem $target -Filter 'VERSION-*' | Remove-Item
     Set-Content -LiteralPath (Join-Path $target "VERSION-$tag") -Value $sha256
 }
+# Intel Open Image Denoise (GitHub release, Apache-2.0): the CPU device only, for denoising stills.
+# vendor/oidn/windows gets the import libs, headers and the DLLs the CPU device needs (core, cpu
+# device, oneTBB); the CUDA/HIP/SYCL device libraries are left out on purpose. The licence texts go
+# to vendor/oidn/doc. tools/setup.sh does the same for Linux (vendor/oidn/linux).
+function Get-Oidn([string]$version, [string]$sha256) {
+    $target = Join-Path $projectRoot 'vendor/oidn'
+    if ((Test-Path -LiteralPath (Join-Path $target 'windows/bin/OpenImageDenoise.dll')) -and (Test-Path -LiteralPath (Join-Path $target "VERSION-win-$version"))) { return }
+    $zip = Join-Path ([IO.Path]::GetTempPath()) "oidn-$version.x64.windows.zip"
+    Invoke-WebRequest -Uri "https://github.com/RenderKit/oidn/releases/download/v$version/oidn-$version.x64.windows.zip" -OutFile $zip
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $sha256) { Remove-Item -LiteralPath $zip; throw "OIDN $version checksum mismatch: $actual" }
+    $stage = Join-Path ([IO.Path]::GetTempPath()) "oidn-$version-stage"
+    if (Test-Path -LiteralPath $stage) { Remove-Item -Recurse -Force -LiteralPath $stage }
+    Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force
+    Remove-Item -LiteralPath $zip
+    $src = Join-Path $stage "oidn-$version.x64.windows"
+    $win = Join-Path $target 'windows'
+    if (Test-Path -LiteralPath $win) { Remove-Item -Recurse -Force -LiteralPath $win }
+    New-Item -ItemType Directory -Force (Join-Path $win 'bin'), (Join-Path $win 'lib'), (Join-Path $target 'doc') | Out-Null
+    Copy-Item -Recurse (Join-Path $src 'include') $win
+    foreach ($f in 'OpenImageDenoise.dll', 'OpenImageDenoise_core.dll', 'OpenImageDenoise_device_cpu.dll', 'tbb12.dll') { Copy-Item (Join-Path $src "bin/$f") (Join-Path $win 'bin') }
+    Copy-Item (Join-Path $src 'lib/*.lib') (Join-Path $win 'lib')
+    foreach ($f in 'LICENSE.txt', 'third-party-programs.txt', 'third-party-programs-oneTBB.txt', 'README.md', 'CHANGELOG.md') { Copy-Item (Join-Path $src "doc/$f") (Join-Path $target 'doc') }
+    Remove-Item -Recurse -Force -LiteralPath $stage
+    Get-ChildItem $target -Filter 'VERSION-win-*' | Remove-Item
+    Set-Content -LiteralPath (Join-Path $target "VERSION-win-$version") -Value $sha256
+}
 try {
     foreach ($command in @('git','cargo')) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "$command is required. Install Rust (MSVC) and Git first." } }
     # NVIDIA DLSS 310.9.16: Ray Reconstruction and Super Resolution.
@@ -104,6 +131,8 @@ try {
     Get-Agility '1.620.1' 'a8a494c3e5f687d9be0a465ec8248da70781ab689d888db8806b600422722be6'
     # DXC 1.9.2609 with SPIR-V output (Vulkan backend groundwork).
     Get-DxcSpirv 'v1.9.2609' 'dxc_2026_09_29.zip' 'ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1'
+    # Intel Open Image Denoise 2.5.1 (CPU device): the still-image denoiser.
+    Get-Oidn '2.5.1' 'f11f91bc072a5e3a564515724cb72ab8fcfbc445c84a84c197ff9b16cc01396f'
     Get-Ffmpeg '9.0.2' '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
     if (-not $SkipBuild) {
         if ($DebugBuild) { & cargo build --locked } else { & cargo build --release --locked }

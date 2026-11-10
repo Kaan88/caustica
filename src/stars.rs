@@ -71,7 +71,8 @@ pub struct Table {
     /// The power CDF (luminance; the last entry exactly 1) and each star's probability.
     pub cdf: Vec<f32>,
     pub prob: Vec<f32>,
-    /// The sum of the luminances.
+    /// The sum of the luminances (read by the tests).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub total: f32,
     /// Per cell (`ROWS` × `COLS`), its first entry; one more at the end.
     pub offsets: Vec<u32>,

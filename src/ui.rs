@@ -9,7 +9,7 @@ mod render_tab;
 mod scene_tab;
 mod stage;
 mod windows;
-use crate::scene::{self, DLSS_PRESETS, Denoiser, PRESETS, Settings, Shape, Upscaler};
+use crate::scene::{self, DLSS_PRESETS, Denoiser, PRESETS, Settings, Upscaler};
 use crate::{App, editor, gizmo};
 use stage::*;
 use std::time::{Duration, Instant};
@@ -64,6 +64,21 @@ const RESOLUTIONS: [(f32, &str); 5] = [
     (0.5, "Performance (50%)"),
     (1. / 3., "Ultra performance (33%)"),
 ];
+/// A menu that stays open while its widgets are used (egui 0.32+ closes menus on any click inside by
+/// default). Its submenus inherit this; plain items close it with `ui.close()`.
+pub(crate) fn sticky_menu<'a, R>(
+    ui: &mut egui::Ui,
+    atoms: impl egui::IntoAtoms<'a>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<R> {
+    use egui::containers::menu::{MenuButton, MenuConfig};
+    MenuButton::new(atoms)
+        .config(MenuConfig::new().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside))
+        .ui(ui, add)
+        .1
+        .map(|r| r.inner)
+}
+
 /// The anti-aliasing name of a temporal upscaler run at 100%.
 fn aa_name(u: Upscaler) -> Option<&'static str> {
     match u {
@@ -1134,8 +1149,24 @@ pub fn transformable(s: Selection) -> bool {
     )
 }
 
+/// The screen minus the panels, as of the last frame's panels (the content rect before any).
+pub(crate) fn central_rect(ctx: &egui::Context) -> egui::Rect {
+    ctx.data(|d| d.get_temp(egui::Id::unique("central rect")))
+        .unwrap_or_else(|| ctx.content_rect())
+}
+fn set_central_rect(ctx: &egui::Context, rect: egui::Rect) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("central rect"), rect));
+}
 pub fn theme(ctx: &egui::Context) {
-    let mut style = (*ctx.style()).clone();
+    // egui's proportional family has no arrows (U+2192 is only in Hack, its monospace font): add
+    // Hack as the last resort, so "Stage → HDRI" is not a box. The ui_strings_have_glyphs test
+    // checks every non-ASCII UI string against this family.
+    let mut fonts = egui::FontDefinitions::default();
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        family.push("Hack".to_owned());
+    }
+    ctx.set_fonts(fonts);
+    let mut style = (*ctx.global_style()).clone();
     style.visuals = egui::Visuals::dark();
     style.visuals.selection.bg_fill = ACCENT.gamma_multiply(0.45);
     style.visuals.hyperlink_color = ACCENT;
@@ -1157,7 +1188,7 @@ pub fn theme(ctx: &egui::Context) {
         (TextStyle::Monospace, FontId::new(13., Monospace)),
     ]
     .into();
-    ctx.set_style(style);
+    ctx.set_global_style(style);
 }
 /// What the controls of the `row` being drawn tell it (the context's temp data).
 #[derive(Clone, Copy, Default)]
@@ -1169,11 +1200,11 @@ struct RowState {
     quiet: bool,
 }
 fn row_state(ctx: &egui::Context) -> RowState {
-    ctx.data(|d| d.get_temp(egui::Id::new("row state")))
+    ctx.data(|d| d.get_temp(egui::Id::unique("row state")))
         .unwrap_or_default()
 }
 fn set_row_state(ctx: &egui::Context, state: RowState) {
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("row state"), state));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("row state"), state));
 }
 /// For `Slider`: true when a row shows its reset hint.
 pub(crate) fn slider_in_row(ctx: &egui::Context) -> bool {
@@ -1346,7 +1377,7 @@ pub(crate) fn short_number(v: f64) -> String {
 /// Advanced rows: shown inline with "Show advanced settings", otherwise under "More".
 pub fn more(
     ui: &mut egui::Ui,
-    id: impl std::hash::Hash,
+    id: impl std::hash::Hash + std::fmt::Debug,
     advanced: bool,
     add: impl FnOnce(&mut egui::Ui),
 ) {
@@ -1403,16 +1434,16 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
             if field.changed() {
                 set = Some(text.clone());
             }
-            ui.menu_button("Presets", |ui| {
+            sticky_menu(ui, "Presets", |ui| {
                 for (name, expr) in lpe::PRESETS {
                     if ui.button(format!("{name}  ({expr})")).clicked() {
                         set = Some(expr.to_string());
-                        ui.close_menu();
+                        ui.close();
                     }
                 }
                 if ui.button("Clear").clicked() {
                     set = Some(String::new());
-                    ui.close_menu();
+                    ui.close();
                 }
             });
             if let Some(t) = set {
@@ -1653,7 +1684,9 @@ fn hdr_line(app: &App) -> String {
 }
 
 impl App {
-    pub fn ui(&mut self, ctx: &egui::Context) {
+    pub fn ui(&mut self, root: &mut egui::Ui) {
+        let ctx = root.ctx().clone();
+        let ctx = &ctx;
         self.poll_describe(ctx);
         // Double-click resets: the scene as it was when it got its name (loaded, preset,
         // generated or randomized), each object and light by index, and default UI values.
@@ -1676,7 +1709,7 @@ impl App {
         }
         crate::reset_source(&self.ui, &*self.ui_defaults);
         self.ui.tidy_selection(&self.settings);
-        self.draw_ui(ctx);
+        self.draw_ui(root);
         crate::clear_reset_sources();
         self.track_edits(ctx);
     }
@@ -1694,7 +1727,7 @@ impl App {
                 i.pointer.any_down(),
             )
         });
-        let settled = !down && !ctx.wants_keyboard_input();
+        let settled = !down && !ctx.egui_wants_keyboard_input();
         match &self.physics {
             Some(sim) => self.ui.sim_objects = sim.moving_objects(),
             None => self.ui.sim_objects.clear(),
@@ -1744,18 +1777,22 @@ impl App {
         self.ui
             .toast(format!("Restored {}", self.settings.scene_name));
     }
-    fn draw_ui(&mut self, ctx: &egui::Context) {
+    fn draw_ui(&mut self, root: &mut egui::Ui) {
+        let ctx = &root.ctx().clone();
         // Loaded and randomized settings carry their preset by name.
         let known = PRESETS.iter().position(|n| *n == self.settings.scene_name);
         if let Some(i) = known {
             self.preset = i;
         }
-        self.top_bar(ctx, known.is_some());
+        self.top_bar(root, known.is_some());
         if !self.ui.panel_hidden {
-            self.status_bar(ctx);
-            self.timeline_panel(ctx);
-            self.side_panel(ctx, known.is_some());
+            self.status_bar(root);
+            self.timeline_panel(root);
+            self.side_panel(root, known.is_some());
         }
+        // What the panels left: popups and toasts stay out of them (egui 0.34's content_rect no
+        // longer shrinks, and `available_rect` is deprecated).
+        set_central_rect(ctx, root.available_rect_before_wrap());
         self.cpu_view_message(ctx);
         self.scenes_window(ctx);
         self.assets_window(ctx);
@@ -1915,9 +1952,9 @@ impl App {
         }
         if self.ui.prefs_live && !self.ui.prefs.hint_seen {
             let mut seen = false;
-            egui::Area::new(egui::Id::new("first run hint"))
+            egui::Area::new(egui::Id::unique("first run hint"))
                 .anchor(egui::Align2::CENTER_BOTTOM, [0., -8.])
-                .constrain_to(ctx.available_rect())
+                .constrain_to(central_rect(ctx))
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
@@ -2031,7 +2068,7 @@ fn context_items(ui: &mut egui::Ui, selected: bool) -> Option<Command> {
     for (label, c) in items {
         if ui.add_enabled(selected, egui::Button::new(label)).clicked() {
             chosen = Some(c);
-            ui.close_menu();
+            ui.close();
         }
     }
     chosen
@@ -2144,6 +2181,21 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
 
 /// Tab belongs to the app (the panel cycle, a typed vector's next axis): given to egui, it would
 /// put a button in focus. Only from one text field to the next does egui get it.
+/// The textures a frame's UI pass asked for, on their way to the uploaders. egui 0.36 made a
+/// `TexturesDelta` assert (debug builds) when dropped with deltas nobody applied; the uploaders
+/// take it by reference and never empty it, so this clears it once the frame is done.
+pub struct Textures(pub egui::TexturesDelta);
+impl Drop for Textures {
+    fn drop(&mut self) {
+        self.0.clear();
+    }
+}
+/// Test passes draw no pixels: drop the textures the pass asked for, on purpose.
+#[cfg(test)]
+pub fn discard(mut output: egui::FullOutput) -> egui::FullOutput {
+    output.textures_delta.clear();
+    output
+}
 pub fn keep_tab_for_app(input: &mut egui::RawInput, text_field_tab: bool) {
     if !text_field_tab {
         input.events.retain(|e| {
@@ -2316,9 +2368,9 @@ mod tests {
             ..Default::default()
         };
         keep_tab_for_app(&mut input, *text_focus && !transform);
-        let output = ctx.run(input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |u| ui(u));
-        });
+        let output = discard(ctx.run_ui(input, |root| {
+            egui::CentralPanel::default().show(root, |u| ui(u));
+        }));
         *text_focus = settle_focus(ctx, output.platform_output.ime.is_some(), seen);
     }
     fn key(key: egui::Key) -> egui::Event {
@@ -2354,7 +2406,7 @@ mod tests {
         let ctx = egui::Context::default();
         let (mut text, mut seen) = (false, None);
         let (mut a, mut b) = (String::new(), String::new());
-        let (a_id, b_id) = (egui::Id::new("a"), egui::Id::new("b"));
+        let (a_id, b_id) = (egui::Id::unique("a"), egui::Id::unique("b"));
         let mut go = |text: &mut bool, seen: &mut _, transform, events, focus| {
             focus_frame(&ctx, text, seen, transform, events, |ui| {
                 let ra = ui.add(egui::TextEdit::singleline(&mut a).id(a_id));
@@ -2728,13 +2780,13 @@ mod tests {
             events,
             ..Default::default()
         };
-        ctx.run(input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
+        discard(ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| {
                 egui::Grid::new("test")
                     .num_columns(2)
                     .show(ui, |ui| add(ui));
             });
-        })
+        }))
     }
     fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
         egui::Event::PointerButton {
@@ -2769,7 +2821,7 @@ mod tests {
     /// A context whose tooltips show at once, and what a few frames hovering `pos` paint.
     fn hover(pos: egui::Pos2, add: &mut dyn FnMut(&mut egui::Ui)) -> String {
         let ctx = egui::Context::default();
-        ctx.style_mut(|s| s.interaction.tooltip_delay = 0.);
+        ctx.global_style_mut(|s| s.interaction.tooltip_delay = 0.);
         frame(&ctx, vec![], add);
         frame(&ctx, vec![egui::Event::PointerMoved(pos)], add);
         for _ in 0..3 {

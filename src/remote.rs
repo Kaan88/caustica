@@ -200,10 +200,7 @@ pub fn qr_image(text: &str) -> Option<egui::ColorImage> {
             }
         })
         .collect();
-    Some(egui::ColorImage {
-        size: [size, size],
-        pixels,
-    })
+    Some(egui::ColorImage::new([size, size], pixels))
 }
 const PAGE: &str = r#"<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Caustica remote</title><style>

@@ -1,6 +1,6 @@
 //! What a render reads: the triangles, materials, emitters and camera of the settings, and the
 //! visibility and hit-frame rules.
-use super::bsdf::{flags, rgb};
+use super::bsdf::flags;
 use super::bvh::{Bvh, Hit, Tri};
 use crate::lighting::PackedMaterial;
 use crate::scene::{Settings, Vertex};

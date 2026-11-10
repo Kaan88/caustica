@@ -8,7 +8,7 @@ Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-res
 
 - **Public since 2026-11-06, under MIT for the code.** Models, textures, HDRIs and SDKs keep their own terms; `THIRD-PARTY-NOTICES.md` lists them, and anything new that ships goes in it.
 - **Licence risks the owner has accepted (2026-11-06), and will act on if raised:** Sponza stays bundled, though the CRYENGINE agreement covers games built with CRYENGINE; the GPLv3 FFmpeg stays bundled without published sources; releases up to v0.10.1 stay up without notices; the About box shows the NVIDIA logo, plus on Windows the AMD FSR and Intel logos, though the DLSS licence only grants word marks and Intel's bars promotional use of its name. Research-only and NC assets such as the Stanford scans are fine only while the app stays free. If it is ever sold: those assets go, and NVIDIA must be notified first (DLSS licence, exhibit section 4).
-- **Performance work never lowers quality** (owner rule, 2026-11-02). The defaults stay as they are (spp, bounces, sample cap, DLAA render scale, RR preset), and no "performance mode" or lower-quality option is added. Speed has to come from doing the same work more efficiently. A change that alters the image has to be justified as unbiased, or as equal under the convergence measurement.
+- **Performance work never lowers quality** (owner rule, 2026-11-02). The defaults stay as they are (spp, bounces, sample cap, DLAA render scale, RR preset), and no "performance mode" or lower-quality option is added. Speed has to come from doing the same work more efficiently. A change that alters the image has to be justified as unbiased, or as equal under the convergence measurement. Exception (owner, 2026-11-10): the Realtime Mode (1 spp, separate specular bounces, ReSTIR, RR at an upscaling scale), kept apart from the quality bundles and restoring the scene's own sampling when left.
 
 ## Done
 
@@ -166,6 +166,7 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 - [open] **Planets (N5, later):** Mercury to Saturn as point lights from `astro.rs` ephemerides, coloured and with magnitudes, through the same table as the stars; not started. Star size is a render-side cone, not a display-side point spread: a glow or diffraction spike for bright stars would be a post effect (not started).
 - [open] **Stars, N3 leftovers (2026-11-10):** (a) metal mirrors are GGX at α 0.001 here, not delta, so stars reach them only by light sampling: a star's reflection in a roughness-0 metal converges slowly (water and glass, which are delta, use the cone and are sharp at once); a "near-delta" partition (cone for lobes at the α floor, their specular part left out of star NEE) would fix it. (b) BDPT and photon mapping leave the stars out (no light sampling, no cone): night scenes under them miss starlight. (c) The air uses Kasten-Young air mass on the zenith optical depth, not the sun's exact `march_transmittance` (both renderers the same; a few % off near the horizon). (d) Star picks are by catalogue power, not horizon-culled: about half the star samples land below the horizon and count zero. (e) D3D12 side (root SRV t18) written but not compiled here (Linux); build and self-test it on Windows. (f) A floor material with metallic 1, roughness 0 under the night sky disagrees GPU/CPU by 0.4% (z −45) with stars off too; and a roughness-0 metal box by 5%: pre-existing, not star-related, for the accuracy audit.
 - [done 2026-11-05, self-tests pass, not tried by hand] HDR10: a refusal is now retried after a display change (done 2026-11-04); still open: the R10G10B10A2 typed UAV store is not checked with `CheckFeatureSupport`. `set_hdr` checks D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE for R10G10B10A2 and falls back to scRGB as for a refused colour space.
+- [ ] egui 0.37 port (steps 1-3 done on Linux): check the D3D12 build (`update_gui_textures` loops over several deltas per texture), text (Skrifa, hinted) and translucent panels in scRGB HDR and HDR10/PQ on Windows.
 - [drop] HDR10: egui blends on PQ code values (text edges slightly off), `SetHDRMetaData` mastering metadata.
 - [drop] Sky: clouds, aerial perspective on geometry, moon declination and texture, fixed ozone / aerosol profiles, blocky stars when zoomed, first-look bake wait.
 - [drop] HDRIs: more interiors and night maps, EXR downloads; shadow catcher on objects / caustics / finite dome.
@@ -235,6 +236,7 @@ Audit the GPU path tracer's shortcuts against the CPU reference (rough glass as 
 
 ### Other denoisers (owner request, low priority)
 Intel OIDN 2 (best offline quality for stills, CUDA sharing with D3D12), NVIDIA OptiX (temporal mode), NVIDIA NRD (ReBLUR / ReLAX; would also fix the native filter's blotches). Compare against RR with `tools/motion_error.py`.
+Done 2026-11-10: OIDN for stills (engine-notes "OIDN for stills"): captures, Save image and the CPU view's converged image, behind `still_denoise`. Open: the GPU's live converged view (a filtered image shown through the software view's reference path, both backends), an EXR option, Windows checks (build.rs DLL copy, the load by path, installer contents), OIDN's temporal-free live use is not planned.
 The `Denoiser` enum (engine-notes "Denoiser enum") has the room: a variant, a label, a `Capabilities` entry and a pipeline arm in frame.rs / the Vulkan `render`. Done 2026-11-10: enum, serde migration, Render-tab combo.
 
 ### Spectral rendering, part 2
@@ -246,8 +248,19 @@ Mueller / Stokes transport after spectral; a rotatable polarizing filter (Brewst
 ### Curved space: black holes and non-Euclidean rooms
 Null geodesics (Schwarzschild, RK4) in short `RayQuery` segments around a black hole in the Cornell box with an emissive accretion disk; hyperbolic or spherical rooms by ray marching. Expect the native denoiser (RR guides are approximate). Portals cover the cheap impossible rooms.
 
-### DLSS Frame Generation and Reflex
-Dropped by the owner 2026-11-10: frame generation (see Won't do); Reflex stays. Through Streamline (FG needs its own swapchain hooks); doubles the presented rate in interactive use, not for stills. Done after HDR, which is now in; Streamline also has a Vulkan path.
+### Realtime preset (instead of a raster mode)
+Owner question 2026-11-10: a game-style mode that rasterises everything and ray traces only where needed. Not worth it: measured with the play build headless at 2560x1368, 240 frames, `--no-vsync`, RR on (trace + reconstruct = frame, ms):
+
+| Scene | Own settings | bounces=2, spp=1 |
+|---|---|---|
+| cornell-bunny | 6.1 + 6.5 = 13.2 | 1.1 + 6.6 = 8.3 |
+| glass-of-water | 23.2 + 6.5 = 32.3 | 1.9 + 6.6 = 11.1 |
+| nighthawks | 8.4 + 6.4 = 15.6 | 1.4 + 6.6 = 8.8 |
+| stylised-forest | 7.3 + 6.5 = 14.6 | 2.0 + 6.0 = 8.5 |
+| colonnade-night | 8.9 + 5.8 = 15.2 | 1.8 + 6.2 = 8.6 |
+
+Rasterising the first hit could save at most part of the 1-2 ms trace; DLSS RR at about 6.5 ms is the fixed cost. Instead: a "Realtime" preset with 1 spp, 2-3 bounces, ReSTIR DI and RR at an upscaling render scale. Follow-up at 2560x1440, 1 spp, 3 bounces: RR ran at native scale above (default `scale` 1.0). At scale 1 / 0.67 / 0.5 the trace is glass 2.6 / 1.3 / 0.6 ms, nighthawks 1.7 / 0.7 / 0.4, colonnade 2.4 / 1.0 / 0.5, and RR 6.5 / 3.0 / 2.2 ms; the frame then stops at 6.94 ms (144 fps) even with `--no-vsync`: IMMEDIATE is picked, but headless runs still present to a hidden window and the compositor throttles them to the monitor rate (XWayland: 17 ms). Fix: headless runs skip acquire/present. Quality, 8 frames vs a 600-frame reference: colonnade-night fine (RMSE 0.008-0.012); glass-of-water black at 3 bounces (RMSE 0.20) and nighthawks' interior through glass darker (bias -0.024), since glass chains need about 8 bounces. So the preset needs a separate specular/transmission bounce limit, which the integrator lacks. Not checked: RR ghosting with a moving camera.
+
 
 ### Neural radiance cache
 A tiny MLP trained online on path suffixes (NVIDIA's NRC SDK, or our own with cooperative vectors, SM 6.9); far less noise in heavy interiors (Sponza). Measure with the convergence graph and the CPU reference.
@@ -260,12 +273,12 @@ Ray-traced splats (3DGRT-style) in proxy geometry, blended in depth order inside
 Closed by owner decision or by the triage above (the [drop] lines in "Open tails" hold the detail):
 
 - Live wallpaper (WorkerW trick) and the Blender live link: removed 2026-11-02, not planned.
-- BC7 textures (lossy, against the quality rule); any lower-quality or "performance" mode.
+- BC7 textures (lossy, against the quality rule); any lower-quality or "performance" mode other than the Realtime Mode exception.
 - A second frame in flight (measured: a few percent at most).
 - SER reordering in its current form (measured 35-105% slower; a wavefront rewrite is deferred).
 - Gamepad testing, CI self-test on a GPU runner, signed installer, NGX GUID change: blocked on hardware, certificates, or moot for a never-published project.
 - True delta point and directional lights, light linking and gobos (by design).
 - Native TAA / SMAA, SVGF blotch fix (RR is the product; NRD is the real fix), ReSTIR GI / PT, VDB files, skin-tuned subsurface.
 - Removed by the owner 2026-11-10: light painting and the screensaver mode (taken out of the app the same day); VR via OpenXR; the lightmap baker and texture painting; FSR on Vulkan and XeSS on Linux (both blocked on vendor SDKs); moving the window between monitors (coded, untested, left as is).
-- Dropped by the owner 2026-11-10 from the big-feature plan (`docs/plan-big-features.md`): the OptiX denoiser, the D3D12 display-only device for GPUs without ray tracing, DLSS Frame Generation (Reflex stays).
+- Dropped by the owner 2026-11-10 from the big-feature plan (`docs/plan-big-features.md`): the OptiX denoiser, the D3D12 display-only device for GPUs without ray tracing, DLSS Frame Generation, and Reflex (no point without frame generation).
 - Every other [drop] in "Open tails".

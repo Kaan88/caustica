@@ -76,12 +76,12 @@ impl App {
                 .clicked()
             {
                 self.ui.restart = true;
-                ui.close_menu();
+                ui.close();
             }
         }
     }
-    pub(super) fn top_bar(&mut self, ctx: &egui::Context, known: bool) {
-        egui::TopBottomPanel::top("top bar").show(ctx, |ui| {
+    pub(super) fn top_bar(&mut self, root: &mut egui::Ui, known: bool) {
+        egui::Panel::top("top bar").show(root, |ui| {
             // Hide/Show panel and ? are laid out first, from the right, so they are never pushed
             // off screen; the clusters wrap in what is left, and only between clusters.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
@@ -113,7 +113,7 @@ impl App {
                     row,
                     egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
                     |ui| {
-                ui.menu_button("Menu", |ui| {
+                crate::ui::sticky_menu(ui, "Menu", |ui| {
                     ui.weak(format!("Caustica {}", crate::VERSION));
                     ui.separator();
                     ui.checkbox(&mut self.ui.advanced, "Show advanced settings");
@@ -126,15 +126,15 @@ impl App {
                     .on_disabled_hover_text(NO_RT_HELP);
                     if ui.button("Phone remote…").clicked() {
                         self.ui.show_remote = true;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Script console…").clicked() {
                         self.ui.console.open = true;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Statistics and achievements").clicked() {
                         self.ui.show_stats = true;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui
                         .checkbox(&mut self.ui.prefs.update_check, "Check for updates at startup")
@@ -152,7 +152,7 @@ impl App {
                     {
                         self.ui.undo(&mut self.settings);
                         self.timeline.settle(&self.settings);
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui
                         .add_enabled(!self.ui.redo.is_empty(), egui::Button::new("Redo (Ctrl+Y)"))
@@ -160,7 +160,7 @@ impl App {
                     {
                         self.ui.redo(&mut self.settings);
                         self.timeline.settle(&self.settings);
-                        ui.close_menu();
+                        ui.close();
                     }
                     ui.separator();
                     if self.ui.edits_live
@@ -173,34 +173,34 @@ impl App {
                             .clicked()
                     {
                         self.restore_session();
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Open scene… (Ctrl+O)").clicked() {
                         self.open_scene_dialog();
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Save scene (Ctrl+S)").clicked() {
                         self.save_scene(false);
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Save scene as… (Ctrl+Shift+S)").clicked() {
                         self.save_scene(true);
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Save settings.json")
                         .on_hover_text("A bare settings file, scene included, overwritten each time in the output folder. Save scene writes a titled scene file into your scenes instead.").clicked() {
                         self.actions.save = Some(crate::dirs::output("settings.json"));
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Save settings as…")
                         .on_hover_text("A bare settings file, scene included, at a place you pick. Save scene as… writes a titled scene file into your scenes instead.").clicked() {
                         self.actions.save = settings_dialog(true);
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Load settings…")
                         .on_hover_text("Replaces the scene and every setting from a bare settings file. Open scene… loads a titled scene file.").clicked() {
                         self.actions.load = settings_dialog(false);
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Reset everything to defaults").clicked() {
                         self.ui.checkpoint_scene(&self.settings);
@@ -209,7 +209,7 @@ impl App {
                         self.ui.selection = Selection::Stage;
                         self.ui.mark_clean(&self.settings);
                         self.ui.toast("Reset to the default scene and settings");
-                        ui.close_menu();
+                        ui.close();
                     }
                     ui.menu_button("About", |ui| {
                         ui.label(format!("Caustica {}", crate::VERSION));
@@ -317,7 +317,7 @@ impl App {
                             .clicked()
                         {
                             self.ui.show_scenes = true;
-                            ui.close_menu();
+                            ui.close();
                         }
                     })
                     .response
@@ -507,11 +507,11 @@ impl App {
         if text.is_empty() {
             return;
         }
-        egui::Area::new(egui::Id::new("cpu view message"))
+        egui::Area::new(egui::Id::unique("cpu view message"))
             .order(egui::Order::Middle)
             .interactable(false)
             .anchor(egui::Align2::LEFT_TOP, egui::vec2(8., 8.))
-            .constrain_to(ctx.available_rect())
+            .constrain_to(super::central_rect(ctx))
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_max_width(420.);
@@ -519,7 +519,7 @@ impl App {
                 });
             });
     }
-    pub(super) fn status_bar(&mut self, ctx: &egui::Context) {
+    pub(super) fn status_bar(&mut self, root: &mut egui::Ui) {
         let (text, fallback) = pipeline(self);
         let g = self.gpu.as_ref().unwrap();
         let s = &self.settings;
@@ -530,7 +530,7 @@ impl App {
             .filter(|l| l.view)
             .map(|l| l.state());
         let shown = cpu.as_ref().map_or(g.samples, |st| st.samples);
-        egui::TopBottomPanel::bottom("status bar").show(ctx, |ui| {
+        egui::Panel::bottom("status bar").show(root, |ui| {
             ui.horizontal(|ui| {
                 let converged = shown >= s.max_samples;
                 let (state, color) = if cpu.as_ref().is_some_and(|st| st.images == 0) {
@@ -662,9 +662,9 @@ impl App {
             return;
         }
         let (mut restore, mut dismiss) = (false, false);
-        egui::Area::new(egui::Id::new("toasts"))
+        egui::Area::new(egui::Id::unique("toasts"))
             .anchor(egui::Align2::RIGHT_BOTTOM, [-8., -8.])
-            .constrain_to(ctx.available_rect())
+            .constrain_to(super::central_rect(ctx))
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 if let Some(name) = &offer {
@@ -700,12 +700,15 @@ impl App {
         }
         ctx.request_repaint_after(Duration::from_millis(250));
     }
-    pub(super) fn side_panel(&mut self, ctx: &egui::Context, known: bool) {
-        let panel = egui::SidePanel::right("side panel")
+    pub(super) fn side_panel(&mut self, root: &mut egui::Ui, known: bool) {
+        // A panel's id is its salt under the parent Ui's scope id (egui 0.35+); its resize handle
+        // is "__resize" under that.
+        let resize_id = root.scope_id().with("side panel").with("__resize");
+        let panel = egui::Panel::right("side panel")
             .resizable(true)
-            .default_width(self.ui.prefs.panel_width)
-            .width_range(320. ..=560.)
-            .show(ctx, |ui| {
+            .default_size(self.ui.prefs.panel_width)
+            .size_range(320. ..=560.)
+            .show(root, |ui| {
                 ui.add_space(4.);
                 ui.horizontal(|ui| {
                     for (tab, label) in [
@@ -734,7 +737,7 @@ impl App {
                     });
             });
         // Only the user's drag counts: the panel also widens to fit wide content.
-        if ctx.is_being_dragged(egui::Id::new("side panel").with("__resize")) {
+        if root.ctx().is_being_dragged(resize_id) {
             self.ui.panel_resized = true;
         }
         self.ui.panel_width = panel.response.rect.width();

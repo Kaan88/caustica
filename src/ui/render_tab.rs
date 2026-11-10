@@ -143,6 +143,14 @@ impl App {
                     |_, _| {},
                 );
             }
+            check_row_with(
+                ui,
+                "Still denoiser (OIDN)",
+                "Intel Open Image Denoise cleans finished stills: --capture and Save image as PNG or JPEG, and the software view once its render has stopped. EXR keeps the raw samples. It runs on the CPU, guided by the albedo and normal, and takes about a second at 1080p. The live view is not changed.",
+                &mut s.still_denoise,
+                crate::oidn::status().err(),
+                |_, _| {},
+            );
             row(
                 ui,
                 "Quality mode",
@@ -418,8 +426,8 @@ impl App {
                     }
                     let usable = rr_ok || !b.rr();
                     let text = format!("{}  ·  {}", b.label(), b.about(upscaler));
-                    let r = ui
-                        .add_enabled(usable, egui::SelectableLabel::new(current == Some(b), text));
+                    let r =
+                        ui.add_enabled(usable, egui::Button::selectable(current == Some(b), text));
                     let r = r.on_disabled_hover_text(format!(
                         "Needs DLSS Ray Reconstruction: {rr_reason}"
                     ));

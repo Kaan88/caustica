@@ -145,59 +145,77 @@ impl App {
                     }
                 }
             });
-        ui.menu_button("+ Add", |ui| {
-            let room = s.objects.len() < scene::MAX_OBJECTS;
-            ui.add_enabled_ui(room, |ui| {
-                ui.menu_button("Object", |ui| {
-                    for shape in scene::Shape::ALL {
-                        if ui.button(shape.label()).clicked() {
-                            state.checkpoint(s);
-                            s.objects.push(editor::new_object(shape, s.objects.len()));
-                            state.selection = Selection::Object(s.objects.len() - 1);
-                            ui.close_menu();
+        // Sticky like crate::ui::sticky_menu (the Z-up checkbox inside must not close it; the
+        // buttons call ui.close()), built here to keep the button's response for its tooltip.
+        egui::containers::menu::MenuButton::new("+ Add")
+            .config(
+                egui::containers::menu::MenuConfig::new()
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            )
+            .ui(ui, |ui| {
+                let room = s.objects.len() < scene::MAX_OBJECTS;
+                ui.add_enabled_ui(room, |ui| {
+                    ui.menu_button("Object", |ui| {
+                        for shape in scene::Shape::ALL {
+                            if ui.button(shape.label()).clicked() {
+                                state.checkpoint(s);
+                                s.objects.push(editor::new_object(shape, s.objects.len()));
+                                state.selection = Selection::Object(s.objects.len() - 1);
+                                ui.close();
+                            }
                         }
-                    }
-                })
-                .response
-                .on_disabled_hover_text(format!("Limit of {} objects reached", scene::MAX_OBJECTS));
-            });
-            ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
-                ui.menu_button("Light", |ui| {
-                    for kind in scene::LightKind::ALL {
-                        if ui.button(kind.label()).clicked() {
-                            state.checkpoint(s);
-                            s.lights.push(editor::new_light(kind, s.lights.len() + 1));
-                            state.selection = Selection::Light(s.lights.len() - 1);
-                            ui.close_menu();
+                    })
+                    .response
+                    .on_disabled_hover_text(format!(
+                        "Limit of {} objects reached",
+                        scene::MAX_OBJECTS
+                    ));
+                });
+                ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
+                    ui.menu_button("Light", |ui| {
+                        for kind in scene::LightKind::ALL {
+                            if ui.button(kind.label()).clicked() {
+                                state.checkpoint(s);
+                                s.lights.push(editor::new_light(kind, s.lights.len() + 1));
+                                state.selection = Selection::Light(s.lights.len() - 1);
+                                ui.close();
+                            }
                         }
-                    }
-                })
-                .response
-                .on_disabled_hover_text(format!("Limit of {} lights reached", scene::MAX_LIGHTS));
-            });
-            ui.separator();
-            ui.checkbox(&mut state.mesh_z_up, "Z-up").on_hover_text(
-                "Stand the next imported mesh upright when its file is Z-up (scans, CAD)",
-            );
-            if ui
-                .add_enabled(room, egui::Button::new("Mesh file…"))
-                .on_hover_text("Import an OBJ, glTF, GLB, PLY or STL file (glTF lights come along)")
-                .on_disabled_hover_text(format!("Limit of {} objects reached", scene::MAX_OBJECTS))
-                .clicked()
-            {
-                // The file dialog blocks: the menu closes first.
-                ui.close_menu();
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("Meshes", &["obj", "gltf", "glb", "ply", "stl"])
-                    .set_directory(crate::scenes::folder().unwrap_or_default())
-                    .pick_file()
+                    })
+                    .response
+                    .on_disabled_hover_text(format!(
+                        "Limit of {} lights reached",
+                        scene::MAX_LIGHTS
+                    ));
+                });
+                ui.separator();
+                ui.checkbox(&mut state.mesh_z_up, "Z-up").on_hover_text(
+                    "Stand the next imported mesh upright when its file is Z-up (scans, CAD)",
+                );
+                if ui
+                    .add_enabled(room, egui::Button::new("Mesh file…"))
+                    .on_hover_text(
+                        "Import an OBJ, glTF, GLB, PLY or STL file (glTF lights come along)",
+                    )
+                    .on_disabled_hover_text(format!(
+                        "Limit of {} objects reached",
+                        scene::MAX_OBJECTS
+                    ))
+                    .clicked()
                 {
-                    state.import_mesh(path, state.mesh_z_up);
+                    // The file dialog blocks: the menu closes first.
+                    ui.close();
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Meshes", &["obj", "gltf", "glb", "ply", "stl"])
+                        .set_directory(crate::scenes::folder().unwrap_or_default())
+                        .pick_file()
+                    {
+                        state.import_mesh(path, state.mesh_z_up);
+                    }
                 }
-            }
-        })
-        .response
-        .on_hover_text("Add an object, a light or a mesh file");
+            })
+            .0
+            .on_hover_text("Add an object, a light or a mesh file");
         if let Some(job) = state.mesh_imports.first() {
             ui.horizontal(|ui| {
                 ui.spinner();
@@ -525,7 +543,7 @@ impl App {
                                             && ui.button(name(i)).clicked()
                                         {
                                             p.targets.push(i);
-                                            ui.close_menu();
+                                            ui.close();
                                         }
                                     }
                                 });
@@ -571,7 +589,7 @@ impl App {
                 .map(|e| (e.path.clone(), e.title.clone()))
                 .collect();
             if !levels.is_empty() {
-                ui.menu_button("Levels", |ui| {
+                crate::ui::sticky_menu(ui, "Levels", |ui| {
                     for (path, title) in levels {
                         let best = state
                             .prefs
@@ -581,7 +599,7 @@ impl App {
                             .map_or("not solved".to_string(), |(_, b)| format!("best {b}"));
                         if ui.button(format!("{title} · {best}")).clicked() {
                             state.open_pending = Some(path);
-                            ui.close_menu();
+                            ui.close();
                         }
                     }
                 });
@@ -835,9 +853,9 @@ mod tests {
             events,
             ..Default::default()
         };
-        let _ = ctx.run(input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| add(ui));
-        });
+        let _ = crate::ui::discard(ctx.run_ui(input, |root| {
+            egui::CentralPanel::default().show(root, |ui| add(ui));
+        }));
     }
     /// Four frames: hover, press, release, settle.
     fn click(ctx: &egui::Context, at: egui::Pos2, mut add: impl FnMut(&mut egui::Ui)) {

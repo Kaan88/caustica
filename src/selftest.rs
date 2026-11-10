@@ -1168,7 +1168,8 @@ impl App {
             // A user texture (as a scene thumbnail) drawn in the open Scenes window, then the
             // scene files below load with the window still open.
             203 => {
-                let image = egui::ColorImage::new([64, 40], egui::Color32::from_rgb(40, 120, 200));
+                let image =
+                    egui::ColorImage::filled([64, 40], egui::Color32::from_rgb(40, 120, 200));
                 let texture =
                     self.egui
                         .load_texture("self-test", image, egui::TextureOptions::LINEAR);

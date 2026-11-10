@@ -14,7 +14,7 @@
 //! Local frame of the body: x right, y up from the feet, −z forward, origin under the eye. The
 //! body is shifted `BACK` behind the eye so that nothing but the head is in front of it.
 use crate::scene::{Body, MAX_OBJECTS, Material, Object, Settings, Shape};
-use crate::walk::{CROUCH_EYE, EYE};
+use crate::walk::EYE;
 use glam::{EulerRot, Quat, Vec3};
 
 /// A body unit is a 28th of the eye height: the head is 8 wide, the torso 8 × 12 × 4, a leg 12
@@ -89,7 +89,8 @@ pub struct Part {
     pub hidden: bool,
 }
 impl Part {
-    /// The eight corners in the world.
+    /// The eight corners in the world. Tests only.
+    #[cfg(test)]
     pub fn corners(&self) -> [Vec3; 8] {
         std::array::from_fn(|i| {
             let sign = |bit: usize| if i >> bit & 1 == 1 { 1. } else { -1. };
@@ -306,6 +307,7 @@ pub fn add(frame: &mut Settings, st: &Stance) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::walk::CROUCH_EYE;
     fn walking(phase: f32, gait: f32) -> Stance {
         Stance {
             feet: Vec3::new(1., 0., 2.),
