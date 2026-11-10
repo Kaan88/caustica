@@ -134,8 +134,18 @@ impl Waves {
             }
         }))
     }
-    /// A material's colour `c` as the path carries it: its own spectrum when it has one.
+    /// A material's colour `c`, an albedo, as the path carries it: its measured reflectance
+    /// (codes 1–3) when it has one. An emitter's own spectrum (the light, a blackbody) is
+    /// emission over D65, hundreds in a cool blackbody's red: as an albedo it gains energy.
     pub(super) fn up_material(&self, m: &PackedMaterial, c: Vec3) -> Vec3 {
+        if self.on && (1. ..4.).contains(&m.phase[2]) {
+            self.own(m)
+        } else {
+            self.up(c)
+        }
+    }
+    /// A material's emitted colour `c` as the path carries it: its own spectrum when it has one.
+    pub(super) fn up_emission(&self, m: &PackedMaterial, c: Vec3) -> Vec3 {
         if self.on && m.phase[2] != 0. {
             self.own(m)
         } else {
@@ -211,6 +221,21 @@ mod tests {
         }
     }
 
+    /// An emitter's spectrum is not its albedo: a 1000 K blackbody reflects its peak-1 colour.
+    #[test]
+    fn emitters_reflect_their_colour() {
+        let mut m = <PackedMaterial as bytemuck::Zeroable>::zeroed();
+        let (c, s) = crate::spectrum::blackbody_peak(1000.);
+        m.color_rough[..3].copy_from_slice(&c);
+        (m.phase[2], m.phase[3]) = (-1000., s);
+        let mut w = Waves::new(0.);
+        w.l = Vec3::splat(780.);
+        assert!(w.up_emission(&m, Vec3::from(c)).x > 10.);
+        assert_eq!(w.up_material(&m, Vec3::from(c)), w.up(Vec3::from(c)));
+        m.phase[2] = 2.;
+        assert_eq!(w.up_material(&m, Vec3::ZERO), w.own(&m));
+    }
+
     #[test]
     fn hero_keeps_the_first_wavelength() {
         let mut w = Waves::new(0.3);
@@ -263,7 +288,7 @@ mod tests {
             let mean: Vec3 = (0..n)
                 .map(|k| {
                     let wv = Waves::new((k as f32 + 0.5) / n as f32);
-                    wv.to_rgb(wv.up_material(&m, Vec3::ZERO))
+                    wv.to_rgb(wv.up_emission(&m, Vec3::ZERO))
                 })
                 .sum::<Vec3>()
                 / n as f32;

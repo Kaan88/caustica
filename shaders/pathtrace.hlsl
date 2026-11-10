@@ -169,9 +169,12 @@ float3 to_rgb(float3 v){return v;}
 void hero(inout float3 throughput){}
 float3 own_spectrum(Material m){return 0;}
 #endif
-// A material's colour as the tracer carries it: its own spectrum where it has one, else the
-// uplift (RGB variants: the colour).
-float3 up_material(Material m,float3 rgb){return spectral_on && m.phase.z!=0?own_spectrum(m):up(rgb);}
+// A material's colour (an albedo) as the tracer carries it: its measured reflectance (phase.z
+// 1–3) where it has one, else the uplift (RGB variants: the colour). An emitter's own spectrum
+// (the light, a blackbody) is emission relative to D65, far above 1 in places, never an albedo.
+float3 up_material(Material m,float3 rgb){return spectral_on && m.phase.z>0 && m.phase.z<4?own_spectrum(m):up(rgb);}
+// A material's emitted colour as the tracer carries it: its own spectrum where it has one.
+float3 up_emission(Material m,float3 rgb){return spectral_on && m.phase.z!=0?own_spectrum(m):up(rgb);}
 // Emitted RGB x of material id (its colour times scalars) as the tracer carries it.
 float3 up_emitted(uint id,float3 x){
     if(spectral_on){Material m=materials[id];if(m.phase.z!=0)return own_spectrum(m)*(dot(x,1)/max(dot(m.color_rough.rgb,1),1e-12));}
@@ -1565,7 +1568,7 @@ void trace_main(uint3 tid){
                 continue;
             }
             // Emission: the flat colour or the emissive map, as light sampling sees it.
-            float3 emitted=up_material(m,emitted_color(m,h.emitter,h.p))*m.optical.y;
+            float3 emitted=up_emission(m,emitted_color(m,h.emitter,h.p))*m.optical.y;
             if(m.optical.w>0.5 && !h.front)emitted=0;
             emitted*=spot(m,-dot(direction,h.n));
             apply_maps(h,m);

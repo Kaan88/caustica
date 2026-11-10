@@ -108,7 +108,7 @@ void begin_hero(uint key){begin_wavelengths(key);hero_only=spectral_on;}
 float3 hero_rgb(float3 v){return spectral_on?to_rgb(float3(3*v.x,0,0)):v;}
 // The emission a hit vertex sends toward w, as trace counts it (flat colour, one-sided, spot).
 float3 vertex_emission(BVertex x,float3 w){
-    Material m=material_at(x.info&0xffffffu,x.p);float3 e=up_material(m,emitted_color(m,x.emitter,x.p))*m.optical.y;
+    Material m=material_at(x.info&0xffffffu,x.p);float3 e=up_emission(m,emitted_color(m,x.emitter,x.p))*m.optical.y;
     if(m.optical.w>0.5 && (x.info&V_FRONT)==0)e=0;return e*spot(m,dot(x.n,w));
 }
 // f(v, l) with v toward the camera side and l toward the light side, and the density of sampling

@@ -235,7 +235,7 @@ impl Scene<'_> {
             let colour = self.emission_colour(&m, h.tri, h.b);
             let le = emitted(
                 &m,
-                w.up_material(&m, colour),
+                w.up_emission(&m, colour),
                 sf.front,
                 sf.emission_cos(direction),
             );
