@@ -346,6 +346,12 @@ impl<'a> Progressive<'a> {
                         let off = filter_offset(s, Vec2::new(r.f(), r.f()));
                         let pixel = Vec2::new(x as f32 + 0.5, y as f32 + 0.5) + off;
                         let mut waves = scene.waves(&r);
+                        // BDPT and photon gathering start on the hero wavelength and take its 3
+                        // in their output (as the GPU's hero_rgb), so the lens only picks the
+                        // channel then; the path tracer takes the 3 in the lens.
+                        if bdpt || (integrator == 2 && photon_maps.get(moment).is_some()) {
+                            waves.hero = waves.on;
+                        }
                         let ray = scene.camera_ray(pixel, &mut waves, &mut r);
                         rec.start();
                         // A sample the lens cuts off counts, as black.
@@ -366,7 +372,7 @@ impl<'a> Progressive<'a> {
                             }
                         });
                         // The firefly clamp is the path tracer's, as on the GPU.
-                        let scale = if integrator != 0 {
+                        let scale = if integrator != 0 || s.truth.firefly {
                             1.
                         } else {
                             firefly_scale(s.firefly, c, **sum, k)
@@ -951,7 +957,8 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 /// The firefly clamp (biased, off at 0): after four samples a pixel's sample may be at most
-/// `limit` times the luminance of the mean so far (never below 0.05), scaled down to that.
+/// `limit` times the luminance of the mean so far (never below 0.05, in scene units, not exposed ones: E7b left the
+/// transport alone; the roadmap has the exposure-relative option), scaled down to that.
 /// The GPU compares against the mean at the start of its frame; here it is the mean of the
 /// samples before this one, which is the same thing at one sample a frame.
 #[cfg(test)]

@@ -328,6 +328,8 @@ impl App {
                 Do::ResetCamera => self.reset_camera(),
                 Do::SavePng => self.actions.save_image = Some(crate::video::ImageFormat::Png),
                 Do::HidePanel => self.ui.panel_hidden = !self.ui.panel_hidden,
+                // Auto off; the frame loop seeds the manual exposure from the meter (E7b).
+                Do::LockExposure => self.settings.auto_exposure = false,
                 Do::UpdateCheck => {
                     self.ui.prefs.update_check = !self.ui.prefs.update_check;
                     self.ui.save_prefs();
@@ -1118,8 +1120,15 @@ impl App {
                             % n;
                         switch = true;
                     }
+                    Button::DPadUp if self.settings.auto_exposure => {
+                        self.settings.ev_bias = (self.settings.ev_bias + 0.25).min(EV_BIAS_MAX)
+                    }
+                    Button::DPadDown if self.settings.auto_exposure => {
+                        self.settings.ev_bias = (self.settings.ev_bias - 0.25).max(-EV_BIAS_MAX)
+                    }
                     Button::DPadUp => {
-                        self.settings.exposure = (self.settings.exposure * 1.25).min(10.)
+                        self.settings.exposure =
+                            (self.settings.exposure * 1.25).clamp(0., EXPOSURE_MAX)
                     }
                     Button::DPadDown => self.settings.exposure /= 1.25,
                     Button::Start => self.ui.panel_hidden = !self.ui.panel_hidden,

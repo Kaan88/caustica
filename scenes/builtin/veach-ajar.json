@@ -88,6 +88,9 @@
   ],
   "fov": 65,
   "exposure": 1.6,
+  "auto_exposure": true,
+  "ev_bias": -3.49,
+  "eyes": true,
   "integrator": 1,
   "objects": [
    {

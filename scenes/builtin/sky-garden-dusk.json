@@ -246,6 +246,9 @@
    "turbidity": 3.0,
    "north": 40.0
   },
-  "exposure": 1.6
+  "exposure": 1.6,
+  "auto_exposure": true,
+  "ev_bias": -0.36,
+  "eyes": true
  }
 }

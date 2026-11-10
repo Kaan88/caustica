@@ -144,6 +144,9 @@
     "portal": -1
    }
   ],
-  "bounces": 16
+  "bounces": 16,
+  "auto_exposure": true,
+  "ev_bias": -2.62,
+  "eyes": true
  }
 }

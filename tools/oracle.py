@@ -3,6 +3,7 @@
 
     python tools/oracle.py [--exe PATH] [--scenes a,b,...] [--integrator 0|1|2]
                            [--cpu-integrator 0|1|2|same] [--keep-filter] [--time T]
+                           [--cpu-truth rows|all] [--cpu-set key=json] [--gpu-set key=json]
                            [--size 320x240] [--gpu-spp 1024] [--cpu-spp 512] [--out DIR]
                            [--blur-frame N [--fps 24]]
 
@@ -23,6 +24,12 @@ GPU exports every frame of the timeline as EXR (`--turntable-timeline`, each pas
 the shutter) and frame N is taken; the CPU renders `--reference-time N/fps` (reference::exposure,
 the shutter's moments). --fps must be the scene's timeline rate.
 
+With --cpu-truth the CPU renders the exact versions of the shortcuts it copies from the GPU (the
+named rows of scene::Truth: roulette, firefly, floors, collisions, fog_cutoff, absorption_floor,
+sdf_march, or all), so the ratio is the bias of the GPU's shortcut instead of zero by
+construction; --cpu-set / --gpu-set give one side a setting the other keeps (e.g. --cpu-set
+bounces=64 against the GPU's 6 measures the truncation).
+
 Scenes the CPU reference refuses (reference::unsupported) are reported as SKIP; the CPU side
 path-traces unless --cpu-integrator says otherwise (1: BDPT; 2: photon mapping, which takes the
 GPU's --spp as its frame, so its bias matches only with --cpu-spp equal to --gpu-spp; same: the
@@ -32,6 +39,7 @@ the scenes measured when the reference was written.
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -89,6 +97,9 @@ def main():
                    help="keep the scene's pixel filter for integrators other than 0")
     p.add_argument('--rgb', action='store_true', help='render spectral scenes in RGB on both sides')
     p.add_argument('--set', action='append', default=[], help='key=json for both sides (repeatable)')
+    p.add_argument('--cpu-truth', default='', help='truth rows for the CPU side only (scene::Truth)')
+    p.add_argument('--cpu-set', action='append', default=[], help='key=json for the CPU side only')
+    p.add_argument('--gpu-set', action='append', default=[], help='key=json for the GPU side only')
     p.add_argument('--time', help='seconds on the timeline, frozen, for both sides')
     p.add_argument('--walk', action='store_true',
                    help='both sides start in walk mode: the standing walk avatar is drawn (put the '
@@ -107,7 +118,8 @@ def main():
     a = p.parse_args()
     w, h = a.size.split('x')
     os.makedirs(a.out, exist_ok=True)
-    size = ['--width', w, '--height', h]
+    # The exposure meter and the Eyes look are display-only, but no comparison may depend on them (E7).
+    size = ['--width', w, '--height', h, '--set', 'auto_exposure=false', '--set', 'eyes=false']
     if a.rgb:
         size += ['--set', 'spectral=false']
     # BDPT and photon mapping used a box pixel filter until 2026-11-05 (they now take the path
@@ -121,7 +133,16 @@ def main():
         size += ['--time', a.time]
     if a.walk:
         size += ['--walk']
+    cpu_extra = ['--truth', a.cpu_truth] if a.cpu_truth else []
+    for kv in a.cpu_set:
+        cpu_extra += ['--set', kv]
+    gpu_extra = []
+    for kv in a.gpu_set:
+        gpu_extra += ['--set', kv]
     cpu_integrator = a.integrator if a.cpu_integrator == 'same' else int(a.cpu_integrator)
+    if cpu_integrator != 0 and any(kv.replace(' ', '') in ('exact_glass=true', 'accurate=true') for kv in a.set + a.cpu_set + a.gpu_set):
+        print('note: exact_glass is honoured by the CPU path tracer only; the CPU BDPT and photon mapping keep '
+              'the blur model, so rough glass will differ (use --cpu-integrator 0)', file=sys.stderr)
     failed = 0
     print(f'{"scene":28} {"GPU/CPU":>8} {"z":>7}  worst block (ratio, z, row/col)')
     for name in [s for s in a.scenes.split(',') if s]:
@@ -135,12 +156,15 @@ def main():
         # shrinking per frame), so the CPU takes the GPU's frames: same --spp, and the same
         # frame count needs --cpu-spp equal to --gpu-spp.
         frames_cpu = ['--spp', str(per)] if cpu_integrator == 2 else []
-        code, out = run([a.exe, *scene_args(name), *size, *when, *frames_cpu,
+        code, out = run([a.exe, *scene_args(name), *size, *when, *frames_cpu, *cpu_extra,
                          '--set', f'integrator={cpu_integrator}', '--set', f'firefly={a.firefly}', '--reference', str(a.cpu_spp), '--capture', cpu])
         if code != 0:
             why = out.strip().splitlines()[-1] if out.strip() else f'exit {code}'
             print(f'{name:28} SKIP  {why[:110]}')
             continue
+        # The path tracer's dropped NaN/Inf samples (audit B4), summed over the CPU render.
+        m = re.search(r'dropped=(\d+)', out)
+        dropped = f'  dropped={m.group(1)}' if m and int(m.group(1)) else ''
         frames = max(1, a.gpu_spp // per)
         if a.blur_frame is not None:
             # No dot: the export would take what follows it for an extension.
@@ -148,7 +172,7 @@ def main():
             os.makedirs(folder, exist_ok=True)
             code, out = run([a.exe, '--headless', *scene_args(name), *size, '--no-rr', '--raw',
                              '--scale', '1', '--spp', str(per), '--set', f'firefly={a.firefly}',
-                             '--set', f'integrator={a.integrator}', '--turntable', folder,
+                             '--set', f'integrator={a.integrator}', *gpu_extra, '--turntable', folder,
                              '--turntable-timeline', '--turntable-format', 'exr',
                              '--turntable-spp', str(frames * per)])
             frame = os.path.join(folder, f'{a.blur_frame + 1:05}.exr')
@@ -160,7 +184,7 @@ def main():
             code, out = run([a.exe, '--headless', *scene_args(name), *size, '--no-rr', '--raw',
                              '--scale', '1', '--spp', str(per), '--samples', str(frames * per),
                              '--frames', str(frames), '--set', f'firefly={a.firefly}',
-                             '--set', f'integrator={a.integrator}', '--capture', gpu])
+                             '--set', f'integrator={a.integrator}', *gpu_extra, '--capture', gpu])
         if code != 0:
             print(f'{name:28} GPU FAILED  {out.strip()[-200:]}')
             failed += 1
@@ -172,7 +196,7 @@ def main():
         c[..., :3] = np.maximum(c[..., :3], 0)
         ratio, z, (bz, br, at), bad = test(exr.read(gpu), c, 8, a.z, a.floor)
         failed += bad
-        print(f'{name:28} {ratio:8.4f} {z:7.2f}  {br:.4f} {bz:6.2f} {at}  {"FAIL" if bad else "ok"}')
+        print(f'{name:28} {ratio:8.4f} {z:7.2f}  {br:.4f} {bz:6.2f} {at}  {"FAIL" if bad else "ok"}{dropped}')
     sys.exit(1 if failed else 0)
 
 

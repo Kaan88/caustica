@@ -49,6 +49,9 @@
   ],
   "fov": 60,
   "exposure": 1.5,
+  "auto_exposure": true,
+  "ev_bias": -1.58,
+  "eyes": true,
   "fog": {
    "density": 0.08,
    "color": [

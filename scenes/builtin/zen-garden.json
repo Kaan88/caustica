@@ -68,6 +68,9 @@
    "north": 20.0
   },
   "exposure": 1.4,
+  "auto_exposure": true,
+  "ev_bias": 0.22,
+  "eyes": true,
   "objects": [
    {
     "name": "Rock 1",

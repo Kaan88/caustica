@@ -150,7 +150,7 @@ unsigned caustica_ngxvk_create(NgxVk* n, VkCommandBuffer cmd, unsigned w, unsign
 }
 // images: the render textures by index (0 colour, 2 normals/roughness, 3 diffuse albedo,
 // 4 specular albedo, 5 depth, 6 motion, 7 specular hit distance, 14 output).
-unsigned caustica_ngxvk_eval(NgxVk* n, VkCommandBuffer cmd, const VkImageRef* images, unsigned w, unsigned h, float jx, float jy, int reset, float dt, float* view, float* projection) {
+unsigned caustica_ngxvk_eval(NgxVk* n, VkCommandBuffer cmd, const VkImageRef* images, unsigned w, unsigned h, float jx, float jy, int reset, float dt, float* view, float* projection, float pre_exposure) {
     NVSDK_NGX_Resource_VK color = resource(images[0], false), out = resource(images[14], true), normals = resource(images[2], false),
         diffuse = resource(images[3], false), specular = resource(images[4], false), depth = resource(images[5], false),
         motion = resource(images[6], false), hit = resource(images[7], false);
@@ -159,7 +159,9 @@ unsigned caustica_ngxvk_eval(NgxVk* n, VkCommandBuffer cmd, const VkImageRef* im
     p.pInDepth = &depth; p.pInMotionVectors = &motion; p.pInSpecularHitDistance = &hit;
     // Image displacement, the negated ray jitter (see ngx.cpp).
     p.InRenderSubrectDimensions = {w, h}; p.InJitterOffsetX = -jx; p.InJitterOffsetY = -jy; p.InReset = reset; p.InMVScaleX = 1.; p.InMVScaleY = 1.;
-    p.InPreExposure = 1.; p.InExposureScale = 1.; p.InFrameTimeDeltaInMsec = dt;
+    // Pre-exposure (E5): the colour was scaled by P (a power of two) so night radiance clears
+    // fp16; the output comes back pre-exposed and the app divides it out.
+    p.InPreExposure = pre_exposure; p.InExposureScale = 1.; p.InFrameTimeDeltaInMsec = dt;
     p.pInWorldToViewMatrix = view; p.pInViewToClipMatrix = projection;
     return NGX_VULKAN_EVALUATE_DLSSD_EXT(cmd, n->handle, n->params, &p);
 }
@@ -172,12 +174,12 @@ unsigned caustica_ngxvk_create_sr(NgxVk* n, VkCommandBuffer cmd, unsigned w, uns
     p.InFeatureCreateFlags = NVSDK_NGX_DLSS_Feature_Flags_IsHDR | NVSDK_NGX_DLSS_Feature_Flags_MVLowRes | NVSDK_NGX_DLSS_Feature_Flags_AutoExposure;
     return NGX_VULKAN_CREATE_DLSS_EXT1(n->device, cmd, 1, 1, &n->sr, n->sr_params, &p);
 }
-unsigned caustica_ngxvk_eval_sr(NgxVk* n, VkCommandBuffer cmd, const VkImageRef* color, const VkImageRef* depth, const VkImageRef* motion, const VkImageRef* output, unsigned w, unsigned h, float jx, float jy, int reset, float dt) {
+unsigned caustica_ngxvk_eval_sr(NgxVk* n, VkCommandBuffer cmd, const VkImageRef* color, const VkImageRef* depth, const VkImageRef* motion, const VkImageRef* output, unsigned w, unsigned h, float jx, float jy, int reset, float dt, float pre_exposure) {
     NVSDK_NGX_Resource_VK c = resource(*color, false), d = resource(*depth, false), m = resource(*motion, false), o = resource(*output, true);
     NVSDK_NGX_VK_DLSS_Eval_Params p = {};
     p.Feature.pInColor = &c; p.Feature.pInOutput = &o; p.pInDepth = &d; p.pInMotionVectors = &m;
     p.InJitterOffsetX = -jx; p.InJitterOffsetY = -jy; p.InRenderSubrectDimensions = {w, h}; p.InReset = reset; p.InMVScaleX = 1.; p.InMVScaleY = 1.;
-    p.InPreExposure = 1.; p.InExposureScale = 1.; p.InFrameTimeDeltaInMsec = dt;
+    p.InPreExposure = pre_exposure; p.InExposureScale = 1.; p.InFrameTimeDeltaInMsec = dt;
     return NGX_VULKAN_EVALUATE_DLSS_EXT(cmd, n->sr, n->sr_params, &p);
 }
 
@@ -206,6 +208,7 @@ unsigned caustica_xessvk_create(XessVk* x, unsigned w, unsigned ow, unsigned oh,
 unsigned caustica_xessvk_eval(XessVk* x, VkCommandBuffer cmd, const VkImageRef* color, const VkImageRef* depth, const VkImageRef* motion, const VkImageRef* output, unsigned w, unsigned h, float jx, float jy, int reset) {
     auto info = [](const VkImageRef& r) { xess_vk_image_view_info i = {}; i.imageView = r.view; i.image = r.image; i.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}; i.format = r.format; i.width = r.width; i.height = r.height; return i; };
     xess_vk_execute_params_t p = {}; p.colorTexture = info(*color); p.velocityTexture = info(*motion); p.depthTexture = info(*depth); p.outputTexture = info(*output);
+    // XeSS has no pre-exposure input (exposureScale multiplies the colour): the app's scale stands.
     p.jitterOffsetX = -jx; p.jitterOffsetY = -jy; p.exposureScale = 1.f; p.resetHistory = reset ? 1 : 0; p.inputWidth = w; p.inputHeight = h;
     return (unsigned)x->execute(x->ctx, cmd, &p);
 }

@@ -84,3 +84,22 @@ pub(super) fn ggx_sample_aniso(n: Vec3, t: Vec3, b: Vec3, d: Vec3, a: Vec2, r: &
     let h = (t * (a.x * m.x) + b * (a.y * m.y) + n * m.z.max(1e-6)).normalize();
     reflect(d, h)
 }
+/// An isotropic GGX visible normal (Heitz 2018) for a view `v` on `n`'s side, alpha `a`: its pdf
+/// is G1(v) max(0, v.h) D(h) / (n.v). The truth `glass_btdf` draws its facets with it.
+pub(super) fn ggx_visible_normal(n: Vec3, v: Vec3, a: f32, r: &mut Rng) -> Vec3 {
+    let (t, b) = n.any_orthonormal_pair();
+    let vh = Vec3::new(a * v.dot(t), a * v.dot(b), v.dot(n).max(0.)).normalize();
+    let len2 = vh.x * vh.x + vh.y * vh.y;
+    let t1 = if len2 > 0. {
+        Vec3::new(-vh.y, vh.x, 0.) / len2.sqrt()
+    } else {
+        Vec3::X
+    };
+    let t2 = vh.cross(t1);
+    let (q, phi) = (r.f().sqrt(), 2. * PI * r.f());
+    let x = q * phi.cos();
+    let s = 0.5 * (1. + vh.z);
+    let y = (1. - s) * (1. - x * x).max(0.).sqrt() + s * q * phi.sin();
+    let m = t1 * x + t2 * y + vh * (1. - x * x - y * y).max(0.).sqrt();
+    (t * (a * m.x) + b * (a * m.y) + n * m.z.max(1e-6)).normalize()
+}

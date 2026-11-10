@@ -56,6 +56,7 @@ pub enum Do {
     SavePng,
     HidePanel,
     UpdateCheck,
+    LockExposure,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -435,6 +436,12 @@ pub const ENTRIES: &[Entry] = &[
     act("Reset the camera", "home", "Home", Do::ResetCamera),
     act("Save the image as PNG", "screenshot", "F12", Do::SavePng),
     act("Hide the panels", "screenshot mode", "Tab", Do::HidePanel),
+    act(
+        "Lock the exposure (AE-L)",
+        "ae-l ael auto exposure manual freeze meter",
+        "",
+        Do::LockExposure,
+    ),
     act(
         "Check for updates at startup",
         "update",

@@ -65,6 +65,9 @@
    0.0
   ],
   "exposure": 2.5,
+  "auto_exposure": true,
+  "ev_bias": -13.0,
+  "eyes": true,
   "objects": [
    {
     "name": "Plate roughness 0.005",

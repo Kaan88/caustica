@@ -2383,6 +2383,9 @@
     "portal": -1
    }
   ],
-  "exposure": 0.45
+  "exposure": 0.45,
+  "auto_exposure": true,
+  "ev_bias": 1.24,
+  "eyes": true
  }
 }

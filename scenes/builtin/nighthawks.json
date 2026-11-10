@@ -2427,6 +2427,9 @@
     "portal": -1,
     "body": "fixed"
    }
-  ]
+  ],
+  "auto_exposure": true,
+  "ev_bias": -4.9,
+  "eyes": true
  }
 }

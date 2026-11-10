@@ -27,6 +27,7 @@ OVERWRITE = False  # True, or a set of file stems
 # (geometry::DIELECTRIC_GAP); the hand-placed ones here keep the same gap off the floor and off
 # each other, and coincident side walls of nested liquids differ by GAP.
 GAP = 0.004
+EVMAX = 16  # Settings EV_BIAS_MAX
 
 
 def write_pack(out, entries, meta, ensure_ascii=False):
@@ -1170,7 +1171,13 @@ scene("sunlit-room-day-cycle", "Sunlit room · day cycle",
              objects=sunlit_room(), bounces=12, exposure=2.0,
              physical_sky=sky(8.0, day=80.0, latitude=40.0),
              animation={"length": 12.0, "fps": 24, "shutter": 0.0,
-                        "tracks": [track("physical_sky/time", [(0.0, 6.5, "linear"), (12.0, 19.5, "linear")])]},
+                        # E8: the auto exposure meter alone would hold the room at one brightness all day
+                        # (it brightens dusk 28 EV); the bias is keyed down to the pre-E8 fade, which fell
+                        # about 0, -0.85, -2.8, -4.8 EV at 0, 3, 6, 9 s (displayed mean); the keys give a gentler
+                        # fade, found by eye, so the cycle keeps reading as an evening.
+                        "tracks": [track("physical_sky/time", [(0.0, 6.5, "linear"), (12.0, 19.5, "linear")]),
+                                   track("ev_bias", [(0.0, -2.05, "linear"), (3.0, -2.6, "linear"), (6.0, -3.6, "linear"),
+                                                     (9.0, -4.6, "linear"), (12.0, -6.0, "linear")])]},
              **camera(40, 12, 2.4, (-0.6, -0.2, 0), 62)))
 
 scene("sky-garden-dusk", "Sky garden at dusk",
@@ -1901,6 +1908,27 @@ scene("zen-garden", "Zen garden",
              floor=M((0.82, 0.78, 0.7), 0.9, refl=0.0, pattern="stripes", second=(0.62, 0.58, 0.5), pscale=18.0), floor_extent=6.0,
              physical_sky=sky(7.2, day=120.0, latitude=35.0, turbidity=3.0, north=20.0), exposure=1.4,
              objects=zen_garden(), **camera(20, 24, 7.5, (0, -0.8, 0), 45)))
+
+
+def clear_night_land():
+    rock = matte((0.16, 0.14, 0.12), 0.95)
+    o = [obj("Boulder", "sphere", 3.0, -2.2, 1.6, rock, stretch=0.6),
+         obj("Low rock", "sphere", -3.4, -1.2, 1.0, rock, stretch=0.5, rotation=40),
+         obj("Standing stone", "box", 0.8, -4.2, 1.2, rock, stretch=3.0, scale=(0.5, 0.35), rotation=15),
+         obj("Boulder 2", "sphere", -1.6, -5.0, 1.8, rock, stretch=0.55, rotation=-30)]
+    return o
+
+
+scene("clear-night", "Clear night",
+      "The naked-eye night sky: a moonless southern winter night at latitude 33 S with the galactic centre "
+      "nearly overhead, the catalogue's stars, the Milky Way and airglow over dark ground and a few rocks. "
+      "The sky is at its real brightness (sun intensity 1); auto exposure and the Eyes look bring it up to "
+      "what a dark-adapted eye sees, so it is the scene to try night skies on.",
+      ["night", "sky", "stars", "physical sky", "open"],
+      studio(light_on=False, lights=[], sky=0.0, base=[0.05, 0.05, 0.05],
+             floor=M((0.1, 0.085, 0.07), 0.95, refl=0.0), floor_extent=40.0, bounces=6,
+             physical_sky=sky(23.7, day=172.0, latitude=-33.0, moon=False),
+             objects=clear_night_land(), **camera(200, -32, 5.0, (0, 2.0, 0), 80)))
 
 
 def lit_maze():
@@ -2636,7 +2664,7 @@ def check(slug, s):
             rng(l["name"] + " color", c, 0, 1)
     for k, lo, hi in [("floor_extent", 0.5, 40), ("sky", 0, 4), ("fov", 10, 100), ("distance", 0.5, 200),
                       ("light_size", 0.05, 40), ("light_aspect", 0.1, 10), ("light_intensity", 0, 2000),
-                      ("exposure", 0, 10), ("bounces", 1, 32), ("light_temperature", 1000, 12000)]:
+                      ("exposure", 0, 10), ("ev_bias", -EVMAX, EVMAX), ("bounces", 1, 32), ("light_temperature", 1000, 12000)]:
         if k in s:
             rng(k, s[k], lo, hi)
     for v in s.get("target", []):
@@ -3009,15 +3037,74 @@ def write_meshes():
                 "description": "Scanned and glTF models. Run tools/fetch_assets.ps1 first; without the models each object falls back to a box."})
 
 
+# ---------------------------------------------------------------- exposure (plan step E8)
+# The built-ins are auto exposure scenes: `auto_exposure` and `eyes` on, `ev_bias` from
+# tools/scene_exposure.json (slug -> stops; log2(old exposure / settled metered exposure) at 640x360,
+# then adjusted by eye for a few). The old manual `exposure` key stays, so turning auto off gives
+# the pre-E8 look. A scene missing from the table is left alone: the reference scenes
+# (white-furnace, layered-furnace, measured-cornell) stay manual on purpose.
+EXPOSURE_TABLE = Path(__file__).resolve().parent / "scene_exposure.json"
+
+
+def exposure_keys():
+    if not EXPOSURE_TABLE.exists():
+        return {}
+    return json.loads(EXPOSURE_TABLE.read_text(encoding="utf-8"))["ev_bias"]
+
+
+def with_auto_exposure(settings, ev_bias):
+    """`settings` with the auto exposure keys, placed right after `exposure` when it is there."""
+    new = {"auto_exposure": True, "ev_bias": round(ev_bias, 2), "eyes": True}
+    out = {}
+    for k, v in settings.items():
+        if k in new:
+            continue
+        out[k] = v
+        if k == "exposure":
+            out.update(new)
+    if "exposure" not in settings:
+        out.update(new)
+    return out
+
+
+def retune_exposure(out):
+    """Writes the table into every scene file of `out` (hand-written ones and ones edited after
+    this script wrote them included): a JSON round trip that changes only the three keys."""
+    changed = 0
+    for slug, ev in exposure_keys().items():
+        path = out / f"{slug}.json"
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        data = json.loads(text)
+        # The layout: ASCII-escaped or not, with or without a final newline, indent 1 or 2 (hand-written files).
+        layouts = [(a, e, i) for a in (False, True) for e in ("\n", "") for i in (1, 2)]
+        layout = next((l for l in layouts if json.dumps(data, indent=l[2], ensure_ascii=l[0]) + l[1] == text), None)
+        if layout is None:
+            print(f"{slug}: not in the script's JSON layout, exposure keys not written")
+            continue
+        data["settings"] = with_auto_exposure(data["settings"], ev)
+        new = json.dumps(data, indent=layout[2], ensure_ascii=layout[0]) + layout[1]
+        if new != text:
+            path.write_text(new, encoding="utf-8")
+            changed += 1
+    print(f"{out.name}: exposure keys written to {changed} files")
+
+
 # ---------------------------------------------------------------- write
 def main():
     problems = [p for slug, data in SCENES for p in check(slug, data["settings"])]
     if problems:
         raise SystemExit("; ".join(problems))
+    keys = exposure_keys()
+    for slug, data in SCENES:
+        if slug in keys:
+            data["settings"] = with_auto_exposure(data["settings"], keys[slug])
     write_pack(OUT, [(f"{slug}.json", data) for slug, data in SCENES],
                {"name": "Built-in scenes", "version": 1, "license": "Own work", "commercial_use": True,
                 "attribution": "Caustica", "source": "",
                 "description": "Built-in scenes, written by tools/build_scenes.py and by hand."})
+    retune_exposure(OUT)
     write_generated()
     write_meshes()
     write_environments()

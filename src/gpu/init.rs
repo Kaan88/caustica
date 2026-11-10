@@ -377,6 +377,10 @@ impl Gpu {
             photon_gather,
             filter,
             display,
+            trace_exact,
+            trace_spectral_exact,
+            bdpt_exact,
+            bdpt_spectral_exact,
         ] = create_compute_pipelines(
             &device,
             &root,
@@ -403,6 +407,10 @@ impl Gpu {
                 include_bytes!(concat!(env!("OUT_DIR"), "/photon_gather.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/filter.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/display.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_exact.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_spectral_exact.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/bdpt_exact.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/bdpt_spectral_exact.dxil")),
             ],
             |n, total| {
                 if let Err(e) =
@@ -424,6 +432,8 @@ impl Gpu {
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_lpe_ser.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_spectral_ser.dxil")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/trace_spectral_lean_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_exact_ser.dxil")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/trace_spectral_exact_ser.dxil")),
             ],
         );
         let path_size = (PATH_CAPACITY * size_of::<crate::paths::Record>()) as u64;
@@ -609,6 +619,10 @@ impl Gpu {
             photon_trace_spectral,
             photon_gather_spectral,
             bdpt_spectral,
+            trace_exact,
+            trace_spectral_exact,
+            bdpt_exact,
+            bdpt_spectral_exact,
             photon_gather,
             aux: None,
             aux_len: 0,
@@ -705,6 +719,9 @@ impl Gpu {
                 sun_count: 0,
                 keep_ui_frame: false,
                 headless: false,
+                meter: Default::default(),
+                metered: None,
+                pre_exposure: 0.,
                 rr_status,
                 upscale_status: String::new(),
                 rr_active: false,

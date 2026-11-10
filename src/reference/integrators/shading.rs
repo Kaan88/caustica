@@ -4,7 +4,8 @@
 use crate::lighting::PackedMaterial;
 use crate::reference::bsdf::{
     GRATING_ORDER, Wavelength, aniso_alpha, aniso_frame, coat_probability, flags,
-    fresnel_dielectric, grating, grating_move, order_shares, prepare_film, rgb, spec_probability,
+    fresnel_dielectric, g1, grating, grating_move, order_shares, prepare_film, rgb, rough_alpha,
+    sample_rough_dielectric, spec_probability,
 };
 use crate::reference::bvh::Hit;
 use crate::reference::media::{push, remove, top};
@@ -152,6 +153,8 @@ impl Scene<'_> {
             refract(direction, n, eta)
         };
         let rough = m.color_rough[3];
+        // The GPU's model of a rough surface. The path tracer's truth `glass_btdf` draws from
+        // `rough_dielectric` instead (audit A1); BDPT and photon mapping keep this.
         if rough > 0.001 {
             let pert = cosine_sample(if reflected { n } else { -n }, r);
             next = next.lerp(pert, rough * rough).normalize();
@@ -163,6 +166,46 @@ impl Scene<'_> {
             eta,
             after,
         }
+    }
+    /// Truth `glass_btdf` (audit A1): a sample of rough dielectric `m` as the GGX BTDF
+    /// (`bsdf::sample_rough_dielectric`, Walter et al. 2007, visible normals) instead of the lerp:
+    /// reflection or refraction about the drawn facet by its exact Fresnel (a film colours it as
+    /// in `dielectric`). The weight is G1(l) (the eta² of a refraction stays the caller's). None
+    /// when the facet sends the ray to the wrong side (the single-scattering loss).
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::reference) fn rough_dielectric(
+        &self,
+        media: &[(u32, u32)],
+        m: &PackedMaterial,
+        material: u32,
+        front: bool,
+        n: Vec3,
+        direction: Vec3,
+        w: &Waves,
+        r: &mut Rng,
+    ) -> Option<Dielectric> {
+        let (n1, n2, after) = self.interface(media, m, material, front, w);
+        let eta = n1 / n2;
+        let a = rough_alpha(m);
+        let (next, reflected, fr) = sample_rough_dielectric(n, direction, eta, a, r)?;
+        let mut weight = Vec3::splat(g1(n.dot(next).abs(), a));
+        let film = m.surface_scale[2];
+        if film > 0. && fr < 1. {
+            let frc = Vec3::splat(fr).lerp(Vec3::from_slice(&m.base_scale[..3]), film);
+            // The facet's choice went by fr; the film's colour per channel replaces it.
+            weight *= if reflected {
+                frc / fr.max(1e-4)
+            } else {
+                (Vec3::ONE - frc) / (1. - fr).max(1e-4)
+            };
+        }
+        Some(Dielectric {
+            next,
+            reflected,
+            weight,
+            eta,
+            after,
+        })
     }
     /// The IORs on the near and far side of dielectric `material` hit from `front`, and the
     /// media stack beyond it: entering, the current medium's and its own; leaving, its own and

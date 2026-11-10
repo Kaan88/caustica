@@ -502,6 +502,9 @@
    }
   ],
   "exposure": 1.3,
+  "auto_exposure": true,
+  "ev_bias": -1.64,
+  "eyes": true,
   "physical_sky": {
    "on": true,
    "time": 18.2,

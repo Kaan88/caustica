@@ -6200,6 +6200,9 @@
     "enabled": true,
     "visible": false
    }
-  ]
+  ],
+  "auto_exposure": true,
+  "ev_bias": -3.39,
+  "eyes": true
  }
 }

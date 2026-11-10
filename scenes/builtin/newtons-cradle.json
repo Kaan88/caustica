@@ -1147,6 +1147,9 @@
    "speed": 1.0,
    "bounce": 1.0,
    "friction": 0.0
-  }
+  },
+  "auto_exposure": true,
+  "ev_bias": -0.97,
+  "eyes": true
  }
 }

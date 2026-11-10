@@ -705,6 +705,9 @@
    }
   ],
   "exposure": 1.8,
+  "auto_exposure": true,
+  "ev_bias": -6.16,
+  "eyes": true,
   "physics": {
    "enabled": true,
    "bounce": 0.05,

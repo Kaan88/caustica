@@ -38,9 +38,15 @@ pub struct Shaders {
     pub trace_spectral_lean_ser: Vec<u8>,
     pub photon_gather_spectral: Vec<u8>,
     pub bdpt_spectral: Vec<u8>,
+    pub trace_exact: Vec<u8>,
+    pub trace_exact_ser: Vec<u8>,
+    pub trace_spectral_exact: Vec<u8>,
+    pub trace_spectral_exact_ser: Vec<u8>,
+    pub bdpt_exact: Vec<u8>,
+    pub bdpt_spectral_exact: Vec<u8>,
 }
 /// The entries build.rs compiles: (file, entry, profile, output name, defines).
-pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 31] = [
+pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 37] = [
     ("pathtrace.hlsl", "trace", "cs_6_5", "trace", &[]),
     (
         "pathtrace.hlsl",
@@ -232,6 +238,60 @@ pub const ENTRIES: [(&str, &str, &str, &str, &[&str]); 31] = [
         "bdpt_spectral",
         &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL"],
     ),
+    // Accuracy A1 (Settings::exact_glass, the Accurate bundle): the exact rough dielectric
+    // (EXACT_BTDF) in the full tracer with the map code (no LEAN twin: Accurate is not a
+    // speed mode), its spectral twin, their SER twins (Gpu::ser indices 7, 8), and BDPT.
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_exact",
+        &["-D", "TEXTURE_MAPS", "-D", "EXACT_BTDF"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_exact_ser",
+        &["-D", "TEXTURE_MAPS", "-D", "EXACT_BTDF", "-D", "SER"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace",
+        "cs_6_5",
+        "trace_spectral_exact",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL", "-D", "EXACT_BTDF"],
+    ),
+    (
+        "pathtrace.hlsl",
+        "trace_rg",
+        "lib_6_9",
+        "trace_spectral_exact_ser",
+        &[
+            "-D",
+            "TEXTURE_MAPS",
+            "-D",
+            "SPECTRAL",
+            "-D",
+            "EXACT_BTDF",
+            "-D",
+            "SER",
+        ],
+    ),
+    (
+        "integrators.hlsl",
+        "bdpt",
+        "cs_6_5",
+        "bdpt_exact",
+        &["-D", "TEXTURE_MAPS", "-D", "EXACT_BTDF"],
+    ),
+    (
+        "integrators.hlsl",
+        "bdpt",
+        "cs_6_5",
+        "bdpt_spectral_exact",
+        &["-D", "TEXTURE_MAPS", "-D", "SPECTRAL", "-D", "EXACT_BTDF"],
+    ),
 ];
 pub struct HotReload {
     dir: PathBuf,
@@ -388,6 +448,12 @@ impl HotReload {
             trace_spectral_lean_ser: b.next().unwrap(),
             photon_gather_spectral: b.next().unwrap(),
             bdpt_spectral: b.next().unwrap(),
+            trace_exact: b.next().unwrap(),
+            trace_exact_ser: b.next().unwrap(),
+            trace_spectral_exact: b.next().unwrap(),
+            trace_spectral_exact_ser: b.next().unwrap(),
+            bdpt_exact: b.next().unwrap(),
+            bdpt_spectral_exact: b.next().unwrap(),
         })
     }
 }

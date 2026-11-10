@@ -113,6 +113,7 @@ impl App {
     pub(super) fn look_tab(&mut self, ui: &mut egui::Ui) {
         let hdr_text = hdr_line(self);
         let g = self.gpu.as_ref().unwrap();
+        let metered = g.metered;
         let s = &mut self.settings;
         let advanced = self.ui.advanced;
         section(ui, "Image");
@@ -149,27 +150,102 @@ impl App {
             });
             row(
                 ui,
-                "Exposure",
-                "Brightness in photographic stops; +1 EV doubles it.",
+                "Auto exposure",
+                "Like a camera or an eye: the meter picks the exposure from what the view shows and adapts over time, so a noon beach and a moonlit field both read well. Off, the exposure is the fixed value below, starting from what the meter showed.",
                 |ui| {
-                    let mut ev = if s.exposure > 0. {
-                        s.exposure.log2()
-                    } else {
-                        -6.
-                    };
-                    let r = ui.add(
-                        crate::slider(&mut ev, -6. ..=3.32)
-                            .suffix(" EV")
-                            .fixed_decimals(1),
-                    );
-                    // EV is a local, so the double-click reset is done here.
-                    if crate::slider_double_clicked(ui, &r) {
-                        s.exposure = self.reset_baseline.exposure;
-                    } else if r.changed() {
-                        s.exposure = 2f32.powf(ev).clamp(0., 10.);
+                    ui.checkbox(&mut s.auto_exposure, "");
+                    // AE-L: auto off; the frame loop copies the meter's exposure into the manual
+                    // one, as for the checkbox (E7b).
+                    if s.auto_exposure
+                        && ui
+                            .small_button("AE-L")
+                            .on_hover_text("Lock the exposure: keep what the meter shows now as the manual exposure and turn auto off.")
+                            .clicked()
+                    {
+                        s.auto_exposure = false;
                     }
                 },
             );
+            if s.auto_exposure {
+                row(
+                    ui,
+                    "Exposure bias",
+                    "Brighter or darker than the meter's choice, in photographic stops; +1 EV doubles it.",
+                    |ui| {
+                        ui.add(
+                            crate::slider(&mut s.ev_bias, -EV_BIAS_MAX..=EV_BIAS_MAX)
+                                .suffix(" EV")
+                                .fixed_decimals(1),
+                        );
+                    },
+                );
+                row(
+                    ui,
+                    "Meter",
+                    "What the meter reads: the frame's log-average weighted to the centre, a spot at the centre, or the histogram's median. The brightest 3% (lamps, the sun), the darkest 1% and unlit black are ignored. Shown: the metered exposure now and where it is heading.",
+                    |ui| {
+                        egui::ComboBox::from_id_salt("meter mode")
+                            .selected_text(s.meter_mode.label())
+                            .show_ui(ui, |ui| {
+                                for m in MeterMode::ALL {
+                                    ui.selectable_value(&mut s.meter_mode, m, m.label());
+                                }
+                            });
+                        if let Some(m) = metered {
+                            ui.weak(meter_readout(&m));
+                        }
+                    },
+                );
+                row(
+                    ui,
+                    "Adaptation",
+                    "How fast the exposure follows a change of brightness, per second. Higher is faster.",
+                    |ui| {
+                        ui.add(
+                            crate::slider(&mut s.exposure_speed, 0.05..=50.)
+                                .logarithmic(true)
+                                .fixed_decimals(2),
+                        );
+                    },
+                );
+            } else {
+                row(
+                    ui,
+                    "Exposure",
+                    "Brightness in photographic stops; +1 EV doubles it. Down to -8 EV for a bright day and up to +30 EV for a night sky.",
+                    |ui| {
+                        let mut ev = if s.exposure > 0. {
+                            s.exposure.log2().clamp(EXPOSURE_EV_MIN, EXPOSURE_EV_MAX)
+                        } else {
+                            EXPOSURE_EV_MIN
+                        };
+                        let r = ui.add(
+                            crate::slider(&mut ev, EXPOSURE_EV_MIN..=EXPOSURE_EV_MAX)
+                                .suffix(" EV")
+                                .fixed_decimals(1),
+                        );
+                        // EV is a local, so the double-click reset is done here.
+                        if crate::slider_double_clicked(ui, &r) {
+                            s.exposure = self.reset_baseline.exposure;
+                        } else if r.changed() {
+                            s.exposure = 2f32.powf(ev).clamp(0., EXPOSURE_MAX);
+                        }
+                    },
+                );
+            }
+            row(
+                ui,
+                "Eyes",
+                "Dark scenes look the way the eye sees them: colour drains away and blues stand out as the light fades.",
+                |ui| {
+                    ui.checkbox(&mut s.eyes, "");
+                },
+            );
+            if s.eyes {
+                row(ui, "Eyes strength", "How much of the effect to apply.", |ui| {
+                    ui.add(crate::slider(&mut s.eyes_strength, 0. ..=1.).fixed_decimals(2));
+                });
+            }
             row(
                 ui,
                 "Tone map",
@@ -684,6 +760,15 @@ impl App {
 }
 /// The state of the image a quick save would write, as the status bar judges it, and whether
 /// it is still getting cleaner. `rate` is in samples per second, 0 until it is known.
+/// The meter's state for the Look tab: the metered exposure in stops, and its target while it
+/// is still adapting.
+fn meter_readout(m: &crate::reference::display::Adaptation) -> String {
+    if (m.target - m.current).abs() < 0.05 {
+        format!("{:+.1} EV", m.current)
+    } else {
+        format!("{:+.1} → {:+.1} EV", m.current, m.target)
+    }
+}
 fn save_state(samples: u32, cap: u32, paused: bool, rate: f32) -> (String, bool) {
     if samples >= cap {
         ("Converged".into(), false)

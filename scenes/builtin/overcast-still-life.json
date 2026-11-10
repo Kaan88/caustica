@@ -64,6 +64,9 @@
    0.0
   ],
   "exposure": 0.6,
+  "auto_exposure": true,
+  "ev_bias": 1.44,
+  "eyes": true,
   "objects": [
    {
     "name": "Teapot",

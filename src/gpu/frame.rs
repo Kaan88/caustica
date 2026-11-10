@@ -174,6 +174,11 @@ impl Gpu {
             );
         }
         self.prepare_aux(s, &mut keep)?;
+        // Pre-exposure (E5): P from the last frame's displayed exposure.
+        self.st.pre_exposure = crate::render::pre_exposure(
+            self.st.pre_exposure,
+            self.st.metered.unwrap_or_default().exposure(s),
+        );
         self.restir_ran = n > 0 && restir && (s.battle || s.integrator == 0);
         if n > 0 {
             if s.battle {
@@ -196,6 +201,7 @@ impl Gpu {
             }
             self.stamp(1);
             if self.rr_active {
+                self.pre_expose(&c, 0, false)?;
                 let inputs = [0, 2, 3, 4, 5, 6, 7];
                 for i in inputs {
                     transition(
@@ -218,6 +224,7 @@ impl Gpu {
                     dt * 1000.,
                     view.to_cols_array().as_ptr(),
                     proj.to_cols_array().as_ptr(),
+                    self.st.pre_exposure.max(f32::MIN_POSITIVE),
                 );
                 for i in inputs {
                     transition(
@@ -228,6 +235,7 @@ impl Gpu {
                     );
                 }
                 uav(&self.list, None);
+                self.pre_expose(&c, 0, true)?;
                 if !ngx_ok(code) {
                     self.rr_active = false;
                     self.rr_failed = true;
@@ -318,6 +326,23 @@ impl Gpu {
         self.stamp(2);
         c.modes[3] = self.rr_active as u32;
         c.filter[0] = 0;
+        // The exposure meter (E3) reads the display input and adapts its state for the display.
+        if self.st.meter.runs(s) {
+            let m = MeterStep::pass_constants(&c);
+            write_buffer(
+                &self.constants,
+                METER_SLOT * CB_STRIDE,
+                bytemuck::bytes_of(&m),
+            )?;
+            self.bind(METER_SLOT * CB_STRIDE);
+            self.list.SetPipelineState(&self.display);
+            let [x, y, z] = self.st.meter.groups(self.width, self.height);
+            self.list.Dispatch(x, y, z);
+            uav(&self.list, None);
+        }
+        // Glare after the meter: its highlight threshold is in exposed units, so it must see the
+        // exposure the display uses this frame (the meter's own input reads the previous frame's
+        // glare, which differs by a hair and only while adapting).
         if s.glare > 0. {
             self.run_glare(s, &mut c)?;
         }
@@ -333,9 +358,7 @@ impl Gpu {
         let probe = self
             .probe
             .filter(|p| p[0] < self.width && p[1] < self.height);
-        if self.scopes_on || probe.is_some() {
-            self.queue_readbacks(probe)?;
-        }
+        self.queue_readbacks(probe)?;
         self.stamp(3);
         let index = self.swap.GetCurrentBackBufferIndex() as usize;
         let back = &self.buffers[index];
@@ -511,6 +534,38 @@ impl Gpu {
         }
         Ok(())
     }
+    /// Pre-exposure (E5): before the reconstruction (`after` false) texture `input` is scaled by
+    /// P; after it the input is restored and texture 14 brought back to scene units, so every
+    /// later reader (display, meter, scopes, captures, EXR) sees scene units. Nothing runs at
+    /// P = 1. The scales are powers of two, so the input comes back bit-identical.
+    pub(super) unsafe fn pre_expose(
+        &mut self,
+        c: &Constants,
+        input: u32,
+        after: bool,
+    ) -> Result<()> {
+        let p = self.st.pre_exposure;
+        if p == 1. || p <= 0. {
+            return Ok(());
+        }
+        let render = [self.rw.div_ceil(8), self.rh.div_ceil(8)];
+        let output = [self.width.div_ceil(8), self.height.div_ceil(8)];
+        let passes: &[(u64, u32, f32, [u32; 2])] = if after {
+            &[(1, input, 1. / p, render), (2, 14, 1. / p, output)]
+        } else {
+            &[(0, input, p, render)]
+        };
+        for &(slot, texture, k, [x, y]) in passes {
+            let offset = (PRE_EXPOSURE_SLOT + slot) * CB_STRIDE;
+            let m = scale_constants(c, texture, k);
+            write_buffer(&self.constants, offset, bytemuck::bytes_of(&m))?;
+            self.bind(offset);
+            self.list.SetPipelineState(&self.display);
+            self.list.Dispatch(x, y, 1);
+            uav(&self.list, None);
+        }
+        Ok(())
+    }
     /// Upscales the native color (denoised or raw) with device depth and low-res pixel motion
     /// into texture 14. On failure the display falls back to bicubic.
     pub(super) unsafe fn run_upscaler(
@@ -523,6 +578,13 @@ impl Gpu {
         dt: f32,
     ) {
         let color = if s.native_filter() { 8 } else { 1 };
+        let pre = self.st.pre_exposure.max(f32::MIN_POSITIVE);
+        // A failed write leaves P unapplied: the bridge is then told 1.
+        let pre = if self.pre_expose(c, color as u32, false).is_ok() {
+            pre
+        } else {
+            1.
+        };
         let inputs = [color, 25, 6];
         for i in inputs {
             transition(
@@ -549,6 +611,7 @@ impl Gpu {
                     jitter[1],
                     history_reset,
                     dt * 1000.,
+                    pre,
                 );
                 if ngx_ok(code) { 0 } else { code }
             }
@@ -570,6 +633,7 @@ impl Gpu {
                 s.fov.to_radians(),
                 0.01,
                 500.,
+                pre,
             ),
             _ => caustica_xess_eval(
                 self.xess,
@@ -594,6 +658,9 @@ impl Gpu {
             );
         }
         uav(&self.list, None);
+        if pre != 1. {
+            let _ = self.pre_expose(c, color as u32, true);
+        }
         self.sr_reset = false;
         if code != 0 {
             self.sr_failed.push(kind);

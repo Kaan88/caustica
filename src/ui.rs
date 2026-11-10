@@ -9,7 +9,10 @@ mod render_tab;
 mod scene_tab;
 mod stage;
 mod windows;
-use crate::scene::{self, DLSS_PRESETS, Denoiser, PRESETS, Settings, Upscaler};
+use crate::scene::{
+    self, DLSS_PRESETS, Denoiser, EV_BIAS_MAX, EXPOSURE_EV_MAX, EXPOSURE_EV_MIN, EXPOSURE_MAX,
+    MeterMode, PRESETS, Settings, Upscaler,
+};
 use crate::{App, editor, gizmo};
 use stage::*;
 use std::time::{Duration, Instant};
@@ -226,6 +229,8 @@ pub struct UiState {
     pub advanced: bool,
     /// Tab cycles: everything → top bar only → nothing (screenshot mode).
     pub panel_hidden: bool,
+    /// The meter is held after a light or material edit (E7b): the status bar says so.
+    pub exposure_held: bool,
     pub selection: Selection,
     /// Mesh imports stand Z-up files upright (scans, CAD exports).
     pub mesh_z_up: bool,
@@ -422,6 +427,7 @@ impl Default for UiState {
             tab: Tab::Scene,
             advanced: false,
             panel_hidden: false,
+            exposure_held: false,
             selection: Selection::Stage,
             mesh_z_up: false,
             mesh_imports: vec![],
@@ -2258,26 +2264,37 @@ pub fn show_in_folder(file: &std::path::Path) {
     });
 }
 
+#[cfg(test)]
+pub use crate::scene::ACCURATE_BOUNCES;
+
 /// Quality bundles (UI plan 5.1): each writes `rr`, `scale`, `denoise`, `native_aa` and, for
-/// the upscaled native one, `upscaler`.
+/// the upscaled native one, `upscaler`. `Realtime` also sets the sampling (spp 1, bounces 3,
+/// specular bounces 8, ReSTIR DI on, scale 0.67; engine-notes "Realtime preset"): the only
+/// bundle that touches transport, so a scene's own settings are replaced when it is chosen.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Bundle {
+    Realtime,
     Best,
     Balanced,
     Fast,
     Fastest,
     Native,
     NativeFast,
+    /// Accuracy bundle (docs/claude/accuracy-audit.md, "Recommended Accurate quality bundle"):
+    /// nothing that lowers quality, for stills, exports and the CPU comparison.
+    Accurate,
     Reference,
 }
 impl Bundle {
-    pub const ALL: [Bundle; 7] = [
+    pub const ALL: [Bundle; 9] = [
+        Bundle::Realtime,
         Bundle::Best,
         Bundle::Balanced,
         Bundle::Fast,
         Bundle::Fastest,
         Bundle::Native,
         Bundle::NativeFast,
+        Bundle::Accurate,
         Bundle::Reference,
     ];
     pub fn rr(self) -> bool {
@@ -2288,6 +2305,7 @@ impl Bundle {
     }
     fn scale(self) -> f32 {
         match self {
+            Bundle::Realtime => 0.67,
             Bundle::Balanced | Bundle::NativeFast => 2. / 3.,
             Bundle::Fast => 0.5,
             Bundle::Fastest => 1. / 3.,
@@ -2298,29 +2316,49 @@ impl Bundle {
         match self {
             // The render scale is part of the name, and no word here is a DLSS mode name
             // ("Balanced" is 58% in the Render tab; "Native" is the denoiser, not 100%).
+            Bundle::Realtime => "Realtime 67%",
             Bundle::Best => "Best 100%",
             Bundle::Balanced => "Good 67%",
             Bundle::Fast => "Fast 50%",
             Bundle::Fastest => "Fastest 33%",
             Bundle::Native => "Native denoiser 100%",
             Bundle::NativeFast => "Native denoiser 67%",
+            Bundle::Accurate => "Accurate",
             Bundle::Reference => "Reference",
         }
     }
     fn about(self, upscaler: Upscaler) -> String {
         match self {
+            Bundle::Realtime => "1 sample, ReSTIR, RR or native filter".into(),
             Bundle::Best => "DLSS Ray Reconstruction, DLAA".into(),
             Bundle::Balanced | Bundle::Fast | Bundle::Fastest => "DLSS Ray Reconstruction".into(),
             Bundle::Native => "no DLSS needed".into(),
             Bundle::NativeFast => format!("upscaled by {}", upscaler.label()),
+            Bundle::Accurate => {
+                "no denoiser, exact rough glass, mip 0 textures, up to 64 bounces; slower".into()
+            }
             Bundle::Reference => "no denoiser (unbiased)".into(),
         }
     }
     /// The bundle the settings match, if any.
     pub fn of(s: &Settings) -> Option<Bundle> {
         let near = |b: Bundle| (s.scale - b.scale()).abs() < 0.005;
+        // Realtime shares its scale with Good 67%: it is told apart by its sampling.
+        let realtime = s.spp == 1
+            && s.bounces == 3
+            && s.specular_bounces == 8
+            && s.restir
+            && s.integrator == 0
+            && matches!(s.denoiser, Denoiser::Rr | Denoiser::Native)
+            && !s.native_aa
+            && near(Bundle::Realtime);
+        if realtime {
+            return Some(Bundle::Realtime);
+        }
         Bundle::ALL.into_iter().find(|b| {
-            near(*b)
+            *b != Bundle::Realtime
+                && near(*b)
+                && (*b != Bundle::Accurate || Bundle::accurate_settings(s))
                 && if b.rr() {
                     s.rr()
                 } else {
@@ -2334,15 +2372,43 @@ impl Bundle {
                 }
         })
     }
-    pub fn apply(self, s: &mut Settings, upscaler: Upscaler) {
+    /// The quality settings the Accurate bundle writes besides the output ones (all changeable
+    /// one by one afterwards, which leaves the bundle as "Custom").
+    fn accurate_settings(s: &Settings) -> bool {
+        s.accurate_quality()
+    }
+    /// `rr_ok`: RR can run here; Realtime takes the native filter when it cannot.
+    pub fn apply(self, s: &mut Settings, upscaler: Upscaler, rr_ok: bool) {
+        // Realtime's marker is read before Accurate's set or clear changes bounces and ReSTIR.
+        let was_realtime = s.spp == 1 && s.bounces == 3 && s.specular_bounces == 8 && s.restir;
+        // Accurate first: leaving it puts bounces and ReSTIR back to the defaults, and Realtime
+        // (below) then sets its own.
+        if self == Bundle::Accurate {
+            s.set_accurate_quality();
+        } else if s.accurate_quality() {
+            // Coming from Accurate: its quality fields do not carry into another bundle.
+            s.clear_accurate_quality();
+        }
+        if self == Bundle::Realtime {
+            s.spp = 1;
+            s.bounces = 3;
+            s.specular_bounces = 8;
+            s.restir = true;
+            // specular_bounces only acts in the path tracer (0 = path).
+            s.integrator = 0;
+        } else if was_realtime {
+            // Leaving Realtime: drop its marker so the menu names the bundle just chosen.
+            s.specular_bounces = 0;
+        }
         s.denoiser = match self {
+            Bundle::Realtime if !rr_ok => Denoiser::Native,
             _ if self.rr() => Denoiser::Rr,
-            Bundle::Reference => Denoiser::Off,
+            Bundle::Accurate | Bundle::Reference => Denoiser::Off,
             _ => Denoiser::Native,
         };
         s.scale = self.scale();
         s.native_aa = false;
-        if self == Bundle::NativeFast {
+        if self == Bundle::NativeFast || (self == Bundle::Realtime && !rr_ok) {
             s.upscaler = upscaler;
         }
     }

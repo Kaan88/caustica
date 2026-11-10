@@ -5704,6 +5704,9 @@
    "north": 30.0
   },
   "exposure": 1.3,
+  "auto_exposure": true,
+  "ev_bias": -0.25,
+  "eyes": true,
   "projection": 4,
   "tilt": 14.0,
   "aperture": 0.35,

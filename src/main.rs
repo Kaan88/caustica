@@ -33,6 +33,7 @@ mod oidn;
 mod omm;
 mod palette;
 mod paths;
+mod photometry;
 mod physics;
 mod platform;
 mod prefs;
@@ -237,6 +238,14 @@ struct App {
     cpu_reference: Option<reference::Live>,
     /// The software view: the viewport shows the CPU's render (`--cpu`, Menu, top bar, Render tab).
     cpu_view: bool,
+    /// The exposure meter's per-frame decision (E3) and the meter settings it last saw (a change
+    /// wakes a converged, frozen meter).
+    meter_plan: reference::display::MeterPlan,
+    meter_key: (bool, scene::MeterMode),
+    /// E7b: auto to manual seeds the manual exposure from the meter; light and material edits
+    /// hold the meter.
+    exposure_seen: reference::display::ExposureSeen,
+    meter_hold: reference::display::MeterHold,
     /// The software view's denoiser (`--cpu-denoise`, Render tab), off by default.
     cpu_denoise: bool,
     /// An image went up after this frame's render: the next frame shows it.
@@ -269,6 +278,13 @@ fn transport_key(s: &Settings) -> String {
         // Its effect reaches the key through the scaled intensities of the frame copy.
         "audio",
         "exposure",
+        // The meter and the Eyes look only change the display.
+        "auto_exposure",
+        "ev_bias",
+        "exposure_speed",
+        "meter_mode",
+        "eyes",
+        "eyes_strength",
         "gamma",
         "tonemap",
         "view",
@@ -616,6 +632,11 @@ impl App {
                         .unwrap_or_else(|_| serde_json::Value::String(value.into()));
                     s = serde_json::from_value(j).with_context(|| format!("--set {pair}"))?;
                 }
+                // The CPU reference's exact versions of the shortcuts it copies from the GPU,
+                // by row: `--truth roulette,firefly`, `--truth all` (scene::Truth).
+                "--truth" => {
+                    s.truth = scene::Truth::parse(&args.next().context("--truth needs rows")?)?;
+                }
                 // The scene as it stands at this time on the timeline (reference::at_time), frozen.
                 "--time" => {
                     time = Some(
@@ -769,7 +790,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --truth rows|all --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -948,6 +969,10 @@ impl App {
             audio: None,
             cpu_reference: None,
             cpu_view,
+            meter_plan: Default::default(),
+            meter_key: (false, scene::MeterMode::default()),
+            exposure_seen: Default::default(),
+            meter_hold: Default::default(),
             cpu_denoise,
             cpu_uploaded: false,
             cpu_view_image: None,
@@ -1387,6 +1412,10 @@ impl App {
         if self.export.is_none() && self.cpu_export.is_none() {
             self.ui.land_mesh_imports(&mut self.settings);
         }
+        // Auto exposure switched off (the checkbox, AE-L, the remote, the console): the manual
+        // exposure starts where the meter was, so the image does not jump (E7b).
+        let metered = self.gpu.as_ref().and_then(|g| g.metered);
+        self.exposure_seen.seed(&mut self.settings, metered);
         let mut frame = self.settings.clone();
         frame.add_flashlight();
         // Laser puzzle (track 17): the beam as glowing rods in this frame's copy.
@@ -1696,6 +1725,41 @@ impl App {
                 self.ui.toast_file(text, out);
             }
         }
+        // The exposure meter's step (E3): stills, headless runs and `--capture` settle every
+        // frame; live, it adapts on the app's frame step and freezes once converged. An export
+        // decides its own (`Job::meter_step`).
+        if self.meter_key != (s.auto_exposure, s.meter_mode) {
+            self.meter_key = (s.auto_exposure, s.meter_mode);
+            self.meter_plan.wake();
+        }
+        let shown_samples = g.samples + if draw { s.spp } else { 0 };
+        let still = self.hidden || self.frames.is_some();
+        // A light or material edit holds the meter while the pointer drags it and about a
+        // second after (E7b), so the edit shows; stills and headless runs never hold.
+        let editing = self.egui.egui_is_using_pointer();
+        let held = self.meter_hold.update(&self.settings, editing, dt) && !still;
+        self.ui.exposure_held = held;
+        let op = self.meter_plan.next(still, shown_samples, s.max_samples);
+        // With no state (first frames, or after a resize recreated the meter texture) a Hold has
+        // nothing to hold, and the display would show the manual exposure: read now instead
+        // (the first reading seeds the state).
+        let op = if matches!(op, reference::display::MeterOp::Hold)
+            && g.metered.is_none()
+            && s.auto_exposure
+        {
+            reference::display::MeterOp::Adapt
+        } else {
+            op
+        };
+        g.meter = gpu::MeterStep {
+            op: if held {
+                reference::display::MeterOp::Freeze
+            } else {
+                op
+            },
+            commit: true,
+            dt,
+        };
         if let Some(job) = &mut self.export {
             g.probe = None;
             // Passes until about 30 ms have gone, so the UI keeps about 30 fps; each pass
@@ -1704,6 +1768,7 @@ impl App {
             let mut delta = Some(&textures.0);
             let empty = egui::TexturesDelta::default();
             let step = loop {
+                g.meter = job.meter_step();
                 let pass = unsafe {
                     job.before_render(g)
                         .and_then(|()| {
@@ -2409,7 +2474,7 @@ impl App {
                 );
             }
             println!(
-                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3} trace_ms_mean={:.3} reconstruct_ms_mean={:.3} display_ms_mean={:.3} ui_ms_mean={:.3}",
+                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3} trace_ms_mean={:.3} reconstruct_ms_mean={:.3} display_ms_mean={:.3} ui_ms_mean={:.3} {}",
                 self.rendered,
                 g.samples,
                 g.gpu_ms,
@@ -2422,7 +2487,8 @@ impl App {
                 pass_mean[0],
                 pass_mean[1],
                 pass_mean[2],
-                pass_mean[3]
+                pass_mean[3],
+                reference::display::render_ok_meter(&self.settings, g.metered)
             );
             event_loop.exit();
         }
@@ -3507,10 +3573,12 @@ impl App {
 fn check_hdr_output(g: &mut Gpu, s: &Settings, tolerance: f32) -> Result<()> {
     let (linear, out) = unsafe { (g.read_floats(18)?, g.read_floats(26)?) };
     let (mut worst, mut brightest) = (0f32, 0f32);
+    // The exposure the display used: the meter's in auto (read back with the frame).
+    let exposure = g.metered.unwrap_or_default().exposure(s);
     for (l, h) in linear.as_chunks::<4>().0.iter().zip(out.as_chunks::<4>().0) {
         let want = display::hdr_map(
             [l[0], l[1], l[2]],
-            s.exposure,
+            exposure,
             s.gamma,
             s.tonemap,
             200.,
@@ -3751,18 +3819,91 @@ mod tests {
         );
         assert_eq!(live.a, 0.25, "the double-click resets it: {values:?}");
     }
+    /// Realtime's specular budget does not ride along into Accurate (Accurate's set changes the
+    /// fields Realtime's marker reads) nor on into the next bundle.
+    #[test]
+    fn realtime_then_accurate_drops_the_specular_budget() {
+        use crate::scene;
+        use crate::ui;
+        let mut s = scene::Settings::default();
+        ui::Bundle::Realtime.apply(&mut s, scene::Upscaler::Xess, true);
+        assert_eq!(s.specular_bounces, 8);
+        ui::Bundle::Accurate.apply(&mut s, scene::Upscaler::Xess, true);
+        assert_eq!(s.specular_bounces, 0);
+        assert_eq!(ui::Bundle::of(&s), Some(ui::Bundle::Accurate));
+        ui::Bundle::Best.apply(&mut s, scene::Upscaler::Xess, true);
+        assert_eq!(s.specular_bounces, 0);
+        assert_eq!(ui::Bundle::of(&s), Some(ui::Bundle::Best));
+        // And back: Accurate then Realtime keeps Realtime's own sampling.
+        ui::Bundle::Accurate.apply(&mut s, scene::Upscaler::Xess, true);
+        ui::Bundle::Realtime.apply(&mut s, scene::Upscaler::Xess, true);
+        assert_eq!((s.bounces, s.specular_bounces, s.restir), (3, 8, true));
+        assert_eq!(ui::Bundle::of(&s), Some(ui::Bundle::Realtime));
+    }
     #[test]
     fn quality_bundles_round_trip() {
         use crate::scene::{self, Settings};
         use crate::ui;
         for b in ui::Bundle::ALL {
             let mut s = Settings::default();
-            b.apply(&mut s, scene::Upscaler::Xess);
+            b.apply(&mut s, scene::Upscaler::Xess, true);
             assert_eq!(ui::Bundle::of(&s), Some(b), "{b:?}");
         }
+        // Realtime without RR takes the native filter and is still recognised.
+        let mut s = Settings::default();
+        ui::Bundle::Realtime.apply(&mut s, scene::Upscaler::Xess, false);
+        assert_eq!(s.denoiser, scene::Denoiser::Native);
+        assert_eq!(ui::Bundle::of(&s), Some(ui::Bundle::Realtime));
+        assert_eq!(s.upscaler, scene::Upscaler::Xess);
+        // Another bundle chosen afterwards is named, not hidden behind Realtime.
+        for b in [ui::Bundle::NativeFast, ui::Bundle::Balanced] {
+            let mut t = s.clone();
+            b.apply(&mut t, scene::Upscaler::Xess, false);
+            assert_eq!(ui::Bundle::of(&t), Some(b), "{b:?} after Realtime");
+        }
+        s.integrator = 1;
+        assert_ne!(ui::Bundle::of(&s), Some(ui::Bundle::Realtime));
+        s.integrator = 0;
+        s.spp = 2;
+        assert_ne!(ui::Bundle::of(&s), Some(ui::Bundle::Realtime));
         let mut s = Settings::default();
         s.scale = 0.8;
         assert_eq!(ui::Bundle::of(&s), None);
+        // Accurate writes the quality fields too, and one change by hand leaves it (for Reference, same output).
+        let mut s = Settings::default();
+        ui::Bundle::Accurate.apply(&mut s, scene::Upscaler::Xess, true);
+        assert!(s.exact_glass && s.gentle_roulette && s.lod0_textures && !s.rr());
+        assert_eq!(
+            (s.bounces, s.scale, s.firefly, s.restir),
+            (ui::ACCURATE_BOUNCES, 1., 0., false)
+        );
+        // A preset switch and a scene file load keep it (the menu does not fall back to Custom).
+        let mut kept = s.clone();
+        kept.preset(3);
+        assert_eq!(ui::Bundle::of(&kept), Some(ui::Bundle::Accurate), "preset");
+        let mut loaded = Settings::default();
+        loaded.keep_output(&s);
+        assert_eq!(ui::Bundle::of(&loaded), Some(ui::Bundle::Accurate), "load");
+        s.lod0_textures = false;
+        assert_eq!(ui::Bundle::of(&s), Some(ui::Bundle::Reference));
+        // Leaving Accurate for any other bundle clears its quality fields, so Reference is reachable.
+        for b in ui::Bundle::ALL {
+            if b == ui::Bundle::Accurate {
+                continue;
+            }
+            let mut s = Settings::default();
+            ui::Bundle::Accurate.apply(&mut s, scene::Upscaler::Xess, true);
+            b.apply(&mut s, scene::Upscaler::Xess, true);
+            assert!(
+                !s.accurate_quality() && !s.exact_glass && !s.lod0_textures,
+                "{b:?}"
+            );
+            assert_eq!(ui::Bundle::of(&s), Some(b), "after Accurate: {b:?}");
+        }
+        // Reference does not match it: the default settings give Reference, not Accurate.
+        let mut s = Settings::default();
+        ui::Bundle::Reference.apply(&mut s, scene::Upscaler::Xess, true);
+        assert_eq!(ui::Bundle::of(&s), Some(ui::Bundle::Reference));
     }
     /// Every non-ASCII character in a UI string must exist in egui's default fonts,
     /// otherwise it renders as an empty box.

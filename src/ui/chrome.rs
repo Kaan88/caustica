@@ -623,7 +623,17 @@ impl App {
                     ui.monospace(format!("{:.2} ms GPU", g.gpu_ms))
                         .on_hover_text(passes);
                 }
+                if self.ui.exposure_held {
+                    ui.separator();
+                    ui.weak("Exposure held").on_hover_text(
+                        "A light or material is being edited: the meter waits (about a second after the edit) so the change shows instead of being metered away.",
+                    );
+                }
+                // The exposure now and the luminance the meter adapted to (Advanced).
                 if self.ui.advanced {
+                    ui.separator();
+                    ui.label(exposure_readout(s, g.metered))
+                        .on_hover_text("The exposure the display uses, in stops (metered plus bias in auto), and the luminance the meter has adapted to, in cd/m2.");
                     ui.separator();
                     ui.label(
                         egui::RichText::new(format!(
@@ -770,5 +780,27 @@ mod tests {
         }
         assert!(super::logo_shown(false));
         assert_eq!(super::logo_shown(true), cfg!(windows));
+    }
+}
+
+/// The status bar's exposure: the displayed EV and, in auto, the adapted luminance in cd/m2
+/// (the metered scene luminance, `Adaptation::scene_log2`, in physical units).
+fn exposure_readout(s: &Settings, m: Option<crate::reference::display::Adaptation>) -> String {
+    match m.filter(|m| s.auto_exposure && m.valid) {
+        Some(m) => format!(
+            "{:+.1} EV · {} cd/m2",
+            m.current + s.ev_bias,
+            cd_text(crate::photometry::scene_to_cd(m.scene_log2.exp2()))
+        ),
+        None => format!("{:+.1} EV", s.exposure.max(1e-6).log2()),
+    }
+}
+fn cd_text(cd: f32) -> String {
+    if cd >= 100. {
+        format!("{cd:.0}")
+    } else if cd >= 1. {
+        format!("{cd:.1}")
+    } else {
+        format!("{cd:.2e}")
     }
 }

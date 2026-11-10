@@ -2,8 +2,8 @@
 use crate::lighting::PackedMaterial;
 use crate::reference::aov::{self, Record};
 use crate::reference::bsdf::{
-    Wavelength, emitted, eval_bsdf_parts, flags, grating, grating_wavelength, material_at,
-    prepare_film, rgb,
+    Wavelength, coat_probability, emitted, eval_bsdf_parts, flags, grating, grating_wavelength,
+    material_at, prepare_film, rgb, rough_alpha, rough_dielectric,
 };
 use crate::reference::integrators::shading::{sample_lobes, spectral_material};
 use crate::reference::media::{flight, hg_pdf, hg_sample, push, remove, top};
@@ -37,6 +37,14 @@ impl Scene<'_> {
         rec: &mut Record,
     ) -> Vec3 {
         let s = self.s;
+        // Accuracy B1: the same roulette as the GPU's (start bounce, survival floor).
+        let (roulette_start, roulette_floor) = if s.gentle_roulette {
+            (8, 0.2)
+        } else {
+            (3, 0.05)
+        };
+        // Truth `floors`: the pdf and density floors shrink to the f32 minimum (accuracy audit B4).
+        let floor = |f: f32| if s.truth.floors { f32::MIN_POSITIVE } else { f };
         // Which strategies count: 0 both, with MIS; 1 light sampling only; 2 BSDF sampling only.
         let mis = s.mis_mode.min(2);
         let mut throughput = weight;
@@ -55,7 +63,10 @@ impl Scene<'_> {
         // Only delta bounces since the camera: the background it sees is ground-projected.
         let mut camera_chain = true;
         let mut bounce = 0;
-        while bounce < s.bounces {
+        // Specular vertices taken from their own budget (B1, `spec_used` in pathtrace.hlsl):
+        // each lets the loop run one vertex further.
+        let mut spec_used = 0;
+        while bounce < s.bounces + spec_used {
             camera_chain &= previous_delta;
             let kind = if bounce == 0 {
                 Ray::Camera
@@ -135,7 +146,7 @@ impl Scene<'_> {
                             * self.shadow_transmittance(&media, x, ld, limit, w, r)
                             * pp
                             * le
-                            / density.max(1e-8);
+                            / density.max(floor(1e-8));
                         radiance += e;
                         rec.direct(bounce == 0, e);
                         rec.light(source);
@@ -149,8 +160,8 @@ impl Scene<'_> {
                     previous_position = x;
                     origin = x;
                     direction = d;
-                    if bounce >= 3 {
-                        let survival = throughput.max_element().clamp(0.05, 0.95);
+                    if bounce >= roulette_start && !s.truth.roulette {
+                        let survival = throughput.max_element().clamp(roulette_floor, 0.95);
                         if r.f() > survival {
                             break;
                         }
@@ -273,6 +284,9 @@ impl Scene<'_> {
                     if r.f() < m.lobes[1] {
                         direction = reflect(direction, sf.n);
                         rec.advance(aov::S);
+                        if spec_used < s.specular_bounces {
+                            spec_used += 1;
+                        }
                         bounce += 1;
                     }
                 }
@@ -370,6 +384,26 @@ impl Scene<'_> {
                 break;
             }
             let v = -direction;
+            // Truth `glass_btdf` (audit A1): a rough dielectric is the GGX BTDF. Without dispersion
+            // or a film (whose colour the evaluation doesn't know) and across a real index step,
+            // the vertex is no longer delta: light sampling sees the glass lobe too, and both
+            // strategies weigh by the sum of the lobes' densities. The other cases are sampled
+            // exactly but stay delta (an emitter found after them weighs 1).
+            let rough_glass = (s.truth.glass_btdf || s.exact_glass)
+                && m.lobes[2] > 0.
+                && m.color_rough[3] > 0.001;
+            let glass_nee = if rough_glass && !w.dispersive(&m) && m.surface_scale[2] <= 0. {
+                let (n1, n2, after) = self.interface(&media, &m, sf.material, sf.front, w);
+                ((n1 / n2 - 1.).abs() > 1e-4).then(|| (n1 / n2, rough_alpha(&m), after))
+            } else {
+                None
+            };
+            let glass_lobe = |l: Vec3| {
+                glass_nee.as_ref().map_or((0., 0.), |(eta, a, _)| {
+                    let (f, p) = rough_dielectric(sf.n, v, l, *eta, *a);
+                    (m.lobes[2] * f, m.lobes[2] * p)
+                })
+            };
             // ReSTIR DI at the first hit, for the GPU's first `restir_layers` samples of each
             // frame (drawn here with that share): the environment keeps its own strategy and
             // MIS, the light table is sampled alone with weight 1 (the reservoirs only lower its
@@ -407,23 +441,43 @@ impl Scene<'_> {
             };
             if let Some((ld, le, pl, limit, source)) = sample {
                 let nl = sf.n.dot(ld);
-                if nl > 0. {
-                    let (f, pdf, diffuse) = eval_bsdf_parts(&m, sf.n, tangent, v, ld, lambda);
-                    if f.max_element() > 0.
+                let (f, pdf, diffuse) = if nl > 0. {
+                    eval_bsdf_parts(&m, sf.n, tangent, v, ld, lambda)
+                } else {
+                    (Vec3::ZERO, 0., Vec3::ZERO)
+                };
+                let (gf, gp) = glass_lobe(ld);
+                if f.max_element() > 0. || gf > 0. {
+                    // A refraction's light is on the far side, in the medium past the surface.
+                    let o = sf.p + sf.ng * if nl > 0. { 0.0003 } else { -0.0003 };
+                    let shadow = self.accept(Ray::Shadow, sf.p, ld);
+                    let open = self.intersect(o, ld, limit, &shadow, true).is_none();
+                    // The glass lobe's light must reach it straight: any glass in between would
+                    // bend the ray, and the path that does is found by the BSDF sample.
+                    let straight = gf > 0.
+                        && open
                         && self
                             .intersect(
-                                sf.p + sf.ng * 0.0003,
+                                o,
                                 ld,
                                 limit,
-                                &self.accept(Ray::Shadow, sf.p, ld),
+                                &|id, tri, b| {
+                                    shadow(id, tri, b) || self.materials[id as usize].lobes[2] > 0.
+                                },
                                 true,
                             )
-                            .is_none()
-                    {
-                        let density = super::super::lights::nee_density(pl, pdf, mis == 1 || alone);
-                        let o = sf.p + sf.ng * 0.0003;
-                        let tr = self.shadow_transmittance(&media, o, ld, limit, w, r);
-                        let e = throughput * f * nl * le * tr / density.max(1e-8);
+                            .is_none();
+                    let f = if open { f } else { Vec3::ZERO }
+                        + Vec3::splat(if straight { gf } else { 0. });
+                    if f.max_element() > 0. {
+                        let density =
+                            super::super::lights::nee_density(pl, pdf + gp, mis == 1 || alone);
+                        let beyond = match &glass_nee {
+                            Some((_, _, after)) if nl <= 0. => after.as_slice(),
+                            _ => media.as_slice(),
+                        };
+                        let tr = self.shadow_transmittance(beyond, o, ld, limit, w, r);
+                        let e = throughput * f * nl.abs() * le * tr / density.max(floor(1e-8));
                         radiance += e;
                         rec.direct(bounce == 0, e);
                         rec.light(source);
@@ -434,22 +488,55 @@ impl Scene<'_> {
             // The next direction.
             let next;
             let mut delta = false;
+            let mut glossy = false;
+            let mut transmitted = false;
+            let mut glass = false;
             let mut bsdf_pdf = 0.;
             if r.f() < m.lobes[2] {
+                glass = true;
                 // Dispersion: from here the path follows the hero wavelength's index (light
                 // sampling above still used all three).
                 if w.dispersive(&m) {
                     w.hero(&mut throughput);
                 }
-                let x = self.dielectric(&media, &m, sf.material, sf.front, sf.n, direction, w, r);
+                let x = if rough_glass {
+                    let Some(x) = self.rough_dielectric(
+                        &media,
+                        &m,
+                        sf.material,
+                        sf.front,
+                        sf.n,
+                        direction,
+                        w,
+                        r,
+                    ) else {
+                        break;
+                    };
+                    if glass_nee.is_some() {
+                        delta = false;
+                        let d = x.next;
+                        let opaque = if sf.n.dot(d) > 0. {
+                            eval_bsdf_parts(&m, sf.n, tangent, v, d, lambda).1
+                        } else {
+                            0.
+                        };
+                        bsdf_pdf = opaque + glass_lobe(d).1;
+                    } else {
+                        delta = true;
+                    }
+                    x
+                } else {
+                    delta = true;
+                    self.dielectric(&media, &m, sf.material, sf.front, sf.n, direction, w, r)
+                };
                 rec.advance(if x.reflected { aov::S } else { aov::T });
                 throughput *= x.weight;
+                transmitted = !x.reflected;
                 if !x.reflected {
                     media = x.after;
                     throughput *= x.eta * x.eta;
                 }
                 next = x.next;
-                delta = true;
                 if bounce == 0 {
                     rec.first_spec = true;
                 }
@@ -462,32 +549,46 @@ impl Scene<'_> {
                 if bounce == 0 && lobe {
                     rec.first_spec = true;
                 }
+                glossy = lobe;
                 if sf.n.dot(d) <= 0. {
                     break;
                 }
                 let (f, pdf, diffuse) = eval_bsdf_parts(&m, sf.n, tangent, v, d, lambda);
-                throughput *= f * sf.n.dot(d).abs() / pdf.max(1e-7);
+                throughput *= f * sf.n.dot(d).abs() / pdf.max(floor(1e-7));
                 if rec.on() {
                     let u = r.fork(0x6c70_6500 ^ bounce as u64).f();
                     rec.choose(&m, f, diffuse, u);
                 }
-                bsdf_pdf = pdf;
+                // With truth `glass_btdf`, the glass lobe could have drawn d too.
+                bsdf_pdf = pdf + glass_lobe(d).1;
                 next = d;
+            }
+            // Glass counts up to roughness 0.1 like glossy, exact or lerp model alike (GPU: lobes 3, 4).
+            let specular = if glass {
+                m.color_rough[3] <= 0.1
+            } else {
+                delta || (glossy && near_delta(&m))
+            };
+            if specular && spec_used < s.specular_bounces {
+                spec_used += 1;
             }
             previous_pdf = bsdf_pdf;
             previous_delta = delta;
             previous_restir = restir;
             previous_position = sf.p;
             direction = next.normalize();
+            // A non-delta lobe's ray leaves from the side the shadow ray does (+ng), even below
+            // the face (an interpolated or mapped normal), so both strategies see the same
+            // visibility: the GPU's rule (accuracy audit B7).
             origin = sf.p
                 + sf.ng
-                    * if direction.dot(sf.ng) > 0. {
+                    * if (!delta && !transmitted) || (delta && direction.dot(sf.ng) > 0.) {
                         0.0003
                     } else {
                         -0.0003
                     };
-            if bounce >= 3 {
-                let survival = throughput.max_element().clamp(0.05, 0.95);
+            if bounce >= roulette_start && !s.truth.roulette {
+                let survival = throughput.max_element().clamp(roulette_floor, 0.95);
                 if r.f() > survival {
                     break;
                 }
@@ -508,6 +609,8 @@ impl Scene<'_> {
             };
         }
         if !radiance.is_finite() {
+            // Counted (`reference::dropped`): audit B4 sizes this shortcut by how often it fires.
+            crate::reference::DROPPED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             Vec3::ZERO
         } else if w.on {
             w.to_rgb(radiance)
@@ -575,4 +678,13 @@ impl Scene<'_> {
         let share = if all > 0. { lit / all } else { 1. };
         (w.up(bg) * share, bg * share)
     }
+}
+
+/// B1: a GGX lobe this smooth counts against the specular bounce budget, as a delta vertex does
+/// (`near_delta` in pathtrace.hlsl): roughness at most 0.1, the coat's too when it has one,
+/// isotropic.
+fn near_delta(m: &PackedMaterial) -> bool {
+    m.layers[3] <= 0.
+        && m.color_rough[3] <= 0.1
+        && (coat_probability(m) <= 0. || m.layers[1] <= 0.1)
 }

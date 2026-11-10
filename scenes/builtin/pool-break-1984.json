@@ -1316,6 +1316,9 @@
      ]
     }
    ]
-  }
+  },
+  "auto_exposure": true,
+  "ev_bias": -1.24,
+  "eyes": true
  }
 }

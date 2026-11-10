@@ -82,6 +82,78 @@ void store(uint2 p,uint pass,float4 v){
     }
     store(p,pass,total>1e-6?float4(sum/total,variance/(total*total)):center);
 }
+// Exposure meter and adaptation (E3; reference/display.rs is the CPU twin with the reasoning,
+// render.rs METER_* the layout). The meter pass is this file's display entry dispatched once more
+// before the display (meter_ctrl.x bit 1), one thread per 4 x 4 pixel cell: it bins the display
+// input's log2 luminance, weighted, into row 260 of u28; the last group to finish (a counter at
+// row 261 column 0) reduces it and adapts the state in row 261 from column 8, which the display
+// reads. No CPU readback in the loop.
+#define METER_ROW 260
+#define METER_STATE 261
+#define METER_MAGIC 0x4d455452
+static const float METER_LOG_MIN=-40,METER_LOG_MAX=24,METER_FRAC=64,METER_LOW=0.01,METER_HIGH=0.97;
+static const float ADAPT_BRIGHTER=0.2,ADAPT_DARKER=3,ADAPT_SCOTOPIC=10,ADAPT_SPEED=2,SCOTOPIC_BELOW=3e-7;
+static const float EXPOSURE_EV_MIN=-8,EXPOSURE_EV_MAX=30;
+groupshared uint meter_hist[256];
+groupshared uint meter_last;
+bool meter_valid(){return scopes[uint2(8,METER_STATE)]==METER_MAGIC;}
+float meter_word(uint i){return asfloat(scopes[uint2(8+i,METER_STATE)]);}
+bool auto_exposure(){return (meter_ctrl.x&1)!=0 && meter_valid();}
+// The metered exposure (no bias), and the displayed one; the manual exposure before a reading.
+float metered_exposure(){return auto_exposure()?exp2(meter_word(2)):display_settings.x;}
+float exposure_now(){return auto_exposure()?exp2(meter_word(2)+meter.y):display_settings.x;}
+// A film / lens threshold given in exposed units (1 = white after exposure), in scene units: so
+// halation and glare catch the same highlights whatever the meter picks (E7b). Exposure 1 (the
+// manual default) leaves it as it was.
+float exposed_threshold(float t){return t/max(exposure_now(),1e-30);}
+uint meter_weight(uint2 q,uint2 size){
+    float2 uv=(float2(q)+0.5)/float2(size)*2-1;float r2=uv.x*uv.x+uv.y*uv.y;
+    return meter_ctrl.z==1?(r2<0.04?8:0):meter_ctrl.z==2?8:1+uint(7*saturate(1-r2)+0.5);
+}
+float meter_pos(uint b){return b+(float(meter_hist[128+b])/float(meter_hist[b])+0.5)/METER_FRAC;}
+// Thread 0 of the last group: the reading from meter_hist (when `reading`), then the step.
+void meter_update(bool reading){
+    bool valid=meter_valid();
+    float base=meter_word(1),cur=meter_word(2),target=meter_word(3),scene=meter_word(4);
+    bool got=false;
+    if(reading){
+        float total=0;for(uint b=0;b<128;b++)total+=meter_hist[b];
+        if(total>0){
+            float at=0;
+            if(meter_ctrl.z==2){float cum=0;for(uint b=0;b<128;b++){cum+=meter_hist[b];if(meter_hist[b]>0 && cum>=total*0.5){at=meter_pos(b);break;}}}
+            else{float lo=total*METER_LOW,hi=total*METER_HIGH,cum=0,acc=0;
+                for(uint b=0;b<128;b++){float c=meter_hist[b];if(c>0){float kept=min(cum+c,hi)-max(cum,lo);if(kept>0)acc+=kept*meter_pos(b);}cum+=c;}
+                at=acc/(hi-lo);}
+            scene=METER_LOG_MIN+at*((METER_LOG_MAX-METER_LOG_MIN)/128);
+            target=clamp(log2(0.18)-scene,EXPOSURE_EV_MIN,EXPOSURE_EV_MAX);got=true;
+        }
+    }
+    if(!valid){if(!got)return;base=target;cur=target;}
+    else{
+        if((meter_ctrl.x&4)!=0)base=cur;
+        if(meter_ctrl.y==1){if(got){base=target;cur=target;}}
+        else{float tau=(target<base?ADAPT_BRIGHTER:scene<log2(SCOTOPIC_BELOW)?ADAPT_SCOTOPIC:ADAPT_DARKER)*ADAPT_SPEED/max(meter.z,1e-3);
+            cur=base+(target-base)*(1-exp(-max(meter.x,0)/tau));}
+    }
+    scopes[uint2(8,METER_STATE)]=METER_MAGIC;scopes[uint2(9,METER_STATE)]=asuint(base);scopes[uint2(10,METER_STATE)]=asuint(cur);
+    scopes[uint2(11,METER_STATE)]=asuint(target);scopes[uint2(12,METER_STATE)]=asuint(scene);
+}
+// The Eyes look (E4; reference/display.rs `eyes_mix` / `eyes_look` is the CPU twin with the
+// reasoning): toward rod vision, the scotopic luminance in a Purkinje blue, between an adapted
+// 3 and 0.01 cd/m2. Nothing at all above, so daylight stays bit-identical.
+static const float EYES_PHOTOPIC_CD=3,EYES_SCOTOPIC_CD=0.01;
+static const float3 EYES_ROD=float3(0.04,0.53,0.43),EYES_TINT=float3(0.80,1.00,1.30);
+float eyes_mix(){
+    if(meter.w<=0)return 0;
+    float cd=SCENE_CD_M2*(0.18/max(metered_exposure(),1e-30));
+    float t=saturate((log10(EYES_PHOTOPIC_CD)-log10(max(cd,1e-30)))/(log10(EYES_PHOTOPIC_CD)-log10(EYES_SCOTOPIC_CD)));
+    return t*t*(3-2*t)*meter.w;
+}
+float3 eyes(float3 c){
+    float m=eyes_mix();if(m<=0)return c;
+    float rod=dot(max(c,0),EYES_ROD);
+    return c+(EYES_TINT/luminance(EYES_TINT)*rod-c)*m;
+}
 float filmic(float x){return ((x*(0.15*x+0.05)+0.004)/(x*(0.15*x+0.5)+0.06))-0.06666667;}
 // The tone curves on exposed scene light; the result is display light, 1 = white.
 float3 tone_curve(float3 c,uint mode){
@@ -122,7 +194,7 @@ float3 film_look(float3 t){
     return pow(saturate(e),2.2);
 }
 float3 tonemap(float3 c){
-    c=max(c*display_settings.x,0);uint mode=modes.y;
+    c=max(eyes(c)*exposure_now(),0);uint mode=modes.y;
     float3 t=mode==6?agx(c):mode==7?saturate(pbr_neutral(c)):tone_curve(c,mode);
     return pow(film_look(t),1/max(0.1,display_settings.y));
 }
@@ -137,12 +209,12 @@ float3 hdr_map(float3 c){
     // exactly the SDR one at paper white. Above that knee the highlights expand into the panel's
     // headroom r = peak/white with g(u) = u/(1-u+u/R), slope-continuous at the knee, reaching r at 1.
     if(modes.y!=0){
-        float3 x=max(c*display_settings.x,0);
+        float3 x=max(eyes(c)*exposure_now(),0);
         float3 t=pow(film_look(modes.y==6?agx(x):modes.y==7?saturate(pbr_neutral(x)):tone_curve(x,modes.y)),2.2/max(0.1,display_settings.y));
         float r=max(hdr.z/hdr.y,1),R=(r-0.5)/0.5;float3 u=max(t-0.5,0)/0.5;
         return (min(t,0.5)+0.5*u/(1-u+u/R))*hdr.y/80;
     }
-    c=max(c*display_settings.x,0)*hdr.y;float m=max(c.r,max(c.g,c.b));if(m<=0)return 0;
+    c=max(eyes(c)*exposure_now(),0)*hdr.y;float m=max(c.r,max(c.g,c.b));if(m<=0)return 0;
     float peak=pq(hdr.z),knee=1.5*peak-0.5,e=pq(m);
     if(e>knee){float t=(e-knee)/(1-knee),t2=t*t,t3=t2*t;e=(2*t3-3*t2+1)*knee+(t3-2*t2+t)*(1-knee)+(-2*t3+3*t2)*peak;}
     return c*(min(pq_inverse(e),hdr.z)/m)/80;
@@ -178,9 +250,10 @@ float3 beauty(uint2 p,uint2 op){
 }
 // Turbo-like heat map for 0..1.
 float3 heat(float t){t=saturate(t);return saturate(float3(1.5-abs(4*t-3),1.5-abs(4*t-2),1.5-abs(4*t-1)))*smoothstep(0,0.08,t+0.02);}
-// False colour: exposed scene luminance in stops around middle grey (0.18).
+// False colour: exposed scene luminance in stops around middle grey (0.18); in auto exposure at
+// the metered exposure, so it shows stops relative to the meter (the bias not included).
 float3 false_color(float3 c){
-    float ev=log2(max(luminance(max(c*display_settings.x,0)),1e-6)/0.18);
+    float ev=log2(max(luminance(max(c*metered_exposure(),0)),1e-6)/0.18);
     if(ev<-6)return float3(0.25,0.0,0.35);if(ev<-4)return float3(0.1,0.15,0.75);if(ev<-2)return float3(0.0,0.5,0.6);
     if(ev<-0.5)return float3(0.35,0.35,0.35);if(ev<0.5)return float3(0.35,0.75,0.3);if(ev<2)return float3(0.7,0.7,0.7);
     if(ev<4)return float3(0.95,0.85,0.2);if(ev<6)return float3(1.0,0.5,0.1);return float3(1,0.1,0.1);
@@ -216,8 +289,8 @@ float3 glare_at(uint2 op){
 // Halation: red-orange glow from highlights scattering back through film; vignette: cos^4-like falloff.
 float3 lens_and_film(float3 c,uint2 op){
     if(look.x>0){
-        float r=dimensions.w*0.012;float3 glow=0;
-        for(int i=0;i<12;i++){float a=i*PI/6;for(int k=1;k<=2;k++)glow+=max(scene_at(int2(op)+int2(float2(cos(a),sin(a))*r*k))-1,0);}
+        float r=dimensions.w*0.012,th=exposed_threshold(1);float3 glow=0;
+        for(int i=0;i<12;i++){float a=i*PI/6;for(int k=1;k<=2;k++)glow+=max(scene_at(int2(op)+int2(float2(cos(a),sin(a))*r*k))-th,0);}
         c+=glow/24*look.x*float3(1.0,0.3,0.12);
     }
     if(glare_settings.x>0)c+=glare_at(op)*glare_settings.x;
@@ -248,11 +321,11 @@ float spectrum_power(float2 k){
     uint t=tid.x,row=gid.x,mode=glare.x,r=glare.y,W=glare.w&0xffff,H=glare.w>>16;
     if(mode==0){
         // The highlights: light above the threshold (by luminance), box-filtered into the grid.
-        float2 cell=float2(dimensions.zw)/float2(W,H);
+        float2 cell=float2(dimensions.zw)/float2(W,H);float th=exposed_threshold(glare_settings.y);
         for(uint k=0;k<2;k++){
             uint x=t+k*GN/2;float3 v=0;
             if(x<W && row<H){
-                for(int i=0;i<16;i++){float3 s=scene_at(int2((float2(x,row)+(float2(i&3,i>>2)+0.5)/4)*cell));float l=luminance(s);v+=s*max(l-glare_settings.y,0)/max(l,1e-6);}
+                for(int i=0;i<16;i++){float3 s=scene_at(int2((float2(x,row)+(float2(i&3,i>>2)+0.5)/4)*cell));float l=luminance(s);v+=s*max(l-th,0)/max(l,1e-6);}
                 v/=16;
             }
             [unroll]for(uint c=0;c<3;c++)glare_data[gidx(0,c,x,row)]=float2(v[c],0);
@@ -299,9 +372,46 @@ float film_grain(uint2 op){
     uint2 cell=op/max(1,(uint)lift.w);uint h=cell.x*1973+cell.y*9277+(uint)gain.w*26699;h^=h>>13;h*=0x5bd1e995;h^=h>>15;
     return (h&0xffff)/65535.0-0.5;
 }
-[numthreads(8,8,1)]void display(uint3 tid:SV_DispatchThreadID){
-    uint2 op=tid.xy;if(any(op>=dimensions.zw))return;uint2 p=min(uint2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)),dimensions.xy-1);
-    float3 c=cpu_view()?reference_image[op].rgb:beauty(p,op);linear_output[op]=float4(c,1);
+uint2 render_pixel(uint2 op){return min(uint2((float2(op)+0.5)*float2(dimensions.xy)/float2(dimensions.zw)),dimensions.xy-1);}
+// What the display shows before the look: the software view's image or the beauty.
+float3 display_input(uint2 op){return cpu_view()?reference_image[op].rgb:beauty(render_pixel(op),op);}
+void meter_pass(uint2 tid,uint gi,uint2 gid){
+    if(meter_ctrl.y==3)return;
+    if(meter_ctrl.y==2){if(gi==0 && all(gid==0))meter_update(false);return;}
+    uint2 size=dimensions.zw,grid=(size+3)/4,groups=(grid+7)/8;
+    for(uint i=gi;i<256;i+=64)meter_hist[i]=0;
+    GroupMemoryBarrierWithGroupSync();
+    if(all(tid<grid)){
+        uint2 q=min(tid*4+2,size-1);uint w=meter_weight(q,size);float l=luminance(max(display_input(q),0));
+        if(w>0 && l>exp2(METER_LOG_MIN)){
+            float t=clamp((log2(l)-METER_LOG_MIN)*(128/(METER_LOG_MAX-METER_LOG_MIN)),0,128-0.001);uint b=uint(t);uint f=min(uint((t-b)*METER_FRAC),uint(METER_FRAC)-1);
+            InterlockedAdd(meter_hist[b],w);InterlockedAdd(meter_hist[128+b],w*f);
+        }
+    }
+    GroupMemoryBarrierWithGroupSync();
+    for(uint i=gi;i<256;i+=64)if(meter_hist[i]>0)InterlockedAdd(scopes[uint2(i,METER_ROW)],meter_hist[i]);
+    DeviceMemoryBarrierWithGroupSync();
+    if(gi==0){uint old;InterlockedAdd(scopes[uint2(0,METER_STATE)],1,old);meter_last=old==groups.x*groups.y-1?1:0;}
+    GroupMemoryBarrierWithGroupSync();
+    if(meter_last==0)return;
+    // The last group: take the totals (and clear them for the next frame), then reduce.
+    for(uint i=gi;i<256;i+=64){uint v;InterlockedExchange(scopes[uint2(i,METER_ROW)],0,v);meter_hist[i]=v;}
+    GroupMemoryBarrierWithGroupSync();
+    if(gi==0){uint v;InterlockedExchange(scopes[uint2(0,METER_STATE)],0,v);meter_update(true);}
+}
+// Pre-exposure (E5, meter_ctrl.x bit 3): rgb of texture meter_ctrl.y times asfloat(meter_ctrl.w), a
+// power of two, so the scale and its inverse are exact. Alpha (accumulation's M2) is untouched.
+void scale_texture(RWTexture2D<float4> t,uint2 p,float k){uint w,h;t.GetDimensions(w,h);if(p.x<w && p.y<h){float4 v=t[p];t[p]=float4(v.rgb*k,v.a);}}
+void scale_pass(uint2 p){
+    float k=asfloat(meter_ctrl.w);
+    if(meter_ctrl.y==0)scale_texture(noisy,p,k);else if(meter_ctrl.y==1)scale_texture(accumulation,p,k);
+    else if(meter_ctrl.y==8)scale_texture(ping,p,k);else scale_texture(reconstruction,p,k);
+}
+[numthreads(8,8,1)]void display(uint3 tid:SV_DispatchThreadID,uint gi:SV_GroupIndex,uint3 gid:SV_GroupID){
+    if((meter_ctrl.x&8)!=0){scale_pass(tid.xy);return;}
+    if((meter_ctrl.x&2)!=0){meter_pass(tid.xy,gi,gid.xy);return;}
+    uint2 op=tid.xy;if(any(op>=dimensions.zw))return;uint2 p=render_pixel(op);
+    float3 c=display_input(op);linear_output[op]=float4(c,1);
     if(modes.x==1)c=normal_roughness[p].xyz*0.5+0.5;
     else if(modes.x==2)c=pow(diffuse_albedo[p].rgb,1/2.2);
     else if(modes.x==3)c=exp(-depth[p]*0.3).xxx;

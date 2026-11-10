@@ -104,6 +104,6 @@ Static samplers: s0 linear clamp (GUI, pixel-visible), s1 linear wrap with mips 
 | 25 | device_depth (projected z/w, 0 near → 1 far) for DLSS SR / FSR / XeSS | R32F |
 | 26 | hdr_output (scRGB, 1.0 = 80 nits; written only in HDR mode, copied to the HDR backbuffer) | RGBA16F, **output resolution** |
 | 27 | trace_stats: this frame's mean bounces per sample, BVH steps (`Proceed()` calls, all rays) per pixel | RG32F |
-| 28 | scopes: counters, rows 0–3 histogram R,G,B,L; 4–131 luma waveform; 132–259 vectorscope (128 wide) | R32_UINT, **256×260 fixed** |
+| 28 | scopes: counters, rows 0–3 histogram R,G,B,L; 4–131 luma waveform; 132–259 vectorscope (128 wide); row 260 the exposure meter's histogram (weighted counts 0–127, in-bin steps 128–255), row 261 its group counter (column 0) and state from column 8 (magic `METER_MAGIC`, base, current, target EV, scene log2 luminance as float bits). The scopes' clear and readback cover rows 0–259 only (`SCOPES`); the state is read back every frame | R32_UINT, **256×262 fixed** (`SCOPES_TEXTURE`) |
 | 30 | env_map: HDRI, linear RGB (kept across resizes; 1×1 when none) | RGBA32F, **map size** |
 | 31 | env_cdf: conditional CDF per row, then the marginal CDF in an extra row; rows height + 1 on: the same CDFs' cutpoints for `cdf_search` (K = the largest power of two ≤ width, f32 indices) | R32F, **map width × 2(height + 1)** |

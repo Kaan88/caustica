@@ -76,6 +76,9 @@
     ],
     "fov": 40,
     "exposure": 3.0,
+    "auto_exposure": true,
+    "ev_bias": -4.53,
+    "eyes": true,
     "objects": [
       {
         "name": "Pumpkin",

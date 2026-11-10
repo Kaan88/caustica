@@ -22,6 +22,10 @@ pub(super) struct SdfObject {
     pub(super) w2o: Mat4,
     /// The inverse transpose's linear part, for normals.
     normal_matrix: Mat3,
+    /// Sphere-tracing steps and the hit distance in object units (the GPU's 128 and 1e-4; the
+    /// truth switch's `sdf_march` takes 4096 and 1e-6).
+    pub(super) steps: u32,
+    pub(super) eps: f32,
 }
 
 impl SdfObject {
@@ -32,6 +36,8 @@ impl SdfObject {
             material,
             w2o,
             normal_matrix: Mat3::from_mat4(w2o).transpose(),
+            steps: 128,
+            eps: 1e-4,
         }
     }
     /// The objects of `s` the GPU builds procedural instances for, materials 5 + index.
@@ -46,18 +52,23 @@ impl SdfObject {
                     t[0], t[4], t[8], 0., t[1], t[5], t[9], 0., t[2], t[6], t[10], 0., t[3], t[7],
                     t[11], 1.,
                 ]);
-                Self::new(o.sdf.id(o.phase, o.detail), 5 + i as u32, o2w)
+                let mut object = Self::new(o.sdf.id(o.phase, o.detail), 5 + i as u32, o2w);
+                if s.truth.sdf_march {
+                    (object.steps, object.eps) = (4096, 1e-6);
+                }
+                object
             })
             .collect()
     }
     /// The nearest crossing of the world ray o + t d in (tmin, tmax).
     pub(super) fn hit(&self, o: Vec3, d: Vec3, tmin: f32, tmax: f32) -> Option<f32> {
-        hit(
+        march(
             self.raw,
             self.w2o.transform_point3(o),
             self.w2o.transform_vector3(d),
             tmin,
             tmax,
+            (self.steps, self.eps),
         )
     }
     /// The unit world normal at the hit `t` along o + t d (not yet turned toward the ray).
@@ -234,8 +245,20 @@ pub(super) fn normal(raw: u32, p: Vec3) -> Vec3 {
 }
 
 /// The nearest surface crossing of the object-space ray o + t d in (tmin, tmax); from inside
-/// (refraction) that is the exit.
+/// (refraction) that is the exit. Tests only (the scene marches through `Sdf::hit`).
+#[cfg(test)]
 pub(super) fn hit(raw: u32, o: Vec3, d: Vec3, tmin: f32, tmax: f32) -> Option<f32> {
+    march(raw, o, d, tmin, tmax, (128, 1e-4))
+}
+/// `hit` with the sphere tracer's step cap and hit distance (object units) given.
+pub(super) fn march(
+    raw: u32,
+    o: Vec3,
+    d: Vec3,
+    tmin: f32,
+    tmax: f32,
+    (steps, eps): (u32, f32),
+) -> Option<f32> {
     // Every shape lies in the unit cube: a ray that misses it, in range, misses the shape.
     let inv = Vec3::select(d.abs().cmpgt(Vec3::splat(1e-12)), d, Vec3::splat(1e-12)).recip();
     let (a, b) = ((Vec3::NEG_ONE - o) * inv, (Vec3::ONE - o) * inv);
@@ -311,13 +334,13 @@ pub(super) fn hit(raw: u32, o: Vec3, d: Vec3, tmin: f32, tmax: f32) -> Option<f3
             }
             // From inside, march the negated field to the exit.
             let side = if field(raw, o + u * s) < 0. { -1. } else { 1. };
-            for _ in 0..128 {
+            for _ in 0..steps {
                 if s >= e {
                     break;
                 }
                 let h = side * field(raw, o + u * s);
                 // 1e-4 world units.
-                if h < 1e-4 * len {
+                if h < eps * len {
                     let t = s / len;
                     return (t > tmin).then_some(t);
                 }

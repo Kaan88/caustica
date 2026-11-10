@@ -103,6 +103,9 @@
   ],
   "light_size": 0.18,
   "light_intensity": 200.0,
-  "bounces": 12
+  "bounces": 12,
+  "auto_exposure": true,
+  "ev_bias": -2.07,
+  "eyes": true
  }
 }

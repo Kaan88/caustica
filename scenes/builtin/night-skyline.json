@@ -6976,6 +6976,9 @@
    }
   ],
   "exposure": 1.5,
+  "auto_exposure": true,
+  "ev_bias": -3.39,
+  "eyes": true,
   "glare": 0.25,
   "glare_threshold": 3.0
  }

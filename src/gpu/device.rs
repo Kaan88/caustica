@@ -352,7 +352,17 @@ impl Gpu {
                 PlacedFootprint: layout,
             },
         };
-        self.list.CopyTextureRegion(&dst, 0, 0, 0, &src, None);
+        // The scopes' rows only: the meter's rows under them keep its state.
+        let scopes = D3D12_BOX {
+            left: 0,
+            top: 0,
+            front: 0,
+            right: SCOPES[0],
+            bottom: SCOPES[1],
+            back: 1,
+        };
+        self.list
+            .CopyTextureRegion(&dst, 0, 0, 0, &src, Some(&scopes));
         ManuallyDrop::drop(&mut src.pResource);
         ManuallyDrop::drop(&mut dst.pResource);
         transition(
@@ -363,7 +373,8 @@ impl Gpu {
         );
         Ok(())
     }
-    /// Readback buffer layout: scopes at 0, then the probe texels (linear output, albedo).
+    /// Readback buffer layout: scopes at 0, then the probe texels (linear output, albedo), then
+    /// the meter's state words (`probe_albedo + 1024`).
     pub(super) fn readback_layout(&self) -> (u64, u64, u64) {
         let scopes = SCOPES[0] as u64 * 4 * SCOPES[1] as u64;
         let probe_linear = scopes.next_multiple_of(512);
@@ -473,7 +484,7 @@ impl Gpu {
             .iter()
             .flat_map(|t| t[..3].iter().copied())
             .fold(0f32, f32::max);
-        let scale = (peak / 60000.).max(1.);
+        let scale = crate::environment::half_scale(peak);
         let halves: Vec<u16> = env
             .texels
             .iter()
@@ -578,7 +589,7 @@ impl Gpu {
         if self.readback.is_none() {
             self.readback = Some(buffer(
                 &self.device,
-                probe_albedo + 1024,
+                probe_albedo + 1024 + 256,
                 D3D12_HEAP_TYPE_READBACK,
                 D3D12_RESOURCE_FLAG_NONE,
                 D3D12_RESOURCE_STATE_COPY_DEST,
@@ -629,6 +640,14 @@ impl Gpu {
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             );
         };
+        // The meter's state, every frame (the status bar and the HDR self-check read it).
+        copy(
+            28,
+            [8, METER_STATE_ROW, 16, METER_STATE_ROW + 1],
+            probe_albedo + 1024,
+            DXGI_FORMAT_R32_UINT,
+            256,
+        );
         if self.scopes_on {
             copy(
                 28,
@@ -677,13 +696,14 @@ impl Gpu {
         let Some(readback) = &self.readback else {
             return Ok(());
         };
-        if !self.scopes_on && probe.is_none() {
-            return Ok(());
-        }
         let (scopes, probe_linear, probe_albedo) = self.readback_layout();
         let mut p = null_mut();
         readback.Map(0, None, Some(&mut p))?;
         let base = p as *const u8;
+        self.st.metered = meter_state(std::slice::from_raw_parts(
+            base.add((probe_albedo + 1024) as usize) as *const u32,
+            8,
+        ));
         if self.scopes_on {
             self.st.scopes =
                 std::slice::from_raw_parts(base as *const u32, (scopes / 4) as usize).to_vec();
@@ -729,6 +749,12 @@ impl Gpu {
         let photon_gather_spectral =
             create_compute_pipeline(&self.device, &self.root, &sh.photon_gather_spectral)?;
         let bdpt_spectral = create_compute_pipeline(&self.device, &self.root, &sh.bdpt_spectral)?;
+        let trace_exact = create_compute_pipeline(&self.device, &self.root, &sh.trace_exact)?;
+        let trace_spectral_exact =
+            create_compute_pipeline(&self.device, &self.root, &sh.trace_spectral_exact)?;
+        let bdpt_exact = create_compute_pipeline(&self.device, &self.root, &sh.bdpt_exact)?;
+        let bdpt_spectral_exact =
+            create_compute_pipeline(&self.device, &self.root, &sh.bdpt_spectral_exact)?;
         let photon_gather = create_compute_pipeline(&self.device, &self.root, &sh.photon_gather)?;
         let filter = create_compute_pipeline(&self.device, &self.root, &sh.filter)?;
         let display = create_compute_pipeline(&self.device, &self.root, &sh.display)?;
@@ -761,6 +787,8 @@ impl Gpu {
         self.photon_trace_spectral = photon_trace_spectral;
         self.photon_gather_spectral = photon_gather_spectral;
         self.bdpt_spectral = bdpt_spectral;
+        (self.trace_exact, self.trace_spectral_exact) = (trace_exact, trace_spectral_exact);
+        (self.bdpt_exact, self.bdpt_spectral_exact) = (bdpt_exact, bdpt_spectral_exact);
         if self.ser.is_some() {
             self.ser = make_ser(
                 &self.device,
@@ -774,6 +802,8 @@ impl Gpu {
                     &sh.trace_lpe_ser,
                     &sh.trace_spectral_ser,
                     &sh.trace_spectral_lean_ser,
+                    &sh.trace_exact_ser,
+                    &sh.trace_spectral_exact_ser,
                 ],
             );
         }
@@ -909,6 +939,8 @@ impl Gpu {
         self.list.Close()?;
         self.release_upscalers();
         self.textures.clear();
+        // The meter's state lived in u28 (row 261): it is gone, so the next frame reads anew.
+        self.st.metered = None;
         self.width = w;
         self.height = h;
         self.rw = ((w as f32 * s.scale).round() as u32).max(1);

@@ -149,6 +149,43 @@ impl Fog {
         self.density == 0.
     }
 }
+fn no() -> bool {
+    false
+}
+/// Manual exposure range, in stops: 2^-8 (bright noon, ND-filtered) to 2^30 (a moonless night).
+/// Zero (black) stays valid.
+pub const EXPOSURE_EV_MIN: f32 = -8.;
+pub const EXPOSURE_EV_MAX: f32 = 30.;
+pub const EXPOSURE_MAX: f32 = (1u32 << 30) as f32;
+/// Exposure compensation range, in stops either way.
+pub const EV_BIAS_MAX: f32 = 16.;
+
+/// What the exposure meter reads.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MeterMode {
+    /// The log-average luminance, weighted toward the frame centre.
+    #[default]
+    CentreWeighted,
+    /// A small disc at the centre.
+    Spot,
+    /// A percentile of the luminance histogram (extremes ignored).
+    Histogram,
+}
+impl MeterMode {
+    pub const ALL: [MeterMode; 3] = [
+        MeterMode::CentreWeighted,
+        MeterMode::Spot,
+        MeterMode::Histogram,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            MeterMode::CentreWeighted => "Centre-weighted",
+            MeterMode::Spot => "Spot",
+            MeterMode::Histogram => "Histogram",
+        }
+    }
+}
 fn is_false(v: &bool) -> bool {
     !*v
 }
@@ -953,6 +990,129 @@ impl Object {
 /// below Windows' range. `validate` takes 1 everywhere, so a saved scene loads on both.
 pub const HDR_WHITE_MIN: f32 = if cfg!(windows) { 40. } else { 1. };
 
+/// The CPU reference's "truth" switch (accuracy plan step 2, `docs/claude/accuracy-audit.md`).
+/// The reference copies the GPU's shortcuts on purpose, so `tools/oracle.py` cannot see them;
+/// each flag here turns one copied shortcut into the exact computation, on the CPU only (the GPU
+/// ignores the whole struct). All off is today's behaviour, which keeps the regression oracle
+/// green. Set them with `--truth a,b,c` / `--truth all`, `--set 'truth={"roulette":true}'`, or the
+/// Render tab's "CPU truth" section (software view). The row letters are the audit's.
+///
+/// The first group has its exact code; the second group are hooks: the flag is accepted and the
+/// reference prints `REFERENCE_TRUTH_PENDING` for it, because the exact version is written by the
+/// next accuracy step (the site is marked `truth hook` in `src/reference/`).
+#[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Debug)]
+#[serde(default)]
+pub struct Truth {
+    /// B1: no Russian roulette after bounce 3 (paths end only at the bounce cap).
+    pub roulette: bool,
+    /// B3: no firefly clamp, whatever `firefly` says.
+    pub firefly: bool,
+    /// B4: no pdf and denominator floors (1e-7 on a sampled pdf, 1e-8 on a light sampling
+    /// density), only the f32 minimum.
+    pub floors: bool,
+    /// D1: fog tracking runs to the end of the ray (the cap is 1024 collisions).
+    pub collisions: bool,
+    /// D2: ratio tracking has no early out at a transmittance under 1e-4.
+    pub fog_cutoff: bool,
+    /// D6: no 0.001 floor on the dielectric colour that sets the absorption.
+    pub absorption_floor: bool,
+    /// C3: procedural surfaces sphere-trace 4096 steps to 1e-6 (128 steps, 1e-4).
+    pub sdf_march: bool,
+    /// A1: a GGX BTDF with visible-normal sampling for rough glass instead of the lerp.
+    pub glass_btdf: bool,
+    /// A2: internal re-reflection under the specular lobe of a dielectric.
+    pub internal_reflection: bool,
+    /// A3: brute-force multiple-scattering GGX instead of the fitted compensation tables.
+    pub multiscatter: bool,
+    /// A4: conductor Fresnel from n and k instead of Schlick.
+    pub fresnel: bool,
+    /// C1: ray offsets from the hit's float error instead of the fixed 0.3 mm.
+    pub offsets: bool,
+    /// C2: the shadow-terminator offset (Hanika 2021) and below-face sample rejection.
+    pub shadow_terminator: bool,
+}
+impl Truth {
+    /// (name, implemented): every flag, in the order of the struct.
+    pub const NAMES: [(&'static str, bool); 13] = [
+        ("roulette", true),
+        ("firefly", true),
+        ("floors", true),
+        ("collisions", true),
+        ("fog_cutoff", true),
+        ("absorption_floor", true),
+        ("sdf_march", true),
+        ("glass_btdf", true),
+        ("internal_reflection", false),
+        ("multiscatter", false),
+        ("fresnel", false),
+        ("offsets", false),
+        ("shadow_terminator", false),
+    ];
+    fn flags(&mut self) -> [&mut bool; 13] {
+        [
+            &mut self.roulette,
+            &mut self.firefly,
+            &mut self.floors,
+            &mut self.collisions,
+            &mut self.fog_cutoff,
+            &mut self.absorption_floor,
+            &mut self.sdf_march,
+            &mut self.glass_btdf,
+            &mut self.internal_reflection,
+            &mut self.multiscatter,
+            &mut self.fresnel,
+            &mut self.offsets,
+            &mut self.shadow_terminator,
+        ]
+    }
+    /// The flags that are on, by name.
+    pub fn on(&self) -> Vec<&'static str> {
+        let mut t = *self;
+        let mut v = vec![];
+        for (i, f) in t.flags().into_iter().enumerate() {
+            if *f {
+                v.push(Self::NAMES[i].0);
+            }
+        }
+        v
+    }
+    /// The flags that are on whose exact version is not written yet (hooks).
+    pub fn pending(&self) -> Vec<&'static str> {
+        let on = self.on();
+        Self::NAMES
+            .iter()
+            .filter(|(n, done)| !done && on.contains(n))
+            .map(|(n, _)| *n)
+            .collect()
+    }
+    /// `--truth a,b,c` (or `all`, `none`): names of flags, comma separated.
+    pub fn parse(list: &str) -> anyhow::Result<Truth> {
+        let mut t = Truth::default();
+        for name in list.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+            match name {
+                "none" => {}
+                "all" => t.flags().into_iter().for_each(|f| *f = true),
+                _ => {
+                    let i = Self::NAMES
+                        .iter()
+                        .position(|(n, _)| *n == name)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "--truth: unknown row {name} (one of {})",
+                                Self::NAMES.map(|(n, _)| n).join(", ")
+                            )
+                        })?;
+                    *t.flags()[i] = true;
+                }
+            }
+        }
+        Ok(t)
+    }
+}
+
+/// Light bounces of the Accurate bundle (docs/engine-notes.md "Accurate quality bundle").
+pub const ACCURATE_BOUNCES: u32 = 64;
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
@@ -988,13 +1148,54 @@ pub struct Settings {
     pub light_temperature: f32,
     pub light_tint: [f32; 3],
     pub glass_shadow: bool,
+    /// Accuracy A1: rough glass as the exact GGX BTDF (Walter et al. 2007, visible-normal
+    /// sampling, light sampling at the vertex) instead of the lerp toward a cosine sample. Off by
+    /// default (the GPU then runs the tracers without EXACT_BTDF, unchanged); the Accurate bundle
+    /// turns it on. The CPU reference follows it (as truth `glass_btdf`).
+    pub exact_glass: bool,
+    /// Accuracy B1: Russian roulette starts at bounce 8 instead of 3 and never drops a path's
+    /// survival below 0.2 instead of 0.05. Variance only (roulette is unbiased either way); the
+    /// Accurate bundle turns it on. Path tracer only; the CPU reference follows it.
+    pub gentle_roulette: bool,
+    /// Accuracy F1: texture lookups at mip 0 (ray cones of width zero), which is what the CPU
+    /// reference always does. Slower to converge on aliased textures, exactly the filtered
+    /// texture in the limit. The Accurate bundle turns it on.
+    pub lod0_textures: bool,
     pub bounces: u32,
+    /// A separate budget for specular vertices (B1, engine-notes "Specular bounce budget"):
+    /// smooth dielectric reflection and transmission, beam-splitter mirrors and GGX lobes with
+    /// roughness at most 0.1 don't use up `bounces` while this lasts, so the path tracer runs at
+    /// most `bounces + specular_bounces` vertices. 0 (the default, the owner's choice to
+    /// revisit) is the legacy budget: every vertex counts against `bounces`. BDPT, photon
+    /// mapping and ReSTIR GI keep `bounces` alone.
+    // Always serialized: `--set` and scripts only accept keys the JSON has.
+    #[serde(default)]
+    pub specular_bounces: u32,
     pub spp: u32,
     pub max_samples: u32,
     pub scale: f32,
     pub firefly: f32,
+    /// The CPU reference's exact versions of the shortcuts it copies from the GPU (`Truth`).
+    pub truth: Truth,
     pub sobol: bool,
+    /// Manual exposure, a linear multiplier (the false-colour and tone-map input). Used while
+    /// `auto_exposure` is off.
     pub exposure: f32,
+    /// Realistic exposure: the meter picks the exposure and `ev_bias` shifts it. New scenes and
+    /// `Settings::default()` have it on; a scene file written before it existed has no key and
+    /// loads as manual (`no`), so its authored look survives.
+    #[serde(default = "no")]
+    pub auto_exposure: bool,
+    /// Exposure compensation in stops, on top of the meter (keyable, like `exposure`).
+    pub ev_bias: f32,
+    /// How fast the meter adapts, in 1/s (the time constant is its inverse).
+    pub exposure_speed: f32,
+    pub meter_mode: MeterMode,
+    /// The Eyes look: scotopic desaturation and Purkinje shift in the dark. Off for files that
+    /// predate it, like `auto_exposure`.
+    #[serde(default = "no")]
+    pub eyes: bool,
+    pub eyes_strength: f32,
     pub gamma: f32,
     pub tonemap: u32,
     pub view: u32,
@@ -1202,13 +1403,24 @@ impl Default for Settings {
             light_temperature: 5200.,
             light_tint: [1.; 3],
             glass_shadow: true,
+            exact_glass: false,
+            gentle_roulette: false,
+            lod0_textures: false,
             bounces: 6,
+            specular_bounces: 0,
             spp: 4,
             max_samples: 4096,
             scale: 1.,
             firefly: 0.,
+            truth: Truth::default(),
             sobol: true,
             exposure: 1.,
+            auto_exposure: true,
+            ev_bias: 0.,
+            exposure_speed: 2.,
+            meter_mode: MeterMode::CentreWeighted,
+            eyes: true,
+            eyes_strength: 1.,
             gamma: 2.2,
             tonemap: 3,
             view: 0,
@@ -1376,12 +1588,53 @@ impl Settings {
         self.lpe_slot = from.lpe_slot;
         self.battle = from.battle;
         self.walk_avatar = from.walk_avatar;
+        self.truth = from.truth;
+        // The Accurate bundle's quality fields are a viewer choice too: the menu keeps saying
+        // "Accurate" after a scene file loads.
+        if from.accurate_quality() {
+            self.set_accurate_quality();
+        }
+    }
+    /// The quality fields of the Accurate bundle (`ui::Bundle::Accurate` writes the output ones).
+    pub fn accurate_quality(&self) -> bool {
+        self.bounces == ACCURATE_BOUNCES
+            && self.exact_glass
+            && self.gentle_roulette
+            && self.lod0_textures
+            && self.glass_shadow
+            && self.firefly == 0.
+            && !self.restir
+            && self.sobol
+    }
+    pub fn set_accurate_quality(&mut self) {
+        self.bounces = ACCURATE_BOUNCES;
+        self.exact_glass = true;
+        self.gentle_roulette = true;
+        self.lod0_textures = true;
+        self.glass_shadow = true;
+        self.firefly = 0.;
+        self.restir = false;
+        self.sobol = true;
+    }
+    /// Leaving the Accurate bundle: its quality fields go back to the defaults (the other
+    /// bundles never set them, so they must not inherit the slow tracer or mip 0 textures).
+    pub fn clear_accurate_quality(&mut self) {
+        let d = Settings::default();
+        self.bounces = d.bounces;
+        self.exact_glass = d.exact_glass;
+        self.gentle_roulette = d.gentle_roulette;
+        self.lod0_textures = d.lod0_textures;
+        self.glass_shadow = d.glass_shadow;
+        self.firefly = d.firefly;
+        self.restir = d.restir;
+        self.sobol = d.sobol;
     }
     pub fn preset(&mut self, id: usize) {
         // Presets 0–8 share the Cornell box, so moving between them keeps the
         // user's camera. Any other switch takes the preset's own camera.
         let keep_camera = id < 9 && PRESETS[..9].contains(&self.scene_name.as_str());
         let camera = (self.yaw, self.pitch, self.distance, self.target, self.fov);
+        let accurate = self.accurate_quality();
         let output = (
             self.scale,
             self.denoiser,
@@ -1394,6 +1647,7 @@ impl Settings {
             (std::mem::take(&mut self.lpe), self.lpe_slot, self.battle),
             self.walk_avatar,
             self.still_denoise,
+            self.truth,
         );
         *self = Self::default();
         match id {
@@ -1451,6 +1705,7 @@ impl Settings {
                 self.light_intensity = 18.;
                 self.light_size = 0.9;
                 self.exposure = 1.15;
+                self.ev_bias = 1.15f32.log2();
                 self.tonemap = 4;
             }
             7 => {
@@ -1503,7 +1758,11 @@ impl Settings {
             (self.lpe, self.lpe_slot, self.battle),
             self.walk_avatar,
             self.still_denoise,
+            self.truth,
         ) = output;
+        if accurate {
+            self.set_accurate_quality();
+        }
     }
     /// RR is the chosen denoiser (whether it can run is the renderer's call: `rr_active`).
     pub fn rr(&self) -> bool {
@@ -1582,7 +1841,8 @@ impl Settings {
             "Resolution scale must be 0.25–1"
         );
         anyhow::ensure!(
-            (1..=32).contains(&self.bounces)
+            (1..=64).contains(&self.bounces)
+                && self.specular_bounces <= 64
                 && (1..=64).contains(&self.spp)
                 && (1..=1_000_000).contains(&self.max_samples),
             "Invalid sample/bounce limits"
@@ -1602,7 +1862,10 @@ impl Settings {
         );
         anyhow::ensure!(
             (0.1..=4.).contains(&self.gamma)
-                && (0. ..=10.).contains(&self.exposure)
+                && (0. ..=EXPOSURE_MAX).contains(&self.exposure)
+                && (-EV_BIAS_MAX..=EV_BIAS_MAX).contains(&self.ev_bias)
+                && (0.05..=50.).contains(&self.exposure_speed)
+                && (0. ..=1.).contains(&self.eyes_strength)
                 && self.tonemap < 8
                 && self.view < 13,
             "Invalid display settings"
@@ -1956,6 +2219,73 @@ mod tests {
         s
     }
     #[test]
+    fn old_scene_json_loads_manual_with_the_same_exposure() {
+        let s = loaded(r#"{"exposure": 2.5}"#);
+        assert!(!s.auto_exposure && !s.eyes);
+        assert_eq!(s.exposure, 2.5);
+        let v = serde_json::json!({"format": 1, "title": "t", "settings": {"exposure": 0.37}});
+        let mut s = crate::scenes::parse(v).unwrap();
+        s.validate().unwrap();
+        assert!(!s.auto_exposure && !s.eyes);
+        assert_eq!(s.exposure, 0.37);
+        // `{}` is a file from before the key too.
+        assert!(!loaded("{}").auto_exposure);
+    }
+    #[test]
+    fn new_defaults_are_auto_with_the_eyes_and_round_trip() {
+        let d = Settings::default();
+        assert!(d.auto_exposure && d.eyes);
+        assert_eq!(d.ev_bias, 0.);
+        // Written files carry the key, so an auto scene stays auto and a manual one manual.
+        let j = serde_json::to_string(&d).unwrap();
+        assert!(loaded(&j) == d);
+        let manual = Settings {
+            auto_exposure: false,
+            eyes: false,
+            meter_mode: MeterMode::Spot,
+            ..Settings::default()
+        };
+        assert!(loaded(&serde_json::to_string(&manual).unwrap()) == manual);
+        // Presets are new scenes.
+        let mut p = Settings::default();
+        p.preset(6);
+        assert!(p.auto_exposure && (p.ev_bias - 1.15f32.log2()).abs() < 1e-6);
+    }
+    #[test]
+    fn the_exposure_range_covers_night_and_the_new_fields_are_checked() {
+        for e in [0., 2f32.powf(EXPOSURE_EV_MIN), 1e6, EXPOSURE_MAX] {
+            let mut s = Settings {
+                exposure: e,
+                ..Settings::default()
+            };
+            s.validate().unwrap();
+        }
+        for bad in [
+            Settings {
+                exposure: EXPOSURE_MAX * 2.,
+                ..Settings::default()
+            },
+            Settings {
+                exposure: -1.,
+                ..Settings::default()
+            },
+            Settings {
+                ev_bias: EV_BIAS_MAX + 1.,
+                ..Settings::default()
+            },
+            Settings {
+                exposure_speed: 0.,
+                ..Settings::default()
+            },
+            Settings {
+                eyes_strength: 1.5,
+                ..Settings::default()
+            },
+        ] {
+            assert!(bad.clone().validate().is_err());
+        }
+    }
+    #[test]
     fn old_rr_and_denoise_keys_load_as_the_same_choice() {
         for (json, want) in [
             (r#"{"rr":true,"denoise":true}"#, Denoiser::Rr),
@@ -2000,8 +2330,11 @@ mod tests {
         }
         // A migrated file equals the same choice made directly.
         let old = loaded(r#"{"rr":false,"denoise":false}"#);
+        // (A file without the exposure keys also loads manual, see `loaded`.)
         let new = Settings {
             denoiser: Denoiser::Off,
+            auto_exposure: false,
+            eyes: false,
             ..Settings::default()
         };
         assert!(old == new);

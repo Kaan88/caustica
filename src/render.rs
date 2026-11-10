@@ -5,6 +5,17 @@ pub mod progress;
 use crate::scene::{Denoiser, Upscaler};
 /// Size of the scopes counter texture (u28).
 pub const SCOPES: [u32; 2] = [256, 260];
+/// u28's two rows under the scopes (which clear and read back only `SCOPES`): the exposure
+/// meter's histogram (row 260: weighted counts in 0-127, in-bin steps in 128-255) and its state
+/// (row 261: the group counter at 0, then from column 8 the `meter_state` words). post.hlsl
+/// mirrors the rows and the magic.
+// No Rust reader (only the state row is read back); it names the row post.hlsl writes.
+#[allow(dead_code)]
+pub const METER_ROW: u32 = 260;
+pub const METER_STATE_ROW: u32 = 261;
+pub const METER_MAGIC: u32 = 0x4d45_5452;
+/// u28's full size.
+pub const SCOPES_TEXTURE: [u32; 2] = [SCOPES[0], SCOPES[1] + 2];
 /// A light-meter / click-to-focus reading at one pixel: linear beauty, diffuse albedo and
 /// linear view depth.
 #[derive(Clone, Copy)]
@@ -186,6 +197,12 @@ pub struct GpuState {
     pub scopes: Vec<u32>,
     pub probe: Option<[u32; 2]>,
     pub probe_result: Option<Probe>,
+    /// The exposure meter's step for the next `render` (E3), set by the app.
+    pub meter: MeterStep,
+    /// The meter's state after the last frame (read back every frame; `None` before a reading).
+    pub metered: Option<crate::reference::display::Adaptation>,
+    /// The pre-exposure the reconstruction inputs were last scaled by (E5; 0 before the first).
+    pub pre_exposure: f32,
     pub triangle_count: usize,
     pub emitter_count: usize,
     /// Suns lead the emitter table (`lighting::analytic`).
@@ -358,6 +375,14 @@ pub struct Constants {
     pub star_tau: [f32; 4],
     /// The limiting magnitude's kept star count and their CDF mass (stars.rs `Frame::rows`).
     pub star_limit: [f32; 4],
+    /// x the specular bounce budget (`Settings::specular_bounces`, 0 = legacy), y z w unused.
+    pub bounce_split: [u32; 4],
+    /// Exposure meter (E3): dt (simulated seconds), ev_bias (stops), exposure_speed (1/s), the Eyes
+    /// look's strength (E4, 0 = off).
+    pub meter: [f32; 4],
+    /// Flags (bit 0 auto exposure, bit 1 this dispatch is the meter pass, bit 2 commit), the
+    /// `MeterOp` code, the meter mode (0 centre-weighted, 1 spot, 2 histogram), -.
+    pub meter_ctrl: [u32; 4],
 }
 
 /// What `constants` needs beyond the settings and `GpuState`: the camera, this frame's sample
@@ -474,7 +499,7 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
         tools: [
             st.zebras as u32 as f32,
             st.scopes_on as u32 as f32,
-            s.bounces.min(8) as f32,
+            (s.bounces + s.specular_bounces).min(8) as f32,
             256.,
         ],
         lens: [
@@ -559,14 +584,22 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
             if s.physical_sky.on { 0. } else { s.hdri_ground },
             -1.,
             s.shadow_catcher as u32 as f32,
+            // Accuracy F1: 1 reads textures at mip 0.
+            s.lod0_textures as u32 as f32,
+        ],
+        // z: accuracy B1, 1 = gentle Russian roulette (start 8, floor 0.2).
+        fog_noise: [
+            s.fog.noise,
+            s.fog.noise_size,
+            s.gentle_roulette as u32 as f32,
             0.,
         ],
-        fog_noise: [s.fog.noise, s.fog.noise_size, 0., 0.],
         star_x: stars[0],
         star_y: stars[1],
         star_z: stars[2],
         star_tau: stars[3],
         star_limit: stars[4],
+        bounce_split: [s.specular_bounces, 0, 0, 0],
         path_record: [0; 4],
         lpe: [st.lpe_slots, s.lpe_slot, 0, 0],
         restir: [
@@ -575,14 +608,111 @@ pub fn constants(s: &crate::scene::Settings, st: &GpuState, x: &FrameInputs) -> 
             s.restir_neighbors.min(8),
             s.restir_history.min(64),
         ],
+        meter: [
+            st.meter.dt,
+            s.ev_bias,
+            s.exposure_speed,
+            if s.eyes { s.eyes_strength } else { 0. },
+        ],
+        meter_ctrl: [
+            s.auto_exposure as u32 | (st.meter.commit as u32) << 2,
+            st.meter.op.code(),
+            s.meter_mode as u32,
+            0,
+        ],
     }
+}
+/// The meter's step for the next `render` (set by the app each frame; `MeterPlan` decides it).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MeterStep {
+    pub op: crate::reference::display::MeterOp,
+    /// Start this step's adaptation from where the last one ended (false for the later passes
+    /// of one video frame, which redo the frame's step on a better image).
+    pub commit: bool,
+    /// Simulated seconds this step covers.
+    pub dt: f32,
+}
+impl MeterStep {
+    /// Whether `render` runs the meter pass (auto exposure, and something to do).
+    pub fn runs(&self, s: &crate::scene::Settings) -> bool {
+        s.auto_exposure && self.op != crate::reference::display::MeterOp::Freeze
+    }
+    /// The meter pass's dispatch: one thread per `METER_STEP`² cell, 8 x 8 per group; a hold
+    /// needs one thread.
+    pub fn groups(&self, width: u32, height: u32) -> [u32; 3] {
+        use crate::reference::display::{METER_STEP, MeterOp};
+        if self.op == MeterOp::Hold {
+            return [1, 1, 1];
+        }
+        [
+            width.div_ceil(METER_STEP).div_ceil(8),
+            height.div_ceil(METER_STEP).div_ceil(8),
+            1,
+        ]
+    }
+    /// The meter pass's copy of the display constants.
+    pub fn pass_constants(c: &Constants) -> Constants {
+        let mut m = *c;
+        m.meter_ctrl[0] |= 2;
+        m
+    }
+}
+/// The adaptation state read back from u28 row `METER_STATE_ROW` (eight words from column 8):
+/// magic, base, current, target, scene log2 luminance. `None` before the first reading.
+pub fn meter_state(words: &[u32]) -> Option<crate::reference::display::Adaptation> {
+    (words.len() >= 5 && words[0] == METER_MAGIC).then(|| crate::reference::display::Adaptation {
+        valid: true,
+        base: f32::from_bits(words[1]),
+        current: f32::from_bits(words[2]),
+        target: f32::from_bits(words[3]),
+        scene_log2: f32::from_bits(words[4]),
+    })
 }
 
 pub const TEXTURES: usize = 29;
 /// Constants are written once per pass at this stride (trace at 0, filter passes 1-7, display 8).
 pub const CB_STRIDE: u64 = 1024;
-/// Constant slots: trace 0, filter 1–7, display 8, battle quadrants 9–12, glare passes from 13.
-pub const CB_SLOTS: u64 = 13 + 10;
+/// Constant slots: trace 0, filter 1–7, display 8, battle quadrants 9–12, glare passes 13–22,
+/// the exposure meter pass 23, the pre-exposure scale passes 24–26 (`PRE_EXPOSURE_SLOT`).
+pub const CB_SLOTS: u64 = 13 + 10 + 1 + 3;
+pub const METER_SLOT: u64 = 23;
+/// Pre-exposure (E5): slot 24 scales the reconstruction input by P, 25 restores it, 26 brings the
+/// reconstruction (texture 14) back to scene units.
+pub const PRE_EXPOSURE_SLOT: u64 = 24;
+/// Pre-exposure keeps P while the displayed exposure stays within this many stops of it, so P
+/// (and the reconstruction's history scale) changes rarely.
+pub const PRE_EXPOSURE_HYSTERESIS: f32 = 1.;
+/// P stays within 2^±this.
+pub const PRE_EXPOSURE_RANGE: f32 = 40.;
+/// The pre-exposure P (E5) for this frame: a power of two near the previous frame's displayed
+/// exposure (one frame in flight, so the read-back meter state is the last frame's), with
+/// hysteresis around the current `p` (0 = none yet). A power of two makes the scale and its
+/// inverse exact in fp32, so the textures it touches come back bit-identical.
+pub fn pre_exposure(p: f32, exposure: f32) -> f32 {
+    // `CAUSTICA_PRE_EXPOSURE=0` turns it off (P = 1), for before/after measurements.
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *OFF.get_or_init(|| std::env::var("CAUSTICA_PRE_EXPOSURE").is_ok_and(|v| v == "0")) {
+        return 1.;
+    }
+    if !(exposure.is_finite() && exposure > 0.) {
+        return if p > 0. { p } else { 1. };
+    }
+    let stops = exposure.log2();
+    if p > 0. && (stops - p.log2()).abs() <= PRE_EXPOSURE_HYSTERESIS {
+        return p;
+    }
+    stops
+        .round()
+        .clamp(-PRE_EXPOSURE_RANGE, PRE_EXPOSURE_RANGE)
+        .exp2()
+}
+/// The scale pass's constants: display's entry with `meter_ctrl.x` bit 3, the texture in `y`
+/// (0 noisy, 1 accumulation, 8 ping, 14 reconstruction) and the factor's bits in `w`.
+pub fn scale_constants(c: &Constants, texture: u32, factor: f32) -> Constants {
+    let mut m = *c;
+    m.meter_ctrl = [8, texture, 0, factor.to_bits()];
+    m
+}
 /// Still frames a temporal upscaler gets fresh jittered samples before they accumulate.
 pub const SR_FRESH_FRAMES: u32 = 32;
 /// Timestamps per frame: start, after the trace, after reconstruction, after display, after
@@ -640,7 +770,7 @@ pub fn texture_layout(
     let size = if [10, 13, 14, 18, 26].contains(&i) {
         output
     } else if i == 28 {
-        SCOPES
+        SCOPES_TEXTURE
     } else {
         render
     };
@@ -790,6 +920,23 @@ pub fn halton(mut index: u32, base: u32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pre_exposure_is_a_power_of_two_with_hysteresis() {
+        // Night: exposure 3e7 is 2^24.8, so P = 2^25; the inverse undoes it exactly.
+        let p = pre_exposure(0., 3e7);
+        assert_eq!(p, 2f32.powi(25));
+        let x = 1.2345e-9f32;
+        assert_eq!(x * p * (1. / p), x);
+        // Within a stop P holds; past it P moves.
+        assert_eq!(pre_exposure(p, 2f32.powf(25.9)), p);
+        assert_eq!(pre_exposure(p, 2f32.powf(23.6)), 2f32.powi(24));
+        // Nonsense keeps P (1 before any); the range is clamped.
+        assert_eq!(pre_exposure(0., f32::NAN), 1.);
+        assert_eq!(pre_exposure(p, 0.), p);
+        assert_eq!(pre_exposure(0., 1e30), 2f32.powi(40));
+        let m = scale_constants(&bytemuck::Zeroable::zeroed(), 14, 0.5);
+        assert_eq!(m.meter_ctrl, [8, 14, 0, 0.5f32.to_bits()]);
+    }
     #[test]
     fn lpe_layers_are_named_by_their_expression() {
         let e = "C D'red wall' .* L".to_string();

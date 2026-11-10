@@ -1880,6 +1880,9 @@
     "portal": -1
    }
   ],
-  "projection": 1
+  "projection": 1,
+  "auto_exposure": true,
+  "ev_bias": 2.1,
+  "eyes": true
  }
 }

@@ -107,6 +107,9 @@
   ],
   "fov": 40,
   "exposure": 1.5,
+  "auto_exposure": true,
+  "ev_bias": -8.45,
+  "eyes": true,
   "objects": [
    {
     "name": "Table",

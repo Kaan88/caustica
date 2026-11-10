@@ -47,12 +47,19 @@ float4 sample_map(uint slot,float2 uv){return maps[NonUniformResourceIndex(slot-
 // and its spread per unit length. Camera rays start at one pixel's angle; each rough bounce
 // widens the cone (a crude stand-in for the lobe's width), so indirect hits read small mips.
 static float cone_width,cone_spread;
+// Accuracy F1: the Accurate bundle reads textures at mip 0 (the CPU reference's only level).
+bool lod0(){return env_ground.w>0;}
+// Accuracy B1: Russian roulette from bounce 3 with survival at least 0.05; the Accurate bundle's
+// gentle version starts at bounce 8 with 0.2 (fog_noise.z). Variance only.
+uint roulette_start(){return fog_noise.z>0?8u:3u;}
+float roulette_floor(){return fog_noise.z>0?0.2:0.05;}
 // The footprint is an ellipse in uv: its axis across the ray (the cone's width) and along it
 // (stretched by the grazing angle). The anisotropic sampler takes both as gradients: the mip
 // follows the short axis and up to lights.w taps run along the long one. Past that ratio the short
 // axis grows, as hardware does; at 1 both axes are the long one (isotropic, the old behaviour).
 struct Footprint{float2 minor;float2 major;};
 float4 sample_map_lod(uint slot,float2 uv,Footprint f){
+    if(lod0()){f.minor=0;f.major=0;}
     float lm=length(f.minor),lM=length(f.major),n=max(lights.w,1);
     if(lM>n*lm)f.minor=(lm>1e-20?f.minor/lm:float2(-f.major.y,f.major.x)/max(lM,1e-20))*lM/n;
     return maps[NonUniformResourceIndex(slot-1)].SampleGrad(map_sampler,uv,f.minor,f.major);
@@ -608,6 +615,46 @@ float film_thickness(Material m){return m.surface_scale.w-floor(m.surface_scale.
 float film_ior(Material m){return floor(m.surface_scale.w/2048)/100;}
 float ggx_d(float nh,float a){float d=nh*nh*(a*a-1)+1;return a*a/(PI*d*d);}
 float g1(float nv,float a){return 2*nv/max(1e-6,nv+sqrt(a*a+(1-a*a)*nv*nv));}
+#ifdef EXACT_BTDF
+// Exact rough dielectric (accuracy audit A1; the Accurate bundle's `exact_glass`, off by
+// default): Walter et al. 2007's GGX BTDF, sampled through visible normals (Heitz 2018). A port of
+// the CPU reference's `bsdf::rough_dielectric` / `sample_rough_dielectric`.
+float3 ggx_visible_normal(float3 n,float3 v,float a){
+    float3 t=normalize(cross(abs(n.z)<0.999?float3(0,0,1):float3(0,1,0),n)),b=cross(n,t);
+    float3 vh=normalize(float3(a*dot(v,t),a*dot(v,b),max(dot(v,n),0)));
+    float len2=vh.x*vh.x+vh.y*vh.y;float3 t1=len2>0?float3(-vh.y,vh.x,0)*rsqrt(len2):float3(1,0,0),t2=cross(vh,t1);
+    float q=sqrt(random()),phi=2*PI*random();float x=q*cos(phi),s=0.5*(1+vh.z);
+    float y=(1-s)*sqrt(max(0,1-x*x))+s*q*sin(phi);
+    float3 mm=t1*x+t2*y+vh*sqrt(max(0,1-x*x-y*y));
+    return normalize(t*(a*mm.x)+b*(a*mm.y)+n*max(mm.z,1e-6));
+}
+// The BSDF value (radiance; a refraction carries (n1/n2)²) of light leaving along l on either
+// side, v toward the viewer on n's side, eta = n1 / n2 (v's side over the far side), and the
+// solid-angle density of sample_rough_dielectric.
+float rough_dielectric(float3 n,float3 v,float3 l,float eta,float a,out float pdf){
+    pdf=0;float nv=dot(n,v),nl=dot(n,l);if(nv<=1e-6 || abs(nl)<=1e-6)return 0;
+    bool refl=nl>0;float3 h=refl?v+l:-(eta*v+l);if(dot(h,h)<1e-12)return 0;
+    h=normalize(h);if(dot(h,n)<0)h=-h;
+    float vh=dot(v,h),lh=dot(l,h),nh=dot(n,h);
+    if(vh<=0 || (refl && lh<=0) || (!refl && lh>=0))return 0;
+    float d=ggx_d(nh,a),gv=g1(nv,a),gl=g1(abs(nl),a),f=fresnel_dielectric(vh,eta),ph=gv*vh*d/nv;
+    if(refl){pdf=f*ph/(4*vh);return f*d*gv*gl/(4*nv*nl);}
+    float den=eta*vh+lh,den2=max(den*den,1e-12);
+    pdf=(1-f)*ph*(-lh)/den2;
+    return vh*(-lh)/(nv*(-nl))*eta*eta*(1-f)*d*gv*gl/den2;
+}
+// A sample for a ray arriving along d: false when the facet sends it to the wrong side (the
+// single-scattering loss). fr: the facet's Fresnel (the choice's probability); the weight
+// f cos / pdf is G1(l), times (n1/n2)² for a refraction (the caller's).
+bool sample_rough_dielectric(float3 n,float3 d,float eta,float a,out float3 l,out bool refl,out float fr){
+    float3 h=ggx_visible_normal(n,-d,a);float vh=dot(-d,h);l=d;refl=false;fr=1;
+    if(vh<=0)return false;
+    fr=fresnel_dielectric(vh,eta);refl=random()<fr;
+    l=refl?reflect(d,h):refract(d,h,eta);float nl=dot(n,l);
+    if(dot(l,l)==0 || (refl && nl<=0) || (!refl && nl>=0))return false;
+    l=normalize(l);return true;
+}
+#endif
 float3 f0_of(Material m){float f=pow((m.optical.x-1)/(m.optical.x+1),2);return lerp(lerp(f.xxx,1.0.xxx,m.lobes.y),m.color_rough.rgb,m.lobes.x);}
 float spec_probability(Material m){return clamp(0.25+0.5*m.lobes.x+0.25*m.lobes.y,0.1,0.95);}
 // The film is evaluated once per hit at the view cosine (as glTF's model does), not per half
@@ -690,6 +737,9 @@ float sheen_lobe(float r,float nh,float nv,float nl){
 float coat_fresnel(float c){return 0.04+0.96*pow(1-saturate(c),5);}
 // Share of BSDF samples the coat's own lobe takes (0 without a coat: no extra random number).
 float coat_probability(Material m){return 0.3*m.layers.x;}
+// B1: a GGX lobe this smooth counts against the specular bounce budget, as a delta vertex does
+// (reference shading.rs near_delta): roughness at most 0.1, coat too when it has one, isotropic.
+bool near_delta(Material m){return m.layers.w<=0 && m.color_rough.a<=0.1 && (coat_probability(m)<=0 || m.layers.y<=0.1);}
 // A GGX half vector around n (roughness a = alpha), reflected: the sampled direction.
 float3 ggx_sample(float3 n,float3 d,float a){float u=random(),phi=2*PI*random();float c=sqrt((1-u)/(1+(a*a-1)*u));float3 h=basis(n,float3(sqrt(max(0,1-c*c))*cos(phi),sqrt(max(0,1-c*c))*sin(phi),c));return reflect(d,h);}
 // Anisotropy (track 11, brushed metal): layers.w = strength, sheen.w = the brushing direction's
@@ -922,7 +972,9 @@ void camera_ray(float2 pixel,bool lens_sample,out float3 o,out float3 d,out bool
         }
         o=eye.xyz+(right*lo.x+up*lo.y+forward*(lens_data[1].z-lo.z))*real_lens.z;
         d=normalize(right*ld.x+up*ld.y-forward*ld.z);
-        if(spectral && spectral_on){camera_weight*=float3(3,0,0);hero_only=true;}
+        // BDPT and photon mapping start their hero wavelength first (begin_hero) and take the 3
+        // in hero_rgb, so the camera only selects the channel then; the path tracer takes it here.
+        if(spectral && spectral_on){camera_weight*=hero_only?float3(1,0,0):float3(3,0,0);hero_only=true;}
         else if(spectral){float3 m=0;m[c]=3;camera_weight*=m;}
         return;
     }
@@ -1465,9 +1517,12 @@ void trace_main(uint3 tid){
         if(environment.w>0){media=camera_media();int top=medium_top(media);absorption=medium_absorption(media,top);density=medium_material(media,top).medium.w;}
         // Recording only (dead code otherwise): why the path ended, and its last bounce.
         uint end_reason=lens_valid?3:5,last_bounce=0;
+        // Specular vertices used from their own budget (bounce_split.x, B1): each one lets the
+        // loop run one vertex further, so `bounce - spec_used` counts the rest against sampling.z.
+        uint spec_used=0;
         if(lpe_on){lpe_state=0;lpe_weight=1;}
         record(0,0,origin,throughput,0,direction);
-        for(uint bounce=0;bounce<sampling.z && lens_valid;bounce++){
+        for(uint bounce=0;bounce<sampling.z+spec_used && lens_valid;bounce++){
             last_bounce=bounce;
             bounces_used+=1;
             // Only delta bounces since the camera: the background it sees is ground-projected.
@@ -1537,7 +1592,7 @@ void trace_main(uint3 tid){
                     float pp;direction=hg_sample(direction,g,pp);
                     record(5,bounce,x,arriving,0,direction);lpe_advance(4);
                     previous_pdf=pp;previous_delta=false;previous_restir=false;previous_position=x;origin=x;
-                    if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
+                    if(bounce>=roulette_start()){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),roulette_floor(),0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
                     continue;
                 }
             }}
@@ -1605,7 +1660,7 @@ void trace_main(uint3 tid){
                 portal_crossings++;previous_delta=true;
                 if(!h.front){origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;continue;}
                 throughput*=up_material(m,m.color_rough.rgb);
-                if(random()<m.lobes.y){direction=reflect(direction,h.n);origin=h.p+direction*0.0005;record(3,bounce,h.p,throughput,0,direction);lpe_advance(2);}
+                if(random()<m.lobes.y){direction=reflect(direction,h.n);origin=h.p+direction*0.0005;record(3,bounce,h.p,throughput,0,direction);lpe_advance(2);if(spec_used<bounce_split.x)spec_used++;}
                 else{origin=h.p+direction*0.0005;record(8,bounce,h.p,throughput,0,direction);bounce--;}
                 continue;
             }
@@ -1648,6 +1703,35 @@ void trace_main(uint3 tid){
             if(restir_vertex && !(env_nee && random()<p_env)){reused=true;nee=restir_nee(p,sample_id,h,-direction,ld,le,limit);le/=1-p_env;pl=1;if(lpe_on)lpe_env_sample=false;}
             else if(restir_vertex){nee=sample_light(h.p,true,false,1,ld,le,pl,limit);pl*=p_env;}
             else nee=sample_light(h.p,env_nee,tri_nee,p_env,ld,le,pl,limit);
+#ifdef EXACT_BTDF
+            // Exact rough glass (A1): without dispersion or a film and across a real index step,
+            // the glass lobe is a BSDF light sampling sees too (either side), and both strategies
+            // weigh by the sum of the lobes' densities. The rest is sampled exactly but stays delta.
+            bool glass_nee=false;float g_eta=1,g_a=1;uint64_t g_after=media;
+            if(m.lobes.z>0 && m.color_rough.a>0.001 && !dispersive(m) && m.surface_scale.z<=0){
+                uint ge=medium_entry(h.material,m.lobes.w);g_after=h.front?medium_push(media,ge):medium_remove(media,ge);
+                g_eta=(h.front?medium_ior(media,medium_top(media)):ior_of(m))/(h.front?ior_of(m):medium_ior(g_after,medium_top(g_after)));
+                g_a=max(0.001,m.color_rough.a*m.color_rough.a);glass_nee=abs(g_eta-1)>1e-4;
+            }
+            float nl=dot(h.n,ld);
+            if(nee && (nl>0 || glass_nee)){
+                float pdf=0,gp=0,gf=0;float3 f=0;if(nl>0)f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
+                if(glass_nee){gf=m.lobes.z*rough_dielectric(h.n,-direction,ld,g_eta,g_a,gp);gp*=m.lobes.z;}
+                float3 o=h.p+h.ng*(nl>0?0.0003:-0.0003);
+                // The glass lobe's light must arrive straight: glass in between would bend it
+                // (that path is the BSDF sample's), so its shadow ray stops at any glass.
+                bool open=false,straight=false;
+                if(gf>0){bool gb=glass_blocks;glass_blocks=true;straight=!occluded(o,ld,limit);glass_blocks=gb;
+                    open=straight || ((gb || jitter.w>0.5)?false:any(f>0) && !occluded(o,ld,limit));}
+                else open=any(f>0) && !occluded(o,ld,limit);
+                float3 ft=(open?f:0)+(straight?gf:0);
+                if(any(ft>0)){float3 e=throughput*ft*abs(nl)*le/(reused?1:nee_density(pl,pdf+gp,mis==1));
+                    if(nl<=0)e*=medium_transmittance(g_after,o,ld,limit);else if(fog_on() || density>0)e*=medium_transmittance(media,o,ld,limit);
+                    radiance+=e;if(bounce==0)direct+=e;record(11,bounce,h.p,e,limit,ld);
+                    if(lpe_on){float3 ed=e*lpe_diffuse/max(ft,1e-30);uint light=lpe_env_sample?6:5;lpe_add(0,light,ed);lpe_add(lpe_glossy(m),light,e-ed);}}
+                else record(12,bounce,h.p,0,limit,ld);
+            }
+#else
             float nl=dot(h.n,ld);
             if(nee && nl>0){
                 float pdf;float3 f=eval_bsdf(m,h.n,h.tangent,-direction,ld,pdf);
@@ -1657,7 +1741,11 @@ void trace_main(uint3 tid){
                     if(lpe_on){float3 ed=e*lpe_diffuse/max(f,1e-30);uint light=lpe_env_sample?6:5;lpe_add(0,light,ed);lpe_add(lpe_glossy(m),light,e-ed);}}
                 else record(12,bounce,h.p,0,limit,ld);
             }
+#endif
             float3 next;bool delta=false;float bsdf_pdf=0;uint lobe=1;
+#ifdef EXACT_BTDF
+            bool transmitted=false;
+#endif
             if(random()<m.lobes.z){
                 // The media on both sides: entering, the current one and this; leaving, this and
                 // the one the stack falls back to (air when empty, as before nesting).
@@ -1666,6 +1754,23 @@ void trace_main(uint3 tid){
                 uint e=medium_entry(h.material,m.lobes.w);uint64_t after=h.front?medium_push(media,e):medium_remove(media,e);
                 float n1=h.front?medium_ior(media,medium_top(media)):ior_of(m),n2=h.front?ior_of(m):medium_ior(after,medium_top(after));
                 float eta=n1/n2,ci=saturate(dot(-direction,h.n));float fr=fresnel_dielectric(ci,eta);
+#ifdef EXACT_BTDF
+                if(m.color_rough.a>0.001){
+                    // Exact rough glass (A1): reflect or refract about a visible normal by its own
+                    // Fresnel; the weight is G1(l) (a film colours it per channel as below).
+                    float a=max(0.001,m.color_rough.a*m.color_rough.a);bool reflected;
+                    if(!sample_rough_dielectric(h.n,direction,eta,a,next,reflected,fr)){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=4;break;}
+                    lobe=reflected?3:4;lpe_advance(reflected?2:3);
+                    throughput*=g1(abs(dot(h.n,next)),a);
+                    if(m.surface_scale.z>0 && fr<1){float3 frc=lerp(fr.xxx,m.base_scale.rgb,m.surface_scale.z);throughput*=reflected?frc/max(fr,1e-4):(1-frc)/max(1-fr,1e-4);}
+                    if(!reflected){media=after;int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;throughput*=eta*eta;}
+                    transmitted=!reflected;
+                    if(glass_nee){delta=false;float gp;rough_dielectric(h.n,-direction,next,g_eta,g_a,gp);bsdf_pdf=m.lobes.z*gp;
+                        if(m.lobes.z<1 && dot(h.n,next)>0){float op;eval_bsdf(m,h.n,h.tangent,-direction,next,op);bsdf_pdf+=op;}}
+                    else delta=true;
+                    if(bounce==0)first_spec=true;
+                }else{
+#endif
                 // A thin film (a soap bubble: IOR 1 inside a 1.33 film) colours the reflection and,
                 // by what it leaves, the transmission: choose by the mean, weight per channel.
                 float3 frc=fr.xxx;
@@ -1676,6 +1781,9 @@ void trace_main(uint3 tid){
                 if(!reflected){media=after;int top=medium_top(media);absorption=medium_absorption(media,top);density=top>=0?medium_material(media,top).medium.w:0;throughput*=eta*eta;}
                 if(m.color_rough.a>0.001){float3 pert=cosine_sample(reflected?h.n:-h.n);next=normalize(lerp(next,pert,m.color_rough.a*m.color_rough.a));}
                 delta=true;
+#ifdef EXACT_BTDF
+                }
+#endif
             }else{
                 float pc=coat_probability(m),ps=spec_probability(m);
                 if(pc>0 && random()<pc){float a=max(0.001,m.layers.y*m.layers.y);next=ggx_sample(h.n,direction,a);if(bounce==0)first_spec=true;cone_spread+=0.5*a;lobe=2;}
@@ -1691,6 +1799,10 @@ void trace_main(uint3 tid){
                 }else{next=cosine_sample(h.n);cone_spread+=0.5;}
                 if(dot(h.n,next)<=0){record(9,bounce,h.p,arriving,emitted_l,0);end_reason=4;break;}
                 float3 bsdf=eval_bsdf(m,h.n,h.tangent,-direction,next,bsdf_pdf);throughput*=bsdf*abs(dot(h.n,next))/max(bsdf_pdf,1e-7);
+#ifdef EXACT_BTDF
+                // The glass lobe could have drawn next too.
+                if(glass_nee){float gp;rough_dielectric(h.n,-direction,next,g_eta,g_a,gp);bsdf_pdf+=m.lobes.z*gp;}
+#endif
                 if(lpe_on){
                     // One label for the rest of the path, by the luminance shares at `next`.
                     float3 share=saturate(lpe_diffuse/max(bsdf,1e-30));float pd=luminance(bsdf)>0?saturate(luminance(lpe_diffuse)/luminance(bsdf)):0;
@@ -1699,10 +1811,22 @@ void trace_main(uint3 tid){
                 }
             }
             if(bounce==0 && delta)first_spec=true;
+            // Glass (lobes 3, 4) counts up to roughness 0.1 like glossy, exact or lerp model alike.
+            if((lobe>=3?m.color_rough.a<=0.1:(delta || (lobe==2 && near_delta(m)))) && spec_used<bounce_split.x)spec_used++;
             previous_pdf=bsdf_pdf;previous_delta=delta;previous_restir=restir_vertex;previous_position=h.p;
-            direction=normalize(next);origin=h.p+h.ng*(dot(direction,h.ng)>0?0.0003:-0.0003);
+            // A non-delta lobe's ray leaves from the side light sampling's shadow ray does (+ng), even
+            // when an interpolated or mapped normal puts it below the face: the two strategies then
+            // see the same visibility. From -ng it entered the object, so BSDF sampling lost what NEE
+            // kept near the shading-normal terminator (light-temperature-row's pawns: BSDF only 0.08%
+            // dark, accuracy audit B7). Delta events keep the face side the direction is on.
+#ifdef EXACT_BTDF
+            // A non-delta refraction (exact rough glass) leaves below the face, into the object.
+            direction=normalize(next);origin=h.p+h.ng*((!delta && !transmitted) || (delta && dot(direction,h.ng)>0)?0.0003:-0.0003);
+#else
+            direction=normalize(next);origin=h.p+h.ng*(!delta || dot(direction,h.ng)>0?0.0003:-0.0003);
+#endif
             record(lobe,bounce,h.p,arriving,emitted_l,direction);
-            if(bounce>=3){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),0.05,0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
+            if(bounce>=roulette_start()){float survival=clamp(max(throughput.r,max(throughput.g,throughput.b)),roulette_floor(),0.95);if(random()>survival){end_reason=2;break;}throughput/=survival;}
         }
         radiance=to_rgb(radiance);direct=to_rgb(direct);
         if(!all(isfinite(radiance))){radiance=0;direct=0;}

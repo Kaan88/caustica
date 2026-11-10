@@ -36,7 +36,8 @@ CASES = {
 
 
 def render(exe, out, extra):
-    command = [str(exe), "--preset", "0", "--headless", "--width", "1280", "--height", "720", "--scale", "0.5", *extra, "--capture", str(out)]
+    command = [str(exe), "--preset", "0", "--headless", "--width", "1280", "--height", "720", "--scale", "0.5", *extra,
+               "--set", "auto_exposure=false", "--set", "eyes=false", "--capture", str(out)]
     subprocess.run(command, cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 

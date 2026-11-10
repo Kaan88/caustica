@@ -144,6 +144,9 @@
    }
   ],
   "light_on": false,
-  "light_visible": false
+  "light_visible": false,
+  "auto_exposure": true,
+  "ev_bias": -2.09,
+  "eyes": true
  }
 }

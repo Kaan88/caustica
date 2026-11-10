@@ -405,6 +405,9 @@
     },
     "portal": -1
    }
-  ]
+  ],
+  "auto_exposure": true,
+  "ev_bias": -0.38,
+  "eyes": true
  }
 }

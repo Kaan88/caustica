@@ -56,12 +56,12 @@ unsigned caustica_ngx_create(Ngx* n, ID3D12GraphicsCommandList* cmd,unsigned w,u
     p.InFeatureCreateFlags=NVSDK_NGX_DLSS_Feature_Flags_IsHDR|NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
     return NGX_D3D12_CREATE_DLSSD_EXT(cmd,1,1,&n->handle,n->params,&p);
 }
-unsigned caustica_ngx_eval(Ngx* n,ID3D12GraphicsCommandList* cmd,ID3D12Resource** resources,unsigned w,unsigned h,float jx,float jy,int reset,float dt,float* view,float* projection) {
+unsigned caustica_ngx_eval(Ngx* n,ID3D12GraphicsCommandList* cmd,ID3D12Resource** resources,unsigned w,unsigned h,float jx,float jy,int reset,float dt,float* view,float* projection,float pre_exposure) {
     NVSDK_NGX_D3D12_DLSSD_Eval_Params p={};
     p.pInColor=resources[0];p.pInOutput=resources[14];p.pInNormals=resources[2];p.pInDiffuseAlbedo=resources[3];p.pInSpecularAlbedo=resources[4];p.pInDepth=resources[5];p.pInMotionVectors=resources[6];p.pInSpecularHitDistance=resources[7];
     // Sampling pixel center + jitter shifts image features by -jitter. NGX
     // expects that image displacement in top-left pixel coordinates.
-    p.InRenderSubrectDimensions={w,h};p.InJitterOffsetX=-jx;p.InJitterOffsetY=-jy;p.InReset=reset;p.InMVScaleX=1.;p.InMVScaleY=1.;p.InPreExposure=1.;p.InExposureScale=1.;p.InFrameTimeDeltaInMsec=dt;
+    p.InRenderSubrectDimensions={w,h};p.InJitterOffsetX=-jx;p.InJitterOffsetY=-jy;p.InReset=reset;p.InMVScaleX=1.;p.InMVScaleY=1.;p.InPreExposure=pre_exposure;p.InExposureScale=1.;p.InFrameTimeDeltaInMsec=dt;
     p.pInWorldToViewMatrix=view;p.pInViewToClipMatrix=projection;
     return NGX_D3D12_EVALUATE_DLSSD_EXT(cmd,n->handle,n->params,&p);
 }
@@ -75,11 +75,11 @@ unsigned caustica_ngx_create_sr(Ngx* n, ID3D12GraphicsCommandList* cmd,unsigned 
     p.InFeatureCreateFlags=NVSDK_NGX_DLSS_Feature_Flags_IsHDR|NVSDK_NGX_DLSS_Feature_Flags_MVLowRes|NVSDK_NGX_DLSS_Feature_Flags_AutoExposure;
     return NGX_D3D12_CREATE_DLSS_EXT(cmd,1,1,&n->sr,n->sr_params,&p);
 }
-unsigned caustica_ngx_eval_sr(Ngx* n,ID3D12GraphicsCommandList* cmd,ID3D12Resource* color,ID3D12Resource* depth,ID3D12Resource* motion,ID3D12Resource* output,unsigned w,unsigned h,float jx,float jy,int reset,float dt) {
+unsigned caustica_ngx_eval_sr(Ngx* n,ID3D12GraphicsCommandList* cmd,ID3D12Resource* color,ID3D12Resource* depth,ID3D12Resource* motion,ID3D12Resource* output,unsigned w,unsigned h,float jx,float jy,int reset,float dt,float pre_exposure) {
     NVSDK_NGX_D3D12_DLSS_Eval_Params p={};
     p.Feature.pInColor=color;p.Feature.pInOutput=output;p.pInDepth=depth;p.pInMotionVectors=motion;
     // Same convention as Ray Reconstruction: the image displacement, i.e. the negated ray offset.
-    p.InJitterOffsetX=-jx;p.InJitterOffsetY=-jy;p.InRenderSubrectDimensions={w,h};p.InReset=reset;p.InMVScaleX=1.;p.InMVScaleY=1.;p.InPreExposure=1.;p.InExposureScale=1.;p.InFrameTimeDeltaInMsec=dt;
+    p.InJitterOffsetX=-jx;p.InJitterOffsetY=-jy;p.InRenderSubrectDimensions={w,h};p.InReset=reset;p.InMVScaleX=1.;p.InMVScaleY=1.;p.InPreExposure=pre_exposure;p.InExposureScale=1.;p.InFrameTimeDeltaInMsec=dt;
     return NGX_D3D12_EVALUATE_DLSS_EXT(cmd,n->sr,n->sr_params,&p);
 }
 }

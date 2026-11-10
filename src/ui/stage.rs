@@ -101,6 +101,28 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     );
 }
 /// Physical sky rows of the Stage grid (track 9).
+/// The exposure bias of the Night camera look, in stops: a 20 s, f/2.8, ISO 1600 frame is
+/// recorded a little darker than the meter's mid-grey choice, so the sky stays a night.
+/// Changeable (engine notes, "Exposure UI").
+pub(super) const NIGHT_CAMERA_EV_BIAS: f32 = -1.5;
+/// Naked eye (the default look): the eye's limiting magnitude and neutral airglow, the Eyes
+/// look on, the meter's own exposure.
+pub(super) fn naked_eye(s: &mut Settings) {
+    let d = crate::sky::PhysicalSky::default();
+    s.physical_sky.limiting_magnitude = d.limiting_magnitude;
+    s.physical_sky.airglow_warmth = d.airglow_warmth;
+    s.eyes = true;
+    s.auto_exposure = true;
+    s.ev_bias = 0.;
+}
+/// Night camera: magnitude 9, warmer and greener airglow, Eyes off, a long-exposure bias.
+pub(super) fn night_camera(s: &mut Settings) {
+    s.physical_sky.limiting_magnitude = 9.;
+    s.physical_sky.airglow_warmth = 1.;
+    s.eyes = false;
+    s.auto_exposure = true;
+    s.ev_bias = NIGHT_CAMERA_EV_BIAS;
+}
 pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
     check_row(
         ui,
@@ -239,6 +261,20 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
     ui.end_row();
     row(
         ui,
+        "Camera",
+        "One-click night looks. Naked eye: limiting magnitude 6.5, neutral airglow, the Eyes look on, no exposure bias. Night camera: magnitude 9, warmer and greener airglow, Eyes off, auto exposure with a bias for a 20 s, f/2.8, ISO 1600 shot. Either sets only those fields.",
+        |ui| {
+            if ui.button("Naked eye").clicked() {
+                naked_eye(s);
+            }
+            if ui.button("Night camera").clicked() {
+                night_camera(s);
+            }
+        },
+    );
+    let p = &mut s.physical_sky;
+    row(
+        ui,
         "Star brightness",
         "The catalogue stars' brightness at night (1: the real sky's; 0: none). Stars are point lights: they light surfaces and show in mirrors and glass.",
         |ui| {
@@ -279,6 +315,14 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "The upper air's own faint glow, brightest a little above the horizon (1: a dark site).",
         |ui| {
             ui.add(crate::slider(&mut p.airglow, 0. ..=10.));
+        },
+    );
+    row(
+        ui,
+        "Airglow tint",
+        "Neutral is how the eye sees airglow; warm is the greener, warmer tint a long camera exposure records.",
+        |ui| {
+            ui.add(crate::slider(&mut p.airglow_warmth, 0. ..=1.).fixed_decimals(2));
         },
     );
     row(
@@ -739,6 +783,19 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_night_looks_change_only_their_fields_and_validate() {
+        let mut s = Settings::default();
+        night_camera(&mut s);
+        assert!(!s.eyes && s.auto_exposure);
+        assert_eq!(s.physical_sky.limiting_magnitude, 9.);
+        s.validate().unwrap();
+        naked_eye(&mut s);
+        assert!(s.eyes && s.ev_bias == 0.);
+        assert!(s.physical_sky.is_default());
+        s.validate().unwrap();
+    }
 
     #[test]
     fn a_plain_stage_has_nothing_overridden() {

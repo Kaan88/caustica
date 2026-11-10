@@ -2908,6 +2908,9 @@
   "focus_distance": 4.4,
   "aperture_blades": 6,
   "blade_rotation": 15.0,
-  "cat_eye": 0.5
+  "cat_eye": 0.5,
+  "auto_exposure": true,
+  "ev_bias": -0.62,
+  "eyes": true
  }
 }

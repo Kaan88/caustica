@@ -179,6 +179,9 @@
    0.0
   ],
   "exposure": 1.4,
+  "auto_exposure": true,
+  "ev_bias": -5.17,
+  "eyes": true,
   "fog": {
    "density": 0.05,
    "color": [

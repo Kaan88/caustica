@@ -3370,6 +3370,9 @@
    }
   ],
   "spectral": true,
-  "exposure": 1.2
+  "exposure": 1.2,
+  "auto_exposure": true,
+  "ev_bias": -6.64,
+  "eyes": true
  }
 }

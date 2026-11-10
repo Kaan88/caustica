@@ -113,6 +113,9 @@
    "phase": 0.5,
    "height": 1.0,
    "extent": 1.0
-  }
+  },
+  "auto_exposure": true,
+  "ev_bias": -2.18,
+  "eyes": true
  }
 }

@@ -131,7 +131,12 @@ impl Gpu {
         unsafe {
             match integrator {
                 1 => {
-                    let bdpt = if s.spectral { "bdpt_spectral" } else { "bdpt" };
+                    let bdpt = match (s.spectral, s.exact_glass) {
+                        (true, true) => "bdpt_spectral_exact",
+                        (true, false) => "bdpt_spectral",
+                        (false, true) => "bdpt_exact",
+                        (false, false) => "bdpt",
+                    };
                     for pass in [bdpt, "bdpt_resolve"] {
                         self.dispatch(pass, offset, [gx, gy, 1]);
                     }
@@ -169,8 +174,14 @@ impl Gpu {
                     // LEAN exactly when the shader's fog and ReSTIR flags are off this frame.
                     let lean = self.lean_scene && c.fog[0] <= 0. && c.restir[0] & 1 == 0;
                     let spectral = s.spectral && self.st.lpe_slots == 0;
+                    // Exact rough glass (accuracy A1): EXACT_BTDF, never LEAN; LPE keeps its own.
+                    let exact = s.exact_glass && self.st.lpe_slots == 0;
                     let pipe = if self.st.lpe_slots > 0 {
                         "trace_lpe"
+                    } else if exact && spectral {
+                        "trace_spectral_exact"
+                    } else if exact {
+                        "trace_exact"
                     } else if spectral && lean {
                         "trace_spectral_lean"
                     } else if spectral {
@@ -568,7 +579,7 @@ impl Gpu {
             .iter()
             .flat_map(|t| t[..3].iter().copied())
             .fold(0f32, f32::max);
-        let scale = (peak / 60000.).max(1.);
+        let scale = crate::environment::half_scale(peak);
         let halves: Vec<u16> = env
             .texels
             .iter()

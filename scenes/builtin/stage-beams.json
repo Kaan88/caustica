@@ -165,6 +165,9 @@
    "noise_size": 0.9
   },
   "exposure": 2.0,
+  "auto_exposure": true,
+  "ev_bias": -3.61,
+  "eyes": true,
   "objects": [
    {
     "name": "Satin metal sphere",

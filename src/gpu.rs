@@ -59,6 +59,7 @@ unsafe extern "C" {
         dt: f32,
         view: *const f32,
         proj: *const f32,
+        pre_exposure: f32,
     ) -> u32;
     fn caustica_ngx_destroy(ngx: *mut c_void);
     fn caustica_ngx_caps(ngx: *mut c_void) -> u32;
@@ -84,6 +85,7 @@ unsafe extern "C" {
         jy: f32,
         reset: i32,
         dt: f32,
+        pre_exposure: f32,
     ) -> u32;
     fn caustica_fsr_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
     fn caustica_fsr_release(fsr: *mut c_void);
@@ -107,6 +109,7 @@ unsafe extern "C" {
         fov_y: f32,
         near: f32,
         far: f32,
+        pre_exposure: f32,
     ) -> u32;
     fn caustica_xess_init(device: *mut c_void, result: *mut *mut c_void) -> u32;
     fn caustica_xess_destroy(xess: *mut c_void);
@@ -210,8 +213,8 @@ pub struct Gpu {
     /// Track 20: the four tracers above as SER ray generation pipelines, in the order trace,
     /// trace_maps, trace_lean, trace_maps_lean; None without SER (or CAUSTICA_NO_SER=1).
     /// The SER tracers: the four `trace` variants (index textured + 2 × LEAN), then LPE, then
-    /// spectral and spectral LEAN.
-    ser: Option<[SerPipeline; 7]>,
+    /// spectral and spectral LEAN, then exact glass (`trace_exact`) and its spectral twin.
+    ser: Option<[SerPipeline; 9]>,
     /// Path visualizer (track 14): the trace variant that re-traces one pixel into
     /// `path_buffer` (bound at u0 space 2 for every dispatch), read back through `path_readback`.
     trace_paths: ID3D12PipelineState,
@@ -257,6 +260,12 @@ pub struct Gpu {
     photon_trace_spectral: ID3D12PipelineState,
     photon_gather_spectral: ID3D12PipelineState,
     bdpt_spectral: ID3D12PipelineState,
+    /// Accuracy A1 (`Settings::exact_glass`): the tracer (with the map code), its spectral twin
+    /// and BDPT with the exact rough dielectric (EXACT_BTDF).
+    trace_exact: ID3D12PipelineState,
+    trace_spectral_exact: ID3D12PipelineState,
+    bdpt_exact: ID3D12PipelineState,
+    bdpt_spectral_exact: ID3D12PipelineState,
     photon_gather: ID3D12PipelineState,
     aux: Option<ID3D12Resource>,
     aux_len: u64,

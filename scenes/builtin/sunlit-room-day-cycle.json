@@ -855,6 +855,9 @@
    }
   ],
   "exposure": 2.0,
+  "auto_exposure": true,
+  "ev_bias": -2.05,
+  "eyes": true,
   "physical_sky": {
    "on": true,
    "time": 8.0,
@@ -877,6 +880,36 @@
       {
        "time": 12.0,
        "value": 19.5,
+       "interp": "linear"
+      }
+     ]
+    },
+    {
+     "path": "ev_bias",
+     "keys": [
+      {
+       "time": 0.0,
+       "value": -2.05,
+       "interp": "linear"
+      },
+      {
+       "time": 3.0,
+       "value": -2.6,
+       "interp": "linear"
+      },
+      {
+       "time": 6.0,
+       "value": -3.6,
+       "interp": "linear"
+      },
+      {
+       "time": 9.0,
+       "value": -4.6,
+       "interp": "linear"
+      },
+      {
+       "time": 12.0,
+       "value": -6.0,
        "interp": "linear"
       }
      ]

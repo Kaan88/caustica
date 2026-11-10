@@ -67,6 +67,36 @@ impl App {
                 ui,
                 "It always shows the plain image, whatever the view keys pick. The GPU settings below wait for the GPU view.",
             );
+            if advanced {
+                ui.collapsing("CPU truth", |ui| {
+                    note(
+                        ui,
+                        "Exact versions of the shortcuts the CPU copies from the GPU, for measuring them. All off is the GPU's model. Changing one starts the render over.",
+                    );
+                    let mut t = s.truth;
+                    let mut flags = [
+                        ("Russian roulette off", &mut t.roulette),
+                        ("Firefly clamp off", &mut t.firefly),
+                        ("No pdf floors", &mut t.floors),
+                        ("Uncapped fog collisions", &mut t.collisions),
+                        ("No fog early out", &mut t.fog_cutoff),
+                        ("No absorption colour floor", &mut t.absorption_floor),
+                        ("Exact SDF marching", &mut t.sdf_march),
+                        ("Rough glass BTDF", &mut t.glass_btdf),
+                        ("Internal re-reflection (pending)", &mut t.internal_reflection),
+                        ("Multiple scattering (pending)", &mut t.multiscatter),
+                        ("Conductor Fresnel (pending)", &mut t.fresnel),
+                        ("Float-error ray offsets (pending)", &mut t.offsets),
+                        ("Shadow terminator (pending)", &mut t.shadow_terminator),
+                    ];
+                    for (label, on) in &mut flags {
+                        ui.checkbox(on, *label);
+                    }
+                    if t != s.truth {
+                        s.truth = t;
+                    }
+                });
+            }
         }
         section(ui, "Reconstruction");
         note(
@@ -305,12 +335,20 @@ impl App {
                 "Light bounces",
                 "How many times a path may bounce. More brightens deep corners and glass.",
                 |ui| {
-                    let slider = crate::slider(&mut s.bounces, 1..=32);
+                    let slider = crate::slider(&mut s.bounces, 1..=64);
                     ui.add(if s.integrator == 1 && !s.battle && bdpt_over {
                         slider.suffix(" (BDPT stops at 24)")
                     } else {
                         slider
                     });
+                },
+            );
+            row(
+                ui,
+                "Specular bounces",
+                "Extra bounces for mirror-like and glass vertices (smooth glass and water, mirrors, roughness up to 0.1), on top of Light bounces, as games do: glass behind glass and windows into rooms stay lit at a low bounce count. 0 counts every bounce against Light bounces. Path tracing only; BDPT, photon mapping and ReSTIR GI use Light bounces.",
+                |ui| {
+                    ui.add(crate::slider(&mut s.specular_bounces, 0..=64));
                 },
             );
             row(
@@ -372,7 +410,7 @@ impl App {
                     });
                 });
                 let mut on = s.firefly > 0.;
-                let firefly = check_row_with(ui, "Suppress fireflies", "Clamp single very bright samples. Biased, but removes white specks.", &mut on, None, |ui, on| {
+                let firefly = check_row_with(ui, "Suppress fireflies", "Clamp single very bright samples: after four samples, one may be at most this many times the pixel's mean so far, and never clamped below 0.05 (scene units, not exposed ones: very dark scenes are clamped harder). Biased, but removes white specks.", &mut on, None, |ui, on| {
                     if on {
                         ui.add(crate::slider(&mut s.firefly, 0.1..=100.).logarithmic(true).suffix("× max"));
                     }
@@ -398,6 +436,9 @@ impl App {
                     });
                 }
                 check_row(ui, "Glass casts shadows", "Off lets light through glass for shadow rays, a common shortcut.", &mut s.glass_shadow);
+                check_row(ui, "Exact rough glass", "Rough glass as a real microfacet BTDF (light sampling included) instead of a blur of the sharp direction. Slower; part of the Accurate bundle.", &mut s.exact_glass);
+                check_row(ui, "Gentle roulette", "Russian roulette starts at bounce 8 and never drops a path below 20% survival (default: bounce 3, 5%). Same image on average, less noise, slower. Part of the Accurate bundle.", &mut s.gentle_roulette);
+                check_row(ui, "Textures at full detail", "Reads every texture at its sharpest level instead of a blurrier one for distant or indirect hits, as the CPU reference does. Noisier on fine patterns, exact when converged. Part of the Accurate bundle.", &mut s.lod0_textures);
                 check_row(ui, "VSync", "Wait for the display between frames.", &mut s.vsync);
             });
         });
@@ -421,7 +462,7 @@ impl App {
             .width(120.)
             .show_ui(ui, |ui| {
                 for b in Bundle::ALL {
-                    if b == Bundle::Native {
+                    if b == Bundle::Best || b == Bundle::Native {
                         ui.separator();
                     }
                     let usable = rr_ok || !b.rr();
@@ -445,7 +486,7 @@ impl App {
                 "Quality: denoiser and render resolution in one choice (details in the Render tab)",
             );
         if let Some(b) = chosen {
-            b.apply(&mut self.settings, upscaler);
+            b.apply(&mut self.settings, upscaler, rr_ok);
             self.ui.toast(format!("Quality: {}", b.label()));
         }
     }

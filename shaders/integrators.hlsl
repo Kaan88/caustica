@@ -143,6 +143,20 @@ bool sample_vertex(inout BVertex x,float3 d,bool radiance,uint mode,out float3 n
         uint e=medium_entry(x.info&0xffffffu,m.lobes.w);uint64_t after=front?medium_push(sv_media,e):medium_remove(sv_media,e);
         float n1=front?medium_ior(sv_media,medium_top(sv_media)):ior_of(m),n2=front?ior_of(m):medium_ior(after,medium_top(after));
         float eta=n1/n2,fr=fresnel_dielectric(saturate(dot(-d,x.n)),eta);
+#ifdef EXACT_BTDF
+        // Exact rough glass (A1): the GGX BTDF sampled through a visible normal, weight G1(l)
+        // (the eta² of a refraction only on camera subpaths, as below). The vertex stays delta:
+        // connections don't evaluate the glass lobe (vertex_f is unchanged), so the strategies
+        // that can make a path through it are the sampled ones, and they all see this sampling.
+        if(m.color_rough.a>0.001){
+            float a=max(0.001,m.color_rough.a*m.color_rough.a);bool reflected;
+            if(!sample_rough_dielectric(x.n,d,eta,a,next,reflected,fr))return false;
+            beta*=g1(abs(dot(x.n,next)),a);
+            if(m.surface_scale.z>0 && fr<1){float3 frc=lerp(fr.xxx,m.base_scale.rgb,m.surface_scale.z);beta*=reflected?frc/max(fr,1e-4):(1-frc)/max(1-fr,1e-4);}
+            if(!reflected){absorption=front?-log(max(m.color_rough.rgb,0.001)):0;if(radiance)beta*=eta*eta;}
+            x.info|=V_DELTA;return true;
+        }
+#endif
         float3 frc=fr.xxx;
         if(m.surface_scale.z>0 && fr<1){frc=lerp(frc,m.base_scale.rgb,m.surface_scale.z);fr=clamp((frc.r+frc.g+frc.b)/3,1e-4,1-1e-4);}
         bool reflected=random()<fr;
@@ -684,8 +698,11 @@ float3 direct_light_at(BVertex x,Material m,float3 v,float p_env){
     float p_env=env_share();float3 sum=0;
     for(uint k=0;k<sampling.y;k++){
         float2 sub=(scene_info.w&1)!=0?jitter.xy:filter_offset(float2(random(),random()));
+        // The hero wavelength first, as bdpt does: camera_ray reads it (the lens's index, and
+        // hero_only decides who takes the 3).
+        begin_hero(k*0x9e3779b9u^hash(sampling.w+0x2545f491u));
         float3 o,d;bool valid;camera_ray(float2(p)+0.5+sub,true,o,d,valid);if(!valid)continue;
-        cone_width=pixel_width_now();cone_spread=pixel_angle_now();begin_hero(k*0x9e3779b9u^hash(sampling.w+0x2545f491u));
+        cone_width=pixel_width_now();cone_spread=pixel_angle_now();
         float3 beta=camera_weight,ab=0,L=0;Walk wk=camera_walk();
         for(uint bounce=0;bounce<min(sampling.z,PHOTON_WALK);bounce++){
             Hit h;float3 xs,alb,sigma;float g;uint step=walk_step(o,d,bounce==0,wk,beta,h,xs,alb,g,sigma);

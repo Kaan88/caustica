@@ -20,7 +20,7 @@ mod bsdf;
 mod bvh;
 mod camera;
 mod denoise;
-mod display;
+pub mod display;
 mod environment;
 mod integrators;
 mod lights;
@@ -43,6 +43,16 @@ pub use prepare::{at_time, exposure, prepare};
 #[cfg(test)]
 pub use progressive::render;
 pub use progressive::{Live, LiveState, Progressive};
+
+/// Samples the path tracer dropped because they were NaN or infinite (accuracy audit B4: how
+/// often that shortcut fires). `run` prints the total as `dropped=`.
+pub(crate) static DROPPED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The truth flags that are on in `s` whose exact version is not written yet (`Truth` hooks): the
+/// reference renders them as the GPU's model and says so (`REFERENCE_TRUTH_PENDING`).
+pub fn truth_pending(s: &Settings) -> Vec<&'static str> {
+    s.truth.pending()
+}
 
 /// What a scene uses that the reference does not render; empty when it can, which since battle
 /// mode is every scene. `Fog::equiangular` only changes the GPU's sampling, and measured spectra
@@ -103,6 +113,12 @@ pub fn run(
         }
     }
     let frame = &moments[0];
+    if !frame.truth.on().is_empty() {
+        println!("REFERENCE_TRUTH {}", frame.truth.on().join(","));
+    }
+    if !truth_pending(frame).is_empty() {
+        println!("REFERENCE_TRUTH_PENDING {}", truth_pending(frame).join(","));
+    }
     let mut p = if lenient {
         Progressive::partial(frame, size)
     } else {
@@ -122,6 +138,9 @@ pub fn run(
         &std::sync::atomic::AtomicBool::new(false),
         &progress,
     );
+    // OIDN filters the finished mean, so the meter reads the unfiltered one, as on the GPU
+    // (which meters before `video::denoise_capture` filters the written file).
+    let mut exposure = None;
     let rgba = if lpe_view {
         p.lpe_image(frame.lpe_slot)
             .unwrap_or_else(|| [0., 0., 0., 1.].repeat((size[0] * size[1]) as usize))
@@ -133,6 +152,7 @@ pub fn run(
         )
     {
         // Intel OIDN on the finished mean, guided by albedo and normal (a PNG or JPEG only).
+        exposure = Some(display::still_exposures(frame, &p.image(), size));
         p.oidn_image(threads).unwrap_or_else(|e| {
             eprintln!("OIDN skipped: {e:#}");
             p.image()
@@ -145,7 +165,7 @@ pub fn run(
     if layers {
         crate::video::write_layers(path, &p.layers(rgba))?;
     } else {
-        crate::video::write_cpu_image(
+        crate::video::write_cpu_image_exposed(
             frame,
             path,
             format,
@@ -153,13 +173,15 @@ pub fn run(
             rgba,
             size,
             0,
+            exposure,
         )?;
     }
     println!(
-        "REFERENCE_OK spp={spp} size={}x{} seconds={:.1}",
+        "REFERENCE_OK spp={spp} size={}x{} seconds={:.1} dropped={}",
         size[0],
         size[1],
-        start.elapsed().as_secs_f32()
+        start.elapsed().as_secs_f32(),
+        DROPPED.load(std::sync::atomic::Ordering::Relaxed)
     );
     Ok(())
 }

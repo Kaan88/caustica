@@ -1,7 +1,7 @@
 {
  "format": 1,
  "title": "Starlight field",
- "description": "A white floor under a clear moonless night at 45\u00b0 N, lit only by the catalogue's stars (83,479 to V 9, point lights), the Milky Way and airglow. Night skies are about a billionth of daylight: this scene waits for auto exposure (night sky N6); until then the sun intensity and exposure are at their maximum and the image is still dark. Used by tools/oracle.py for star light sampling and the camera's star cone.",
+ "description": "A white floor under a clear moonless night at 45\u00b0 N, lit only by the catalogue's stars (83,479 to V 9, point lights), the Milky Way and airglow. The sky is at its real brightness (default sun intensity) and auto exposure and the Eyes look bring it up to what a dark-adapted eye sees. Used by tools/oracle.py for star light sampling and the camera's star cone.",
  "tags": [
   "night",
   "sky",
@@ -51,13 +51,15 @@
    0
   ],
   "fov": 60,
-  "exposure": 10.0,
+  "exposure": 10000.0,
+  "auto_exposure": true,
+  "ev_bias": -2.0,
+  "eyes": true,
   "physical_sky": {
    "on": true,
    "time": 23.5,
    "day": 30.0,
    "latitude": 45.0,
-   "intensity": 1000.0,
    "moon": false
   }
  }

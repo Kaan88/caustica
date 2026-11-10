@@ -822,6 +822,8 @@ pub struct Job {
     environment_changed: bool,
     /// Passes rendered (motion blur's shutter samples).
     pass: u32,
+    /// The frame whose first pass committed the meter's step (`meter_step`).
+    meter_frame: Option<u32>,
     /// Timeline exports with the simulation on run their own one, frame by frame in
     /// simulated time (keyframed objects drive it as kinematic bodies), and the time it is at.
     physics: Option<Box<crate::physics::Sim>>,
@@ -906,6 +908,7 @@ impl Job {
             environment: crate::sky::environment_key(s),
             environment_changed: false,
             pass: 0,
+            meter_frame: None,
             physics: None,
             physics_time: 0.,
         };
@@ -996,6 +999,24 @@ impl Job {
     /// A finished frame waits for room in the writer's queue (the encoder is slower).
     pub fn waiting(&self) -> bool {
         self.pending.is_some()
+    }
+    /// The exposure meter's step for the next pass (E3), on simulated time: a still settles, a
+    /// video settles on its first frame; each later frame's first pass commits one step of 1/fps
+    /// and its other passes redo that step on the fuller image, so the frame's exposure depends
+    /// on its final image and the frame count, never on wall time or the pass count.
+    pub fn meter_step(&mut self) -> crate::render::MeterStep {
+        use crate::reference::display::MeterOp;
+        let commit = self.meter_frame != Some(self.frame);
+        self.meter_frame = Some(self.frame);
+        crate::render::MeterStep {
+            op: if self.options.still || self.frame == 0 {
+                MeterOp::Settle
+            } else {
+                MeterOp::Adapt
+            },
+            commit,
+            dt: self.dt(),
+        }
     }
     /// Frame duration for the renderer's clock.
     pub fn dt(&self) -> f32 {
@@ -1116,19 +1137,22 @@ impl Job {
     }
 }
 /// A CPU render's frame for `format`: the linear mean for EXR, else the display transform
-/// (`reference::display`, grain seeded by `seed`).
+/// (`reference::display`, grain seeded by `seed`), at `exposure` (a video's adapted ones, displayed and metered) or, with
+/// none, the still's.
 fn cpu_frame(
     s: &Settings,
     format: ImageFormat,
     linear: Vec<f32>,
     size: [u32; 2],
     seed: u32,
+    exposure: Option<[f32; 2]>,
 ) -> Result<Frame> {
     Ok(match format {
         ImageFormat::Exr => Frame::Linear(linear),
-        ImageFormat::Png | ImageFormat::Jpeg => {
-            Frame::Rgba8(crate::reference::display(s, &linear, size, seed)?)
-        }
+        ImageFormat::Png | ImageFormat::Jpeg => Frame::Rgba8(match exposure {
+            Some(e) => crate::reference::display::display_exposed(s, &linear, size, seed, e)?,
+            None => crate::reference::display(s, &linear, size, seed)?,
+        }),
         f => anyhow::bail!("The CPU renderer can't write {} yet", f.label()),
     })
 }
@@ -1142,7 +1166,21 @@ pub fn write_cpu_image(
     size: [u32; 2],
     seed: u32,
 ) -> Result<()> {
-    let frame = cpu_frame(s, format, linear, size, seed)?;
+    write_cpu_image_exposed(s, path, format, quality, linear, size, seed, None)
+}
+/// `write_cpu_image` at given exposures (`None`: the meter settles on `linear`).
+#[allow(clippy::too_many_arguments)]
+pub fn write_cpu_image_exposed(
+    s: &Settings,
+    path: &Path,
+    format: ImageFormat,
+    quality: u32,
+    linear: Vec<f32>,
+    size: [u32; 2],
+    seed: u32,
+    exposure: Option<[f32; 2]>,
+) -> Result<()> {
+    let frame = cpu_frame(s, format, linear, size, seed, exposure)?;
     write_image(path, format, quality, &frame, size[0], size[1])
 }
 
@@ -1209,12 +1247,14 @@ pub fn render_cpu(
     };
     // Cheap checks first: a refused scene or format fails before the writer starts.
     if let Some(t) = &turntable {
-        cpu_frame(t, format, vec![0.; 4], [1, 1], 0)?;
+        cpu_frame(t, format, vec![0.; 4], [1, 1], 0, None)?;
     } else {
-        cpu_frame(&v, format, vec![0.; 4], [1, 1], 0)?;
+        cpu_frame(&v, format, vec![0.; 4], [1, 1], 0, None)?;
     }
     let mut writer = Writer::start(&options, 1000.)?;
     let frames = options.frames;
+    use crate::reference::display::{MeterOp, meter_histogram, meter_reading};
+    let mut adaptation = crate::reference::display::Adaptation::default();
     let result = (|| -> Result<u32> {
         for i in 0..frames {
             let frame_start = Instant::now();
@@ -1295,7 +1335,30 @@ pub fn render_cpu(
                 .iter()
                 .flat_map(|c| [c[0] / n, c[1] / n, c[2] / n, 1.])
                 .collect();
-            let mut frame = Some(cpu_frame(&shown, format, mean, size, i % 4096)?);
+            // The meter as the GPU's video export runs it: settled on the first frame (and on
+            // a still), then one step of 1/fps per frame on simulated time.
+            let op = if options.still || i == 0 {
+                MeterOp::Settle
+            } else {
+                MeterOp::Adapt
+            };
+            let h = meter_histogram(&mean, size, shown.meter_mode);
+            adaptation.step(
+                meter_reading(&h, shown.meter_mode),
+                op,
+                true,
+                1. / fps,
+                shown.exposure_speed,
+            );
+            let exposure = [adaptation.exposure(&shown), adaptation.metered(&shown)];
+            let mut frame = Some(cpu_frame(
+                &shown,
+                format,
+                mean,
+                size,
+                i % 4096,
+                Some(exposure),
+            )?);
             while let Some(f) = frame.take() {
                 frame = writer.try_send(f)?;
                 if frame.is_some() {
@@ -1410,6 +1473,8 @@ fn preview(rgba: &[u8], w: u32, h: u32) -> egui::ColorImage {
 pub unsafe fn render(g: &mut Gpu, s: &Settings, options: Options) -> Result<String> {
     let mut job = Job::start(g, s, options)?;
     while !job.done() {
+        // The meter's step for this pass, as the interactive export loop sets it.
+        g.meter = job.meter_step();
         let step = job
             .before_render(g)
             .and_then(|()| {

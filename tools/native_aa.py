@@ -48,7 +48,7 @@ EDGES = {
 
 def render(exe, out, scene, extra):
     command = [str(exe), "--headless", "--width", "640", "--height", "480", "--no-rr", *scene, *extra,
-               "--capture", str(out)]
+               "--set", "auto_exposure=false", "--set", "eyes=false", "--capture", str(out)]
     subprocess.run(command, cwd=ROOT, check=True, stdout=subprocess.DEVNULL,
                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 

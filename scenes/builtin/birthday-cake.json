@@ -1717,6 +1717,9 @@
   },
   "aperture": 0.035,
   "focus_distance": 3.0,
-  "aperture_blades": 7
+  "aperture_blades": 7,
+  "auto_exposure": true,
+  "ev_bias": -2.57,
+  "eyes": true
  }
 }

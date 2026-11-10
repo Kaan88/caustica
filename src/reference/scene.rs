@@ -266,6 +266,9 @@ pub(super) fn mix(mut x: u32) -> u32 {
     x ^ (x >> 16)
 }
 
+// truth hooks `offsets` (C1: the 0.0003 ray offsets in integrators/path.rs, lights.rs, bvh.rs) and
+// `shadow_terminator` (C2: Hanika's offset and below-face rejection, at those same offset sites) are
+// written by the next accuracy step; the flags report pending until then.
 /// An object's unit world normal at a vertex, back to the inverse-transpose image of its unit
 /// object-space normal. A mesh's normals interpolate in object space, then transform (the GPU's
 /// instances); under non-uniform scale that differs from interpolating the unit world normals, so

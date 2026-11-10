@@ -2,6 +2,10 @@
 //! rendering). The frame map is in docs/claude/testing.md.
 use crate::*;
 
+/// Self-test frames that run with the exposure meter (and on `EYES_FRAME` the Eyes look) on.
+const METER_FRAME: u32 = 240;
+const EYES_FRAME: u32 = 245;
+
 impl App {
     /// The scripted edits of frame `self.rendered`.
     pub(crate) fn self_test_script(&mut self) -> Result<()> {
@@ -735,8 +739,10 @@ impl App {
                 self.settings.objects.push(a);
                 self.settings.objects.push(b);
             }
+            // Back to the plain box after the night of 245 (its light, background and Eyes look),
+            // which also drops 243's portal pair (the preset on 245 had already).
             246 => {
-                self.settings.objects.truncate(2);
+                self.settings.preset(0);
             }
             // Walk mode: hold W for a few frames.
             247 => {
@@ -1048,6 +1054,38 @@ impl App {
                 self.ui.palette.open = false;
                 self.ui.tab = ui::Tab::Scene;
             }
+            // The exposure meter (E3) and the Eyes look (E4) on their own frames; every other
+            // frame renders with both off (the pin at the end of this function). The self-test
+            // runs with `frames` set, so the meter settles on every frame it runs.
+            // 240: auto exposure on the Cornell box, the meter's reading must put the image's
+            // metered luminance at middle grey (checked after the render).
+            METER_FRAME => {
+                self.settings.preset(0);
+                self.settings.eyes = false;
+                self.settings.auto_exposure = true;
+                self.settings.ev_bias = 0.;
+            }
+            // 245: the same box with its light 1e-7 as bright (the default 12, here 12e-7) and a matching background (a night, about 3e-4 cd/m2 adapted): the meter lifts
+            // it back to middle grey and the Eyes look takes the colour out of the picture.
+            EYES_FRAME => {
+                self.settings.preset(0);
+                // The default camera: earlier frames moved it, and the check needs the coloured walls in view.
+                let d = Settings::default();
+                (self.settings.yaw, self.settings.pitch) = (d.yaw, d.pitch);
+                (self.settings.distance, self.settings.target) = (d.distance, d.target);
+                self.settings.fov = d.fov;
+                // No reconstruction: RR at 1e-7 radiance loses the walls' colour, and the check is of the display.
+                (self.settings.denoiser, self.settings.scale) =
+                    (crate::scene::Denoiser::Off, d.scale);
+                self.settings.upscaler = d.upscaler;
+                self.settings.light_intensity = 12e-7;
+                // The Cornell box's background (seen through the open front) is its own light.
+                self.settings.background = [3e-10, 4e-10, 6e-10];
+                self.settings.eyes = true;
+                self.settings.eyes_strength = 1.;
+                self.settings.auto_exposure = true;
+                self.settings.ev_bias = 0.;
+            }
             280 => {
                 let name = self.settings.scene_name.clone();
                 self.step_scene(1);
@@ -1082,7 +1120,7 @@ impl App {
                 self.ui.set_scene_list(2);
                 self.ui.toast_file("Self-test file toast", path);
                 self.settings.compare = true;
-                ui::Bundle::Native.apply(&mut self.settings, scene::Upscaler::Fsr);
+                ui::Bundle::Native.apply(&mut self.settings, scene::Upscaler::Fsr, true);
                 anyhow::ensure!(
                     ui::Bundle::of(&self.settings) == Some(ui::Bundle::Native),
                     "Quality bundle did not round trip"
@@ -1091,7 +1129,17 @@ impl App {
             282 => {
                 self.ui.set_scene_list(1);
                 self.settings.compare = false;
-                ui::Bundle::Best.apply(&mut self.settings, scene::Upscaler::Fsr);
+                ui::Bundle::Best.apply(&mut self.settings, scene::Upscaler::Fsr, true);
+                // Accuracy bundle: applied to a copy (it renders in the oracle runs), it must
+                // validate and be recognised, and leave the Reference bundle apart.
+                let mut accurate = self.settings.clone();
+                ui::Bundle::Accurate.apply(&mut accurate, scene::Upscaler::Fsr, true);
+                anyhow::ensure!(
+                    accurate.validate().is_ok()
+                        && ui::Bundle::of(&accurate) == Some(ui::Bundle::Accurate)
+                        && ui::Bundle::of(&self.settings) == Some(ui::Bundle::Best),
+                    "The Accurate quality bundle did not round trip"
+                );
             }
             // Track 7: one light of every kind (the per-frame check covers their triangles
             // and emitter entries), the spot's inspector and every outline drawn; then the
@@ -1212,6 +1260,12 @@ impl App {
         if (10..=125).contains(&self.rendered) && self.rendered.is_multiple_of(5) {
             self.settings.preset(((self.rendered - 10) / 5) as usize);
         }
+        // Every comparison pins the display (E7): presets and scene files default to auto
+        // exposure and the Eyes look, which would make an image depend on the meter.
+        if !matches!(self.rendered, METER_FRAME | EYES_FRAME) {
+            self.settings.auto_exposure = false;
+            self.settings.eyes = false;
+        }
         Ok(())
     }
     /// Checks after rendering frame `self.rendered` with the frame settings `s`.
@@ -1256,6 +1310,70 @@ impl App {
                 "The night sky must load without a sun, with its stars"
             ),
             128 => anyhow::ensure!(!g.environment_loaded(), "The sky stayed loaded"),
+            METER_FRAME => {
+                use crate::reference::display::{meter_histogram, meter_reading};
+                let m = g.metered.unwrap_or_default();
+                anyhow::ensure!(m.valid, "The exposure meter took no reading");
+                let linear = unsafe { g.read_floats(18)? };
+                let h = meter_histogram(&linear, [g.width, g.height], s.meter_mode);
+                let (_, log2) =
+                    meter_reading(&h, s.meter_mode).context("The CPU meter saw nothing")?;
+                // The exposure puts the metered luminance at middle grey (stops, CPU vs GPU).
+                let off = m.current + log2 - photometry::MIDDLE_GREY.log2();
+                anyhow::ensure!(
+                    off.abs() < 0.15,
+                    "Auto exposure is {off:+.3} stops from middle grey (EV {}, metered log2 {log2})",
+                    m.current
+                );
+                anyhow::ensure!(
+                    (m.exposure(s) - (m.current + s.ev_bias).exp2()).abs() < 1e-6,
+                    "The displayed exposure is not the metered one"
+                );
+            }
+            EYES_FRAME => {
+                use crate::reference::display::eyes_mix;
+                let m = g.metered.unwrap_or_default();
+                anyhow::ensure!(m.valid, "The exposure meter took no reading");
+                let mix = eyes_mix(s, m.metered(s));
+                anyhow::ensure!(
+                    mix > 0.99,
+                    "The night frame adapts to {mix} of rod vision (eyes {}, strength {}, light {}, metered {}, EV {})",
+                    s.eyes,
+                    s.eyes_strength,
+                    s.light_intensity,
+                    m.metered(s),
+                    m.current
+                );
+                // The scene has colour (a red wall), the picture has none beyond the blue cast.
+                let linear = unsafe { g.read_floats(18)? };
+                let coloured = linear
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .filter(|p| p[0] > 3. * p[2].max(1e-9) && p[0] > 1e-9)
+                    .count();
+                let (mut sum, mut mx) = ([0f64; 3], 0f32);
+                for p in linear.as_chunks::<4>().0 {
+                    (0..3).for_each(|i| sum[i] += p[i] as f64);
+                    mx = mx.max(p[0]);
+                }
+                anyhow::ensure!(
+                    coloured > 20,
+                    "The night frame has no coloured pixels ({coloured}; sums {sum:?}, max r {mx}, {} px)",
+                    linear.len() / 4
+                );
+                let shown = unsafe { g.read_rgba8(10)? };
+                let (mut lit, mut bad) = (0, 0);
+                for p in shown.chunks(4).filter(|p| p[0].max(p[1]).max(p[2]) > 24) {
+                    lit += 1;
+                    bad += (p[0] > p[2].saturating_add(6)) as u32;
+                }
+                anyhow::ensure!(lit > 100, "The night frame shows only {lit} lit pixels");
+                anyhow::ensure!(
+                    bad * 100 < lit,
+                    "{bad} of {lit} pixels of the night frame are redder than blue"
+                );
+            }
             // Walking (frames 247-251) draws the avatar into the frame's copy, the head hidden.
             249 => anyhow::ensure!(
                 s.objects

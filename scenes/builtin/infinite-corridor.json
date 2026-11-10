@@ -857,6 +857,9 @@
     },
     "portal": 16
    }
-  ]
+  ],
+  "auto_exposure": true,
+  "ev_bias": 0.2,
+  "eyes": true
  }
 }

@@ -516,6 +516,170 @@ fn the_sampling_strategies_agree() {
     // A black image would pass the above.
     assert!(both > 0.01, "{both}");
 }
+/// Near a shading-normal terminator a direction can lie over the interpolated normal and under
+/// the face. Light sampling's shadow ray leaves from over the face, which blocks it; the BSDF's
+/// ray used to leave from under the face and reach what lies below it, so the two strategies
+/// integrated different visibility (accuracy audit B7: light-temperature-row's smooth pawns,
+/// BSDF sampling alone 0.08% dark against light sampling alone). Both leave from over it now.
+#[test]
+fn both_strategies_see_the_face_under_a_tilted_normal() {
+    let mut s = Settings::default();
+    s.cornell_room = false;
+    s.light_on = false;
+    s.objects.clear();
+    s.floor_extent = 3.;
+    s.floor.roughness = 1.;
+    s.floor.reflectivity = 0.;
+    s.bounces = 8;
+    // One panel over the floor (y = -1), facing down; one under it, facing up.
+    for (position, rotation, size) in [([-1., 0., 0.], 0., 0.6), ([1.2, -1.3, 0.], 180., 2.)] {
+        s.lights.push(crate::scene::AreaLight {
+            position,
+            rotation: [rotation, 0., 0.],
+            size: [size; 2],
+            intensity: 10.,
+            ..Default::default()
+        });
+    }
+    let (o, d) = (Vec3::ZERO, -Vec3::Y);
+    let mean = |mis_mode| {
+        let mut s = s.clone();
+        s.mis_mode = mis_mode;
+        let mut scene = Scene::new(&s, [8, 6]);
+        // The floor's interpolated normals lean 45° toward the lower panel: from the middle of
+        // the floor most of it lies over them and all of it under the face.
+        let n = Vec3::new(1., 1., 0.).normalize();
+        for t in scene.bvh.tris.iter_mut().filter(|t| t.material == 3) {
+            t.n = [n; 3];
+        }
+        let count = 100_000;
+        let (mut sum, mut sq) = (0f64, 0f64);
+        for i in 0..count {
+            let mut r = Rng::new(7, i);
+            let v = scene
+                .radiance(
+                    o,
+                    d,
+                    Vec3::ONE,
+                    &mut scene.waves(&r),
+                    &mut r,
+                    &mut super::aov::Record::off(),
+                )
+                .dot(Vec3::splat(1. / 3.)) as f64;
+            sum += v;
+            sq += v * v;
+        }
+        let m = sum / count as f64;
+        (m, (sq / count as f64 - m * m).max(0.) / count as f64)
+    };
+    let (light, var_light) = mean(1);
+    let (bsdf, var_bsdf) = mean(2);
+    let z = (light - bsdf) / (var_light + var_bsdf).sqrt();
+    assert!(light > 0.01 && z.abs() < 4., "{light} vs {bsdf}: z {z}");
+}
+/// The truth switch: names parse, all off is the default (so the regression oracle sees today's
+/// model), and the hooks are reported as pending.
+#[test]
+fn the_truth_switch_parses_and_defaults_off() {
+    use crate::scene::Truth;
+    assert!(Settings::default().truth.on().is_empty());
+    let t = Truth::parse("roulette, sdf_march").unwrap();
+    assert_eq!(t.on(), ["roulette", "sdf_march"]);
+    assert!(t.pending().is_empty());
+    let all = Truth::parse("all").unwrap();
+    assert_eq!(all.on().len(), Truth::NAMES.len());
+    assert_eq!(all.pending().len(), 5);
+    assert!(Truth::parse("nonsense").is_err());
+    assert!(Truth::parse("none").unwrap().on().is_empty());
+    // A scene file that predates the field, and a partial one.
+    let s: Settings = serde_json::from_str(r#"{"truth":{"firefly":true}}"#).unwrap();
+    assert_eq!(s.truth.on(), ["firefly"]);
+    let mut s = Settings::default();
+    s.truth = all;
+    let back: Settings = serde_json::from_value(serde_json::to_value(&s).unwrap()).unwrap();
+    assert_eq!(back.truth, all);
+    // Pending rows are listed by the reference's own report.
+    assert_eq!(truth_pending(&s).len(), 5);
+}
+/// Without Russian roulette the estimate is the same on average (it is unbiased either way); the
+/// truth switch only removes its variance and its path-length bound.
+#[test]
+fn the_truth_without_roulette_keeps_the_mean() {
+    let mut s = Settings::default();
+    s.bounces = 8;
+    let mean = |truth: bool| {
+        let mut s = s.clone();
+        s.truth.roulette = truth;
+        s.gentle_roulette = false;
+        let scene = Scene::new(&s, [8, 6]);
+        let count = 40_000;
+        let (mut sum, mut sq) = (0f64, 0f64);
+        for i in 0..count {
+            let mut r = Rng::new(11, i);
+            let mut waves = scene.waves(&r);
+            let (o, d, w) = scene
+                .camera_ray(Vec2::new(4.5, 3.5), &mut waves, &mut r)
+                .unwrap();
+            let v = scene
+                .radiance(o, d, w, &mut waves, &mut r, &mut super::aov::Record::off())
+                .dot(Vec3::splat(1. / 3.)) as f64;
+            sum += v;
+            sq += v * v;
+        }
+        let m = sum / count as f64;
+        (m, (sq / count as f64 - m * m).max(0.) / count as f64)
+    };
+    let (a, va) = mean(false);
+    let (b, vb) = mean(true);
+    let z = (a - b) / (va + vb).sqrt();
+    assert!(a > 0.01 && z.abs() < 4., "{a} vs {b}: z {z}");
+}
+/// Accuracy B1: the Accurate bundle's gentler roulette (start 8, floor 0.2) is unbiased too.
+#[test]
+fn gentle_roulette_keeps_the_mean() {
+    let mut s = Settings::default();
+    s.bounces = 12;
+    let mean = |gentle: bool| {
+        let mut s = s.clone();
+        s.gentle_roulette = gentle;
+        let scene = Scene::new(&s, [8, 6]);
+        let count = 40_000;
+        let (mut sum, mut sq) = (0f64, 0f64);
+        for i in 0..count {
+            let mut r = Rng::new(13, i);
+            let mut waves = scene.waves(&r);
+            let (o, d, w) = scene
+                .camera_ray(Vec2::new(4.5, 3.5), &mut waves, &mut r)
+                .unwrap();
+            let v = scene
+                .radiance(o, d, w, &mut waves, &mut r, &mut super::aov::Record::off())
+                .dot(Vec3::splat(1. / 3.)) as f64;
+            sum += v;
+            sq += v * v;
+        }
+        let m = sum / count as f64;
+        (m, (sq / count as f64 - m * m).max(0.) / count as f64)
+    };
+    let (a, va) = mean(false);
+    let (b, vb) = mean(true);
+    let z = (a - b) / (va + vb).sqrt();
+    assert!(a > 0.01 && z.abs() < 4., "{a} vs {b}: z {z}");
+}
+/// The truth switch's sphere tracer steps further and closer than the GPU's.
+#[test]
+fn the_truth_sdf_march_is_finer() {
+    let o2w = Mat4::IDENTITY;
+    use super::sdf::{SPHERE, SdfObject};
+    let mut object = SdfObject::new(SPHERE, 5, o2w);
+    assert_eq!((object.steps, object.eps), (128, 1e-4));
+    object.steps = 4096;
+    object.eps = 1e-6;
+    assert!(
+        object
+            .hit(Vec3::new(0., 0., -3.), Vec3::Z, 1e-4, 1e4)
+            .is_some()
+    );
+}
 /// One large sample doesn't swallow a million small ones (in f32 they would all be lost).
 #[test]
 fn the_sums_keep_small_samples_beside_a_large_one() {
@@ -1504,7 +1668,7 @@ fn chromatic_flight_is_unbiased_per_channel() {
 
 #[test]
 fn heterogeneous_fog_tracking_matches_the_integrated_density() {
-    use super::media::{delta_tracking, fog_density, ratio_tracking};
+    use super::media::{FogLimits, delta_tracking, fog_density, ratio_tracking};
     let (noise, size) = (0.75, 0.3);
     // The density is non-negative, below the majorant's 1 + noise, and about 1 on average.
     let mut r = Rng::new(3, 9);
@@ -1533,10 +1697,10 @@ fn heterogeneous_fog_tracking_matches_the_integrated_density() {
     let (mut ratio, mut ratio2, mut pass, mut pass2, mut scatter) =
         (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO);
     for _ in 0..n {
-        let x = ratio_tracking(sigma, noise, size, o, d, t0, t1, &mut r);
+        let x = ratio_tracking(sigma, noise, size, o, d, t0, t1, FogLimits::GPU, &mut r);
         ratio += x;
         ratio2 += x * x;
-        let (ts, w) = delta_tracking(sigma, noise, size, o, d, t0, t1, &mut r);
+        let (ts, w) = delta_tracking(sigma, noise, size, o, d, t0, t1, FogLimits::GPU, &mut r);
         if ts >= t1 {
             pass += w;
             pass2 += w * w;
@@ -2223,4 +2387,201 @@ fn photon_mapping_agrees_with_the_path_tracer() {
     s.photons = 1 << 15;
     let pm = mean(&s, 64);
     assert!((pm / path - 1.).abs() < 0.04, "photons {pm} vs path {path}");
+}
+/// B1: the specular bounce budget. 0 is the legacy budget (the same bits as a default render,
+/// which keeps every baseline); a budget lets light through the glass of water's nested
+/// dielectrics that one bounce alone can't reach, and never removes light a smaller one had in
+/// a scene without specular vertices.
+#[test]
+fn specular_bounces_extend_only_specular_chains() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scenes/builtin/glass-of-water.json");
+    let mut s = Settings::default();
+    crate::scenes::load_into(&mut s, &path).unwrap();
+    s.bounces = 2;
+    s.specular_bounces = 0;
+    let legacy = render(&s, [24, 18], 2, &|_| {}).unwrap();
+    let mut zero = s.clone();
+    zero.specular_bounces = 0;
+    assert_eq!(render(&zero, [24, 18], 2, &|_| {}).unwrap(), legacy);
+    let mut split = s.clone();
+    split.specular_bounces = 8;
+    let more = render(&split, [24, 18], 2, &|_| {}).unwrap();
+    let sum = |img: &[f32]| img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>();
+    assert!(
+        sum(&more) > sum(&legacy) * 1.05,
+        "{} vs {}",
+        sum(&more),
+        sum(&legacy)
+    );
+    // A rough Cornell box has no specular vertex: the budget changes nothing.
+    let mut diffuse = Settings::default();
+    diffuse.bounces = 3;
+    for o in &mut diffuse.objects {
+        o.material.roughness = 1.;
+        o.material.metallic = 0.;
+        o.material.transmission = 0.;
+    }
+    let base = render(&diffuse, [16, 12], 2, &|_| {}).unwrap();
+    diffuse.specular_bounces = 8;
+    assert_eq!(render(&diffuse, [16, 12], 2, &|_| {}).unwrap(), base);
+}
+
+/// Truth `glass_btdf` (audit A1): the rough dielectric's pdf integrates to the share of samples
+/// that come back (the rest go to the wrong side, the single-scattering loss), and the value's
+/// integral, f |cos| over the sphere, is what the sampled weights average.
+#[test]
+fn rough_dielectric_pdf_and_value_match_its_sampler() {
+    use super::bsdf::{g1, rough_dielectric, sample_rough_dielectric};
+    let n = Vec3::Z;
+    for (a, eta, c) in [
+        (0.25f32, 1. / 1.5, 0.9f32),
+        (0.5, 1. / 1.5, 0.4),
+        (0.25, 1.5, 0.95),
+        (0.5, 1.33, 0.7),
+    ] {
+        let v = Vec3::new((1. - c * c).sqrt(), 0., c);
+        let count = 400_000u64;
+        // Uniform over the sphere: density 1 / 4π.
+        let (mut pdf_sum, mut f_sum) = (0f64, 0f64);
+        for i in 0..count {
+            let mut r = Rng::new(3, i);
+            let z = 1. - 2. * r.f();
+            let phi = 2. * PI * r.f();
+            let s = (1. - z * z).max(0.).sqrt();
+            let l = Vec3::new(s * phi.cos(), s * phi.sin(), z);
+            let (f, p) = rough_dielectric(n, v, l, eta, a);
+            pdf_sum += (p * 4. * PI) as f64;
+            f_sum += (f * z.abs() * 4. * PI) as f64;
+        }
+        let (mut back, mut weights) = (0f64, 0f64);
+        for i in 0..count {
+            let mut r = Rng::new(5, i);
+            if let Some((l, reflected, _)) = sample_rough_dielectric(n, -v, eta, a, &mut r) {
+                back += 1.;
+                let t = if reflected { 1. } else { eta * eta };
+                weights += (g1(l.z.abs(), a) * t) as f64;
+                let (_, p) = rough_dielectric(n, v, l, eta, a);
+                assert!(
+                    p > 0.,
+                    "sampled direction with zero pdf: {l} a {a} eta {eta}"
+                );
+            }
+        }
+        let integral = pdf_sum / count as f64;
+        let share = back / count as f64;
+        let (fi, fw) = (f_sum / count as f64, weights / count as f64);
+        assert!(
+            (integral - share).abs() < 0.02,
+            "pdf {integral} vs {share} (a {a} eta {eta})"
+        );
+        assert!(share > 0.85 && share <= 1., "share {share}");
+        assert!(
+            (fi - fw).abs() < 0.03 * fw,
+            "f {fi} vs weights {fw} (a {a} eta {eta})"
+        );
+    }
+}
+/// The rough dielectric is reciprocal in its reflection, and in its refraction once divided by
+/// the square of the index on the viewer's side (the radiance form's eta²).
+#[test]
+fn rough_dielectric_is_reciprocal() {
+    use super::bsdf::rough_dielectric;
+    let n = Vec3::Z;
+    let mut r = Rng::new(9, 1);
+    let mut dir = |up: bool| {
+        let z = r.f() * 0.98 + 0.01;
+        let phi = 2. * PI * r.f();
+        let s = (1. - z * z).sqrt();
+        Vec3::new(s * phi.cos(), s * phi.sin(), if up { z } else { -z })
+    };
+    let (n1, n2, a) = (1.0f32, 1.5f32, 0.3f32);
+    let mut checked = 0;
+    for _ in 0..2000 {
+        let (v, lr, lt) = (dir(true), dir(true), dir(false));
+        let (f1, _) = rough_dielectric(n, v, lr, n1 / n2, a);
+        let (f2, _) = rough_dielectric(n, lr, v, n1 / n2, a);
+        assert!(
+            (f1 - f2).abs() <= 1e-4 * f1.max(1.),
+            "reflection {f1} vs {f2}"
+        );
+        let (t1, _) = rough_dielectric(n, v, lt, n1 / n2, a);
+        let (t2, _) = rough_dielectric(-n, lt, v, n2 / n1, a);
+        if t1 > 1e-4 {
+            checked += 1;
+        }
+        let (x, y) = (t1 / (n1 * n1), t2 / (n2 * n2));
+        assert!(
+            (x - y).abs() <= 1e-3 * x.max(y).max(1e-3),
+            "refraction {x} vs {y}"
+        );
+    }
+    assert!(checked > 200, "{checked}");
+}
+/// A rough glass sphere in a white furnace: every path that leaves sees 1, so the mean is 1 less
+/// what the single-scattering GGX loses to masking and shadowing at each crossing (a few percent
+/// at alpha 0.25-0.5, ~0 when smooth). The lerp model it replaces keeps 1 by construction.
+#[test]
+fn rough_glass_sphere_white_furnace() {
+    use super::bsdf::{g1, sample_rough_dielectric};
+    let furnace = |a: f32| {
+        let count = 100_000u64;
+        let mut sum = 0f64;
+        for i in 0..count {
+            let mut r = Rng::new(17, i);
+            // A ray at a uniform impact parameter towards a unit sphere.
+            let (q, phi) = (r.f().sqrt(), 2. * PI * r.f());
+            let mut o = Vec3::new(q * phi.cos(), q * phi.sin(), -3.);
+            let mut d = Vec3::Z;
+            let mut inside = false;
+            let mut t = 1f32;
+            for _ in 0..64 {
+                // The sphere's far or near crossing.
+                let b = o.dot(d);
+                let disc = b * b - (o.length_squared() - 1.);
+                if disc < 0. {
+                    break;
+                }
+                let s = if inside {
+                    -b + disc.sqrt()
+                } else {
+                    -b - disc.sqrt()
+                };
+                if s <= 1e-5 {
+                    break;
+                }
+                let p = o + d * s;
+                let n = if inside { -p } else { p }.normalize();
+                let eta = if inside { 1.5 } else { 1. / 1.5 };
+                let Some((l, reflected, _)) = sample_rough_dielectric(n, d, eta, a, &mut r) else {
+                    t = 0.;
+                    break;
+                };
+                t *= g1(n.dot(l).abs(), a);
+                if !reflected {
+                    t *= eta * eta;
+                    inside = !inside;
+                }
+                d = l;
+                o = p + d * 1e-4;
+                if !inside {
+                    break;
+                }
+            }
+            sum += t as f64;
+        }
+        sum / count as f64
+    };
+    let smooth = furnace(0.001);
+    assert!((smooth - 1.).abs() < 0.01, "smooth {smooth}");
+    // Measured 2026-11-10: 0.9855, 0.7747, 0.5455, 0.2953 (single scattering loses what
+    // masking takes at every crossing, and a sphere's grazing entries and trapped internal
+    // reflections take many); the bounds keep a margin and fail on a gain or a collapse.
+    let mut last = smooth;
+    for (a, lo) in [(0.04, 0.97), (0.25, 0.72), (0.5, 0.5), (1., 0.26)] {
+        let e = furnace(a);
+        println!("rough glass sphere furnace alpha {a}: {e:.4}");
+        assert!(e > lo && e < last + 0.005, "alpha {a}: {e}");
+        last = e;
+    }
 }

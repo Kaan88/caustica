@@ -853,6 +853,9 @@
    }
   ],
   "aperture": 0.04,
-  "focus_distance": 3.4
+  "focus_distance": 3.4,
+  "auto_exposure": true,
+  "ev_bias": -2.43,
+  "eyes": true
  }
 }

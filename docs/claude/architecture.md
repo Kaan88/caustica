@@ -55,7 +55,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 
 1. Upload `Constants` to offset 0, then `trace` dispatch (8×8 groups, render resolution).
 2. Then one of:
-   - **If RR is active:** transition inputs 0, 2–7 to SRV, call `NGX_D3D12_EVALUATE_DLSSD_EXT` into texture 14, transition back.
+   - **If RR is active:** transition inputs 0, 2–7 to SRV, call `NGX_D3D12_EVALUATE_DLSSD_EXT` into texture 14, transition back. Around it (and around the upscalers) the pre-exposure passes scale the colour input by P and texture 14 back (engine-notes "Pre-exposure for RR and the upscalers (E5)").
    - **Otherwise, if denoise is on:** filter passes 0–6, constants at offset `CB_STRIDE`·(i+1) (1024 B).
      - 0 reproject: only on a camera move.
      - 1 integrate: when samples were traced, or the integration is stale. It then copies guides 2→16, 5→17 and 19→20 for the next reprojection.

@@ -356,6 +356,9 @@
     "portal": -1,
     "sdf": "cone"
    }
-  ]
+  ],
+  "auto_exposure": true,
+  "ev_bias": -0.78,
+  "eyes": true
  }
 }

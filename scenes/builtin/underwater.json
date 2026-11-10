@@ -49,6 +49,9 @@
   ],
   "fov": 60,
   "exposure": 1.5,
+  "auto_exposure": true,
+  "ev_bias": -2.73,
+  "eyes": true,
   "objects": [
    {
     "name": "Sea",

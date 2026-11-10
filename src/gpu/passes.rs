@@ -191,10 +191,11 @@ impl Gpu {
         let (gx, gy) = (w.div_ceil(8), h.div_ceil(8));
         match integrator {
             1 => {
-                let bdpt = if s.spectral {
-                    &self.bdpt_spectral
-                } else {
-                    &self.bdpt
+                let bdpt = match (s.spectral, s.exact_glass) {
+                    (true, true) => &self.bdpt_spectral_exact,
+                    (true, false) => &self.bdpt_spectral,
+                    (false, true) => &self.bdpt_exact,
+                    (false, false) => &self.bdpt,
                 };
                 for pass in [bdpt, &self.bdpt_resolve] {
                     self.list.SetPipelineState(pass);
@@ -243,11 +244,16 @@ impl Gpu {
                 let variant = self.textured as usize + 2 * lean as usize;
                 // Light path expressions stay RGB (their tracer has no spectral twin).
                 let spectral = s.spectral && self.lpe_slots == 0;
+                // Exact rough glass (accuracy A1): the full tracer with EXACT_BTDF, never LEAN;
+                // light path expressions keep their own tracer (no exact twin).
+                let exact = s.exact_glass && self.lpe_slots == 0;
                 if let Some(ser) = self.ser.as_ref() {
                     // Track 20: the same threads as the compute dispatch, through
                     // DispatchRays so the shader may reorder them (MaybeReorderThread).
                     let p = &ser[if self.lpe_slots > 0 {
                         4
+                    } else if exact {
+                        7 + spectral as usize
                     } else if spectral {
                         5 + lean as usize
                     } else {
@@ -267,6 +273,10 @@ impl Gpu {
                 } else {
                     self.list.SetPipelineState(if self.lpe_slots > 0 {
                         &self.trace_lpe
+                    } else if exact && spectral {
+                        &self.trace_spectral_exact
+                    } else if exact {
+                        &self.trace_exact
                     } else if spectral && lean {
                         &self.trace_spectral_lean
                     } else if spectral {

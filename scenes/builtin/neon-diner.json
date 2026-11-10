@@ -1361,6 +1361,9 @@
    }
   ],
   "exposure": 1.2,
+  "auto_exposure": true,
+  "ev_bias": -2.33,
+  "eyes": true,
   "halation": 0.5,
   "grain": 0.3,
   "grain_size": 1,

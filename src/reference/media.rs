@@ -31,7 +31,13 @@ impl Scene<'_> {
             return Vec3::ONE;
         };
         let m = &self.materials[top.1 as usize];
-        let c = w.up_material(m, rgb(m.color_rough)).max(Vec3::splat(0.001));
+        // Truth `absorption_floor` (audit D6) drops the 0.001 floor; the f32 minimum keeps powf finite.
+        let floor = if self.s.truth.absorption_floor {
+            f32::MIN_POSITIVE
+        } else {
+            0.001
+        };
+        let c = w.up_material(m, rgb(m.color_rough)).max(Vec3::splat(floor));
         c.powf(t)
     }
 }
@@ -111,7 +117,17 @@ impl Scene<'_> {
         if f.noise <= 0. {
             return (-self.fog_sigma(w) * (t1 - t0)).exp();
         }
-        ratio_tracking(self.fog_sigma(w), f.noise, f.noise_size, o, d, t0, t1, r)
+        ratio_tracking(
+            self.fog_sigma(w),
+            f.noise,
+            f.noise_size,
+            o,
+            d,
+            t0,
+            t1,
+            self.fog_limits(),
+            r,
+        )
     }
     /// The scattering medium of the innermost dielectric when it has one (`Material::density`):
     /// its extinction, scattering albedo and Henyey-Greenstein g.
@@ -170,7 +186,17 @@ impl Scene<'_> {
         if f.noise <= 0. {
             return flight(self.fog_sigma(w), t0, t1, r);
         }
-        delta_tracking(self.fog_sigma(w), f.noise, f.noise_size, o, d, t0, t1, r)
+        delta_tracking(
+            self.fog_sigma(w),
+            f.noise,
+            f.noise_size,
+            o,
+            d,
+            t0,
+            t1,
+            self.fog_limits(),
+            r,
+        )
     }
 }
 
@@ -224,6 +250,33 @@ fn majorant(sigma: Vec3, noise: f32) -> f32 {
     sigma.max_element() * (1. + noise)
 }
 
+/// The GPU's caps on fog tracking, which the truth switch lifts (audit D1, D2).
+#[derive(Clone, Copy)]
+pub(super) struct FogLimits {
+    /// Tentative collisions before the track gives up.
+    pub(super) collisions: u32,
+    /// Ratio tracking returns 0 once every channel of the transmittance is below this.
+    pub(super) cutoff: f32,
+}
+impl FogLimits {
+    /// What the GPU does (the tests compare against it).
+    #[cfg(test)]
+    pub(super) const GPU: FogLimits = FogLimits {
+        collisions: 1024,
+        cutoff: 1e-4,
+    };
+}
+impl Scene<'_> {
+    /// The fog caps in force: the GPU's, or with truth `collisions` / `fog_cutoff`, none.
+    pub(super) fn fog_limits(&self) -> FogLimits {
+        let t = &self.s.truth;
+        FogLimits {
+            collisions: if t.collisions { 1 << 28 } else { 1024 },
+            cutoff: if t.fog_cutoff { 0. } else { 1e-4 },
+        }
+    }
+}
+
 /// Delta (spectral) tracking over [t0, t1) of a medium of extinction sigma·density: tentative
 /// collisions at the majorant's rate, each real with the probability the path's weighted
 /// share of the extinction gives, the weight correcting for the channels not sampled by it
@@ -237,6 +290,7 @@ pub(super) fn delta_tracking(
     d: Vec3,
     t0: f32,
     t1: f32,
+    limits: FogLimits,
     r: &mut super::sampling::Rng,
 ) -> (f32, Vec3) {
     let mu = majorant(sigma, noise);
@@ -245,7 +299,7 @@ pub(super) fn delta_tracking(
         return (t1, w);
     }
     let mut t = t0;
-    for _ in 0..1024 {
+    for _ in 0..limits.collisions {
         t -= (1. - r.f()).ln() / mu;
         if t >= t1 {
             return (t, w);
@@ -273,6 +327,7 @@ pub(super) fn ratio_tracking(
     d: Vec3,
     t0: f32,
     t1: f32,
+    limits: FogLimits,
     r: &mut super::sampling::Rng,
 ) -> Vec3 {
     let mu = majorant(sigma, noise);
@@ -281,13 +336,13 @@ pub(super) fn ratio_tracking(
         return tr;
     }
     let mut t = t0;
-    for _ in 0..1024 {
+    for _ in 0..limits.collisions {
         t -= (1. - r.f()).ln() / mu;
         if t >= t1 {
             break;
         }
         tr *= Vec3::ONE - sigma * fog_density(o + d * t, noise, size) / mu;
-        if tr.max_element() < 1e-4 {
+        if tr.max_element() < limits.cutoff {
             return Vec3::ZERO;
         }
     }

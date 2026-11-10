@@ -161,6 +161,9 @@
   ],
   "fov": 55,
   "exposure": 1.0,
+  "auto_exposure": true,
+  "ev_bias": -1.48,
+  "eyes": true,
   "objects": [
    {
     "name": "Back wall",

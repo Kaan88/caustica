@@ -1463,6 +1463,9 @@
     }
    ]
   },
-  "exposure": 1.3
+  "exposure": 1.3,
+  "auto_exposure": true,
+  "ev_bias": -2.36,
+  "eyes": true
  }
 }

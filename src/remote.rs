@@ -9,8 +9,10 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 
 /// Settings the page may change, plus "preset" (an index) and "restart".
-pub const KEYS: [&str; 15] = [
+pub const KEYS: [&str; 17] = [
     "exposure",
+    "auto_exposure",
+    "ev_bias",
     "tonemap",
     "view",
     "light_intensity",
@@ -210,7 +212,9 @@ input[type=range]{width:100%}button,select{font-size:16px;padding:8px 14px;margi
 .row{display:flex;gap:8px;align-items:center}.v{color:#9ab;font-size:13px}</style></head><body>
 <h1>Caustica</h1>
 <div class="row"><button onclick="send('preset',-1)">&#9664; Scene</button><button onclick="send('preset',1)">Scene &#9654;</button><button onclick="send('restart',true)">Restart</button></div>
-<label>Exposure <span class="v" id="ev"></span></label><input type="range" min="-6" max="3.3" step="0.1" id="exposure" oninput="ev.textContent=this.value+' EV';send('exposure',Math.pow(2,+this.value))">
+<label>Exposure <span class="v" id="ev"></span></label><input type="range" min="-8" max="30" step="0.1" id="exposure" oninput="ev.textContent=this.value+' EV';send('exposure',Math.pow(2,+this.value))">
+<div class="row"><label><input type="checkbox" id="auto_exposure" onchange="send('auto_exposure',this.checked)"> Auto exposure</label></div>
+<label>Exposure bias (auto) <span class="v" id="eb"></span></label><input type="range" min="-16" max="16" step="0.1" id="ev_bias" oninput="eb.textContent=this.value+' EV';send('ev_bias',+this.value)">
 <label>Light intensity <span class="v" id="li"></span></label><input type="range" min="0" max="7.6" step="0.05" id="light_intensity" oninput="li.textContent=Math.exp(this.value).toFixed(1)+'x';send('light_intensity',Math.exp(+this.value))">
 <label>Colour temperature <span class="v" id="lt"></span></label><input type="range" min="1000" max="12000" step="100" id="light_temperature" oninput="lt.textContent=this.value+' K';send('light_temperature',+this.value)">
 <label>Orbit</label><input type="range" min="-180" max="180" step="1" id="yaw" oninput="send('yaw',+this.value)">
@@ -224,7 +228,7 @@ const t=new URLSearchParams(location.search).get('t');let busy={};
 function send(k,v){busy[k]=Date.now();fetch('/set?t='+t+'&k='+k,{method:'POST',body:JSON.stringify(v)});}
 async function sync(){try{const s=await (await fetch('/state?t='+t)).json();
 for(const[k,v] of Object.entries(s)){const e=document.getElementById(k);if(!e||Date.now()-(busy[k]||0)<3000)continue;
-if(e.type=='checkbox')e.checked=v;else if(k=='exposure')e.value=Math.log2(Math.max(v,0.016)).toFixed(1);
+if(e.type=='checkbox')e.checked=v;else if(k=='exposure')e.value=Math.log2(Math.max(v,0.0039)).toFixed(1);
 else if(k=='light_intensity')e.value=Math.log(Math.max(v,0.01));else if(k=='distance')e.value=Math.log(v);else e.value=v;}}catch(e){}}
 sync();setInterval(sync,2000);
 </script></body></html>"#;

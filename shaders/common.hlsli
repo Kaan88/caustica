@@ -44,13 +44,16 @@ cbuffer Frame:register(b0) {
     float4 glare_settings; // strength (0 = off), threshold, aperture diameter in grid texels, -
     float4 env_sun; // the HDRI's split sun (environment.rs Sun): world direction, 1 − cos of the half angle (0 = none)
     float4 env_sun_color; // its radiance times the HDRI strength, the share of environment samples it takes
-    float4 env_ground; // ground projection height above the floor (0 = off), the floor's height, shadow catcher (1/0), -
-    float4 fog_noise; // heterogeneous fog: noise amount (0 = uniform), feature size, -, -
+    float4 env_ground; // ground projection height above the floor (0 = off), the floor's height, shadow catcher (1/0), texture lookups at mip 0 (1/0, accuracy F1)
+    float4 fog_noise; // heterogeneous fog: noise amount (0 = uniform), feature size, gentle Russian roulette (1/0, accuracy B1), -
     float4 star_x; // night sky N3 (stars.rs Frame::rows): J2000-to-world rotation row 0, w irradiance scale
     float4 star_y; // row 1, w the stars' share of sky light samples (0 = none)
     float4 star_z; // row 2, w the camera cone's chord
     float4 star_tau; // zenith optical depth rgb, w 1 while stars are on
     float4 star_limit; // the limiting magnitude's kept star count (a prefix of the table) and their CDF mass, -, -
+    uint4 bounce_split; // specular bounce budget (Settings::specular_bounces, 0 = every vertex counts against sampling.z), -, -, -
+    float4 meter; // exposure meter (E3, post.hlsl): dt (simulated seconds), ev bias (stops), speed (1/s), Eyes strength (E4, 0 off)
+    uint4 meter_ctrl; // flags (bit 0 auto exposure, bit 1 meter pass, bit 2 commit), op (0 adapt, 1 settle, 2 hold, 3 freeze), mode (0 centre-weighted, 1 spot, 2 histogram), -; the pre-exposure scale pass (bit 3): y = texture, w = factor bits
 };
 StructuredBuffer<Material> materials:register(t3);
 struct Emitter {float4 position_area;float4 edge1_cdf;float4 edge2_probability;float4 emission_material;};
@@ -110,7 +113,9 @@ RWTexture2D<float2> trace_stats:register(u27); // this frame: mean bounces per s
 RWTexture3D<float4> lut:register(u29); // film-look .cube LUT (look.w cubed); 2x2x2 when unused
 [[vk::image_format("rgba16f")]] RWTexture2D<float4> env_map:register(u30); // equirectangular HDRI, RGBA16F, linear RGB / scale (folded into environment_map.x and .w); 1x1 when unused
 RWTexture2D<float> env_cdf:register(u31); // per-row conditional CDFs, then the marginal CDF over rows in an extra last row
-RWTexture2D<uint> scopes:register(u28); // 256 x 260 counters: rows 0-3 histogram R,G,B,L; 4-131 waveform; 132-259 vectorscope (128 wide)
+RWTexture2D<uint> scopes:register(u28); // 256 x 262 counters: rows 0-3 histogram R,G,B,L; 4-131 waveform; 132-259 vectorscope (128 wide); 260 the exposure meter's histogram, 261 its group counter and state (post.hlsl, render.rs METER_ROW)
+// Scene radiance 1.0 in cd/m2: mirrors photometry::SCENE_CD_M2 (a test keeps them equal).
+static const float SCENE_CD_M2=32000.0;
 float luminance(float3 c){return dot(c,float3(0.2126,0.7152,0.0722));}
 float2 sign_nz(float2 v){return float2(v.x>=0?1:-1,v.y>=0?1:-1);}
 float2 oct_encode(float3 n){n/=abs(n.x)+abs(n.y)+abs(n.z)+1e-9;return n.z>=0?n.xy:(1-abs(n.yx))*sign_nz(n.xy);}

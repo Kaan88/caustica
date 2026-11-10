@@ -33,7 +33,8 @@ BAND = (slice(60, 140), slice(250, 550))  # ceiling around the light at 800x600
 
 
 def render(exe, out, extra):
-    command = [str(exe), "--headless", "--width", "800", "--height", "600", "--no-rr", *extra, "--capture", str(out)]
+    command = [str(exe), "--headless", "--width", "800", "--height", "600", "--no-rr", *extra,
+               "--set", "auto_exposure=false", "--set", "eyes=false", "--capture", str(out)]
     subprocess.run(command, cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 

@@ -38,6 +38,7 @@ unsigned caustica_xess_create(Xess* x,unsigned w,unsigned ow,unsigned oh,float v
 unsigned caustica_xess_eval(Xess* x,ID3D12GraphicsCommandList* cmd,ID3D12Resource* color,ID3D12Resource* depth,ID3D12Resource* motion,ID3D12Resource* output,
                            unsigned w,unsigned h,float jx,float jy,int reset) {
     xess_d3d12_execute_params_t p={}; p.pColorTexture=color; p.pVelocityTexture=motion; p.pDepthTexture=depth; p.pOutputTexture=output;
+    // No pre-exposure input in XeSS (exposureScale multiplies the colour): the app's scale stands.
     p.jitterOffsetX=-jx; p.jitterOffsetY=-jy; p.exposureScale=1.f; p.resetHistory=reset?1:0; p.inputWidth=w; p.inputHeight=h;
     return (unsigned)x->execute(x->ctx,cmd,&p);
 }

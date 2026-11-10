@@ -12,10 +12,9 @@ use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use std::f32::consts::PI;
 
-/// Scene radiance 1.0 in cd/m² (the night sky's physical luminances are scaled by its inverse;
-/// 1.0 is a white surface under a sun of intensity 1). Surface brightness to luminance:
-/// L[cd/m²] = 1.08e5 · 10^(−0.4 · μ) for μ in V magnitudes per square arcsecond.
-pub const SCENE_CD_M2: f32 = 32_000.;
+use crate::photometry::cd_to_scene;
+#[cfg(test)]
+use crate::photometry::{luminance, scene_to_cd};
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 #[serde(default)]
@@ -67,6 +66,9 @@ pub struct PhysicalSky {
     pub milky_way: f32,
     /// Airglow brightness (1: a dark site, 22.0 mag/arcsec² V at the zenith).
     pub airglow: f32,
+    /// The airglow's tint, 0..1: 0 the eye's near-neutral one, 1 the warmer, greener one a
+    /// long camera exposure records (OI green with some red and sodium yellow).
+    pub airglow_warmth: f32,
     /// Light pollution (1: dark rural, the whole sky 21.5 mag/arcsec² V at the zenith).
     pub light_pollution: f32,
 }
@@ -94,6 +96,7 @@ impl Default for PhysicalSky {
             moon: true,
             milky_way: 1.,
             airglow: 1.,
+            airglow_warmth: 0.,
             light_pollution: 1.,
         }
     }
@@ -121,6 +124,7 @@ impl PhysicalSky {
                 && (0.5..=32.).contains(&self.star_size)
                 && (0. ..=10.).contains(&self.milky_way)
                 && (0. ..=10.).contains(&self.airglow)
+                && (0. ..=1.).contains(&self.airglow_warmth)
                 && (0. ..=10.).contains(&self.light_pollution),
             "Invalid physical sky"
         );
@@ -216,7 +220,7 @@ impl PhysicalSky {
     /// which the GPU applies).
     pub fn map_key(&self) -> String {
         format!(
-            "sky:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            "sky:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
             self.solar_time(),
             self.day,
             self.year,
@@ -232,6 +236,7 @@ impl PhysicalSky {
             self.moon,
             self.milky_way,
             self.airglow,
+            self.airglow_warmth,
             self.light_pollution
         )
     }
@@ -579,7 +584,7 @@ pub fn bake(sky: &PhysicalSky) -> anyhow::Result<crate::environment::EnvMap> {
 /// Surface brightness (V mag/arcsec²) to scene radiance for a sun of intensity 1:
 /// L = 1.08e5 · 10^(−0.4 μ) cd/m², divided by `SCENE_CD_M2`.
 pub fn mag_arcsec2_to_radiance(mu: f32) -> f32 {
-    1.08e5 * 10f32.powf(-0.4 * mu) / SCENE_CD_M2
+    cd_to_scene(1.08e5 * 10f32.powf(-0.4 * mu))
 }
 /// The Milky Way calibration (engine notes, "Night sky: Milky Way, airglow, light
 /// pollution"): the map's luminance `v` over the large Sagittarius star cloud (2° box at
@@ -594,6 +599,8 @@ const AIRGLOW_MAG: f32 = 22.0;
 const AIRGLOW_HEIGHT: f32 = 90.;
 /// OI 557.7 nm makes airglow a little green; near neutral for the eye (luminance 1).
 const AIRGLOW_TINT: Vec3 = Vec3::new(0.92, 1.03, 0.92);
+/// The camera's: warmer and greener (luminance 1 as well), `airglow_warmth` 1.
+const AIRGLOW_WARM_TINT: Vec3 = Vec3::new(1.08, 1.02, 0.70);
 /// Light pollution at the zenith at strength 1: 22.6 mag/arcsec², which with the airglow makes
 /// a 21.5 dark rural zenith. Warm (sodium and warm LED).
 const POLLUTION_MAG: f32 = 22.6;
@@ -671,6 +678,7 @@ fn night_glow(
     let celestial_from_local = sky.local_from_celestial().transpose();
     let r = atmosphere.observer;
     let airglow = mag_arcsec2_to_radiance(AIRGLOW_MAG) * sky.airglow;
+    let airglow_tint = AIRGLOW_TINT.lerp(AIRGLOW_WARM_TINT, sky.airglow_warmth);
     // van Rhijn: the path through a thin layer at height h grows as 1/√(1 − (R/(R+h))² sin²z).
     let k = (GROUND / (GROUND + AIRGLOW_HEIGHT)).powi(2);
     let pollution = mag_arcsec2_to_radiance(POLLUTION_MAG) * sky.light_pollution;
@@ -683,7 +691,7 @@ fn night_glow(
         if t == Vec3::ZERO {
             return Vec3::ZERO;
         }
-        let mut l = AIRGLOW_TINT * (airglow / (1. - k * (1. - d.y * d.y)).max(1e-6).sqrt());
+        let mut l = airglow_tint * (airglow / (1. - k * (1. - d.y * d.y)).max(1e-6).sqrt());
         if let Some(m) = milky_way {
             l += m.sample(celestial_from_local * d) * sky.milky_way;
         }
@@ -1101,7 +1109,7 @@ mod tests {
         let mag = |ra: f64, dec: f64| {
             let c = crate::astro::equatorial_vector(ra.to_radians(), dec.to_radians());
             let l = m.sample(Vec3::new(c.x as f32, c.y as f32, c.z as f32));
-            let cd = crate::environment::luminance(l.to_array()) * SCENE_CD_M2;
+            let cd = scene_to_cd(luminance(l.to_array()));
             -2.5 * (cd / 1.08e5).log10()
         };
         let (sgr, cyg, pole) = (mag(270.5, -28.5), mag(300., 35.), mag(192.8, 27.1));
@@ -1181,8 +1189,7 @@ mod tests {
         a.observer = night.observer();
         let up = |_: usize, _: usize| Vec3::Y;
         let z = night_glow(&night, &a, 1, 1, &up)[0];
-        let mag =
-            -2.5 * (crate::environment::luminance(z.to_array()) * SCENE_CD_M2 / 1.08e5).log10();
+        let mag = -2.5 * (scene_to_cd(luminance(z.to_array())) / 1.08e5).log10();
         eprintln!("zenith airglow + light pollution: {mag:.2} mag/arcsec²");
         assert!((21.2..21.8).contains(&mag), "{mag}");
         let start = std::time::Instant::now();

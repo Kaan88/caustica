@@ -43,6 +43,8 @@ def main():
     black = {"color": [0, 0, 0], "reflectivity": 0, "unlit": True}
     scene = {
         "bounces": 1, "spp": 1, "scale": 0.5, "light_on": False,
+        # The meter would move the exposure with the frame: pin the display (E7).
+        "auto_exposure": False, "eyes": False, "exposure": 1,
         "walls": {"roughness": 1, "reflectivity": 0, "emission": 1, "unlit": True},
         "floor": {"roughness": 1, "reflectivity": 0, "emission": 1, "unlit": True},
         # Same placement as the default tall and short blocks.
@@ -58,7 +60,7 @@ def main():
     command = [str(args.exe.resolve()), "--headless", "--frames", "96",
                "--width", "640", "--height", "480", "--require-rr", "--debug",
                "--settings", str(settings), "--capture-sequence", str(sequence)]
-    subprocess.run(command, cwd=ROOT, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    subprocess.run(command, cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     metrics, mean = analyze(sequence)
     Image.fromarray(np.uint8(np.clip(mean, 0, 1) * 255)).save(output / "mean.png")
     report = {"after": metrics}

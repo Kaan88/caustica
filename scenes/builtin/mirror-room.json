@@ -166,6 +166,9 @@
    -0.15,
    -0.2
   ],
-  "fov": 72
+  "fov": 72,
+  "auto_exposure": true,
+  "ev_bias": 1.69,
+  "eyes": true
  }
 }

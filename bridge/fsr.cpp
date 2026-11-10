@@ -33,7 +33,7 @@ unsigned caustica_fsr_create(Fsr* f,unsigned w,unsigned h,unsigned ow,unsigned o
     return f->f.CreateContext(&f->ctx,&d.header,nullptr);
 }
 unsigned caustica_fsr_eval(Fsr* f,ID3D12GraphicsCommandList* cmd,ID3D12Resource* color,ID3D12Resource* depth,ID3D12Resource* motion,ID3D12Resource* output,
-                          unsigned w,unsigned h,unsigned ow,unsigned oh,float jx,float jy,int reset,float dt,float fov_y,float near_plane,float far_plane) {
+                          unsigned w,unsigned h,unsigned ow,unsigned oh,float jx,float jy,int reset,float dt,float fov_y,float near_plane,float far_plane,float pre_exposure) {
     ffxDispatchDescUpscale d={}; d.header.type=FFX_API_DISPATCH_DESC_TYPE_UPSCALE; d.commandList=cmd;
     d.color=ffxApiGetResourceDX12(color,FFX_API_RESOURCE_STATE_COMPUTE_READ);
     d.depth=ffxApiGetResourceDX12(depth,FFX_API_RESOURCE_STATE_COMPUTE_READ);
@@ -41,7 +41,7 @@ unsigned caustica_fsr_eval(Fsr* f,ID3D12GraphicsCommandList* cmd,ID3D12Resource*
     d.output=ffxApiGetResourceDX12(output,FFX_API_RESOURCE_STATE_UNORDERED_ACCESS);
     // Like NGX: FSR's jitter is the projection offset, the negated ray offset.
     d.jitterOffset={-jx,-jy}; d.motionVectorScale={1.f,1.f}; d.renderSize={w,h}; d.upscaleSize={ow,oh};
-    d.frameTimeDelta=dt; d.preExposure=1.f; d.reset=reset!=0; d.cameraNear=near_plane; d.cameraFar=far_plane; d.cameraFovAngleVertical=fov_y; d.viewSpaceToMetersFactor=1.f;
+    d.frameTimeDelta=dt; d.preExposure=pre_exposure; d.reset=reset!=0; d.cameraNear=near_plane; d.cameraFar=far_plane; d.cameraFovAngleVertical=fov_y; d.viewSpaceToMetersFactor=1.f;
     return f->f.Dispatch(&f->ctx,&d.header);
 }
 }

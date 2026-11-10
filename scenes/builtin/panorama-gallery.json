@@ -1214,6 +1214,9 @@
    }
   ],
   "exposure": 0.35,
+  "auto_exposure": true,
+  "ev_bias": 1.03,
+  "eyes": true,
   "projection": 2
  }
 }

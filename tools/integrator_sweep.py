@@ -26,6 +26,7 @@ for scene in sorted(glob.glob("scenes/builtin/*.json")):
         r = subprocess.run([exe, "--headless", "--frames", frames, "--width", "240", "--height", "135",
                             "--scene", scene, "--no-rr", "--raw", "--set", f"integrator={i}",
                             "--set", "pixel_filter=0", "--set", "filter_width=1",
+                            "--set", "auto_exposure=false", "--set", "eyes=false",
                             "--capture", path], capture_output=True, text=True)
         if "RENDER_OK" not in r.stdout:
             images.append(None)

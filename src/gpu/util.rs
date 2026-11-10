@@ -321,8 +321,8 @@ pub(super) unsafe fn make_ser(
     device: &ID3D12Device5,
     root: &ID3D12RootSignature,
     support: SerSupport,
-    code: [&[u8]; 7],
-) -> Option<[SerPipeline; 7]> {
+    code: [&[u8]; 9],
+) -> Option<[SerPipeline; 9]> {
     if !support.available() || std::env::var_os("CAUSTICA_NO_SER").is_some() {
         return None;
     }

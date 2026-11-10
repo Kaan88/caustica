@@ -150,6 +150,21 @@ pub fn split_sun(w: usize, h: usize, rgb: &mut [[f32; 3]]) -> Option<Sun> {
     })
 }
 
+/// The factor a map's texels are divided by before they are stored as half floats; the shader
+/// multiplies strength and the pdf normalisation back (`env_scale`). A map that peaks above
+/// half-float's 65504 is scaled down (as always), and a map that peaks below 0.01 is scaled up
+/// by a power of two so its peak lands in 1024..2048 (E8: a physical-sky night at sun intensity 1
+/// peaks near 1e-8, under half-float's smallest value, so its zenith stored as black and the
+/// band edges came out as jagged steps). Maps in between keep the factor of 1, so their stored
+/// bits do not change; powers of two keep the scaling exact.
+pub fn half_scale(peak: f32) -> f32 {
+    if peak > 0. && peak < 0.01 {
+        // exp2 of an integer is exact; the peak / scale lands in 1024..2048.
+        (peak.log2().floor() - 10.).exp2()
+    } else {
+        (peak / 60000.).max(1.)
+    }
+}
 pub fn luminance(c: [f32; 3]) -> f32 {
     (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]).max(0.)
 }
@@ -270,6 +285,23 @@ fn build_capped(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn half_scale_lifts_a_night_map_and_leaves_the_rest() {
+        // Unchanged: ordinary maps, and the over-range division.
+        assert_eq!(half_scale(0.5), 1.);
+        assert_eq!(half_scale(0.01), 1.);
+        assert_eq!(half_scale(60000.), 1.);
+        assert_eq!(half_scale(120000.), 2.);
+        assert_eq!(half_scale(0.), 1.);
+        // A night map: the peak lands in 1024..2048 as a power of two, and the faintest texel of
+        // the sky (the 1e-12 floor) is a normal half float after it.
+        for peak in [3e-8f32, 1e-9, 0.009] {
+            let s = half_scale(peak);
+            assert_eq!(s.log2().fract(), 0., "a power of two");
+            assert!((1024. ..2048.).contains(&(peak / s)), "{peak}");
+        }
+        assert!(1e-12 / half_scale(3e-8) > 6.2e-5);
+    }
     /// A bright 2×2 spot on a grey sky splits into a disc of its excess power, centred on it,
     /// and the spot's texels take the sky's value; a map without a spike keeps its texels.
     #[test]

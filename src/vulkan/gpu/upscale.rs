@@ -4,7 +4,10 @@
 
 use super::super::res::full_barrier;
 use super::Gpu;
-use crate::render::{Backend, Capabilities, Constants, SR_FRESH_FRAMES};
+use crate::render::{
+    Backend, CB_STRIDE, Capabilities, Constants, PRE_EXPOSURE_SLOT, SR_FRESH_FRAMES,
+    scale_constants,
+};
 use crate::scene::{Settings, Upscaler};
 use ash::vk;
 use std::ffi::c_void;
@@ -66,6 +69,7 @@ mod ffi {
             dt: f32,
             view: *const f32,
             projection: *const f32,
+            pre_exposure: f32,
         ) -> u32;
         pub fn caustica_ngxvk_create_sr(
             n: *mut c_void,
@@ -89,6 +93,7 @@ mod ffi {
             jy: f32,
             reset: i32,
             dt: f32,
+            pre_exposure: f32,
         ) -> u32;
         pub fn caustica_xessvk_init(
             instance: vk::Instance,
@@ -478,10 +483,41 @@ impl Gpu {
         }
     }
 
+    /// Pre-exposure (E5, as D3D12's `pre_expose`): before the reconstruction (`after` false)
+    /// texture `input` is scaled by P; after it the input is restored and texture 14 brought back
+    /// to scene units. Nothing runs at P = 1.
+    #[cfg_attr(not(upscalers), allow(dead_code))]
+    pub(super) unsafe fn pre_expose(&self, c: &Constants, input: u32, after: bool) {
+        let p = self.st.pre_exposure;
+        if p == 1. || p <= 0. {
+            return;
+        }
+        let render = [self.st.rw.div_ceil(8), self.st.rh.div_ceil(8), 1];
+        let output = [self.st.width.div_ceil(8), self.st.height.div_ceil(8), 1];
+        let passes: &[(u64, u32, f32, [u32; 3])] = if after {
+            &[(1, input, 1. / p, render), (2, 14, 1. / p, output)]
+        } else {
+            &[(0, input, p, render)]
+        };
+        for &(slot, texture, k, groups) in passes {
+            let offset = (PRE_EXPOSURE_SLOT + slot) * CB_STRIDE;
+            let m = scale_constants(c, texture, k);
+            if self
+                .device
+                .write(&self.constants, offset, bytemuck::bytes_of(&m))
+                .is_ok()
+            {
+                unsafe { self.dispatch("display", offset, groups) };
+            }
+        }
+    }
+
     /// Ray Reconstruction into texture 14 (as D3D12's `render`).
+    #[allow(clippy::too_many_arguments)]
     pub(super) unsafe fn run_rr(
         &mut self,
         s: &Settings,
+        c: &Constants,
         jitter: [f32; 2],
         reset: bool,
         dt: f32,
@@ -489,12 +525,13 @@ impl Gpu {
         proj: glam::Mat4,
     ) {
         #[cfg(not(upscalers))]
-        let _ = (s, jitter, reset, dt, view, proj);
+        let _ = (s, c, jitter, reset, dt, view, proj);
         #[cfg(upscalers)]
         unsafe {
             let images: Vec<ImageRef> = (0..self.textures.len())
                 .map(|i| self.image_ref(i))
                 .collect();
+            self.pre_expose(c, 0, false);
             let code = ffi::caustica_ngxvk_eval(
                 self.up.ngx,
                 self.frame.cmd,
@@ -507,8 +544,10 @@ impl Gpu {
                 dt * 1000.,
                 view.to_cols_array().as_ptr(),
                 proj.to_cols_array().as_ptr(),
+                self.st.pre_exposure.max(f32::MIN_POSITIVE),
             );
             full_barrier(&self.device.device, self.frame.cmd);
+            self.pre_expose(c, 0, true);
             if !ngx_ok(code) {
                 self.st.rr_active = false;
                 self.up.rr_failed = true;
@@ -532,7 +571,10 @@ impl Gpu {
         let (code, _) = (0u32, (kind, s, &c, jitter, history_reset, dt));
         #[cfg(upscalers)]
         let code = unsafe {
-            let color = self.image_ref(if s.native_filter() { 8 } else { 1 });
+            let input = if s.native_filter() { 8 } else { 1 };
+            self.pre_expose(c, input, false);
+            let pre = self.st.pre_exposure.max(f32::MIN_POSITIVE);
+            let color = self.image_ref(input as usize);
             let (depth, motion, out) = (self.image_ref(25), self.image_ref(6), self.image_ref(14));
             let (cmd, w, h) = (self.frame.cmd, self.st.rw, self.st.rh);
             let code = match kind {
@@ -550,6 +592,7 @@ impl Gpu {
                         jitter[1],
                         history_reset,
                         dt * 1000.,
+                        pre,
                     );
                     if ngx_ok(code) { 0 } else { code }
                 }
@@ -568,6 +611,7 @@ impl Gpu {
                 ),
             };
             full_barrier(&self.device.device, cmd);
+            self.pre_expose(c, input, true);
             code
         };
         self.up.sr_reset = false;

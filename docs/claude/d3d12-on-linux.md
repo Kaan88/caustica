@@ -3,7 +3,7 @@
 ## Outcome (built and run, 2026-11-10, branch lane-tools)
 
 Both checks exist and work. How to run them: `testing.md` "Windows-side checks on Linux"; what they need: `setup.md`.
-- `tools/check_dxil.py`: 31 of 31 entries compile and validate, 22 s wall with 8 jobs (the table was identical to
+- `tools/check_dxil.py`: 37 of 37 since the accuracy lane's exact-glass entries (merge, 2026-11-10; the counts of 31 below are from before). At the time: 31 of 31 entries compile and validate, 22 s wall with 8 jobs (the table was identical to
   the serial sweep below). The entry list and flags are parsed from `build.rs`.
 - `build.rs`: `CAUSTICA_CHECK_ONLY=1` (empty `.dxil` stubs) or `=dxil` (real DXIL from the Linux DXC, 8 at a time, in
   the build script); `dxil_command()` is now the one place the DXC command line lives (the Windows build uses it too,

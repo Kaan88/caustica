@@ -218,6 +218,10 @@ impl Drop for Gpu {
 
 /// Where the probe's four texels start in `Gpu::readback`, after the scopes counters.
 const PROBE: u64 = (SCOPES[0] * SCOPES[1] * 4) as u64;
+/// The meter's state words (eight) after the probe's texels, then zeros the size of the scopes
+/// for clearing their rows (a whole-image clear would wipe the meter's rows under them).
+const METER_WORDS: u64 = PROBE + 64;
+const SCOPES_ZERO: u64 = METER_WORDS + 64;
 
 fn vk_format(f: TexFormat) -> vk::Format {
     match f {
@@ -311,6 +315,14 @@ impl Gpu {
                 ("restir_spatial", spv!("restir_spatial"), c"restir_spatial"),
                 ("bdpt", spv!("bdpt"), c"bdpt"),
                 ("bdpt_spectral", spv!("bdpt_spectral"), c"bdpt"),
+                ("trace_exact", spv!("trace_exact"), c"trace"),
+                (
+                    "trace_spectral_exact",
+                    spv!("trace_spectral_exact"),
+                    c"trace",
+                ),
+                ("bdpt_exact", spv!("bdpt_exact"), c"bdpt"),
+                ("bdpt_spectral_exact", spv!("bdpt_spectral_exact"), c"bdpt"),
                 ("bdpt_resolve", spv!("bdpt_resolve"), c"bdpt_resolve"),
                 ("photon_clear", spv!("photon_clear"), c"photon_clear"),
                 ("photon_trace", spv!("photon_trace"), c"photon_trace"),
@@ -412,7 +424,13 @@ impl Gpu {
                 .limits
                 .timestamp_period as f64
                 * 1e-6;
-            let readback = device.buffer(PROBE + 64, vk::BufferUsageFlags::TRANSFER_DST, true)?;
+            let readback = device.buffer(
+                SCOPES_ZERO + PROBE,
+                vk::BufferUsageFlags::TRANSFER_DST,
+                true,
+            )?;
+            // Host memory starts undefined: zero it (the scopes' clear copies from the end).
+            std::ptr::write_bytes(readback.mapped, 0, (SCOPES_ZERO + PROBE) as usize);
             let gui = Gui::new(
                 &device,
                 swap.format,
@@ -969,9 +987,14 @@ impl Gpu {
                 }
             }
             self.stamp(1);
+            // Pre-exposure (E5): P from the last frame's displayed exposure.
+            self.st.pre_exposure = crate::render::pre_exposure(
+                self.st.pre_exposure,
+                self.st.metered.unwrap_or_default().exposure(s),
+            );
             if n > 0 {
                 if self.st.rr_active {
-                    self.run_rr(s, jitter, reset, dt, view, proj);
+                    self.run_rr(s, &c, jitter, reset, dt, view, proj);
                 }
                 self.reset_pending = false;
                 self.previous_vp = vp;
@@ -1008,20 +1031,50 @@ impl Gpu {
             self.stamp(2);
             c.modes[3] = self.st.rr_active as u32;
             c.filter[0] = 0;
+            let d = &self.device;
+            if self.st.scopes_on {
+                // The scopes' rows only, from the readback buffer's zeros: the meter's rows
+                // under them keep its state.
+                let region = vk::BufferImageCopy::default()
+                    .buffer_offset(SCOPES_ZERO)
+                    .image_subresource(vk::ImageSubresourceLayers {
+                        aspect_mask: vk::ImageAspectFlags::COLOR,
+                        mip_level: 0,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    })
+                    .image_extent(vk::Extent3D {
+                        width: SCOPES[0],
+                        height: SCOPES[1],
+                        depth: 1,
+                    });
+                d.device.cmd_copy_buffer_to_image(
+                    cmd,
+                    self.readback.handle,
+                    self.textures[28].handle,
+                    vk::ImageLayout::GENERAL,
+                    &[region],
+                );
+                full_barrier(&d.device, cmd);
+            }
+            // The exposure meter (E3) reads the display input and adapts its state for the
+            // display.
+            if self.st.meter.runs(s) {
+                let m = MeterStep::pass_constants(&c);
+                d.write(
+                    &self.constants,
+                    METER_SLOT * CB_STRIDE,
+                    bytemuck::bytes_of(&m),
+                )?;
+                let groups = self.st.meter.groups(self.st.width, self.st.height);
+                self.dispatch("display", METER_SLOT * CB_STRIDE, groups);
+            }
+            // Glare after the meter: its threshold is in exposed units, so it needs this frame's
+            // exposure (the meter's own input reads the previous frame's glare).
             if s.glare > 0. {
                 self.run_glare(s, &mut c)?;
             }
             let d = &self.device;
-            if self.st.scopes_on {
-                d.device.cmd_clear_color_image(
-                    cmd,
-                    self.textures[28].handle,
-                    vk::ImageLayout::GENERAL,
-                    &vk::ClearColorValue { uint32: [0; 4] },
-                    &[COLOR],
-                );
-                full_barrier(&d.device, cmd);
-            }
             d.write(&self.constants, 8 * CB_STRIDE, bytemuck::bytes_of(&c))?;
             self.dispatch(
                 "display",
@@ -1334,6 +1387,8 @@ impl Gpu {
         if self.pending_scopes {
             copy(28, 0, 0, SCOPES[0], SCOPES[1], 0);
         }
+        // The meter's state, every frame (the status bar and the HDR self-check read it).
+        copy(28, 8, METER_STATE_ROW, 8, 1, METER_WORDS);
         if let Some([x, y]) = probe {
             let rx = (x * self.st.rw / self.st.width).min(self.st.rw - 1);
             let ry = (y * self.st.rh / self.st.height).min(self.st.rh - 1);
@@ -1386,6 +1441,10 @@ impl Gpu {
                 self.st.samples += n;
             }
             let base = self.readback.mapped;
+            self.st.metered = meter_state(std::slice::from_raw_parts(
+                base.add(METER_WORDS as usize) as *const u32,
+                8,
+            ));
             if std::mem::take(&mut self.pending_scopes) {
                 self.st.scopes = std::slice::from_raw_parts(
                     base as *const u32,
@@ -1544,6 +1603,8 @@ impl Gpu {
                 self.textures.push(image);
             }
         }
+        // The meter's state lived in u28 (row 261): it is gone, so the next frame reads anew.
+        self.st.metered = None;
         unsafe { self.gui.set_object_id(&self.device, self.textures[19].view) };
         self.integrated_valid = false;
         self.reset(true);
@@ -1553,7 +1614,7 @@ impl Gpu {
     /// `hotreload` compiled. All are built before any is swapped, so an error keeps the old set.
     /// The UI pipelines stay (D3D12 reloads those too).
     pub unsafe fn reload_shaders(&mut self, sh: &crate::hotreload::Shaders) -> Result<()> {
-        let list: [(&'static str, &[u8], &std::ffi::CStr); 22] = [
+        let list: [(&'static str, &[u8], &std::ffi::CStr); 26] = [
             ("trace", &sh.trace, c"trace"),
             ("trace_maps", &sh.trace_maps, c"trace"),
             ("trace_lean", &sh.trace_lean, c"trace"),
@@ -1571,6 +1632,10 @@ impl Gpu {
             ("restir_spatial", &sh.restir_spatial, c"restir_spatial"),
             ("bdpt", &sh.bdpt, c"bdpt"),
             ("bdpt_spectral", &sh.bdpt_spectral, c"bdpt"),
+            ("trace_exact", &sh.trace_exact, c"trace"),
+            ("trace_spectral_exact", &sh.trace_spectral_exact, c"trace"),
+            ("bdpt_exact", &sh.bdpt_exact, c"bdpt"),
+            ("bdpt_spectral_exact", &sh.bdpt_spectral_exact, c"bdpt"),
             ("bdpt_resolve", &sh.bdpt_resolve, c"bdpt_resolve"),
             ("photon_clear", &sh.photon_clear, c"photon_clear"),
             ("photon_trace", &sh.photon_trace, c"photon_trace"),

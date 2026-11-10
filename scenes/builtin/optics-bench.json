@@ -317,6 +317,9 @@
    "height": 1.5,
    "extent": 6.0
   },
-  "exposure": 2.2
+  "exposure": 2.2,
+  "auto_exposure": true,
+  "ev_bias": -2.79,
+  "eyes": true
  }
 }

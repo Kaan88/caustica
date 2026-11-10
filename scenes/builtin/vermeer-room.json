@@ -31,6 +31,9 @@
   ],
   "fov": 55,
   "exposure": 2.5,
+  "auto_exposure": true,
+  "ev_bias": -0.72,
+  "eyes": true,
   "physical_sky": {
    "on": true,
    "time": 16.0,

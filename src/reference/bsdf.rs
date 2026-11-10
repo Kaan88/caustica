@@ -438,6 +438,10 @@ pub(super) fn eval_bsdf_parts(
         )
     };
     let mut pdf = (1. - ps) * nl / PI + ps * spec_pdf;
+    // truth hooks (scene::Truth, accuracy audit): `internal_reflection` (A2) divides this diffuse
+    // term by 1 - the diffuse Fresnel reflectance of the base; `fresnel` (A4) replaces the
+    // Schlick `f` for conductors with n, k; `multiscatter` (A3) replaces `compensation`. The next
+    // accuracy step writes them; the flags report pending until then.
     let diff = (Vec3::ONE - f) * (1. - m.lobes[0]) * rgb(m.color_rough) / PI;
     let compensation = Vec3::ONE + fc * (1. / ess - 1.);
     let mut r = diff + f * d * gv * gl / (4. * nv * nl).max(1e-6) * compensation;
@@ -570,4 +574,84 @@ pub(super) fn emitted(m: &PackedMaterial, colour: Vec3, front: bool, c: f32) -> 
         return Vec3::ZERO;
     }
     colour * m.optical[1] * spot(m, c)
+}
+
+/// Truth `glass_btdf` (accuracy audit A1): the rough dielectric of Walter et al. 2007, GGX with
+/// alpha `a`, at shading normal `n` (on the side of `v`, the direction back along the path), for
+/// light leaving along `l` on either side; `eta` = n1 / n2, the index on `v`'s side over the far
+/// side's. Returns the radiance BSDF value (no cosine; a refraction's carries the (n1/n2)² a
+/// radiance path takes, so it is not reciprocal but f/n1² is) and the solid-angle pdf of
+/// `sample_rough_dielectric`: a visible normal, then reflect with the facet's exact Fresnel
+/// or refract. Single scattering: what masking and shadowing take is lost, as on a real surface.
+pub(super) fn rough_dielectric(n: Vec3, v: Vec3, l: Vec3, eta: f32, a: f32) -> (f32, f32) {
+    let (nv, nl) = (n.dot(v), n.dot(l));
+    if nv <= 1e-6 || nl.abs() <= 1e-6 {
+        return (0., 0.);
+    }
+    let reflect = nl > 0.;
+    // The (generalised) half vector, turned to n's side.
+    let mut h = if reflect { v + l } else { -(eta * v + l) };
+    if h.length_squared() < 1e-12 {
+        return (0., 0.);
+    }
+    h = h.normalize();
+    if h.dot(n) < 0. {
+        h = -h;
+    }
+    let (vh, lh, nh) = (v.dot(h), l.dot(h), n.dot(h));
+    // The facet must face v, and l must be on the side its own sign of n says.
+    if vh <= 0. || (reflect && lh <= 0.) || (!reflect && lh >= 0.) {
+        return (0., 0.);
+    }
+    let d = ggx_d(nh, a);
+    let (gv, gl) = (g1(nv, a), g1(nl.abs(), a));
+    let f = fresnel_dielectric(vh, eta);
+    // pdf of the visible normal h: G1(v) max(0, v.h) D / (n.v).
+    let ph = gv * vh * d / nv;
+    if reflect {
+        (f * d * gv * gl / (4. * nv * nl), f * ph / (4. * vh))
+    } else {
+        let denom = eta * vh + lh;
+        let denom2 = (denom * denom).max(1e-12);
+        let jac = -lh / denom2;
+        (
+            vh * -lh / (nv * -nl) * eta * eta * (1. - f) * d * gv * gl / denom2,
+            (1. - f) * ph * jac,
+        )
+    }
+}
+/// A sample of `rough_dielectric` for a ray arriving along `direction`: the next direction,
+/// whether it reflected, and the facet's Fresnel reflectance (the choice's probability). The
+/// weight f cos / pdf is G1(l) (times (n1/n2)² for a refraction, which the caller applies with
+/// the media change). None when the facet sends the ray to the wrong side of the surface: that
+/// energy is the single-scattering model's loss.
+pub(super) fn sample_rough_dielectric(
+    n: Vec3,
+    direction: Vec3,
+    eta: f32,
+    a: f32,
+    r: &mut Rng,
+) -> Option<(Vec3, bool, f32)> {
+    let v = -direction;
+    let h = crate::reference::sampling::ggx_visible_normal(n, v, a, r);
+    let vh = v.dot(h);
+    if vh <= 0. {
+        return None;
+    }
+    let f = fresnel_dielectric(vh, eta);
+    let reflected = r.f() < f;
+    let l = if reflected {
+        crate::reference::sampling::reflect(direction, h)
+    } else {
+        crate::reference::sampling::refract(direction, h, eta)
+    };
+    let nl = n.dot(l);
+    if l == Vec3::ZERO || (reflected && nl <= 0.) || (!reflected && nl >= 0.) {
+        return None;
+    }
+    Some((l.normalize(), reflected, f))
+}
+/// The GGX alpha of a material's roughness, as every lobe here takes it.
+pub(super) fn rough_alpha(m: &PackedMaterial) -> f32 {
+    (m.color_rough[3] * m.color_rough[3]).max(0.001)
 }

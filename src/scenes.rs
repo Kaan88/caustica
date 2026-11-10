@@ -163,8 +163,9 @@ pub fn sync_thumbnails(entries: &[Entry]) {
 /// (the sun / moon astronomy, the glass lift, a shader fix). It is mixed into every thumbnail's
 /// hash, so every thumbnail made before the bump gets a different name: `remove_stale` deletes
 /// the old ones and the missing ones are re-rendered. Bundled sets made earlier are never found.
+/// 3: the built-ins are auto exposure scenes (E8: the display changed, the files too).
 /// Material balls have their own `balls::VERSION`.
-pub const RENDER_VERSION: u32 = 2;
+pub const RENDER_VERSION: u32 = 3;
 /// FNV-1a of the render version, then the scene file: the thumbnail key.
 fn thumbnail_hash(bytes: &[u8]) -> u64 {
     RENDER_VERSION
