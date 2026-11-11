@@ -65,8 +65,13 @@ Write-Output "Staged $($files.Count) scene files into $dist"
 # of its scene file / material, so one that is edited later is ignored and re-rendered (src/scenes.rs).
 # Needs a GPU on this machine; a failure stops the build rather than ship without them.
 $thumbs = Join-Path $dist 'thumbnails'
-& (Join-Path $dist 'caustica.exe') --make-thumbnails --thumbnails-out $thumbs
-if ($LASTEXITCODE) { throw "--make-thumbnails failed with exit code $LASTEXITCODE" }
+# caustica.exe is a GUI-subsystem exe: `&` returns at once without waiting, so the check below
+# raced the renders. Wait for that process alone: Start-Process -Wait also waits for every
+# descendant, and each DLSS init leaves the driver's nvngx_update.exe running, so it never returns.
+$p = Start-Process (Join-Path $dist 'caustica.exe') -ArgumentList '--make-thumbnails', '--thumbnails-out', "`"$thumbs`"" -PassThru
+$null = $p.Handle # keeps the handle open, or ExitCode reads empty after the exit
+$p.WaitForExit()
+if ($p.ExitCode) { throw "--make-thumbnails failed with exit code $($p.ExitCode)" }
 $thumbCount = @(Get-ChildItem $thumbs -Recurse -File -Filter *.png).Count
 if ($thumbCount -eq 0) { throw "--make-thumbnails made no thumbnails" }
 Write-Output "Bundled $thumbCount thumbnails into $thumbs"

@@ -97,6 +97,8 @@ Work the [keep] items in "Open tails" below, grouped by area, smallest first. An
 - [done 2026-11-10, Vulkan measured, D3D12 and hand use not tried] Proper first-person view in walk mode (2026-11-07): see your own legs when looking down and your reflection in mirrors and glass. An avatar of a few blocks is enough, in the spirit of a blocky game character but our own design, posed from the walker's stride, visible to reflections and to the camera below the neck. Done as `avatar.rs` (engine-notes "Walk avatar"); open: measure `update_materials` on D3D12 and skip identical tables there too, a colour or skin choice, a body that lags the view and follows the movement direction (strafing slides the same stride now), foot-planting that matches the stride length (the legs are shorter than the walker's step), a collider, hands holding the flashlight.
 - The UI review's findings are all fixed (`docs/ui-review.md`); what is left there are the per-batch notes of defaults taken, plus R's meaning (restart against modal rotate) for the owner to decide.
 
+- [open] **NGX updater pile-up on Windows (2026-11-11):** DLSS init leaves the driver's `nvngx_update.exe` running, thousands after a day of headless runs; see `docs/claude/windows-handoff.md` "NGX updater pile-up".
+
 ### Self-update, open items
 
 Built 2026-11-06 (engine-notes "Self-update"). Open:
