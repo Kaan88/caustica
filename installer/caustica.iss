@@ -62,6 +62,11 @@ Name: "{autodesktop}\Caustica"; Filename: "{app}\caustica.exe"; WorkingDir: "{ap
 [UninstallDelete]
 ; Caches only (thumbnails, asset catalogs): rebuilt on demand.
 Type: filesandordirs; Name: "{localappdata}\Caustica"
+; Folders the app made beside the exe (2026-11-11: an uninstall left an empty scenes\thumbnails),
+; removed only when empty so nothing of the user's goes.
+Type: dirifempty; Name: "{app}\scenes\thumbnails"
+Type: dirifempty; Name: "{app}\scenes"
+Type: dirifempty; Name: "{app}"
 
 [Run]
 Filename: "{app}\caustica.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Caustica}"; Flags: nowait postinstall skipifsilent

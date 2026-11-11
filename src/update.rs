@@ -411,12 +411,9 @@ impl Updater {
         let mut command = match &self.target {
             Target::Setup => {
                 let mut c = std::process::Command::new(file);
-                c.args([
-                    "/VERYSILENT",
-                    "/SUPPRESSMSGBOXES",
-                    "/NORESTART",
-                    "/relaunch=1",
-                ]);
+                // /SILENT, not /VERYSILENT: the setup shows its progress window (owner,
+                // 2026-11-11) but asks nothing; `skipifsilent` still leaves the relaunch to us.
+                c.args(["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/relaunch=1"]);
                 c
             }
             Target::AppImage(path) => {
