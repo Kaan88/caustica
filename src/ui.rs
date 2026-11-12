@@ -8,6 +8,7 @@ mod look_tab;
 mod overlay;
 mod render_tab;
 mod scene_tab;
+pub(crate) mod skin;
 mod stage;
 mod windows;
 use crate::scene::{
@@ -24,7 +25,6 @@ pub(crate) const WARN: egui::Color32 = egui::Color32::from_rgb(232, 176, 72);
 pub(crate) const SELECT: egui::Color32 = egui::Color32::from_rgb(43, 107, 122);
 /// The bars' background (top bar, rail, tab strip, status bar) and the hairlines between areas.
 pub(crate) const BAR: egui::Color32 = egui::Color32::from_rgb(32, 32, 32);
-pub(crate) const HAIRLINE: egui::Color32 = egui::Color32::from_rgb(44, 44, 44);
 const VIEWS: [&str; 13] = [
     "Beauty",
     "Normals",
@@ -75,17 +75,12 @@ const RESOLUTIONS: [(f32, &str); 5] = [
 ];
 /// A menu that stays open while its widgets are used (egui 0.32+ closes menus on any click inside by
 /// default). Its submenus inherit this; plain items close it with `ui.close()`.
-pub(crate) fn sticky_menu<'a, R>(
+pub(crate) fn sticky_menu<R>(
     ui: &mut egui::Ui,
-    atoms: impl egui::IntoAtoms<'a>,
+    text: impl Into<egui::WidgetText>,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<R> {
-    use egui::containers::menu::{MenuButton, MenuConfig};
-    MenuButton::new(atoms)
-        .config(MenuConfig::new().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside))
-        .ui(ui, add)
-        .1
-        .map(|r| r.inner)
+    skin::menu_button_sticky(ui, text, add).inner
 }
 
 /// The anti-aliasing name of a temporal upscaler run at 100%.
@@ -408,6 +403,8 @@ pub struct UiState {
     pub context_menu: Option<egui::Pos2>,
     /// The keyboard and mouse sheet (F1).
     pub show_shortcuts: bool,
+    /// The skin's control sheet (`--ui-skin-sheet`): every control in every state.
+    pub skin_sheet: bool,
     /// The command palette (Ctrl+K, palette.rs).
     pub palette: crate::palette::State,
     /// The timeline strip (track 8); it opens when the scene gains keys, and can then be closed.
@@ -590,6 +587,7 @@ impl Default for UiState {
             lut_error: None,
             context_menu: None,
             show_shortcuts: false,
+            skin_sheet: false,
             palette: Default::default(),
             show_timeline: false,
             timeline_had_keys: false,
@@ -1272,29 +1270,12 @@ pub fn theme(ctx: &egui::Context) {
     if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
         family.push("Hack".to_owned());
     }
+    // The skin's own families (IBM Plex), over the same fallbacks.
+    skin::fonts(&mut fonts);
     ctx.set_fonts(fonts);
     let mut style = (*ctx.global_style()).clone();
     style.visuals = egui::Visuals::dark();
-    style.visuals.selection.bg_fill = ACCENT.gamma_multiply(0.45);
-    style.visuals.hyperlink_color = ACCENT;
-    style.visuals.panel_fill = egui::Color32::from_rgba_unmultiplied(24, 26, 30, 250);
-    // Text fields stand out from the panel, and at rest widgets have an outline (the default
-    // near-black field reads as a static label).
-    style.visuals.extreme_bg_color = egui::Color32::from_gray(38);
-    style.visuals.widgets.inactive.bg_stroke =
-        egui::Stroke::new(1_f32, egui::Color32::from_gray(70));
-    style.spacing.item_spacing = egui::vec2(8., 6.);
-    style.spacing.interact_size.y = 22.;
-    style.spacing.button_padding = egui::vec2(8., 3.);
-    use egui::{FontFamily::*, FontId, TextStyle};
-    style.text_styles = [
-        (TextStyle::Heading, FontId::new(16., Proportional)),
-        (TextStyle::Body, FontId::new(14., Proportional)),
-        (TextStyle::Button, FontId::new(14., Proportional)),
-        (TextStyle::Small, FontId::new(12., Proportional)),
-        (TextStyle::Monospace, FontId::new(13., Monospace)),
-    ]
-    .into();
+    skin::style(&mut style);
     ctx.set_global_style(style);
 }
 /// What the controls of the `row` being drawn tell it (the context's temp data).
@@ -1305,6 +1286,9 @@ struct RowState {
     slider: bool,
     /// A control is showing a tooltip of its own, where the row's would land on top of it.
     quiet: bool,
+    /// Where the row's label ends and where its controls start, for a slider's unit.
+    label_right: f32,
+    controls_left: f32,
 }
 fn row_state(ctx: &egui::Context) -> RowState {
     ctx.data(|d| d.get_temp(egui::Id::unique("row state")))
@@ -1312,6 +1296,10 @@ fn row_state(ctx: &egui::Context) -> RowState {
 }
 fn set_row_state(ctx: &egui::Context, state: RowState) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("row state"), state));
+}
+/// True while a `row`'s controls are being drawn.
+fn in_row(ctx: &egui::Context) -> bool {
+    row_state(ctx).active
 }
 /// For `Slider`: true when a row shows its reset hint.
 pub(crate) fn slider_in_row(ctx: &egui::Context) -> bool {
@@ -1326,6 +1314,14 @@ pub(crate) fn slider_in_row(ctx: &egui::Context) -> bool {
         );
     }
     state.active
+}
+/// For the skin's `Slider`: where its unit may go when the slider is the first control of a
+/// row, as (the label's right edge, the controls' left edge). The unit is drawn at the end of
+/// the label column, so every number field is as wide as the next and the rails line up.
+pub(crate) fn row_unit_room(ui: &egui::Ui) -> Option<(f32, f32)> {
+    let state = row_state(ui.ctx());
+    let first = (ui.cursor().left() - state.controls_left).abs() < 0.5;
+    (state.active && first).then_some((state.label_right, state.controls_left))
 }
 /// The row's tooltip stands aside while the pointer is on `r`, which has its own.
 pub(crate) fn row_tip_yields(r: &egui::Response) {
@@ -1361,16 +1357,26 @@ fn row_controls<R>(
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     let outer = row_state(ui.ctx());
+    // Active before the key mark, whose own tooltip makes the row's stand aside.
     set_row_state(
         ui.ctx(),
         RowState {
             active: true,
+            label_right: label.rect.right(),
             ..Default::default()
         },
     );
     let controls = ui.horizontal(|ui| {
         // The key mark's slot, in the tabs whose values the timeline keys.
         crate::timeline_ui::key_slot(ui);
+        let state = row_state(ui.ctx());
+        set_row_state(
+            ui.ctx(),
+            RowState {
+                controls_left: ui.cursor().left(),
+                ..state
+            },
+        );
         // The slider gives way in a narrow column (a number box of up to 76 points follows
         // it), and a long combo text is cut, so a row never runs past the column's edge.
         ui.spacing_mut().slider_width = (ui.available_width() - 84.).clamp(48., 130.);
@@ -1394,9 +1400,13 @@ fn row_controls<R>(
     ui.end_row();
     controls.inner
 }
+/// A row's label: the skin's are dimmer than the values beside them.
+fn row_label(label: &str) -> egui::RichText {
+    egui::RichText::new(label).color(skin::DIM)
+}
 /// A labelled row in a two-column property grid, with the tooltip over the whole row.
 pub fn row(ui: &mut egui::Ui, label: &str, tip: &str, add: impl FnOnce(&mut egui::Ui)) {
-    let label = ui.label(label);
+    let label = ui.label(row_label(label));
     row_controls(ui, label, tip, add);
 }
 /// `row` for a control that does nothing right now: `idle` says why. The controls stay visible
@@ -1408,7 +1418,7 @@ pub fn row_if(
     idle: Option<&str>,
     add: impl FnOnce(&mut egui::Ui),
 ) {
-    let label = ui.add_enabled(idle.is_none(), egui::Label::new(label));
+    let label = ui.add_enabled(idle.is_none(), egui::Label::new(row_label(label)));
     let tip = match idle {
         Some(why) => format!("{why}\n\n{tip}"),
         None => tip.to_string(),
@@ -1433,8 +1443,7 @@ pub fn check_row_with(
     extra: impl FnOnce(&mut egui::Ui, bool),
 ) -> egui::Response {
     // As plain a colour as any other row's label; a clickable one would be brighter.
-    let color = ui.visuals().text_color();
-    let text = egui::Label::new(egui::RichText::new(label).color(color))
+    let text = egui::Label::new(egui::RichText::new(label).color(skin::DIM))
         .sense(egui::Sense::click())
         .selectable(false);
     let label = ui.add_enabled(idle.is_none(), text);
@@ -1443,7 +1452,9 @@ pub fn check_row_with(
         *on = !*on;
     }
     row_controls(ui, label, tip, |ui| {
-        let mut checkbox = ui.add_enabled(idle.is_none(), egui::Checkbox::without_text(on));
+        let mut checkbox = ui
+            .add_enabled_ui(idle.is_none(), |ui| skin::checkbox(ui, on))
+            .inner;
         if flipped {
             checkbox.mark_changed();
         }
@@ -1496,27 +1507,21 @@ pub fn more(
     if advanced {
         add(ui);
     } else {
-        egui::CollapsingHeader::new("More")
-            .id_salt(id)
-            .show(ui, add);
+        skin::disclosure(ui, id, "More", false, add);
     }
 }
 pub(crate) fn section(ui: &mut egui::Ui, title: &str) {
     ui.add_space(4.);
-    ui.label(egui::RichText::new(title).strong().color(ACCENT));
+    skin::heading(ui, title);
+    ui.add_space(2.);
 }
 /// The name at the top of a property tab.
 pub(crate) fn tab_title(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(2.);
-    ui.add(
-        egui::Label::new(
-            egui::RichText::new(title)
-                .heading()
-                .color(egui::Color32::from_gray(230)),
-        )
-        .truncate(),
-    );
-    ui.add_space(2.);
+    skin::title(ui, title);
+}
+/// `tab_title` with a control at the right end of the line.
+pub(crate) fn tab_title_with(ui: &mut egui::Ui, title: &str, add: impl FnOnce(&mut egui::Ui)) {
+    skin::title_with(ui, title, add);
 }
 /// A collapsible section of a property tab. Its header is one clickable line: an arrow, the
 /// title, and at the right a preview of the values inside, so a closed section still tells the
@@ -1528,79 +1533,7 @@ pub(crate) fn fold<R>(
     default_open: bool,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<R> {
-    use egui::collapsing_header::CollapsingState;
-    let id = ui.make_persistent_id(("fold", title));
-    let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
-    let height = ui.spacing().interact_size.y + 8.;
-    let (rect, r) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width(), height),
-        egui::Sense::click(),
-    );
-    let r = r.on_hover_cursor(egui::CursorIcon::PointingHand);
-    if r.clicked() {
-        state.toggle(ui);
-    }
-    if ui.is_rect_visible(rect) {
-        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-        painter.hline(
-            rect.x_range(),
-            rect.top(),
-            egui::Stroke::new(1_f32, HAIRLINE),
-        );
-        let color = if r.hovered() {
-            egui::Color32::from_rgb(150, 225, 236)
-        } else {
-            ACCENT
-        };
-        // The arrow turns with the body's animation.
-        let openness = state.openness(ui.ctx());
-        let centre = egui::pos2(rect.left() + 9., rect.center().y);
-        let arrow = egui::Rect::from_center_size(centre, egui::vec2(8., 8.));
-        let turn = egui::emath::Rot2::from_angle(openness * std::f32::consts::FRAC_PI_2);
-        let points = [
-            egui::vec2(-2.5, -4.),
-            egui::vec2(3.5, 0.),
-            egui::vec2(-2.5, 4.),
-        ]
-        .map(|p| arrow.center() + turn * p);
-        painter.add(egui::Shape::convex_polygon(
-            points.to_vec(),
-            color,
-            egui::Stroke::NONE,
-        ));
-        let font = egui::TextStyle::Body.resolve(ui.style());
-        let title = painter.text(
-            egui::pos2(rect.left() + 20., rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            title,
-            font,
-            color,
-        );
-        let preview: String = preview.into();
-        if !preview.is_empty() {
-            let font = egui::FontId::monospace(12.);
-            let galley = painter.layout_no_wrap(preview, font, egui::Color32::from_gray(154));
-            // Right-aligned; what does not fit beside the title is cut off at its left.
-            let room = egui::Rect::from_min_max(
-                egui::pos2(title.right() + 12., rect.top()),
-                egui::pos2(rect.right() - 4., rect.bottom()),
-            );
-            let at = egui::pos2(
-                room.right() - galley.size().x,
-                rect.center().y - galley.size().y / 2.,
-            );
-            painter
-                .with_clip_rect(room.intersect(ui.clip_rect()))
-                .galley(at, galley, egui::Color32::from_gray(154));
-        }
-    }
-    state
-        .show_body_unindented(ui, |ui| {
-            let inner = add(ui);
-            ui.add_space(4.);
-            inner
-        })
-        .map(|r| r.inner)
+    skin::fold(ui, title, preview.into(), default_open, add)
 }
 /// One row of the outliner's tree: `label` after `indent`, `dim` text at the right, filled when
 /// selected. Takes the rest of the line.
@@ -1629,15 +1562,13 @@ pub(crate) fn tree_row_keyed(
     );
     if ui.is_rect_visible(rect) {
         let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-        if selected {
-            painter.rect_filled(rect, 3., SELECT);
-        } else if r.hovered() {
-            painter.rect_filled(rect, 3., egui::Color32::from_gray(44));
-        }
+        // The row is a flat button: lit under the pointer, pressed in with accent text while
+        // it is the selection.
+        let down = skin::button_chrome(ui, rect, &r, true, selected);
         let (text, faint) = if selected {
-            (egui::Color32::WHITE, egui::Color32::from_rgb(217, 238, 242))
+            (ACCENT, skin::DIM)
         } else {
-            (egui::Color32::from_gray(218), egui::Color32::from_gray(143))
+            (skin::TX, skin::FAINT)
         };
         let mut right = rect.right() - 6.;
         if keyed {
@@ -1649,27 +1580,22 @@ pub(crate) fn tree_row_keyed(
                     c + egui::vec2(0., 4.),
                     c + egui::vec2(-4., 0.),
                 ],
-                if selected {
-                    egui::Color32::WHITE
-                } else {
-                    ACCENT
-                },
+                ACCENT,
                 egui::Stroke::NONE,
             ));
             right -= 14.;
         }
         if !dim.is_empty() {
-            let galley =
-                painter.layout_no_wrap(dim.to_owned(), egui::FontId::proportional(12.), faint);
+            let galley = painter.layout_no_wrap(dim.to_owned(), skin::sans(11.5), faint);
             right -= galley.size().x;
             painter.galley(
-                egui::pos2(right, rect.center().y - galley.size().y / 2.),
+                egui::pos2(right, rect.center().y - galley.size().y / 2. + down),
                 galley,
                 faint,
             );
             right -= 8.;
         }
-        let font = egui::TextStyle::Body.resolve(ui.style());
+        let font = skin::sans(12.5);
         let left = rect.left() + 6. + indent;
         painter
             .with_clip_rect(
@@ -1677,7 +1603,7 @@ pub(crate) fn tree_row_keyed(
                     .intersect(ui.clip_rect()),
             )
             .text(
-                egui::pos2(left, rect.center().y),
+                egui::pos2(left, rect.center().y + down),
                 egui::Align2::LEFT_CENTER,
                 label,
                 font,
@@ -1690,7 +1616,11 @@ pub(crate) fn tree_row_keyed(
 /// their columns the same minimum, so the controls line up from one block to the next.
 pub(crate) const LABEL_WIDTH: f32 = 128.;
 pub(crate) fn grid(id: &str) -> egui::Grid {
-    egui::Grid::new(id).num_columns(2).spacing([12., 6.])
+    // Rows of 28 points: a control and 4 between.
+    egui::Grid::new(id)
+        .num_columns(2)
+        .spacing([8., 4.])
+        .min_col_width(LABEL_WIDTH)
 }
 /// Light path expressions (track 14): one row per slot (show it, the expression, ready-made
 /// ones), and the compile error while one does not parse. A field holds what was typed; the
@@ -1710,18 +1640,17 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
         let current = s.lpe.get(k).cloned().unwrap_or_default();
         let mut error = None;
         ui.horizontal(|ui| {
-            if ui
-                .radio(shown && s.lpe_slot == k as u32, format!("{}", k + 1))
+            if crate::ui::skin::radio(ui, shown && s.lpe_slot == k as u32, format!("{}", k + 1))
                 .on_hover_text("Show this expression's image")
                 .clicked()
             {
                 s.view = 12;
                 s.lpe_slot = k as u32;
             }
-            let field = ui.add(
-                egui::TextEdit::singleline(text)
-                    .hint_text(field_hint("e.g. C D L"))
-                    .desired_width(width),
+            let field = crate::ui::skin::text_edit(
+                ui,
+                width,
+                egui::TextEdit::singleline(text).hint_text(field_hint("e.g. C D L")),
             );
             let mut set = None;
             if field.changed() {
@@ -1729,12 +1658,12 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
             }
             sticky_menu(ui, "Presets", |ui| {
                 for (name, expr) in lpe::PRESETS {
-                    if ui.button(format!("{name}  ({expr})")).clicked() {
+                    if crate::ui::skin::button(ui, format!("{name}  ({expr})")).clicked() {
                         set = Some(expr.to_string());
                         ui.close();
                     }
                 }
-                if ui.button("Clear").clicked() {
+                if crate::ui::skin::button(ui, "Clear").clicked() {
                     set = Some(String::new());
                     ui.close();
                 }
@@ -1771,12 +1700,50 @@ fn lpe_section(ui: &mut egui::Ui, s: &mut Settings, edit: &mut Vec<String>) {
     }
 }
 pub(crate) fn note(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).small());
+    ui.label(egui::RichText::new(text).small().color(skin::FAINT));
+}
+/// How wide `text` is set in `font`, for sizing a control that sits beside it.
+pub(crate) fn text_width(ui: &egui::Ui, text: &str, font: egui::FontId) -> f32 {
+    ui.painter()
+        .layout_no_wrap(text.to_owned(), font, skin::TX)
+        .size()
+        .x
+        .ceil()
+}
+/// How wide a plain skin button with `text` is.
+pub(crate) fn button_width(ui: &egui::Ui, text: &str) -> f32 {
+    text_width(ui, text, skin::sans(12.5)) + 18.
+}
+/// A group of numbers (x/y/z) that fills the controls column evenly, the revert dot after
+/// them where a slider's is. `prefixes` and `suffix` label each field.
+pub(crate) fn drag_group(
+    ui: &mut egui::Ui,
+    values: &mut [f32],
+    prefixes: &[&str],
+    suffix: &str,
+    speed: f32,
+    range: std::ops::RangeInclusive<f32>,
+) {
+    let n = values.len() as f32;
+    let gap = ui.spacing().item_spacing.x;
+    // The dot is 8 wide; every item has a gap before the next.
+    let width = ((ui.available_width() - 8. - gap * n) / n).clamp(40., 120.);
+    for (i, v) in values.iter_mut().enumerate() {
+        let mut d = egui::DragValue::new(v).speed(speed).range(range.clone());
+        if let Some(p) = prefixes.get(i) {
+            d = d.prefix(*p);
+        }
+        if !suffix.is_empty() {
+            d = d.suffix(suffix);
+        }
+        skin::drag_value_sized(ui, width, d);
+    }
+    crate::revert_dot(ui, values);
 }
 /// A text field's placeholder. egui's default is the weak text colour, about 2:1 on the field;
 /// this is the plain label grey, still dimmer than typed text.
 pub(crate) fn field_hint(text: impl Into<String>) -> egui::RichText {
-    egui::RichText::new(text).color(egui::Color32::from_gray(140))
+    egui::RichText::new(text).color(skin::FAINT)
 }
 fn rr_model(id: u32) -> &'static str {
     match id {
@@ -1829,67 +1796,6 @@ fn pipeline(app: &App) -> (String, bool) {
 pub fn view_name(view: u32) -> &'static str {
     VIEWS[view as usize]
 }
-/// A scene card: thumbnail (or a placeholder) and the title under it, all cards the same size
-/// (`width` points wide, 16:10).
-fn card(
-    ui: &mut egui::Ui,
-    e: &crate::scenes::Entry,
-    texture: Option<&egui::TextureHandle>,
-    selected: bool,
-    width: f32,
-) -> egui::Response {
-    let size = egui::vec2(width, width * 0.625);
-    let (rect, r) = ui.allocate_exact_size(egui::vec2(size.x, size.y + 18.), egui::Sense::click());
-    let image = egui::Rect::from_min_size(rect.min, size);
-    match texture {
-        Some(t) => egui::Image::new((t.id(), size))
-            .corner_radius(3.)
-            .paint_at(ui, image),
-        None => {
-            ui.painter()
-                .rect_filled(image, 3., egui::Color32::from_gray(38));
-            ui.painter().text(
-                image.center(),
-                egui::Align2::CENTER_CENTER,
-                e.title.chars().next().unwrap_or('?'),
-                egui::FontId::proportional(size.y * 0.4),
-                egui::Color32::from_gray(110),
-            );
-        }
-    }
-    if selected || r.hovered() {
-        let color = if selected {
-            ACCENT
-        } else {
-            egui::Color32::from_gray(150)
-        };
-        ui.painter().rect_stroke(
-            image.expand(1.),
-            4.,
-            egui::Stroke::new(2_f32, color),
-            egui::StrokeKind::Outside,
-        );
-    }
-    // As many characters as the card is wide: 26 on the medium one.
-    let fit = (width * 0.1625) as usize;
-    let title: String = if e.title.chars().count() > fit {
-        e.title.chars().take(fit - 1).collect::<String>() + "…"
-    } else {
-        e.title.clone()
-    };
-    ui.painter().text(
-        egui::pos2(rect.min.x + 2., image.max.y + 3.),
-        egui::Align2::LEFT_TOP,
-        title,
-        egui::FontId::proportional(12.),
-        if selected {
-            ACCENT
-        } else {
-            ui.visuals().text_color()
-        },
-    );
-    r.on_hover_text(&e.description)
-}
 /// A grey card with the scene's initial, until its thumbnail exists.
 pub(crate) fn placeholder(ui: &mut egui::Ui, title: &str, size: egui::Vec2) -> egui::Response {
     let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
@@ -1897,14 +1803,18 @@ pub(crate) fn placeholder(ui: &mut egui::Ui, title: &str, size: egui::Vec2) -> e
     painter.rect_filled(
         rect,
         3.,
-        egui::Color32::from_gray(if r.hovered() { 52 } else { 38 }),
+        if r.hovered() {
+            skin::TAB_HOVER
+        } else {
+            skin::DEEP
+        },
     );
     painter.text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         title.chars().next().unwrap_or('?'),
         egui::FontId::proportional(size.y * 0.4),
-        egui::Color32::from_gray(110),
+        skin::FAINT,
     );
     r
 }
@@ -1984,6 +1894,28 @@ impl App {
     pub fn ui(&mut self, root: &mut egui::Ui) {
         let ctx = root.ctx().clone();
         let ctx = &ctx;
+        // scRGB blends the UI in linear light; the skin corrects its translucent pixels.
+        let linear = self.gpu.as_ref().is_some_and(|g| g.hdr_active && !g.hdr10);
+        skin::blend_in_linear_light(linear);
+        // Text too: egui's dark-mode curve (2c - c²) thickens glyph edges for a blend on code
+        // values. In linear light a light glyph on a dark panel already gains that much, so
+        // both together made every font a weight bolder in HDR. Plain coverage there lands
+        // within 4 % of the SDR result for the UI's text colours (takes effect next frame).
+        use egui::epaint::FontColorTransferFunction as Transfer;
+        let transfer = if linear {
+            Transfer::Gamma(1.)
+        } else {
+            Transfer::DARK_MODE_DEFAULT
+        };
+        if ctx
+            .global_style()
+            .visuals
+            .text_options
+            .color_transfer_function
+            != transfer
+        {
+            ctx.global_style_mut(|s| s.visuals.text_options.color_transfer_function = transfer);
+        }
         self.poll_describe(ctx);
         // Double-click resets: the scene as it was when it got its name (loaded, preset,
         // generated or randomized), each object and light by index, and default UI values.
@@ -2127,6 +2059,9 @@ impl App {
         self.overlay(ctx);
         self.context_menu(ctx);
         self.shortcuts_window(ctx);
+        if self.ui.skin_sheet {
+            skin::sheet(ctx);
+        }
         self.palette_window(ctx);
         self.update_window(ctx);
         self.sync_prefs(ctx);
@@ -2289,13 +2224,13 @@ impl App {
                 .constrain_to(central_rect(ctx))
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    crate::ui::skin::card(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.label("Left drag orbits · right drag pans · wheel zooms · click selects · right-click opens a menu · F1 lists every shortcut");
                                 ui.label("Scenes: pick a scene · Look tab: adjust the image · F12: save PNG · Tab: hide the panels · Ctrl+K: find anything");
                             });
-                            seen = ui.button("Got it").clicked();
+                            seen = crate::ui::skin::button(ui, "Got it").clicked();
                         });
                     });
                 });
@@ -2398,7 +2333,10 @@ fn context_items(ui: &mut egui::Ui, selected: bool) -> Option<Command> {
         ("Delete (Del)", Command::Delete),
     ];
     for (label, c) in items {
-        if ui.add_enabled(selected, egui::Button::new(label)).clicked() {
+        if ui
+            .add_enabled(selected, crate::ui::skin::Button::new(label))
+            .clicked()
+        {
             chosen = Some(c);
             ui.close();
         }
@@ -2786,7 +2724,7 @@ mod tests {
                 false,
                 vec![key(egui::Key::Tab)],
                 |ui| {
-                    let _ = ui.button("Menu");
+                    let _ = crate::ui::skin::button(ui, "Menu");
                 },
             );
             assert_eq!(ctx.memory(|m| m.focused()), None);
@@ -3355,19 +3293,57 @@ mod tests {
     fn double_clicking_a_wheels_level_slider_resets_the_wheel() {
         let ctx = egui::Context::default();
         let mut value = [0.1_f32, 0.05, 0.05];
-        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
-        let mut add = |ui: &mut egui::Ui| {
-            crate::look::color_wheel(ui, "Lift", &mut value, 0., 0.15);
-            rect.set(ui.min_rect());
+        let reset = std::cell::Cell::new(false);
+        // Not in `frame`'s grid: the wheels are laid out across the panel's width.
+        let mut run = |events: Vec<egui::Event>| {
+            let time = ctx.input(|i| i.time) + 0.05;
+            let input = egui::RawInput {
+                time: Some(time),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(330., 600.),
+                )),
+                events,
+                ..Default::default()
+            };
+            let _ = discard(ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    crate::look::color_wheels(
+                        ui,
+                        &mut [crate::look::Wheel {
+                            label: "Lift",
+                            value: &mut value,
+                            center: 0.,
+                            range: 0.15,
+                        }],
+                    );
+                    reset.set(value.iter().all(|v| v.abs() < 1e-6));
+                });
+            }));
         };
-        frame(&ctx, vec![], &mut add);
-        // Under the label and the 84-point wheel.
-        let slider = egui::pos2(rect.get().left() + 30., rect.get().top() + 113.);
-        click(&ctx, slider, &mut add);
-        click(&ctx, slider, &mut add);
-        frame(&ctx, vec![], &mut add);
-        drop(add);
-        assert!(value.iter().all(|v| v.abs() < 1e-6), "{value:?}");
+        run(vec![]);
+        run(vec![]);
+        // The level's row sits under the wheel, its slider after the label column: its height
+        // is found by trying rows from the top.
+        for y in (100..260).step_by(4) {
+            let slider = egui::pos2(LABEL_WIDTH + 48., y as f32);
+            let button = |pressed| egui::Event::PointerButton {
+                pos: slider,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            for _ in 0..2 {
+                run(vec![egui::Event::PointerMoved(slider)]);
+                run(vec![button(true)]);
+                run(vec![button(false)]);
+                run(vec![]);
+            }
+            if reset.get() {
+                break;
+            }
+        }
+        assert!(reset.get());
     }
     #[test]
     fn short_numbers_drop_what_says_nothing() {

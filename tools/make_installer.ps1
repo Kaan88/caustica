@@ -44,6 +44,7 @@ foreach ($l in @(
         @('vendor\ffmpeg\LICENSE', 'FFmpeg.txt'),
         @('LICENSE', 'Caustica-MIT.txt'),
         @('assets\THREE-LICENSE.txt', 'three.js-MIT.txt'),
+        @('assets\fonts\IBM-Plex-LICENSE.txt', 'IBM-Plex-OFL.txt'),
         @('assets\CREDITS.md', 'Mesh-credits.md'))) {
     Copy-Item -LiteralPath (Join-Path $root $l[0]) -Destination (Join-Path $licenses $l[1])
 }

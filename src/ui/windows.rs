@@ -1,6 +1,7 @@
 //! Context menu, shortcut sheet, Scenes window and the tool windows (scopes, convergence graph, remote, stats).
 use super::*;
 use crate::palette;
+use crate::ui::skin::ShowSkin as _;
 
 /// The browser's arrow keys, with no modifier (Shift+Left and Right step the timeline frame): Up
 /// and Down, and in the search box they alone, as Left and Right move its cursor.
@@ -79,6 +80,59 @@ fn split_tags<'a>(all: impl Iterator<Item = &'a str>) -> (Vec<&'static str>, Vec
         .collect();
     (top, more)
 }
+/// A scene card: the board's card with the thumbnail (or the scene's initial) in it and the
+/// title under it, all the same size (`width` points of picture, 16:10).
+fn scene_card(
+    ui: &mut egui::Ui,
+    e: &crate::scenes::Entry,
+    texture: Option<&egui::TextureHandle>,
+    selected: bool,
+    width: f32,
+) -> egui::Response {
+    use crate::ui::skin;
+    const PAD: f32 = 4.;
+    let size = egui::vec2(width, width * 0.625);
+    let (rect, r) = ui.allocate_exact_size(
+        egui::vec2(size.x + 2. * PAD, size.y + 2. * PAD + 22.),
+        egui::Sense::click(),
+    );
+    skin::card_face(ui, &r, rect, selected);
+    let image = egui::Rect::from_min_size(rect.min + egui::vec2(PAD, PAD), size);
+    match texture {
+        Some(t) => {
+            egui::Image::new((t.id(), size))
+                .corner_radius(3.)
+                .paint_at(ui, image);
+        }
+        None => {
+            ui.painter()
+                .rect_filled(image, 3., egui::Color32::from_rgb(0x14, 0x14, 0x16));
+            ui.painter().text(
+                image.center(),
+                egui::Align2::CENTER_CENTER,
+                e.title.chars().next().unwrap_or('?'),
+                skin::semibold(size.y * 0.4),
+                skin::FAINT,
+            );
+        }
+    }
+    let mut job = egui::text::LayoutJob::single_section(
+        e.title.clone(),
+        egui::TextFormat {
+            font_id: skin::sans(12.5),
+            color: skin::TX,
+            ..Default::default()
+        },
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(size.x - 2.);
+    let title = ui.painter().layout_job(job);
+    ui.painter().galley(
+        egui::pos2(image.min.x + 1., image.max.y + 5.),
+        title,
+        skin::TX,
+    );
+    r.on_hover_text(&e.description)
+}
 impl App {
     /// The viewport's right-click menu, kept open at its position until a click elsewhere.
     pub(super) fn context_menu(&mut self, ctx: &egui::Context) {
@@ -96,8 +150,9 @@ impl App {
         let r = egui::Area::new(egui::Id::unique("viewport menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(at)
+            .info(egui::UiStackInfo::new(egui::UiKind::Menu))
             .show(ctx, |ui| {
-                egui::Frame::menu(ui.style()).show(ui, |ui| {
+                crate::ui::skin::menu(ui, |ui| {
                     ui.set_min_width(170.);
                     let name = match self.ui.selection {
                         Selection::Object(i) => {
@@ -110,14 +165,14 @@ impl App {
                         ui.label(egui::RichText::new(name).small());
                     }
                     chosen = context_items(ui, selected);
-                    ui.separator();
-                    if ui.button("Frame the scene").clicked() {
+                    crate::ui::skin::separator(ui);
+                    if crate::ui::skin::button(ui, "Frame the scene").clicked() {
                         chosen = Some(Command::FrameScene);
                     }
-                    if ui.button("Reset the camera (Home)").clicked() {
+                    if crate::ui::skin::button(ui, "Reset the camera (Home)").clicked() {
                         chosen = Some(Command::ResetCamera);
                     }
-                    if ui.button("Show all hidden (Alt+H)").clicked() {
+                    if crate::ui::skin::button(ui, "Show all hidden (Alt+H)").clicked() {
                         chosen = Some(Command::ShowAll);
                     }
                 });
@@ -135,12 +190,12 @@ impl App {
     /// F1: every shortcut in one place.
     pub(super) fn shortcuts_window(&mut self, ctx: &egui::Context) {
         let mut open = self.ui.show_shortcuts;
-        egui::Window::new("Keyboard and mouse")
+        crate::ui::skin::window("Keyboard and mouse")
             .open(&mut open)
             .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
             .resizable(false)
             .collapsible(false)
-            .show(ctx, |ui| {
+            .show_skin(ctx, |ui| {
                 // Three columns side by side, so the sheet fits a laptop screen.
                 ui.horizontal_top(|ui| {
                     for column in SHORTCUT_COLUMNS {
@@ -151,7 +206,10 @@ impl App {
                                 // Long rows wrap: the sheet must fit a 1280 wide window.
                                 grid(group).max_col_width(200.).show(ui, |ui| {
                                     for (k, what) in keys {
-                                        ui.label(egui::RichText::new(*k).strong());
+                                        ui.label(
+                                            egui::RichText::new(*k)
+                                                .font(crate::ui::skin::semibold(12.5)),
+                                        );
                                         ui.label(*what);
                                         ui.end_row();
                                     }
@@ -194,13 +252,14 @@ impl App {
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_TOP, [0., 70.])
             .show(ctx, |ui| {
-                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                crate::ui::skin::card(ui, |ui| {
                     ui.set_width(460.);
                     let st = &mut self.ui.palette;
-                    let r = ui.add(
+                    let r = crate::ui::skin::text_edit(
+                        ui,
+                        f32::INFINITY,
                         egui::TextEdit::singleline(&mut st.query)
-                            .hint_text(field_hint("Find a setting or command…"))
-                            .desired_width(f32::INFINITY),
+                            .hint_text(field_hint("Find a setting or command…")),
                     );
                     if opened {
                         r.request_focus();
@@ -221,7 +280,8 @@ impl App {
                                 let e = &palette::ENTRIES[i];
                                 let r = ui
                                     .horizontal(|ui| {
-                                        let r = ui.selectable_label(n == st.at, e.label);
+                                        let r =
+                                            crate::ui::skin::selectable(ui, n == st.at, e.label);
                                         if !e.key.is_empty() {
                                             ui.with_layout(
                                                 egui::Layout::right_to_left(egui::Align::Center),
@@ -245,13 +305,13 @@ impl App {
                                     palette::Act::Go(..) => None,
                                 };
                                 if let Some(pin) = pin {
-                                    r.context_menu(|ui| {
+                                    crate::ui::skin::context_menu(&r, |ui| {
                                         let label = if pins.contains(&pin) {
                                             "Unpin from top bar"
                                         } else {
                                             "Pin to top bar"
                                         };
-                                        if ui.button(label).clicked() {
+                                        if crate::ui::skin::button(ui, label).clicked() {
                                             pin_toggle = Some(pin);
                                             ui.close();
                                         }
@@ -583,11 +643,11 @@ impl App {
         // Over the viewport, not a floating window: a sidebar (library, tags, create), the cards
         // and the selected scene's details. The image keeps rendering behind it.
         let rect = central_rect(ctx);
-        egui::Window::new("Scenes")
+        crate::ui::skin::window("Scenes")
             .title_bar(false)
             .resizable(false)
             .fixed_rect(rect)
-            .frame(egui::Frame::new().fill(egui::Color32::from_gray(24)))
+            .frame(crate::ui::skin::panel_frame())
             .show(ctx, |ui| {
                 ui.set_min_size(rect.size());
                 let state = &mut self.ui;
@@ -612,8 +672,9 @@ impl App {
                 let mut enter = false;
                 let (top, more) = split_tags(state.scenes.iter().flat_map(|e| e.tags.iter().map(String::as_str)));
                 let header = |ui: &mut egui::Ui, text: &str| {
-                    ui.add_space(8.);
-                    ui.label(egui::RichText::new(text).small().color(egui::Color32::from_gray(143)));
+                    ui.add_space(10.);
+                    crate::ui::skin::heading(ui, text);
+                    ui.add_space(2.);
                 };
                 egui::Panel::left("scenes side")
                     .exact_size(200.)
@@ -654,11 +715,11 @@ impl App {
                         {
                             state.scene_tag = None;
                         }
-                        ui.menu_button(format!("More tags ({})", more.len()), |ui| {
+                        crate::ui::skin::menu_button_raised(ui, format!("More tags ({})", more.len()), |ui| {
                             egui::ScrollArea::vertical().max_height(320.).show(ui, |ui| {
                                 for (t, n) in &more {
                                     let on = state.scene_tag.as_deref() == Some(t.as_str());
-                                    if ui.selectable_label(on, format!("{t}  ({n})")).clicked() {
+                                    if crate::ui::skin::selectable(ui, on, format!("{t}  ({n})")).clicked() {
                                         state.scene_tag = if on { None } else { Some(t.clone()) };
                                         ui.close();
                                     }
@@ -714,11 +775,11 @@ impl App {
                             note(ui, &e.path.display().to_string());
                             ui.add_space(4.);
                             ui.horizontal(|ui| {
-                                if ui.button("Load").clicked() {
+                                if crate::ui::skin::button(ui, "Load").clicked() {
                                     load = state.scene_selected;
                                 }
                                 let mut favorite = state.prefs.is_favorite(&e.path);
-                                if ui.checkbox(&mut favorite, "Favorite").changed() {
+                                if crate::ui::skin::checkbox_label(ui, &mut favorite, "Favorite").changed() {
                                     state.prefs.toggle_favorite(&e.path);
                                     state.save_prefs();
                                 }
@@ -735,7 +796,7 @@ impl App {
                 ui.horizontal(|ui| {
                     // The search takes what More and Close leave, down to the narrowest browser.
                     let width = (ui.available_width() - 130.).clamp(80., 280.);
-                    let r = ui.add(egui::TextEdit::singleline(&mut state.scene_search).id(search_id).hint_text(field_hint("Search scenes…")).desired_width(width));
+                    let r = crate::ui::skin::text_edit(ui, width, egui::TextEdit::singleline(&mut state.scene_search).id(search_id).hint_text(field_hint("Search scenes…")));
                     if opened {
                         r.request_focus();
                     }
@@ -752,22 +813,22 @@ impl App {
                         }
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Close").on_hover_text("Back to the image (Esc)").clicked() {
+                        if crate::ui::skin::button(ui, "Close").on_hover_text("Back to the image (Esc)").clicked() {
                             close = true;
                         }
                         // Refresh and the thumbnail render sit in a menu: the middle is too
                         // narrow for their buttons beside the search.
-                        ui.menu_button("More", |ui| {
-                            if ui.button("Refresh").on_hover_text("Read the scenes folder again").clicked() {
+                        crate::ui::skin::menu_button_raised(ui, "More", |ui| {
+                            if crate::ui::skin::button(ui, "Refresh").on_hover_text("Read the scenes folder again").clicked() {
                                 refresh = true;
                                 ui.close();
                             }
                             match &state.thumbnail_jobs {
                                 Some((_, total, done)) => {
-                                    ui.add_enabled(false, egui::Button::new(format!("Rendering thumbnails {done} / {total}")));
+                                    ui.add_enabled(false, crate::ui::skin::Button::new(format!("Rendering thumbnails {done} / {total}")));
                                 }
                                 None => {
-                                    if ui.button("Re-render thumbnails").on_hover_text("Render every thumbnail again in the background").clicked() {
+                                    if crate::ui::skin::button(ui, "Re-render thumbnails").on_hover_text("Render every thumbnail again in the background").clicked() {
                                         rerender = true;
                                         ui.close();
                                     }
@@ -787,28 +848,28 @@ impl App {
                     state.scene_page = 0;
                 }
                 if state.scene_page == 1 {
-                ui.label(egui::RichText::new("Generate").strong());
+                crate::ui::skin::title(ui, "Generate");
                 let mut generate = false;
                 ui.horizontal(|ui| {
                     let families = crate::generators::FAMILIES;
-                    egui::ComboBox::from_id_salt("generator family")
+                    crate::ui::skin::ComboBox::from_id_salt("generator family")
                         .selected_text(families[state.gen_family].1)
                         .width(170.)
                         .show_ui(ui, |ui| {
                             for (i, (_, label, about)) in families.iter().enumerate() {
-                                ui.selectable_value(&mut state.gen_family, i, *label).on_hover_text(*about);
+                                crate::ui::skin::selectable_value(ui, &mut state.gen_family, i, *label).on_hover_text(*about);
                             }
                         });
                     ui.label("seed");
-                    ui.add(egui::DragValue::new(&mut state.gen_seed).speed(1.));
-                    if ui.button("Generate").clicked() {
+                    crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut state.gen_seed).speed(1.));
+                    if crate::ui::skin::button(ui, "Generate").clicked() {
                         generate = true;
                     }
-                    if ui.button("Next seed").clicked() {
+                    if crate::ui::skin::button(ui, "Next seed").clicked() {
                         state.gen_seed = state.gen_seed.wrapping_add(1);
                         generate = true;
                     }
-                    if ui.button("Random").clicked() {
+                    if crate::ui::skin::button(ui, "Random").clicked() {
                         state.gen_seed = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .map(|d| d.subsec_nanos() as u64 % 100_000)
@@ -830,7 +891,7 @@ impl App {
                         Err(e) => state.error(format!("{e:#}")),
                     }
                 }
-                if ui.button("Save this generator and seed to scenes/user").clicked() {
+                if crate::ui::skin::button(ui, "Save this generator and seed to scenes/user").clicked() {
                     let family = crate::generators::FAMILIES[state.gen_family].0;
                     let title = format!("{} {}", crate::generators::FAMILIES[state.gen_family].1, state.gen_seed);
                     match crate::scenes::save_generated(family, state.gen_seed, &title) {
@@ -843,11 +904,11 @@ impl App {
                     }
                 }
                 } else if state.scene_page == 2 {
-                ui.label(egui::RichText::new("Save the current scene").strong());
+                crate::ui::skin::title(ui, "Save the current scene");
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut state.save_title).hint_text(field_hint("Title")).desired_width(180.));
-                    ui.add(egui::TextEdit::singleline(&mut state.save_description).hint_text(field_hint("Description")).desired_width(260.));
-                    if ui.button("Save to scenes/user").clicked() {
+                    crate::ui::skin::text_edit(ui, 180., egui::TextEdit::singleline(&mut state.save_title).hint_text(field_hint("Title")));
+                    crate::ui::skin::text_edit(ui, 260., egui::TextEdit::singleline(&mut state.save_description).hint_text(field_hint("Description")));
+                    if crate::ui::skin::button(ui, "Save to scenes/user").clicked() {
                         match crate::scenes::save_user(&self.settings, &state.save_title, &state.save_description) {
                             Ok(path) => {
                                 state.scenes = crate::scenes::list();
@@ -865,7 +926,7 @@ impl App {
                 // Sort and card size, then the thumbnail renders' progress: within 340 pt.
                 ui.horizontal(|ui| {
                     let mut changed = false;
-                    egui::ComboBox::from_id_salt("scene sort")
+                    crate::ui::skin::ComboBox::from_id_salt("scene sort")
                         .selected_text(format!("Sort: {}", state.prefs.scene_sort.name()))
                         .width(150.)
                         .show_ui(ui, |ui| {
@@ -877,14 +938,13 @@ impl App {
                                     SceneSort::Favorites => "Favorites, then the rest",
                                     SceneSort::Modified => "By the scene file's date, newest first",
                                 };
-                                changed |= ui.selectable_value(&mut state.prefs.scene_sort, sort, name).on_hover_text(about).changed();
+                                changed |= crate::ui::skin::selectable_value(ui, &mut state.prefs.scene_sort, sort, name).on_hover_text(about).changed();
                             }
                         });
-                    for (i, name) in ["S", "M", "L"].iter().enumerate() {
-                        if ui.selectable_label(state.prefs.scene_cards == i as u8, *name).on_hover_text("Card size: small, medium or large").clicked() {
-                            state.prefs.scene_cards = i as u8;
-                            changed = true;
-                        }
+                    let mut cards = state.prefs.scene_cards;
+                    if crate::ui::skin::segment(ui, &mut cards, &[(0, "S"), (1, "M"), (2, "L")]) {
+                        state.prefs.scene_cards = cards;
+                        changed = true;
                     }
                     if changed {
                         state.save_prefs();
@@ -973,7 +1033,7 @@ impl App {
                         };
                         if grouped {
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new(&pack).color(ACCENT));
+                                ui.label(egui::RichText::new(&pack).font(crate::ui::skin::semibold(12.5)).color(crate::ui::skin::TX));
                                 license_badge(ui, &state.scenes[visible[start]].license);
                             });
                         }
@@ -981,7 +1041,7 @@ impl App {
                             for &i in &visible[start..end] {
                                 let e = &state.scenes[i];
                                 let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
-                                let r = card(ui, e, texture, state.scene_selected == Some(i), card_width);
+                                let r = scene_card(ui, e, texture, state.scene_selected == Some(i), card_width);
                                 if r.clicked() {
                                     state.scene_selected = Some(i);
                                 }
@@ -1099,11 +1159,11 @@ impl App {
             }
         }
         let mut open = self.ui.show_scopes;
-        egui::Window::new("Scopes")
+        crate::ui::skin::window("Scopes")
             .open(&mut open)
             .default_pos([140., 420.])
             .resizable(false)
-            .show(ctx, |ui| {
+            .show_skin(ctx, |ui| {
                 let g = self.gpu.as_ref().unwrap();
                 if g.scopes.len() != w * h {
                     note(ui, "Waiting for the next frame…");
@@ -1111,11 +1171,11 @@ impl App {
                 }
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new("Histogram").small());
+                        crate::ui::skin::heading(ui, "Histogram");
                         let (rect, _) =
                             ui.allocate_exact_size(egui::vec2(256., 128.), egui::Sense::hover());
                         let painter = ui.painter_at(rect);
-                        painter.rect_filled(rect, 2., egui::Color32::from_gray(16));
+                        painter.rect_filled(rect, 2., egui::Color32::from_rgb(0x12, 0x12, 0x14));
                         let colors = [
                             egui::Color32::from_rgb(230, 70, 70),
                             egui::Color32::from_rgb(80, 210, 90),
@@ -1144,13 +1204,13 @@ impl App {
                         }
                     });
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new("Luma waveform").small());
+                        crate::ui::skin::heading(ui, "Luma waveform");
                         if let Some((wave, _)) = &self.ui.scope_images {
                             ui.add(egui::Image::new((wave.id(), egui::vec2(256., 128.))));
                         }
                     });
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new("Vectorscope").small());
+                        crate::ui::skin::heading(ui, "Vectorscope");
                         if let Some((_, vector)) = &self.ui.scope_images {
                             let r = ui.add(egui::Image::new((vector.id(), egui::vec2(128., 128.))));
                             let c = r.rect.center();
@@ -1187,35 +1247,35 @@ impl App {
             .cpu_reference
             .as_ref()
             .and_then(|l| l.latest().map(|i| (l.view, i.1, i.2)));
-        egui::Window::new("Convergence").open(&mut open).default_pos([140., 120.]).default_width(420.).show(ctx, |ui| {
+        crate::ui::skin::window("Convergence").open(&mut open).default_pos([140., 120.]).default_width(420.).show_skin(ctx, |ui| {
             let g = self.gpu.as_ref().unwrap();
             match &self.ui.reference {
                 Some((w, h, _)) => note(ui, &format!("Reference: {w} × {h}. RMSE ×1000 of l/(1+l), measured as samples grow (log–log).")),
                 None => note(ui, "No reference yet: load a linear EXR of the same size, or use the current image once it has converged."),
             }
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.ui.reference_path).desired_width(220.));
-                if ui.button("Browse…").clicked()
+                crate::ui::skin::text_edit(ui, 220., egui::TextEdit::singleline(&mut self.ui.reference_path));
+                if crate::ui::skin::button(ui, "Browse…").clicked()
                     && let Some(p) = rfd::FileDialog::new().add_filter("Linear EXR", &["exr"]).set_directory(std::path::absolute(crate::dirs::captures()).unwrap_or_default()).pick_file()
                 {
                     self.ui.reference_path = p.to_string_lossy().into();
                     load = true;
                 }
-                load |= ui.button("Load EXR").clicked();
+                load |= crate::ui::skin::button(ui, "Load EXR").clicked();
                 match &cpu {
-                    Some((true, _, n)) => use_cpu = ui.button("Use current image").on_hover_text(format!("The CPU's render, {n} spp now")).clicked(),
+                    Some((true, _, n)) => use_cpu = crate::ui::skin::button(ui, "Use current image").on_hover_text(format!("The CPU's render, {n} spp now")).clicked(),
                     None if self.cpu_view => {
-                        ui.add_enabled(false, egui::Button::new("Use current image")).on_disabled_hover_text("Waiting for the CPU's first pass");
+                        ui.add_enabled(false, crate::ui::skin::Button::new("Use current image")).on_disabled_hover_text("Waiting for the CPU's first pass");
                     }
-                    _ => use_current = ui.button("Use current image").on_hover_text(format!("{} spp now", g.samples)).clicked(),
+                    _ => use_current = crate::ui::skin::button(ui, "Use current image").on_hover_text(format!("{} spp now", g.samples)).clicked(),
                 }
                 if let Some((false, _, n)) = &cpu {
-                    use_cpu = ui.button("Use the CPU render").on_hover_text(format!("Look → Compare's CPU reference, {n} spp now: measure the GPU against it")).clicked();
+                    use_cpu = crate::ui::skin::button(ui, "Use the CPU render").on_hover_text(format!("Look → Compare's CPU reference, {n} spp now: measure the GPU against it")).clicked();
                 }
             });
             let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(300.), 200.), egui::Sense::hover());
             let painter = ui.painter_at(rect);
-            painter.rect_filled(rect, 2., egui::Color32::from_gray(16));
+            painter.rect_filled(rect, 2., egui::Color32::from_rgb(0x12, 0x12, 0x14));
             let points = &self.ui.graph;
             if self.settings.battle {
                 // Battle mode: one line per quadrant, error against GPU time (log–log).
@@ -1234,9 +1294,9 @@ impl App {
                         let last = self.ui.battle_graph[i].last().map_or(String::new(), |(_, e)| format!(" · {e:.2}"));
                         painter.text(rect.left_top() + egui::vec2(6., 6. + 15. * i as f32), egui::Align2::LEFT_TOP, format!("{}{last}", crate::gpu::BATTLE_NAMES[i]), egui::FontId::proportional(12.), BATTLE_COLORS[i]);
                     }
-                    painter.text(rect.left_bottom() + egui::vec2(6., -6.), egui::Align2::LEFT_BOTTOM, "x: GPU time per quadrant", egui::FontId::proportional(11.), egui::Color32::from_gray(140));
+                    painter.text(rect.left_bottom() + egui::vec2(6., -6.), egui::Align2::LEFT_BOTTOM, "x: GPU time per quadrant", egui::FontId::proportional(11.), crate::ui::skin::FAINT);
                 } else {
-                    painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Points appear as the quadrants converge", egui::FontId::proportional(13.), egui::Color32::from_gray(140));
+                    painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Points appear as the quadrants converge", egui::FontId::proportional(13.), crate::ui::skin::FAINT);
                 }
             } else if points.len() >= 2 {
 
@@ -1250,9 +1310,9 @@ impl App {
                 painter.add(egui::Shape::line(line, egui::Stroke::new(2_f32, ACCENT)));
                 let (s, e) = points.last().unwrap();
                 painter.text(rect.right_top() + egui::vec2(-6., 6.), egui::Align2::RIGHT_TOP, format!("{s} spp · {e:.2}"), egui::FontId::proportional(13.), egui::Color32::WHITE);
-                painter.text(rect.left_bottom() + egui::vec2(6., -6.), egui::Align2::LEFT_BOTTOM, "grey: 1/√n", egui::FontId::proportional(11.), egui::Color32::from_gray(140));
+                painter.text(rect.left_bottom() + egui::vec2(6., -6.), egui::Align2::LEFT_BOTTOM, "grey: 1/√n", egui::FontId::proportional(11.), crate::ui::skin::FAINT);
             } else {
-                painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Points appear as samples accumulate", egui::FontId::proportional(13.), egui::Color32::from_gray(140));
+                painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Points appear as samples accumulate", egui::FontId::proportional(13.), crate::ui::skin::FAINT);
             }
         });
         self.ui.show_graph = open;
@@ -1302,9 +1362,9 @@ impl App {
     pub(super) fn remote_window(&mut self, ctx: &egui::Context) {
         let mut open = self.ui.show_remote;
         let mut toggle = None;
-        egui::Window::new("Phone remote").open(&mut open).default_pos([240., 120.]).resizable(false).show(ctx, |ui| {
+        crate::ui::skin::window("Phone remote").open(&mut open).default_pos([240., 120.]).resizable(false).show_skin(ctx, |ui| {
             let mut on = self.remote.is_some();
-            if ui.checkbox(&mut on, "Serve the remote on the local network").changed() {
+            if crate::ui::skin::checkbox_label(ui, &mut on, "Serve the remote on the local network").changed() {
                 toggle = Some(on);
             }
             match &self.remote {
@@ -1470,7 +1530,7 @@ impl App {
         let yes = self.updater.yes;
         let target = self.updater.target.clone();
         let mut install = false;
-        let window = egui::Window::new("Update")
+        let window = crate::ui::skin::window("Update")
             .default_pos([300., 140.])
             .default_width(420.)
             .collapsible(false);
@@ -1487,7 +1547,7 @@ impl App {
                         std::process::exit(4);
                     }
                 }
-                window.show(ctx, |ui| {
+                window.show_skin(ctx, |ui| {
                     ui.heading(format!(
                         "Caustica {} is available",
                         r.version.trim_start_matches('v')
@@ -1506,16 +1566,16 @@ impl App {
                     }
                     ui.horizontal(|ui| {
                         if can_update {
-                            if ui.button("Update").clicked() {
+                            if crate::ui::skin::button(ui, "Update").clicked() {
                                 action = Do::Download(r.clone());
                             }
-                        } else if ui.button("Open release page").clicked() {
+                        } else if crate::ui::skin::button(ui, "Open release page").clicked() {
                             action = Do::Page(r.page.clone());
                         }
-                        if ui.button("Skip this version").clicked() {
+                        if crate::ui::skin::button(ui, "Skip this version").clicked() {
                             action = Do::Skip(r.version.clone());
                         }
-                        if ui.button("Later").clicked() {
+                        if crate::ui::skin::button(ui, "Later").clicked() {
                             action = Do::Close;
                         }
                     });
@@ -1530,7 +1590,7 @@ impl App {
                 if self.updater.cancel_at.is_some_and(|at| done >= at) {
                     progress.cancel.store(true, Ordering::Relaxed);
                 }
-                window.show(ctx, |ui| {
+                window.show_skin(ctx, |ui| {
                     ui.label(format!(
                         "Downloading Caustica {}",
                         release.version.trim_start_matches('v')
@@ -1540,12 +1600,14 @@ impl App {
                     } else {
                         0.
                     };
-                    ui.add(egui::ProgressBar::new(share).text(format!(
-                        "{} / {} MB",
-                        done >> 20,
-                        total >> 20
-                    )));
-                    if ui.button("Cancel").clicked() {
+                    crate::ui::skin::bar(
+                        ui,
+                        share,
+                        ui.available_width(),
+                        16.,
+                        &format!("{} / {} MB", done >> 20, total >> 20),
+                    );
+                    if crate::ui::skin::button(ui, "Cancel").clicked() {
                         progress.cancel.store(true, Ordering::Relaxed);
                     }
                 });
@@ -1555,16 +1617,16 @@ impl App {
                     println!("UPDATE_READY {}", release.version);
                     install = true;
                 }
-                window.show(ctx, |ui| {
+                window.show_skin(ctx, |ui| {
                     ui.label(format!(
                         "Caustica {} is downloaded and verified.",
                         release.version.trim_start_matches('v')
                     ));
                     ui.horizontal(|ui| {
-                        if ui.button("Restart and install").clicked() {
+                        if crate::ui::skin::button(ui, "Restart and install").clicked() {
                             install = true;
                         }
-                        if ui.button("Later").clicked() {
+                        if crate::ui::skin::button(ui, "Later").clicked() {
                             action = Do::Close;
                         }
                     });
@@ -1575,14 +1637,16 @@ impl App {
                     println!("UPDATE_FAILED {error}");
                     std::process::exit(3);
                 }
-                window.show(ctx, |ui| {
+                window.show_skin(ctx, |ui| {
                     ui.colored_label(ui.visuals().error_fg_color, "The update didn't finish.");
                     ui.label(error);
                     ui.horizontal(|ui| {
-                        if !release.page.is_empty() && ui.button("Open release page").clicked() {
+                        if !release.page.is_empty()
+                            && crate::ui::skin::button(ui, "Open release page").clicked()
+                        {
                             action = Do::Page(release.page.clone());
                         }
-                        if ui.button("Close").clicked() {
+                        if crate::ui::skin::button(ui, "Close").clicked() {
                             action = Do::Close;
                         }
                     });
@@ -1607,11 +1671,11 @@ impl App {
     }
     pub(super) fn stats_window(&mut self, ctx: &egui::Context) {
         let mut open = self.ui.show_stats;
-        egui::Window::new("Statistics")
+        crate::ui::skin::window("Statistics")
             .open(&mut open)
             .default_pos([200., 120.])
             .default_width(380.)
-            .show(ctx, |ui| {
+            .show_skin(ctx, |ui| {
                 let Some(s) = &self.stats else {
                     note(ui, "Statistics are kept for interactive runs only.");
                     return;
@@ -1652,7 +1716,7 @@ impl App {
                     .max_height(420.)
                     .show(ui, |ui| {
                         for group in crate::stats::GROUPS {
-                            ui.label(egui::RichText::new(group).strong());
+                            crate::ui::skin::heading(ui, group);
                             for a in crate::stats::ACHIEVEMENTS
                                 .iter()
                                 .filter(|a| a.group == group)
@@ -1660,7 +1724,9 @@ impl App {
                                 match s.achievements.get(a.id) {
                                     Some(date) => {
                                         ui.label(
-                                            egui::RichText::new(a.title).color(ACCENT).strong(),
+                                            egui::RichText::new(a.title)
+                                                .font(crate::ui::skin::semibold(12.5))
+                                                .color(ACCENT),
                                         );
                                         note(ui, &format!("{} · {date}", a.how));
                                     }
@@ -1669,9 +1735,12 @@ impl App {
                                         note(ui, a.how);
                                         let (now, goal) = s.progress(a.goal);
                                         if goal > 1. {
-                                            ui.add(
-                                                egui::ProgressBar::new((now / goal).min(1.) as f32)
-                                                    .desired_height(4.),
+                                            crate::ui::skin::bar(
+                                                ui,
+                                                (now / goal).min(1.) as f32,
+                                                ui.available_width(),
+                                                6.,
+                                                "",
                                             );
                                         }
                                     }

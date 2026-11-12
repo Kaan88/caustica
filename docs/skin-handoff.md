@@ -2,6 +2,13 @@
 
 For the next session. It starts cold, on another account, so everything it needs is here or in the files named here.
 
+## Progress (2026-11-13)
+
+- **All four steps of "Order of work" are built, not committed.** The skin is app-wide; the old look is removed. Notes: engine-notes "UI skin: Instrument". Open items: roadmap, Plan step 1. Snapshot: `builds/2026-11-13-ui-skin-complete`.
+- Route 1 (textures) was taken, as one atlas, because the renderers hold few egui textures. `--ui-skin-sheet` captures every control in every state.
+- New UI code uses `crate::ui::skin::{button, Button, ComboBox, checkbox_label, selectable, segment, text_edit, drag_value, radio, menu_button, window, card, …}`, never egui's stock widgets; rows, sections and sliders come from the helpers in `ui.rs`.
+- What follows below is the state before the pass, kept for the reasoning.
+
 ## Where things stand
 
 - **UI layout B is built and committed** on `main` as `cc9bf00` (not pushed). Tests, clippy and the self-test passed on D3D12 and Vulkan; snapshot in `builds/2026-11-12-ui-redesign-b-complete`. Notes: engine-notes "UI layout B"; open tails: roadmap, "UI and editor".

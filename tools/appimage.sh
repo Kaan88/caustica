@@ -67,6 +67,7 @@ cp vendor/oidn/doc/third-party-programs.txt "$app/usr/bin/licenses/OIDN-third-pa
 cp vendor/oidn/doc/third-party-programs-oneTBB.txt "$app/usr/bin/licenses/OIDN-oneTBB-third-party-programs.txt"
 cp LICENSE "$app/usr/bin/licenses/Caustica-MIT.txt"
 cp assets/THREE-LICENSE.txt "$app/usr/bin/licenses/three.js-MIT.txt"
+cp assets/fonts/IBM-Plex-LICENSE.txt "$app/usr/bin/licenses/IBM-Plex-OFL.txt"
 cp assets/CREDITS.md "$app/usr/bin/licenses/Mesh-credits.md"
 cp assets/caustica.png "$app/caustica.png"
 cat > "$app/caustica.desktop" <<'EOF'

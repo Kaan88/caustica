@@ -251,7 +251,7 @@ impl App {
                 .order(egui::Order::Foreground)
                 .interactable(false)
                 .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    crate::ui::skin::card(ui, |ui| {
                         ui.label(egui::RichText::new(&self.ui.header).strong());
                         note(ui, "X / Y / Z axis (again: local, again: free) · Shift+X/Y/Z plane · type a value (a free move: Tab for the next axis) · Ctrl snap · Shift fine · click or Enter to confirm · right-click or Esc to cancel");
                     });

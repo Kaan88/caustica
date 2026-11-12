@@ -81,19 +81,15 @@ impl App {
                 "What cleans the noise. Ray Reconstruction is NVIDIA's neural denoiser and upscaler in one; Native is the built-in SVGF-style filter and works with the upscaler below; None shows raw samples. Ray Reconstruction falls back to Native when it cannot run. Alt+D cycles them.",
                 |ui| {
                     ui.add_enabled_ui(!s.battle, |ui| {
-                        let r = egui::ComboBox::from_id_salt("denoiser")
-                            .selected_text(s.denoiser.label())
-                            .width(220_f32.min(ui.available_width()))
-                            .show_ui(ui, |ui| {
+                        let r = skin::combo(ui, s.denoiser.label(), |ui| {
                                 for d in Denoiser::ALL {
                                     let backend = caps.denoiser(d);
                                     ui.add_enabled_ui(backend.is_none_or(|b| b.available) || s.denoiser == d, |ui| {
-                                        ui.selectable_value(&mut s.denoiser, d, d.label())
+                                        skin::item_value(ui, &mut s.denoiser, d, d.label())
                                             .on_disabled_hover_text(format!("Unavailable: {}", backend.map_or("", |b| b.reason.as_str())));
                                     });
                                 }
-                            })
-                            .response;
+                            });
                         why_disabled(r, BATTLE_RAW);
                     });
                 },
@@ -111,14 +107,11 @@ impl App {
             if s.rr() {
                 row(ui, "RR model", "The DLSS Ray Reconstruction model.", |ui| {
                     ui.add_enabled_ui(!s.battle, |ui| {
-                        let r = egui::ComboBox::from_id_salt("rr model")
-                            .selected_text(rr_model(s.rr_preset))
-                            .show_ui(ui, |ui| {
+                        let r = skin::combo(ui, rr_model(s.rr_preset), |ui| {
                                 for id in [6, 5, 4, 0] {
-                                    ui.selectable_value(&mut s.rr_preset, id, rr_model(id));
+                                    skin::item_value(ui, &mut s.rr_preset, id, rr_model(id));
                                 }
-                            })
-                            .response;
+                            });
                         why_disabled(r, BATTLE_RAW);
                     });
                 });
@@ -154,13 +147,10 @@ impl App {
                 "Quality mode",
                 "Share of the pixels that are traced; DLSS, FSR or XeSS (or RR) reconstruct the rest. At 100%, DLAA / Native AA runs the upscaler as anti-aliasing; Native accumulates samples progressively.",
                 |ui| {
-                    egui::ComboBox::from_id_salt("quality mode")
-                        .selected_text(quality_label(s))
-                        .width(175_f32.min(ui.available_width()))
-                        .show_ui(ui, |ui| {
+                    skin::combo(ui, &quality_label(s), |ui| {
                             for (scale, aa, label) in quality_modes(s) {
                                 let current = (s.scale - scale).abs() < 0.005 && (scale < 1. || s.native_aa == aa);
-                                if ui.selectable_label(current, label).clicked() {
+                                if skin::item(ui, current, &label).clicked() {
                                     s.scale = scale;
                                     s.native_aa = aa;
                                 }
@@ -213,7 +203,7 @@ impl App {
                 "Samples per frame",
                 "More is smoother per frame but slower to respond.",
                 |ui| {
-                    ui.add(crate::slider(&mut s.spp, 1..=64).logarithmic(true).suffix(" spp"));
+                    ui.add(crate::slider(&mut s.spp, 1..=64).logarithmic(true));
                 },
             );
             row(
@@ -221,14 +211,18 @@ impl App {
                 "Light bounces",
                 "How many times a path may bounce. More brightens deep corners and glass.",
                 |ui| {
-                    let slider = crate::slider(&mut s.bounces, 1..=64);
-                    ui.add(if s.integrator == 1 && !s.battle && bdpt_over {
-                        slider.suffix(" (BDPT stops at 24)")
-                    } else {
-                        slider
-                    });
+                    ui.add(crate::slider(&mut s.bounces, 1..=64));
                 },
             );
+            if s.integrator == 1 && !s.battle && bdpt_over {
+                ui.label("");
+                ui.label(
+                    egui::RichText::new("BDPT stops at 24 bounces")
+                        .small()
+                        .color(crate::ui::WARN),
+                );
+                ui.end_row();
+            }
             row(
                 ui,
                 "Specular bounces",
@@ -242,11 +236,9 @@ impl App {
                 "Integrator",
                 "Path tracing follows light backwards from the camera. Bidirectional path tracing (BDPT) also traces paths from the lights and joins the two: it finds light that squeezes through gaps (a door ajar) and caustics seen directly. Photon mapping scatters photons from the lights and gathers them where camera paths land: caustics under glass converge fast, at the cost of a slight blur that fades as samples grow. BDPT and photon mapping ignore volumes and portals. BDPT uses up to 24 bounces.",
                 |ui| {
-                    egui::ComboBox::from_id_salt("integrator")
-                        .selected_text(INTEGRATORS[s.integrator.min(2) as usize])
-                        .show_ui(ui, |ui| {
+                    skin::combo(ui, INTEGRATORS[s.integrator.min(2) as usize], |ui| {
                             for (i, name) in INTEGRATORS.iter().enumerate() {
-                                ui.selectable_value(&mut s.integrator, i as u32, *name);
+                                skin::item_value(ui, &mut s.integrator, i as u32, *name);
                             }
                         });
                 },
@@ -269,11 +261,9 @@ impl App {
                 "Texture filtering",
                 "Anisotropic filtering keeps textures sharp on floors and walls seen at grazing angles: up to this many taps along the stretched footprint. 1× is plain trilinear mipmapping, which blurs them.",
                 |ui| {
-                    egui::ComboBox::from_id_salt("anisotropy")
-                        .selected_text(format!("{}×", s.anisotropy))
-                        .show_ui(ui, |ui| {
+                    skin::combo(ui, &format!("{}×", s.anisotropy), |ui| {
                             for n in [1, 2, 4, 8, 16] {
-                                ui.selectable_value(&mut s.anisotropy, n, format!("{n}×"));
+                                skin::item_value(ui, &mut s.anisotropy, n, format!("{n}×"));
                             }
                         });
                 },
@@ -299,19 +289,15 @@ impl App {
             row(ui, "Upscaler", "Used below 100%, and as DLAA / Native AA at 100%. Ray Reconstruction does its own upscaling.", |ui| {
                 let idle = upscaler_idle(s.rr(), s.battle);
                 ui.add_enabled_ui(idle.is_none(), |ui| {
-                    let r = egui::ComboBox::from_id_salt("upscaler")
-                        .selected_text(s.upscaler.label())
-                        .width(175_f32.min(ui.available_width()))
-                        .show_ui(ui, |ui| {
+                    let r = skin::combo(ui, s.upscaler.label(), |ui| {
                             for u in Upscaler::ALL {
                                 let backend = caps.upscaler(u);
                                 ui.add_enabled_ui(backend.is_none_or(|b| b.available) || s.upscaler == u, |ui| {
-                                    ui.selectable_value(&mut s.upscaler, u, u.label())
+                                    skin::item_value(ui, &mut s.upscaler, u, u.label())
                                         .on_disabled_hover_text(format!("Unavailable: {}", backend.map_or("", |b| b.reason.as_str())));
                                 });
                             }
-                        })
-                        .response;
+                        });
                     why_disabled(r, idle.unwrap_or_default());
                 });
             });
@@ -328,14 +314,11 @@ impl App {
                             at_native.then_some("Not used at full resolution: pick a lower Quality mode or an AA mode")
                         };
                         ui.add_enabled_ui(idle.is_none(), |ui| {
-                            let r = egui::ComboBox::from_id_salt("dlss preset")
-                                .selected_text(label)
-                                .show_ui(ui, |ui| {
+                            let r = skin::combo(ui, label, |ui| {
                                     for (id, label) in DLSS_PRESETS {
-                                        ui.selectable_value(&mut s.dlss_preset, id, label);
+                                        skin::item_value(ui, &mut s.dlss_preset, id, label);
                                     }
-                                })
-                                .response;
+                                });
                             why_disabled(r, idle.unwrap_or_default());
                         });
                     },
@@ -347,18 +330,11 @@ impl App {
                 "How the progressive path spreads each pixel's samples. Box is the old sharp, slightly jagged look; Blackman-Harris and Gaussian give smoother edges. Ray Reconstruction and the temporal upscalers use their own jitter instead.",
                 |ui| {
                     ui.add_enabled_ui(!s.rr(), |ui| {
-                        let r = egui::ComboBox::from_id_salt("pixel_filter")
-                            .selected_text(
-                                *scene::PIXEL_FILTERS
-                                    .get(s.pixel_filter as usize)
-                                    .unwrap_or(&"?"),
-                            )
-                            .show_ui(ui, |ui| {
+                        let r = skin::combo(ui, filter, |ui| {
                                 for (i, name) in scene::PIXEL_FILTERS.iter().enumerate() {
-                                    ui.selectable_value(&mut s.pixel_filter, i as u32, *name);
+                                    skin::item_value(ui, &mut s.pixel_filter, i as u32, *name);
                                 }
-                            })
-                            .response;
+                            });
                         why_disabled(r, RR_RECONSTRUCTS);
                     });
                 },
@@ -414,7 +390,7 @@ impl App {
                         ui.label(egui::RichText::new(text).small().color(WARN));
                     }
                 }
-                ui.checkbox(&mut self.cpu_denoise, "Denoise the CPU view")
+                skin::checkbox_label(ui, &mut self.cpu_denoise, "Denoise the CPU view")
                 .on_hover_text("The native denoiser's spatial passes on the CPU's mean, for looking at only: saved EXRs keep the plain mean. Turning it on starts the render over.");
                 if self.cpu_denoise {
                     ui.add(crate::slider(&mut s.denoise_strength, 0. ..=1.))
@@ -425,34 +401,37 @@ impl App {
                     "It always shows the plain image, whatever the view keys pick. The GPU settings below wait for the GPU view.",
                 );
                 if advanced {
-                    ui.collapsing("CPU truth", |ui| {
-                    note(
-                        ui,
-                        "Exact versions of the shortcuts the CPU copies from the GPU, for measuring them. All off is the GPU's model. Changing one starts the render over.",
-                    );
-                    let mut t = s.truth;
-                    let mut flags = [
-                        ("Russian roulette off", &mut t.roulette),
-                        ("Firefly clamp off", &mut t.firefly),
-                        ("No pdf floors", &mut t.floors),
-                        ("Uncapped fog collisions", &mut t.collisions),
-                        ("No fog early out", &mut t.fog_cutoff),
-                        ("No absorption colour floor", &mut t.absorption_floor),
-                        ("Exact SDF marching", &mut t.sdf_march),
-                        ("Rough glass BTDF", &mut t.glass_btdf),
-                        ("Internal re-reflection (pending)", &mut t.internal_reflection),
-                        ("Multiple scattering (pending)", &mut t.multiscatter),
-                        ("Conductor Fresnel (pending)", &mut t.fresnel),
-                        ("Float-error ray offsets (pending)", &mut t.offsets),
-                        ("Shadow terminator (pending)", &mut t.shadow_terminator),
-                    ];
-                    for (label, on) in &mut flags {
-                        ui.checkbox(on, *label);
-                    }
-                    if t != s.truth {
-                        s.truth = t;
-                    }
-                });
+                    fold(ui, "CPU truth", "", false, |ui| {
+                        note(
+                            ui,
+                            "Exact versions of the shortcuts the CPU copies from the GPU, for measuring them. All off is the GPU's model. Changing one starts the render over.",
+                        );
+                        let mut t = s.truth;
+                        let mut flags = [
+                            ("Russian roulette off", &mut t.roulette),
+                            ("Firefly clamp off", &mut t.firefly),
+                            ("No pdf floors", &mut t.floors),
+                            ("Uncapped fog collisions", &mut t.collisions),
+                            ("No fog early out", &mut t.fog_cutoff),
+                            ("No absorption colour floor", &mut t.absorption_floor),
+                            ("Exact SDF marching", &mut t.sdf_march),
+                            ("Rough glass BTDF", &mut t.glass_btdf),
+                            (
+                                "Internal re-reflection (pending)",
+                                &mut t.internal_reflection,
+                            ),
+                            ("Multiple scattering (pending)", &mut t.multiscatter),
+                            ("Conductor Fresnel (pending)", &mut t.fresnel),
+                            ("Float-error ray offsets (pending)", &mut t.offsets),
+                            ("Shadow terminator (pending)", &mut t.shadow_terminator),
+                        ];
+                        for (label, on) in &mut flags {
+                            skin::checkbox_label(ui, on, *label);
+                        }
+                        if t != s.truth {
+                            s.truth = t;
+                        }
+                    });
                 }
             }
         });
@@ -471,13 +450,10 @@ impl App {
                 row(ui, "Sample pattern", "Low-discrepancy (Owen-scrambled Sobol) converges faster. Ray Reconstruction always uses random samples.", |ui| {
                     let random = pattern_is_random(g.rr_active, s.integrator, s.battle);
                     ui.add_enabled_ui(!random, |ui| {
-                        let r = egui::ComboBox::from_id_salt("pattern")
-                            .selected_text(if s.sobol { "Low-discrepancy" } else { "Random" })
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut s.sobol, true, "Low-discrepancy");
-                                ui.selectable_value(&mut s.sobol, false, "Random");
-                            })
-                            .response;
+                        let r = skin::combo(ui, if s.sobol { "Low-discrepancy" } else { "Random" }, |ui| {
+                                skin::item_value(ui, &mut s.sobol, true, "Low-discrepancy");
+                                skin::item_value(ui, &mut s.sobol, false, "Random");
+                            });
                         why_disabled(r, "Random samples are always used here");
                     });
                 });
@@ -491,9 +467,7 @@ impl App {
                     s.firefly = if on { 10. } else { 0. };
                 }
                 row(ui, "Light sampling", "MIS combines light sampling (NEE) and BSDF sampling. The single strategies show what each one is good at: NEE for small lights and rough surfaces, BSDF for large lights and mirrors.", |ui| {
-                    for (i, label) in ["MIS", "NEE only", "BSDF only"].iter().enumerate() {
-                        ui.selectable_value(&mut s.mis_mode, i as u32, *label);
-                    }
+                    skin::segment(ui, &mut s.mis_mode, &[(0, "MIS"), (1, "NEE only"), (2, "BSDF only")]);
                 });
                 check_row(ui, "ReSTIR DI", "First-hit light sampling through per-pixel reservoirs that reuse good light samples across neighbouring pixels and frames. Unbiased; it pays off with many lights at a few samples per pixel.", &mut s.restir);
                 if s.restir {
@@ -529,18 +503,21 @@ impl App {
         let rr_reason = caps.rr.reason;
         let current = Bundle::of(&self.settings);
         let mut chosen = None;
-        egui::ComboBox::from_id_salt("quality")
+        crate::ui::skin::ComboBox::from_id_salt("quality")
             .selected_text(current.map_or("Custom quality", |b| b.label()))
             .width(120.)
             .show_ui(ui, |ui| {
                 for b in Bundle::ALL {
                     if b == Bundle::Best || b == Bundle::Native {
-                        ui.separator();
+                        crate::ui::skin::separator(ui);
                     }
                     let usable = rr_ok || !b.rr();
                     let text = format!("{}  ·  {}", b.label(), b.about(upscaler));
-                    let r =
-                        ui.add_enabled(usable, egui::Button::selectable(current == Some(b), text));
+                    let r = ui
+                        .add_enabled_ui(usable, |ui| {
+                            crate::ui::skin::selectable(ui, current == Some(b), text)
+                        })
+                        .inner;
                     let r = r.on_disabled_hover_text(format!(
                         "Needs DLSS Ray Reconstruction: {rr_reason}"
                     ));
@@ -549,7 +526,7 @@ impl App {
                     }
                 }
                 if current.is_none() {
-                    ui.separator();
+                    crate::ui::skin::separator(ui);
                     note(ui, "Custom: the Render tab's settings match no bundle.");
                 }
             })

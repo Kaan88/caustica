@@ -1,5 +1,6 @@
 //! Text-to-scene and image description (the AI menu).
 use super::*;
+use crate::ui::skin::ShowSkin as _;
 
 impl App {
     /// Track 19: "Describe a scene" sends the text to Claude and loads the scene it returns.
@@ -153,23 +154,20 @@ impl App {
         let before = self.ui.prefs.ai.clone();
         let ai = &mut self.ui.prefs.ai;
         for p in Provider::ALL {
-            ui.radio_value(&mut ai.provider, p, p.label());
+            crate::ui::skin::radio_value(ui, &mut ai.provider, p, p.label());
         }
-        ui.separator();
+        crate::ui::skin::separator(ui);
         egui::Grid::new("ai grid").num_columns(2).show(ui, |ui| {
             if ai.provider == Provider::Custom {
                 ui.label("Endpoint");
-                ui.add(
-                    egui::TextEdit::singleline(&mut ai.base_url)
-                        .hint_text(field_hint("http://localhost:11434/v1"))
-                        .desired_width(220.),
-                )
+                crate::ui::skin::text_edit(ui, 220., egui::TextEdit::singleline(&mut ai.base_url)
+                        .hint_text(field_hint("http://localhost:11434/v1")),)
                 .on_hover_text("Ollama: http://localhost:11434/v1 · LM Studio: http://localhost:1234/v1 · llama.cpp: http://localhost:8080/v1");
                 ui.end_row();
                 ui.label("Protocol");
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut ai.protocol, Protocol::OpenAi, "OpenAI-compatible");
-                    ui.radio_value(&mut ai.protocol, Protocol::Anthropic, "Anthropic-compatible");
+                    crate::ui::skin::radio_value(ui, &mut ai.protocol, Protocol::OpenAi, "OpenAI-compatible");
+                    crate::ui::skin::radio_value(ui, &mut ai.protocol, Protocol::Anthropic, "Anthropic-compatible");
                 });
                 ui.end_row();
             }
@@ -179,12 +177,9 @@ impl App {
                     .provider
                     .key_env()
                     .map_or("optional".to_string(), |e| format!("or set {e}"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.ui.ai_key)
+                crate::ui::skin::text_edit(ui, 220., egui::TextEdit::singleline(&mut self.ui.ai_key)
                         .password(true)
-                        .hint_text(field_hint(hint))
-                        .desired_width(220.),
-                )
+                        .hint_text(field_hint(hint)),)
                 .on_hover_text("Kept for this session only, never saved");
                 ui.end_row();
             }
@@ -218,18 +213,17 @@ impl App {
             self.ui.save_prefs();
         }
     }
-    /// The model and reasoning pickers under the text box.
     /// The saved backends (track 19): pick one in a click, save the current one, forget one.
     pub(super) fn ai_backend_row(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Backend");
+        ui.horizontal(|ui| {
+            field_label(ui, "Backend");
             let prefs = &mut self.ui.prefs;
-            egui::ComboBox::from_id_salt("ai backend")
+            crate::ui::skin::ComboBox::from_id_salt("ai backend")
                 .selected_text(prefs.ai.short_label())
                 .show_ui(ui, |ui| {
                     for p in prefs.ai_profiles.clone() {
-                        if ui.selectable_label(p == prefs.ai, p.short_label()).clicked() {
+                        if crate::ui::skin::selectable(ui, p == prefs.ai, p.short_label()).clicked() {
                             prefs.ai = p;
                             changed = true;
                         }
@@ -240,8 +234,7 @@ impl App {
                 });
             let saved = prefs.ai_profiles.contains(&prefs.ai);
             if !saved
-                && ui
-                    .small_button("Save")
+                && crate::ui::skin::small_button(ui, "Save")
                     .on_hover_text("Adds this backend to the list (keys are never saved)")
                     .clicked()
             {
@@ -249,8 +242,7 @@ impl App {
                 changed = true;
             }
             if saved
-                && ui
-                    .small_button("Forget")
+                && crate::ui::skin::small_button(ui, "Forget")
                     .on_hover_text("Removes this backend from the list")
                     .clicked()
             {
@@ -263,21 +255,24 @@ impl App {
             self.ui.save_prefs();
         }
     }
+    /// The model and reasoning pickers under the text box.
     pub(super) fn ai_model_row(&mut self, ui: &mut egui::Ui) {
         use crate::textscene::Provider;
         let before = self.ui.prefs.ai.clone();
         let provider = before.provider;
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Model");
+        ui.horizontal(|ui| {
+            field_label(ui, "Model");
             let hint = match provider {
-                Provider::ClaudeCli | Provider::CodexCli | Provider::OpencodeCli => "the CLI's default",
+                Provider::ClaudeCli | Provider::CodexCli | Provider::OpencodeCli => {
+                    "the CLI's default"
+                }
                 Provider::ClaudeApi => "claude-opus-5-5",
                 _ => "required",
             };
-            ui.add(
-                egui::TextEdit::singleline(&mut self.ui.prefs.ai.model)
-                    .hint_text(field_hint(hint))
-                    .desired_width(170.),
+            crate::ui::skin::text_edit(
+                ui,
+                170.,
+                egui::TextEdit::singleline(&mut self.ui.prefs.ai.model).hint_text(field_hint(hint)),
             );
             let mut names: Vec<String> = provider
                 .suggested_models()
@@ -290,25 +285,27 @@ impl App {
                 }
             }
             if !names.is_empty() {
-                ui.menu_button("Pick", |ui| {
-                    egui::ScrollArea::vertical().max_height(300.).show(ui, |ui| {
-                        if ui.button("Default").clicked() {
-                            self.ui.prefs.ai.model.clear();
-                            ui.close();
-                        }
-                        for n in &names {
-                            if ui.button(n).clicked() {
-                                self.ui.prefs.ai.model = n.clone();
+                crate::ui::skin::menu_button_raised(ui, "Pick", |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(300.)
+                        .show(ui, |ui| {
+                            if crate::ui::skin::button(ui, "Default").clicked() {
+                                self.ui.prefs.ai.model.clear();
                                 ui.close();
                             }
-                        }
-                    });
+                            for n in &names {
+                                if crate::ui::skin::button(ui, n).clicked() {
+                                    self.ui.prefs.ai.model = n.clone();
+                                    ui.close();
+                                }
+                            }
+                        });
                 });
             }
             if provider.can_fetch() {
                 let fetching = self.ui.ai_models_job.is_some();
                 if ui
-                    .add_enabled(!fetching, egui::Button::new("Fetch"))
+                    .add_enabled(!fetching, crate::ui::skin::Button::new("Fetch"))
                     .on_hover_text("Lists the models the server offers")
                     .clicked()
                 {
@@ -329,7 +326,9 @@ impl App {
                     ui.spinner();
                 }
             }
-            ui.label("Reasoning");
+        });
+        ui.horizontal(|ui| {
+            field_label(ui, "Reasoning");
             let levels = provider.efforts(before.protocol);
             let shown = |e: &str| {
                 if e.is_empty() {
@@ -338,11 +337,11 @@ impl App {
                     e.to_string()
                 }
             };
-            egui::ComboBox::from_id_salt("ai effort")
+            crate::ui::skin::ComboBox::from_id_salt("ai effort")
                 .selected_text(shown(&self.ui.prefs.ai.effort))
                 .show_ui(ui, |ui| {
                     for e in levels {
-                        ui.selectable_value(&mut self.ui.prefs.ai.effort, e.to_string(), shown(e));
+                        crate::ui::skin::selectable_value(ui, &mut self.ui.prefs.ai.effort, e.to_string(), shown(e));
                     }
                 })
                 .response
@@ -360,19 +359,21 @@ impl App {
             return;
         }
         let mut open = true;
-        egui::Window::new("Describe a scene (AI)")
+        crate::ui::skin::window("Describe a scene (AI)")
             .open(&mut open)
             .default_width(380.)
             .default_pos(central_rect(ctx).left_top() + egui::vec2(12., 48.))
-            .show(ctx, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    let m = &mut self.ui.describe_mode;
-                    ui.selectable_value(m, AiMode::New, "New scene")
-                        .on_hover_text("Builds a new scene from the description");
-                    ui.selectable_value(m, AiMode::Edit, "Edit this scene")
-                        .on_hover_text("Changes the current scene as described (\"make it night\")");
-                    ui.selectable_value(m, AiMode::Critique, "Critique the render")
-                        .on_hover_text("Sends the current render and scene: the model suggests lighting and composition changes, which you can apply");
+            .show_skin(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    crate::ui::skin::segment_tipped(
+                    ui,
+                    &mut self.ui.describe_mode,
+                    &[
+                        (AiMode::New, "New scene", "Builds a new scene from the description"),
+                        (AiMode::Edit, "Edit this scene", "Changes the current scene as described (\"make it night\")"),
+                        (AiMode::Critique, "Critique the render", "Sends the current render and scene: the model suggests lighting and composition changes, which you can apply"),
+                    ],
+                    );
                 });
                 let mode = self.ui.describe_mode;
                 let hint = match mode {
@@ -380,12 +381,9 @@ impl App {
                     AiMode::Edit => "Make it night, with the lamp as the only light…",
                     AiMode::Critique => "Optional: what to focus on (mood, colour, the subject)…",
                 };
-                ui.add(
-                    egui::TextEdit::multiline(&mut self.ui.describe)
+                crate::ui::skin::text_area(ui, egui::TextEdit::multiline(&mut self.ui.describe)
                         .hint_text(field_hint(hint))
-                        .desired_rows(3)
-                        .desired_width(f32::INFINITY),
-                );
+                        .desired_rows(3),);
                 self.ai_backend_row(ui);
                 self.ai_model_row(ui);
                 let missing = self.ui.prefs.ai.missing(&self.ui.ai_key);
@@ -393,7 +391,7 @@ impl App {
                     if let Some(job) = &self.ui.describe_job {
                         ui.spinner();
                         ui.label(format!("{} ({} s)", job.status, job.started.elapsed().as_secs()));
-                        if ui.button("Cancel").clicked() {
+                        if crate::ui::skin::button(ui, "Cancel").clicked() {
                             // Stops a running CLI; an HTTP request finishes in the background
                             // and its result is dropped with the channel.
                             job.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -415,7 +413,7 @@ impl App {
                         AiMode::Critique => "Critique",
                     };
                     if ui
-                        .add_enabled(missing.is_none() && text_ok, egui::Button::new(label))
+                        .add_enabled(missing.is_none() && text_ok, crate::ui::skin::Button::new(label))
                         .on_hover_text(format!(
                             "Sends it to {}. The result is undoable (Ctrl+Z). Change the backend in Menu > Settings > Text-to-scene model",
                             self.ui.prefs.ai.provider.label()
@@ -431,20 +429,21 @@ impl App {
                         }
                     }
                     match &missing {
-                        Some(why) => ui.label(egui::RichText::new(why).small()),
+                        Some(why) => ui.label(egui::RichText::new(why).small().color(crate::ui::skin::DIM)),
                         None => ui.label(
-                            egui::RichText::new(self.ui.prefs.ai.provider.label()).small(),
+                            egui::RichText::new(self.ui.prefs.ai.provider.label())
+                                .small()
+                                .color(crate::ui::skin::DIM),
                         ),
                     };
                 });
                 if !self.ui.ai_notes.is_empty() {
-                    ui.separator();
-                    ui.label(egui::RichText::new(&self.ui.ai_notes).small());
+                    crate::ui::skin::separator(ui);
+                    ui.label(egui::RichText::new(&self.ui.ai_notes).small().color(crate::ui::skin::DIM));
                 }
                 if self.ui.critique_scene.is_some() {
                     ui.horizontal(|ui| {
-                        if ui
-                            .button("Apply the suggestions")
+                        if crate::ui::skin::button(ui, "Apply the suggestions")
                             .on_hover_text("Loads the improved scene (Ctrl+Z undoes it)")
                             .clicked()
                             && let Some(s) = self.ui.critique_scene.take()
@@ -452,7 +451,7 @@ impl App {
                             let title = self.apply_ai_scene(s, false);
                             self.ui.toast(format!("Applied the critique to {title}"));
                         }
-                        if ui.button("Dismiss").clicked() {
+                        if crate::ui::skin::button(ui, "Dismiss").clicked() {
                             self.ui.critique_scene = None;
                             self.ui.ai_notes.clear();
                         }
@@ -461,4 +460,19 @@ impl App {
             });
         self.ui.show_describe &= open;
     }
+}
+/// The label at the left of a row of controls: as tall as they are, in the dim grey, and wide
+/// enough that the rows' controls start at one column.
+fn field_label(ui: &mut egui::Ui, text: &str) {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(72., crate::ui::skin::CONTROL),
+        egui::Sense::hover(),
+    );
+    ui.painter().text(
+        rect.left_center(),
+        egui::Align2::LEFT_CENTER,
+        text,
+        crate::ui::skin::sans(12.5),
+        crate::ui::skin::DIM,
+    );
 }

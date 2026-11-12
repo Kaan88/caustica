@@ -3,6 +3,7 @@
 //! with its printed output and errors in a log, and edits the animation's per-frame script
 //! (`Animation::script`, run on every frame by `Animation::apply`).
 use crate::App;
+use crate::ui::skin::ShowSkin as _;
 
 #[derive(Default)]
 pub struct Console {
@@ -29,39 +30,46 @@ impl App {
         let mut open = self.ui.console.open;
         let (mut run, mut stop, mut edit_started) = (false, false, false);
         let running = self.script.is_some();
-        egui::Window::new("Script console")
+        crate::ui::skin::window("Script console")
             .open(&mut open)
             .default_size([560., 440.])
-            .show(ctx, |ui| {
+            .show_skin(ctx, |ui| {
                 let c = &mut self.ui.console;
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut c.per_frame, false, "Run");
-                    ui.selectable_value(&mut c.per_frame, true, "Per frame");
+                    crate::ui::skin::segment(
+                        ui,
+                        &mut c.per_frame,
+                        &[(false, "Run"), (true, "Per frame")],
+                    )
                 });
-                ui.separator();
+                ui.add_space(4.);
                 if !c.per_frame {
-                    ui.label(RUN_HELP);
-                    let r = ui.add(
+                    crate::ui::note(ui, RUN_HELP);
+                    let r = crate::ui::skin::text_area(
+                        ui,
                         egui::TextEdit::multiline(&mut c.source)
                             .code_editor()
-                            .desired_rows(10)
-                            .desired_width(f32::INFINITY),
+                            .desired_rows(10),
                     );
                     let ctrl_enter = r.has_focus()
                         && ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Enter));
                     ui.horizontal(|ui| {
                         if ui
-                            .add_enabled(!running, egui::Button::new("Run"))
+                            .add_enabled_ui(!running, |ui| crate::ui::skin::primary(ui, "Run"))
+                            .inner
                             .on_hover_text("Ctrl+Enter")
                             .clicked()
                             || (ctrl_enter && !running)
                         {
                             run = true;
                         }
-                        if ui.add_enabled(running, egui::Button::new("Stop")).clicked() {
+                        if ui
+                            .add_enabled(running, crate::ui::skin::Button::new("Stop"))
+                            .clicked()
+                        {
                             stop = true;
                         }
-                        if ui.button("Clear log").clicked() {
+                        if crate::ui::skin::button(ui, "Clear log").clicked() {
                             c.log.clear();
                         }
                         if running {
@@ -78,12 +86,12 @@ impl App {
                             }
                         });
                 } else {
-                    ui.label(FRAME_HELP);
-                    let r = ui.add(
+                    crate::ui::note(ui, FRAME_HELP);
+                    let r = crate::ui::skin::text_area(
+                        ui,
                         egui::TextEdit::multiline(&mut self.settings.animation.script)
                             .code_editor()
-                            .desired_rows(12)
-                            .desired_width(f32::INFINITY),
+                            .desired_rows(12),
                     );
                     edit_started = r.gained_focus();
                     let error = crate::script::FRAME_ERROR
@@ -95,7 +103,7 @@ impl App {
                             ui.colored_label(egui::Color32::from_rgb(240, 110, 100), e);
                         }
                         _ => {
-                            ui.label("Runs when the playhead moves.");
+                            crate::ui::note(ui, "Runs when the playhead moves.");
                         }
                     }
                 }

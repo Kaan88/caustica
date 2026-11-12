@@ -78,21 +78,30 @@ impl App {
         }
         let prefixes = anim::prefixes(self.ui.selection);
         let frame = egui::Frame::new()
-            .fill(root.visuals().panel_fill.to_opaque())
+            .fill(crate::ui::skin::PANEL)
             .inner_margin(egui::Margin::symmetric(8, 2));
-        egui::Panel::bottom("timeline").frame(frame).show(root, |ui| {
+        egui::Panel::bottom("timeline")
+            .show_separator_line(false)
+            .frame(frame)
+            .show(root, |ui| {
+            let edge = ui.max_rect().expand2(egui::vec2(8., 2.));
+            ui.painter().hline(
+                edge.x_range(),
+                edge.top() + 0.5,
+                egui::Stroke::new(1_f32, crate::ui::skin::EDGE_LINE),
+            );
             ui.add_space(2.);
             ui.horizontal(|ui| {
                 let room = ui.available_width();
                 let a = &self.settings.animation;
                 let keys = a.times(&prefixes);
                 let t = self.timeline.time;
-                if ui.button("|◀").on_hover_text("To the start").clicked() {
+                if crate::ui::skin::button(ui, "|◀").on_hover_text("To the start").clicked() {
                     self.timeline.time = 0.;
                 }
                 let previous = keys.iter().rev().find(|k| **k < t - 1e-4).copied();
                 if ui
-                    .add_enabled(previous.is_some(), egui::Button::new("◀ key"))
+                    .add_enabled(previous.is_some(), crate::ui::skin::Button::new("◀ key"))
                     .on_hover_text("The selection's previous key")
                     .clicked()
                 {
@@ -104,31 +113,28 @@ impl App {
                 } else {
                     "▶ Play"
                 };
-                if ui.button(play).on_hover_text("K").clicked() {
+                if crate::ui::skin::button(ui, play).on_hover_text("K").clicked() {
                     self.toggle_playback();
                 }
                 let next = keys.iter().find(|k| **k > t + 1e-4).copied();
                 if ui
-                    .add_enabled(next.is_some(), egui::Button::new("key ▶"))
+                    .add_enabled(next.is_some(), crate::ui::skin::Button::new("key ▶"))
                     .on_hover_text("The selection's next key")
                     .clicked()
                 {
                     self.timeline.time = next.unwrap_or(t);
                     self.timeline.playing = false;
                 }
-                if ui.button("▶|").on_hover_text("To the end").clicked() {
+                if crate::ui::skin::button(ui, "▶|").on_hover_text("To the end").clicked() {
                     self.timeline.time = self.settings.animation.length;
                 }
                 let a = &self.settings.animation;
                 let mut time = self.timeline.time;
-                let r = ui
-                    .add(
-                        egui::DragValue::new(&mut time)
+                let r = crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut time)
                             .range(0. ..=a.length)
                             .speed(0.01)
                             .fixed_decimals(2)
-                            .suffix(" s"),
-                    )
+                            .suffix(" s"),)
                     .on_hover_text("Playhead. Shift+Left / Right step a frame.");
                 if r.changed() {
                     self.timeline.time = time;
@@ -144,12 +150,11 @@ impl App {
                 );
                     self.timeline_toggles(ui);
                 }
-                ui.separator();
-                ui.checkbox(&mut self.timeline.auto_key, "Auto-key").on_hover_text(
+                crate::ui::skin::rule_v(ui, 18.);
+                crate::ui::skin::checkbox_label(ui, &mut self.timeline.auto_key, "Auto-key").on_hover_text(
                     "Every edit you finish at a still playhead is keyed there (as Shift+I)",
                 );
-                if ui
-                    .button("Key")
+                if crate::ui::skin::button(ui, "Key")
                     .on_hover_text(
                         "I: key the selection here (the camera when nothing is selected): what it already animates, what you changed, and on its first key its transform. Shift+I keys every value you changed anywhere.",
                     )
@@ -161,7 +166,7 @@ impl App {
                 let mut retime = None;
                 let mut copy = false;
                 ui.add_enabled_ui(!keys.is_empty(), |ui| {
-                    ui.menu_button("Keys", |ui| {
+                    crate::ui::skin::menu_button_raised(ui, "Keys", |ui| {
                         for (label, r) in [
                             ("Later by a frame", (1., frame)),
                             ("Earlier by a frame", (1., -frame)),
@@ -170,7 +175,7 @@ impl App {
                             ("Twice as slow (from the playhead)", (2., 0.)),
                             ("Twice as fast (from the playhead)", (0.5, 0.)),
                         ] {
-                            if ui.button(label).clicked() {
+                            if crate::ui::skin::button(ui, label).clicked() {
                                 retime = Some(r);
                                 ui.close();
                             }
@@ -179,7 +184,7 @@ impl App {
                         if ui
                             .add_enabled(
                                 others > 0,
-                                egui::Button::new(format!("Copy to the {others} other selected")),
+                                crate::ui::skin::Button::new(format!("Copy to the {others} other selected")),
                             )
                             .on_hover_text("Replace the other selected objects' or lights' keys with the active one's")
                             .clicked()
@@ -194,10 +199,10 @@ impl App {
                 });
                 // A narrow strip keeps the transport and the keying; the rest is under More.
                 if room < 1240. {
-                ui.menu_button("More", |ui| {
+                crate::ui::skin::menu_button_raised(ui, "More", |ui| {
                     if room < 900. {
                         self.timeline_toggles(ui);
-                        ui.separator();
+                        crate::ui::skin::separator(ui);
                     }
                     for (label, which) in [("Length", 0), ("Frame rate", 1), ("Shutter", 2)] {
                         ui.horizontal(|ui| {
@@ -226,7 +231,7 @@ impl App {
                 }
                 let here = keys.iter().any(|k| (k - t).abs() < 1e-4);
                 if ui
-                    .add_enabled(here, egui::Button::new("Delete key"))
+                    .add_enabled(here, crate::ui::skin::Button::new("Delete key"))
                     .on_hover_text("Alt+I: the selection's keys at the playhead")
                     .clicked()
                 {
@@ -235,11 +240,11 @@ impl App {
                 if here {
                     let current = self.settings.animation.interp_at(&prefixes, t);
                     let mut chosen = None;
-                    egui::ComboBox::from_id_salt("interp")
+                    crate::ui::skin::ComboBox::from_id_salt("interp")
                         .selected_text(current.map_or("Mixed", Interp::label))
                         .show_ui(ui, |ui| {
                             for i in Interp::ALL {
-                                if ui.selectable_label(current == Some(i), i.label()).clicked() {
+                                if crate::ui::skin::selectable(ui, current == Some(i), i.label()).clicked() {
                                     chosen = Some(i);
                                 }
                             }
@@ -272,10 +277,9 @@ impl App {
     }
     /// Loop, Camera path and Curves: in the toolbar, or under More in a narrow strip.
     fn timeline_toggles(&mut self, ui: &mut egui::Ui) {
-        ui.checkbox(&mut self.timeline.looping, "Loop");
+        crate::ui::skin::checkbox_label(ui, &mut self.timeline.looping, "Loop");
         let mut path = self.settings.animation.camera_path;
-        if ui
-            .checkbox(&mut path, "Camera path")
+        if crate::ui::skin::checkbox_label(ui, &mut path, "Camera path")
             .on_hover_text("Between the camera's keys, the eye and its target move along smooth curves through their keyed positions (drawn in the viewport), instead of yaw, pitch, distance and target each moving alone, which swings the eye around the target")
             .changed()
         {
@@ -283,7 +287,7 @@ impl App {
             self.settings.animation.camera_path = path;
             self.timeline.applied = None;
         }
-        ui.checkbox(&mut self.timeline.curves, "Curves").on_hover_text(
+        crate::ui::skin::checkbox_label(ui, &mut self.timeline.curves, "Curves").on_hover_text(
             "The curve editor: the selection's animated values over time, each scaled to its own range. Drag a key to move it in time (frames, Shift for free) and value.",
         );
     }
@@ -292,7 +296,8 @@ impl App {
         let a = &mut self.settings.animation;
         match which {
             0 => {
-                ui.add(
+                crate::ui::skin::drag_value(
+                    ui,
                     egui::DragValue::new(&mut a.length)
                         .range(0.1..=3600.)
                         .speed(0.05)
@@ -302,29 +307,28 @@ impl App {
                 .on_hover_text("Length of the animation");
             }
             1 => {
-                ui.add(
+                crate::ui::skin::drag_value(
+                    ui,
                     egui::DragValue::new(&mut a.fps)
                         .range(1..=240)
                         .suffix(" fps"),
                 );
             }
             2 => {
-                ui.add(
-                    egui::DragValue::new(&mut a.shutter)
+                crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut a.shutter)
                         .range(0. ..=1.)
                         .speed(0.01)
                         .custom_formatter(|v, _| format!("{:.0}°", v * 360.))
                         .custom_parser(|t| {
                             t.trim_end_matches('°').trim().parse::<f64>().ok().map(|v| v / 360.)
-                        }),
-                )
+                        }),)
                 .on_hover_text(
                     "Motion blur in timeline video exports: how long the shutter stays open, as a shutter angle (180° = half a frame; 0 = off)",
                 );
             }
             _ => {
                 if ui
-                    .add_enabled(!a.is_empty(), egui::Button::new("Clear"))
+                    .add_enabled(!a.is_empty(), crate::ui::skin::Button::new("Clear"))
                     .on_hover_text("Remove every key in the scene")
                     .clicked()
                 {
@@ -373,12 +377,21 @@ impl App {
                 egui::Stroke::new(1_f32, v.weak_text_color()),
             );
             if major {
-                painter.text(
-                    egui::pos2(x + 2., rect.top() + 1.),
-                    egui::Align2::LEFT_TOP,
+                let label = painter.layout_no_wrap(
                     format!("{:.*}", if step < 1. { 1 } else { 0 }, i as f32 * step),
-                    egui::FontId::proportional(10.),
-                    v.text_color(),
+                    crate::ui::skin::mono(10.),
+                    crate::ui::skin::DIM,
+                );
+                // The last label would run out of the strip: it ends at its tick instead.
+                let left = if x + 2. + label.size().x > rect.right() - 1. {
+                    x - 2. - label.size().x
+                } else {
+                    x + 2.
+                };
+                painter.galley(
+                    egui::pos2(left, rect.top() + 1.),
+                    label,
+                    crate::ui::skin::DIM,
                 );
             }
             i += 1;
@@ -461,7 +474,7 @@ impl App {
                     if on {
                         painter.rect_filled(label, 3., crate::ui::SELECT);
                     } else if name_click.hovered() {
-                        painter.rect_filled(label, 3., egui::Color32::from_gray(44));
+                        painter.rect_filled(label, 3., crate::ui::skin::TAB_HOVER);
                     }
                     painter
                         .with_clip_rect(label.intersect(ui.clip_rect()))
@@ -469,11 +482,11 @@ impl App {
                             egui::pos2(label.left() + 6., label.center().y),
                             egui::Align2::LEFT_CENTER,
                             name,
-                            egui::FontId::proportional(12.),
+                            crate::ui::skin::sans(12.),
                             if on {
                                 egui::Color32::WHITE
                             } else {
-                                egui::Color32::from_gray(200)
+                                crate::ui::skin::TX
                             },
                         );
                     painter.rect_filled(lane, 2., ui.visuals().extreme_bg_color);
@@ -487,11 +500,7 @@ impl App {
                                 c + egui::vec2(0., r),
                                 c + egui::vec2(-r, 0.),
                             ],
-                            if on {
-                                ACCENT
-                            } else {
-                                egui::Color32::from_gray(190)
-                            },
+                            if on { ACCENT } else { crate::ui::skin::DIM },
                             egui::Stroke::NONE,
                         ));
                     }
@@ -742,6 +751,18 @@ impl App {
 }
 /// The width of a row's key mark, in points.
 const KEY_SLOT: f32 = 10.;
+/// Extra points a key-marks tab keeps between the diamond and the controls, so the slider's
+/// "modified" dot (5 points wide, 10 left of its rail) does not land on the diamond.
+const KEY_GAP: f32 = 6.;
+/// How far left of the controls a slider's unit text must end, on top of its own gap, when the
+/// row has a key mark; 0 in the tabs without key marks.
+pub(crate) fn key_gutter() -> f32 {
+    if KEY_MARKS.with_borrow(|m| m.is_some()) {
+        KEY_SLOT
+    } else {
+        0.
+    }
+}
 /// Key marks: the diamonds on the rows of the Lights, Object and Material tabs. While one of
 /// those tabs is drawn (`App::key_marks_begin` to `key_marks_end`), every `ui::row` keeps a slot
 /// before its controls, so the controls line up whether a row can be keyed or not. A row named
@@ -819,7 +840,7 @@ pub(crate) fn key_slot(ui: &mut egui::Ui) {
     };
     let (rect, r) = ui.allocate_exact_size(size, sense);
     // Half an item gap to the control: the mark belongs to it.
-    ui.add_space(-4.);
+    ui.add_space(-4. + KEY_GAP);
     let Some(path) = path else { return };
     // Whether the value has keys, and whether one is at the playhead.
     let (animated, here) = KEY_MARKS.with_borrow(|m| {

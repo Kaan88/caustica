@@ -343,7 +343,7 @@ fn parse(path: &str) -> Vec<Vec<[f32; 2]>> {
 pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, size: f32, color: Color32) {
     let scale = size / 24.;
     let origin = rect.center() - Vec2::splat(size / 2.);
-    let stroke = Stroke::new((2. * scale).max(1.3), color);
+    let stroke = Stroke::new((1.7 * scale).max(1.1), color);
     for line in icon.lines() {
         let points: Vec<Pos2> = line
             .iter()
@@ -353,28 +353,91 @@ pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, size: f32, color: 
     }
 }
 
-/// A square icon button: `side` points across with an icon of `size`. Selected ones are filled
-/// with the selection colour (`accent`: only the icon takes the accent, as in the tab strip).
+/// A flat icon button of `size` points, pressed in while `selected` (the tool rail's, the top
+/// bar's): the skin's button chrome with the icon in the text colour, or the accent while on.
 pub fn button(
     ui: &mut Ui,
     icon: Icon,
     side: f32,
     size: f32,
     selected: bool,
-    accent: bool,
+    _accent: bool,
 ) -> Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click());
+    button_sized(ui, icon, Vec2::splat(side), size, selected, true)
+}
+/// `button` with a width and a height; `flat` is the chrome that shows only under the pointer.
+pub fn button_sized(
+    ui: &mut Ui,
+    icon: Icon,
+    dims: Vec2,
+    size: f32,
+    selected: bool,
+    flat: bool,
+) -> Response {
+    let (rect, response) = ui.allocate_exact_size(dims, Sense::click());
     if ui.is_rect_visible(rect) {
-        let enabled = ui.is_enabled();
-        let (fill, color) = match (selected, accent) {
-            (true, false) => (super::SELECT, Color32::WHITE),
-            (true, true) => (Color32::from_gray(51), super::ACCENT),
-            _ if response.hovered() && enabled => (Color32::from_gray(48), Color32::from_gray(235)),
-            _ if !enabled => (Color32::TRANSPARENT, Color32::from_gray(100)),
-            _ => (Color32::TRANSPARENT, Color32::from_gray(208)),
+        let down = super::skin::button_chrome(ui, rect, &response, flat, selected);
+        let color = icon_color(ui, selected);
+        paint(
+            ui.painter(),
+            rect.translate(egui::vec2(0., down)),
+            icon,
+            size,
+            color,
+        );
+    }
+    response
+}
+/// An icon button that is one of a joined set (`seg` says which corners are round).
+pub fn segment_button(
+    ui: &mut Ui,
+    icon: Icon,
+    dims: Vec2,
+    size: f32,
+    selected: bool,
+    seg: super::skin::Seg,
+) -> Response {
+    let (rect, response) = ui.allocate_exact_size(dims, Sense::click());
+    if ui.is_rect_visible(rect) {
+        let down = super::skin::segment_chrome(ui, rect, &response, seg, selected);
+        let color = icon_color(ui, selected);
+        paint(
+            ui.painter(),
+            rect.translate(egui::vec2(0., down)),
+            icon,
+            size,
+            color,
+        );
+    }
+    response
+}
+fn icon_color(ui: &Ui, selected: bool) -> Color32 {
+    if !ui.is_enabled() {
+        super::skin::TX.gamma_multiply(0.42)
+    } else if selected {
+        super::ACCENT
+    } else {
+        super::skin::TX
+    }
+}
+/// A tab of the property tabs (`across`: the strip lies along the top): the strip's ground,
+/// the panel's and an accent bar while open, a lighter ground under the pointer.
+pub fn tab(ui: &mut Ui, icon: Icon, dims: Vec2, size: f32, open: bool, across: bool) -> Response {
+    let (rect, response) = ui.allocate_exact_size(dims, Sense::click());
+    if ui.is_rect_visible(rect) {
+        let (down, color) = super::skin::tab_chrome(ui, rect, &response, open, across);
+        let color = if ui.is_enabled() {
+            color
+        } else {
+            color.gamma_multiply(0.42)
         };
-        ui.painter().rect_filled(rect, 5., fill);
-        paint(ui.painter(), rect, icon, size, color);
+        paint(
+            ui.painter(),
+            rect.translate(egui::vec2(0., down)),
+            icon,
+            size,
+            color,
+        );
     }
     response
 }

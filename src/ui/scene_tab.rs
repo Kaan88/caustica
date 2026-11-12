@@ -2,45 +2,12 @@
 //! windows that were its sections (the laser puzzle).
 use super::*;
 use crate::timeline_ui::{key_mark, key_scope};
-use egui::collapsing_header::{CollapsingState, HeaderResponse};
+use crate::ui::skin::ShowSkin as _;
+use egui::collapsing_header::CollapsingState;
 
 /// How far the outliner's children sit in from their group.
 const INDENT: f32 = 16.;
 
-/// An arrow that points right (closed) or down (open) and a label, as one clickable line.
-fn disclosure(ui: &mut egui::Ui, open: bool, text: &str, color: egui::Color32) -> egui::Response {
-    let font = egui::TextStyle::Body.resolve(ui.style());
-    let galley = ui.painter().layout_no_wrap(text.to_owned(), font, color);
-    let size = egui::vec2(18. + galley.size().x, ui.spacing().interact_size.y);
-    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
-    if ui.is_rect_visible(rect) {
-        let c = egui::pos2(rect.left() + 7., rect.center().y);
-        let points = if open {
-            [
-                egui::vec2(-4., -2.5),
-                egui::vec2(4., -2.5),
-                egui::vec2(0., 3.5),
-            ]
-        } else {
-            [
-                egui::vec2(-2.5, -4.),
-                egui::vec2(3.5, 0.),
-                egui::vec2(-2.5, 4.),
-            ]
-        };
-        ui.painter().add(egui::Shape::convex_polygon(
-            points.map(|p| c + p).to_vec(),
-            color,
-            egui::Stroke::NONE,
-        ));
-        ui.painter().galley(
-            egui::pos2(rect.left() + 18., rect.center().y - galley.size().y / 2.),
-            galley,
-            color,
-        );
-    }
-    r.on_hover_cursor(egui::CursorIcon::PointingHand)
-}
 /// What the selection is called: in the folded outliner's line and the tab titles.
 /// Whether `sel` holds keyframes (the outliner's diamond).
 fn has_keys(s: &Settings, sel: Selection) -> bool {
@@ -68,9 +35,9 @@ pub(super) fn selection_label(s: &Settings, sel: Selection) -> String {
 pub(super) fn add_menu(ui: &mut egui::Ui, state: &mut UiState, s: &mut Settings) {
     let room = s.objects.len() < scene::MAX_OBJECTS;
     ui.add_enabled_ui(room, |ui| {
-        ui.menu_button("Object", |ui| {
+        crate::ui::skin::menu_button(ui, "Object", |ui| {
             for shape in scene::Shape::ALL {
-                if ui.button(shape.label()).clicked() {
+                if crate::ui::skin::button(ui, shape.label()).clicked() {
                     state.checkpoint(s);
                     s.objects.push(editor::new_object(shape, s.objects.len()));
                     state.selection = Selection::Object(s.objects.len() - 1);
@@ -82,9 +49,9 @@ pub(super) fn add_menu(ui: &mut egui::Ui, state: &mut UiState, s: &mut Settings)
         .on_disabled_hover_text(format!("Limit of {} objects reached", scene::MAX_OBJECTS));
     });
     ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
-        ui.menu_button("Light", |ui| {
+        crate::ui::skin::menu_button(ui, "Light", |ui| {
             for kind in scene::LightKind::ALL {
-                if ui.button(kind.label()).clicked() {
+                if crate::ui::skin::button(ui, kind.label()).clicked() {
                     state.checkpoint(s);
                     s.lights.push(editor::new_light(kind, s.lights.len() + 1));
                     state.selection = Selection::Light(s.lights.len() - 1);
@@ -95,11 +62,11 @@ pub(super) fn add_menu(ui: &mut egui::Ui, state: &mut UiState, s: &mut Settings)
         .response
         .on_disabled_hover_text(format!("Limit of {} lights reached", scene::MAX_LIGHTS));
     });
-    ui.separator();
-    ui.checkbox(&mut state.mesh_z_up, "Z-up")
+    crate::ui::skin::separator(ui);
+    crate::ui::skin::checkbox_label(ui, &mut state.mesh_z_up, "Z-up")
         .on_hover_text("Stand the next imported mesh upright when its file is Z-up (scans, CAD)");
     if ui
-        .add_enabled(room, egui::Button::new("Mesh file…"))
+        .add_enabled(room, crate::ui::skin::Button::new("Mesh file…"))
         .on_hover_text("Import an OBJ, glTF, GLB, PLY or STL file (glTF lights come along)")
         .on_disabled_hover_text(format!("Limit of {} objects reached", scene::MAX_OBJECTS))
         .clicked()
@@ -144,12 +111,7 @@ impl App {
         let state = &mut self.ui;
         let open = !foldable || state.outliner_open;
         ui.horizontal(|ui| {
-            let color = if open {
-                ACCENT
-            } else {
-                egui::Color32::from_gray(154)
-            };
-            let header = disclosure(ui, open, "Outliner", color);
+            let header = skin::band_title(ui, open, "Outliner");
             let header = header.on_hover_text(
                 "The list of everything in the scene. It folds away above Render, Look and Export",
             );
@@ -165,32 +127,30 @@ impl App {
                         (_, 0) => format!("{name} selected"),
                         _ => format!("{name} and {more} more selected"),
                     };
-                    ui.add(egui::Label::new(egui::RichText::new(text).small().weak()).truncate());
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(text).small().color(skin::DIM))
+                            .truncate(),
+                    );
                     return;
                 }
                 // Sticky like crate::ui::sticky_menu (the Z-up checkbox inside must not close
                 // it; the buttons call ui.close()).
-                egui::containers::menu::MenuButton::new("+")
-                    .config(
-                        egui::containers::menu::MenuConfig::new()
-                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
-                    )
-                    .ui(ui, |ui| add_menu(ui, state, s))
-                    .0
+                let plus =
+                    crate::ui::skin::menu_button_sticky(ui, "+", |ui| add_menu(ui, state, s));
+                plus.response
                     .on_hover_text("Add an object, a light or a mesh file");
                 let clear = !state.search.is_empty();
                 if clear
-                    && ui
-                        .small_button("×")
+                    && crate::ui::skin::small_button(ui, "×")
                         .on_hover_text("Clear the filter")
                         .clicked()
                 {
                     state.search.clear();
                 }
-                ui.add(
-                    egui::TextEdit::singleline(&mut state.search)
-                        .desired_width(110.)
-                        .hint_text(field_hint("Filter…")),
+                crate::ui::skin::text_edit(
+                    ui,
+                    110.,
+                    egui::TextEdit::singleline(&mut state.search).hint_text(field_hint("Filter…")),
                 );
             });
         });
@@ -212,9 +172,12 @@ impl App {
             // laid out (4096 objects stay cheap).
             let row_height = ui.spacing().interact_size.y;
             ui.spacing_mut().item_spacing.y = 2.;
+            // Whole rows only: the list ends under a row, not through one.
+            let step = row_height + 2.;
+            let whole = ((height + 2.) / step).floor().max(1.) * step - 2.;
             egui::ScrollArea::vertical()
                 .id_salt("outliner")
-                .max_height(height)
+                .max_height(whole)
                 .auto_shrink([false, foldable])
                 .show_rows(ui, row_height, rows.len(), |ui, range| {
                     for &row in &rows[range] {
@@ -252,7 +215,7 @@ impl App {
                             OutlinerRow::MainLight => {
                                 ui.horizontal(|ui| {
                                     ui.add_space(INDENT);
-                                    ui.checkbox(&mut s.light_on, "").on_hover_text("On / off");
+                                    crate::ui::skin::checkbox_label(ui, &mut s.light_on, "").on_hover_text("On / off");
                                     let on = state.is_selected(Selection::MainLight);
                                     let dim = if s.light_on { "" } else { "off" };
                                     let keyed = has_keys(s, Selection::MainLight);
@@ -272,9 +235,7 @@ impl App {
                             OutlinerRow::Lights => {
                                 let text = format!("Area lights ({})", s.lights.len());
                                 let closed = state.outliner_closed[0] && !filtered;
-                                if disclosure(ui, !closed, &text, egui::Color32::from_gray(200))
-                                    .clicked()
-                                {
+                                if skin::group_row(ui, !closed, &text, skin::TX).clicked() {
                                     state.outliner_closed[0] = !state.outliner_closed[0];
                                 }
                             }
@@ -284,7 +245,7 @@ impl App {
                                 ui.horizontal(|ui| {
                                     ui.add_space(INDENT);
                                     ui.push_id(("light", i), |ui| {
-                                        ui.checkbox(&mut l.enabled, "").on_hover_text("On / off");
+                                        crate::ui::skin::checkbox_label(ui, &mut l.enabled, "").on_hover_text("On / off");
                                     });
                                     let on = state.is_selected(Selection::Light(i));
                                     let dim = if l.enabled { l.kind.label() } else { "off" };
@@ -304,7 +265,7 @@ impl App {
                                     format!("Objects ({})", s.objects.len())
                                 };
                                 let closed = state.outliner_closed[1] && !filtered;
-                                if disclosure(ui, !closed, &text, egui::Color32::from_gray(200))
+                                if skin::group_row(ui, !closed, &text, skin::TX)
                                     .on_hover_text(format!(
                                         "{} of at most {} objects",
                                         s.objects.len(),
@@ -321,7 +282,7 @@ impl App {
                                 ui.horizontal(|ui| {
                                     ui.add_space(INDENT);
                                     ui.push_id(("object", i), |ui| {
-                                        ui.checkbox(&mut o.visible, "").on_hover_text("Include in the scene (off: hidden from the render and from lighting)");
+                                        crate::ui::skin::checkbox_label(ui, &mut o.visible, "").on_hover_text("Include in the scene (off: hidden from the render and from lighting)");
                                     });
                                     let on = state.is_selected(Selection::Object(i));
                                     let dim = if o.visible { "" } else { "hidden" };
@@ -334,7 +295,7 @@ impl App {
                                     if r.secondary_clicked() && !on {
                                         state.select(Selection::Object(i));
                                     }
-                                    r.context_menu(|ui| {
+                                    crate::ui::skin::context_menu(&r, |ui| {
                                         if let Some(c) = context_items(ui, true) {
                                             state.pending = Some(c);
                                         }
@@ -382,7 +343,7 @@ impl App {
         };
         tab_title(ui, &title);
         sky_ui(ui, s, state.environment_error.as_deref());
-        ui.separator();
+        crate::ui::skin::separator(ui);
         // A pick brings the light's inspector into view, under the sky blocks.
         if std::mem::take(&mut state.scroll_to_inspector)
             && !matches!(state.selection, Selection::Stage | Selection::None)
@@ -402,7 +363,9 @@ impl App {
                 ui.horizontal(|ui| {
                     section(ui, "Area light");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Delete").on_hover_text("Del").clicked()
+                        if crate::ui::skin::small_button(ui, "Delete")
+                            .on_hover_text("Del")
+                            .clicked()
                             && let Some(name) = state.delete_selected(s)
                         {
                             state.toast(format!("Deleted {name}"));
@@ -424,7 +387,7 @@ impl App {
                 "Pick a light in the outliner or the viewport for its settings. + in the outliner adds one.",
             ),
         }
-        ui.separator();
+        crate::ui::skin::separator(ui);
         // Track 19 audio-reactive lights (see audio.rs).
         feature(
             ui,
@@ -435,7 +398,7 @@ impl App {
         .body(|ui| {
             let a = &mut s.audio;
         if a.enabled {
-            egui::Grid::new("audio").num_columns(2).show(ui, |ui| {
+            grid("audio").show(ui, |ui| {
                 key_mark("audio/gain");
                 row(ui, "Gain", "Added intensity at full level (×)", |ui| {
                     ui.add(crate::slider(&mut a.gain, 0. ..=8.));
@@ -485,11 +448,12 @@ impl App {
         }
         match state.selection {
             Selection::Object(i) if i < s.objects.len() => {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.y = 4.;
                     if ui
                         .add_enabled(
                             s.objects.len() < scene::MAX_OBJECTS,
-                            egui::Button::new("Duplicate"),
+                            crate::ui::skin::Button::new("Duplicate"),
                         )
                         .on_hover_text("Ctrl+D")
                         .on_disabled_hover_text(format!(
@@ -500,13 +464,14 @@ impl App {
                     {
                         state.duplicate_selected(s, true);
                     }
-                    if ui.button("Delete").on_hover_text("Del").clicked()
+                    if crate::ui::skin::button(ui, "Delete")
+                        .on_hover_text("Del")
+                        .clicked()
                         && let Some(name) = state.delete_selected(s)
                     {
                         state.toast(format!("Deleted {name}"));
                     }
-                    if ui
-                        .button("Frame")
+                    if crate::ui::skin::button(ui, "Frame")
                         .on_hover_text("Fit the camera to this object (F)")
                         .clicked()
                     {
@@ -531,15 +496,14 @@ impl App {
                     Selection::MainLight | Selection::Flashlight | Selection::Light(_)
                 ) {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!(
+                        note(
+                            ui,
+                            &format!(
                                 "{} is a light: its settings are in",
                                 selection_label(s, other)
-                            ))
-                            .small()
-                            .weak(),
+                            ),
                         );
-                        if ui.small_button("Lights").clicked() {
+                        if crate::ui::skin::small_button(ui, "Lights").clicked() {
                             state.tab = Tab::Lights;
                         }
                     });
@@ -553,12 +517,12 @@ impl App {
                 }
                 // Typed values are an edit, unlike an orbit: undo takes them back.
                 state.camera_edit |= camera != (s.yaw, s.pitch, s.distance, s.target);
-                if ui.button("Frame the scene (F)").clicked() {
+                if crate::ui::skin::button(ui, "Frame the scene (F)").clicked() {
                     self.actions.frame_scene = true;
                 }
             }
         }
-        ui.separator();
+        crate::ui::skin::separator(ui);
         // Track 17 physics sandbox (see physics.rs).
         feature(
             ui,
@@ -569,7 +533,7 @@ impl App {
         .body(|ui| {
             let p = &mut s.physics;
         if p.enabled {
-            egui::Grid::new("physics").num_columns(2).show(ui, |ui| {
+            grid("physics").show(ui, |ui| {
                 key_mark("physics/gravity");
                 row(
                     ui,
@@ -602,10 +566,7 @@ impl App {
                     "Gravity direction",
                     "The way gravity pulls (x, y, z); straight down is 0, −1, 0",
                     |ui| {
-                        for c in &mut p.down {
-                            ui.add(egui::DragValue::new(c).range(-1. ..=1.).speed(0.01));
-                        }
-                        crate::revert_dot(ui, &mut p.down);
+                        crate::ui::drag_group(ui, &mut p.down, &[], "", 0.01, -1. ..=1.);
                     },
                 );
                 key_mark("physics/wind");
@@ -614,10 +575,7 @@ impl App {
                     "Wind",
                     "A steady push on every body (x, y, z), scene units/s²",
                     |ui| {
-                        for c in &mut p.wind {
-                            ui.add(egui::DragValue::new(c).range(-50. ..=50.).speed(0.05));
-                        }
-                        crate::revert_dot(ui, &mut p.wind);
+                        crate::ui::drag_group(ui, &mut p.wind, &[], "", 0.05, -50. ..=50.);
                     },
                 );
                 key_mark("physics/gusts");
@@ -633,26 +591,26 @@ impl App {
             if p.down.iter().all(|v| v.abs() <= 0.01) {
                 p.down = [0., -1., 0.];
             }
-            ui.horizontal(|ui| {
-                if ui.button("Wake all").clicked() {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.y = 4.;
+                if crate::ui::skin::button(ui, "Wake all").clicked() {
                     self.actions.physics_wake = true;
                 }
-                if ui
-                    .button("Explode (E)")
+                if crate::ui::skin::button(ui, "Explode (E)")
                     .on_hover_text("A blast at the middle of the floor")
                     .clicked()
                 {
                     self.actions.physics_blast = true;
                 }
-                ui.label(egui::RichText::new(format!("{awake} awake")).small());
+                note(ui, &format!("{awake} awake"));
             });
             ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.y = 4.;
                 if let Selection::Object(i) = state.selection
                     && i < s.objects.len()
                 {
                     let frozen = s.objects[i].body == scene::Body::Fixed;
-                    if ui
-                        .button(if frozen { "Unfreeze" } else { "Freeze" })
+                    if crate::ui::skin::button(ui, if frozen { "Unfreeze" } else { "Freeze" })
                         .on_hover_text("Pins the selected object in place (a fixed body), or lets it fall again")
                         .clicked()
                     {
@@ -665,8 +623,7 @@ impl App {
                     }
                 }
                 let recording = state.physics_record;
-                if ui
-                    .selectable_label(recording, if recording { "⏺ Stop recording" } else { "⏺ Record" })
+                if crate::ui::skin::toggle(ui, recording, if recording { "⏺ Stop recording" } else { "⏺ Record" })
                     .on_hover_text("Keys every moving body's pose into the timeline at its fps (simulated time), so a timeline video export renders the simulation")
                     .clicked()
                 {
@@ -677,15 +634,10 @@ impl App {
                     }
                 }
                 if recording {
-                    ui.label(
-                        egui::RichText::new(format!("{:.1} s", state.physics_record_time)).small(),
-                    );
+                    note(ui, &format!("{:.1} s", state.physics_record_time));
                 }
             });
-            ui.label(
-                egui::RichText::new("N drops a ball under the pointer, Shift+N a box; the wheel moves a held body nearer or farther.")
-                    .small(),
-            );
+            note(ui, "N drops a ball under the pointer, Shift+N a box; the wheel moves a held body nearer or farther.");
         } else {
             note(ui, "Off: tick the box to turn it on.");
         }
@@ -742,11 +694,11 @@ impl App {
         let s = &mut self.settings;
         let state = &mut self.ui;
         let mut open = true;
-        egui::Window::new("Laser puzzle")
+        crate::ui::skin::window("Laser puzzle")
             .open(&mut open)
             .default_width(340.)
             .default_pos(central_rect(ctx).left_top() + egui::vec2(12., 48.))
-            .show(ctx, |ui| {
+            .show_skin(ctx, |ui| {
         // Track 17 laser puzzle (see laser.rs).
         feature(
             ui,
@@ -757,22 +709,16 @@ impl App {
         .body(|ui| {
             let p = &mut s.puzzle;
         if p.enabled {
-            egui::Grid::new("puzzle").num_columns(2).show(ui, |ui| {
+            grid("puzzle").show(ui, |ui| {
                 row(ui, "Origin", "Where the beam starts (x, y, z)", |ui| {
-                    for v in &mut p.origin {
-                        ui.add(egui::DragValue::new(v).speed(0.01).range(-40. ..=40.));
-                    }
-                    crate::revert_dot(ui, &mut p.origin);
+                    crate::ui::drag_group(ui, &mut p.origin, &[], "", 0.01, -40. ..=40.);
                 });
                 row(
                     ui,
                     "Direction",
                     "The beam's direction (x, y, z), any length",
                     |ui| {
-                        for v in &mut p.direction {
-                            ui.add(egui::DragValue::new(v).speed(0.01).range(-1. ..=1.));
-                        }
-                        crate::revert_dot(ui, &mut p.direction);
+                        crate::ui::drag_group(ui, &mut p.direction, &[], "", 0.01, -1. ..=1.);
                     },
                 );
                 row(ui, "Target", "The object the beam must reach", |ui| {
@@ -782,11 +728,11 @@ impl App {
                             .and_then(|i| s.objects.get(i))
                             .map_or("None".to_string(), |o| o.name.clone())
                     };
-                    egui::ComboBox::from_id_salt("puzzle target")
+                    crate::ui::skin::ComboBox::from_id_salt("puzzle target")
                         .selected_text(name(p.target))
                         .show_ui(ui, |ui| {
                             for i in -1..s.objects.len() as i32 {
-                                ui.selectable_value(&mut p.target, i, name(i));
+                                crate::ui::skin::selectable_value(ui, &mut p.target, i, name(i));
                             }
                         });
                 });
@@ -806,7 +752,7 @@ impl App {
                             for (k, t) in p.targets.iter().enumerate() {
                                 ui.horizontal(|ui| {
                                     ui.label(name(*t));
-                                    if ui.small_button("×").clicked() {
+                                    if crate::ui::skin::small_button(ui, "×").clicked() {
                                         remove = Some(k);
                                     }
                                 });
@@ -815,11 +761,11 @@ impl App {
                                 p.targets.remove(k);
                             }
                             if p.targets.len() < 16 {
-                                ui.menu_button("+ Target", |ui| {
+                                crate::ui::skin::menu_button_raised(ui, "+ Target", |ui| {
                                     for i in 0..s.objects.len() as i32 {
                                         if i != p.target
                                             && !p.targets.contains(&i)
-                                            && ui.button(name(i)).clicked()
+                                            && crate::ui::skin::button(ui, name(i)).clicked()
                                         {
                                             p.targets.push(i);
                                             ui.close();
@@ -831,7 +777,7 @@ impl App {
                     },
                 );
                 row(ui, "Par", "Moves a good solution needs", |ui| {
-                    ui.add(egui::DragValue::new(&mut p.par).range(0..=99));
+                    crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut p.par).range(0..=99));
                 });
                 check_row(ui, "Beam in image", "Also renders the beam as thin glowing rods, so it lights what it passes and shows in captures and videos", &mut p.beam);
                 row(
@@ -839,7 +785,7 @@ impl App {
                     "Colour",
                     "The laser's colour: its red, green and blue are filtered by coloured glass and split apart by glass with dispersion",
                     |ui| {
-                        ui.color_edit_button_rgb(&mut p.color);
+                        crate::ui::skin::color_rgb(ui, &mut p.color);
                     },
                 );
                 check_row(ui, "Match colours", "Targets count only when the beam arriving has exactly their colour's channels", &mut p.colors);
@@ -856,10 +802,7 @@ impl App {
                 .puzzle_best
                 .get(&s.scene_name)
                 .map_or(String::new(), |b| format!(" · best {b}"));
-            ui.label(
-                egui::RichText::new(format!("{status} · {moves} moves · par {}{best}", p.par))
-                    .small(),
-            );
+            note(ui, &format!("{status} · {moves} moves · par {}{best}", p.par));
             // Level select: the puzzle pack's scenes with their best scores.
             let levels: Vec<(std::path::PathBuf, String)> = state
                 .scenes
@@ -876,7 +819,7 @@ impl App {
                             .iter()
                             .find(|(k, _)| **k == title)
                             .map_or("not solved".to_string(), |(_, b)| format!("best {b}"));
-                        if ui.button(format!("{title} · {best}")).clicked() {
+                        if crate::ui::skin::button(ui, format!("{title} · {best}")).clicked() {
                             state.open_pending = Some(path);
                             ui.close();
                         }
@@ -957,7 +900,7 @@ fn outliner_rows(s: &scene::Settings, search: &str, closed: [bool; 2]) -> Vec<Ou
 fn flashlight_row(ui: &mut egui::Ui, state: &mut UiState, on: &mut bool, indent: f32) {
     ui.horizontal(|ui| {
         ui.add_space(indent);
-        let tick = ui.checkbox(on, "").on_hover_text("On / off (T)");
+        let tick = crate::ui::skin::checkbox_label(ui, on, "").on_hover_text("On / off (T)");
         if tick.changed() && *on {
             state.select(Selection::Flashlight);
         }
@@ -982,7 +925,7 @@ fn flashlight_settings(ui: &mut egui::Ui, f: &mut scene::Flashlight, advanced: b
             );
         });
         row(ui, "Colour", "Linear RGB colour of the light.", |ui| {
-            ui.color_edit_button_rgb(&mut f.color);
+            crate::ui::skin::color_rgb(ui, &mut f.color);
         });
         // An IES file replaces the beam: its row takes the beam's place, so a loaded file is
         // never hidden behind More with the beam gone.
@@ -1058,7 +1001,7 @@ fn flashlight_ies_row(ui: &mut egui::Ui, f: &mut scene::Flashlight) {
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "None".into());
             ui.label(name);
-            if ui.small_button("Load…").clicked() {
+            if crate::ui::skin::small_button(ui, "Load…").clicked() {
                 let mut dialog = rfd::FileDialog::new().add_filter("IES", &["ies"]);
                 if let Some(folder) = crate::dirs::scene_roots()
                     .into_iter()
@@ -1072,7 +1015,7 @@ fn flashlight_ies_row(ui: &mut egui::Ui, f: &mut scene::Flashlight) {
                     f.ies = crate::mesh::store(&path);
                 }
             }
-            if !f.ies.is_empty() && ui.small_button("Clear").clicked() {
+            if !f.ies.is_empty() && crate::ui::skin::small_button(ui, "Clear").clicked() {
                 f.ies.clear();
             }
             if !f.ies.is_empty()
@@ -1083,47 +1026,73 @@ fn flashlight_ies_row(ui: &mut egui::Ui, f: &mut scene::Flashlight) {
         },
     );
 }
-/// A feature's one-line header: its on/off box and the arrow to its settings. It opens when the
+/// A feature's one-line header: the arrow to its settings and its on/off box. It opens when the
 /// feature turns on (by the box or a scene load) and closes when it turns off; in between it
 /// stays as the user leaves it.
-fn feature<'u>(
-    ui: &'u mut egui::Ui,
-    title: &str,
-    tip: &str,
-    on: &mut bool,
-) -> HeaderResponse<'u, ()> {
+fn feature<'u>(ui: &'u mut egui::Ui, title: &str, tip: &str, on: &mut bool) -> Feature<'u> {
     let id = ui.make_persistent_id(("feature", title));
     let key = id.with("was on");
     let was = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
-    let mut header =
-        CollapsingState::load_with_default_open(ui.ctx(), id, false).show_header(ui, |ui| {
-            ui.checkbox(on, title).on_hover_text(tip);
-            ui.data_mut(|d| d.insert_temp(key, *on));
-        });
+    let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, false);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.;
+        crate::ui::skin::chevron_toggle(ui, &mut state);
+        ui.spacing_mut().item_spacing.x = 8.;
+        crate::ui::skin::checkbox_label(ui, on, title).on_hover_text(tip);
+        ui.data_mut(|d| d.insert_temp(key, *on));
+    });
     if was != *on {
-        header.set_open(*on);
+        state.set_open(*on);
     }
-    header
+    Feature { state, ui }
+}
+/// What `feature` hands back: its open state, to show the body under the header.
+struct Feature<'u> {
+    state: CollapsingState,
+    ui: &'u mut egui::Ui,
+}
+impl Feature<'_> {
+    #[cfg(test)]
+    fn is_open(&self) -> bool {
+        self.state.is_open()
+    }
+    fn body<R>(mut self, add: impl FnOnce(&mut egui::Ui) -> R) {
+        // In under the checkbox, with no guide line down the side.
+        self.state.show_body_unindented(self.ui, |ui| {
+            egui::Frame::NONE
+                .inner_margin(egui::Margin {
+                    left: 18,
+                    ..Default::default()
+                })
+                .show(ui, add);
+        });
+    }
 }
 /// Portals pair two objects both ways. Rare, so folded away, except while it has one.
 fn portal_ui(ui: &mut egui::Ui, state: &mut UiState, s: &mut Settings, i: usize) {
     let current = s.objects[i].portal;
     let mut pick = current;
-    egui::CollapsingHeader::new("Portal")
-        .id_salt("object portal")
-        .open((current >= 0).then_some(true))
-        .show(ui, |ui| {
-            egui::ComboBox::from_label("Portal to")
+    if current >= 0 {
+        // Open while it has a portal, whatever the section was left at.
+        let id = crate::ui::skin::fold_id(ui, "object portal");
+        let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, false);
+        if !state.is_open() {
+            state.set_open(true);
+            state.store(ui.ctx());
+        }
+    }
+    crate::ui::skin::fold_with(ui, "object portal", "Portal", String::new(), false, |ui| {
+        crate::ui::skin::ComboBox::from_label("Portal to")
                 .selected_text(usize::try_from(current).ok().and_then(|p| s.objects.get(p)).map_or("None".to_string(), |o| o.name.clone()))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut pick, -1, "None");
+                    crate::ui::skin::selectable_value(ui, &mut pick, -1, "None");
                     for (j, o) in s.objects.iter().enumerate().filter(|(j, _)| *j != i) {
-                        ui.selectable_value(&mut pick, j as i32, &o.name);
+                        crate::ui::skin::selectable_value(ui, &mut pick, j as i32, &o.name);
                     }
                 })
                 .response
                 .on_hover_text("Rays that hit this object continue from the same spot on the other one: corridors, impossible rooms.");
-        });
+    });
     if pick != current {
         state.checkpoint(s);
         if let Some(old) = usize::try_from(current)

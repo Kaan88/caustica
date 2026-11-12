@@ -279,11 +279,7 @@ impl Browser {
                 1 => "DOWNLOADING".to_string(),
                 n => format!("DOWNLOADING {n}"),
             };
-            ui.label(
-                egui::RichText::new(title)
-                    .small()
-                    .color(egui::Color32::from_gray(143)),
-            );
+            crate::ui::skin::heading(ui, &title);
         }
         for job in self.jobs.iter().take(STRIP_ROWS) {
             let name = if job.res.is_empty() {
@@ -313,16 +309,12 @@ impl Browser {
                         "Cancel"
                     };
                     if ui
-                        .add_enabled(!cancelling, egui::Button::new(label))
+                        .add_enabled(!cancelling, crate::ui::skin::Button::new(label))
                         .clicked()
                     {
                         job.progress.cancel.store(true, Relaxed);
                     }
-                    ui.add(
-                        egui::ProgressBar::new(fraction)
-                            .desired_width(ui.available_width())
-                            .text(size),
-                    );
+                    crate::ui::skin::bar(ui, fraction, ui.available_width(), 16., &size);
                 });
             });
         }
@@ -335,13 +327,14 @@ impl Browser {
                 let text = egui::RichText::new(format!("{name}: {error}"));
                 ui.add(egui::Label::new(text.small().color(color)).wrap());
             }
-            if ui.small_button("Dismiss").clicked() {
+            if crate::ui::skin::small_button(ui, "Dismiss").clicked() {
                 self.failed.clear();
             }
         }
     }
 }
-/// A thumbnail card: image (or initial), name, and a green dot once downloaded.
+/// A thumbnail card: the board's card with the image (or initial) in it, the name under it, and
+/// a green dot once downloaded.
 fn card(
     ui: &mut egui::Ui,
     a: &Asset,
@@ -349,30 +342,35 @@ fn card(
     selected: bool,
     installed: bool,
 ) -> egui::Response {
+    use crate::ui::skin;
+    const PAD: f32 = 4.;
     let size = egui::vec2(128., 128.);
-    let (rect, r) = ui.allocate_exact_size(egui::vec2(size.x, size.y + 18.), egui::Sense::click());
-    let image = egui::Rect::from_min_size(rect.min, size);
+    let (rect, r) = ui.allocate_exact_size(
+        egui::vec2(size.x + 2. * PAD, size.y + 2. * PAD + 22.),
+        egui::Sense::click(),
+    );
+    skin::card_face(ui, &r, rect, selected);
+    let image = egui::Rect::from_min_size(rect.min + egui::vec2(PAD, PAD), size);
+    // The well the picture sits in: the field's colour.
+    ui.painter()
+        .rect_filled(image, 3., egui::Color32::from_rgb(0x14, 0x14, 0x16));
     match texture {
         Some(t) => {
             // Fit inside the square, keeping the aspect ratio (Khronos screenshots are wide).
             let [w, h] = t.size().map(|v| v as f32);
             let scale = (size.x / w).min(size.y / h);
             let fit = egui::Rect::from_center_size(image.center(), egui::vec2(w, h) * scale);
-            ui.painter()
-                .rect_filled(image, 3., egui::Color32::from_gray(24));
             egui::Image::new((t.id(), fit.size()))
                 .corner_radius(3.)
                 .paint_at(ui, fit);
         }
         None => {
-            ui.painter()
-                .rect_filled(image, 3., egui::Color32::from_gray(38));
             ui.painter().text(
                 image.center(),
                 egui::Align2::CENTER_CENTER,
                 a.name.chars().next().unwrap_or('?'),
-                egui::FontId::proportional(40.),
-                egui::Color32::from_gray(110),
+                skin::semibold(40.),
+                skin::FAINT,
             );
         }
     }
@@ -383,34 +381,20 @@ fn card(
             egui::Color32::from_rgb(90, 200, 110),
         );
     }
-    if selected || r.hovered() {
-        let color = if selected {
-            ACCENT
-        } else {
-            egui::Color32::from_gray(150)
-        };
-        ui.painter().rect_stroke(
-            image.expand(1.),
-            4.,
-            egui::Stroke::new(2_f32, color),
-            egui::StrokeKind::Outside,
-        );
-    }
-    let name: String = if a.name.chars().count() > 20 {
-        a.name.chars().take(19).collect::<String>() + "…"
-    } else {
-        a.name.clone()
-    };
-    ui.painter().text(
-        egui::pos2(rect.min.x + 2., image.max.y + 3.),
-        egui::Align2::LEFT_TOP,
-        name,
-        egui::FontId::proportional(12.),
-        if selected {
-            ACCENT
-        } else {
-            ui.visuals().text_color()
+    let mut job = egui::text::LayoutJob::single_section(
+        a.name.clone(),
+        egui::TextFormat {
+            font_id: skin::sans(12.5),
+            color: skin::TX,
+            ..Default::default()
         },
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(size.x - 2.);
+    let name = ui.painter().layout_job(job);
+    ui.painter().galley(
+        egui::pos2(image.min.x + 1., image.max.y + 5.),
+        name,
+        skin::TX,
     );
     r.on_hover_text(&a.name)
 }
@@ -448,17 +432,18 @@ impl crate::App {
         // The same frame as the scene browser, over the viewport: sources and kinds at the left,
         // the cards, and the selected asset's details and actions at the right.
         let rect = crate::ui::central_rect(ctx);
-        egui::Window::new("Assets")
+        crate::ui::skin::window("Assets")
             .title_bar(false)
             .resizable(false)
             .fixed_rect(rect)
-            .frame(egui::Frame::new().fill(egui::Color32::from_gray(24)))
+            .frame(crate::ui::skin::panel_frame())
             .show(ctx, |ui| {
                 ui.set_min_size(rect.size());
                 let b = &mut self.ui.assets;
                 let header = |ui: &mut egui::Ui, text: &str| {
-                    ui.add_space(8.);
-                    ui.label(egui::RichText::new(text).small().color(egui::Color32::from_gray(143)));
+                    ui.add_space(10.);
+                    crate::ui::skin::heading(ui, text);
+                    ui.add_space(2.);
                 };
                 egui::Panel::left("assets side")
                     .exact_size(200.)
@@ -562,8 +547,10 @@ impl crate::App {
                         if !a.resolutions.is_empty() {
                             ui.horizontal(|ui| {
                                 ui.label("Resolution");
-                                for r in &a.resolutions {
-                                    ui.selectable_value(&mut res, r.clone(), r);
+                                let options: Vec<(usize, &str)> = a.resolutions.iter().map(String::as_str).enumerate().collect();
+                                let mut at = a.resolutions.iter().position(|r| *r == res).unwrap_or(usize::MAX);
+                                if crate::ui::skin::segment(ui, &mut at, &options) {
+                                    res = a.resolutions[at].clone();
                                 }
                             });
                             b.res.insert((a.source, a.kind), res.clone());
@@ -576,37 +563,37 @@ impl crate::App {
                             note(ui, &format!("Downloading into scenes/{path}…"));
                             let cancelling = job.progress.cancel.load(std::sync::atomic::Ordering::Relaxed);
                             let label = if cancelling { "Cancelling…" } else { "Cancel download" };
-                            if ui.add_enabled(!cancelling, egui::Button::new(label)).clicked() {
+                            if ui.add_enabled(!cancelling, crate::ui::skin::Button::new(label)).clicked() {
                                 job.progress.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                             }
                         } else if assets::installed(&a, &res) {
                             note(ui, &format!("In scenes/{path}"));
                             ui.vertical(|ui| match a.kind {
                                 Kind::Hdri => {
-                                    if ui.button("Use as sky map").clicked() {
+                                    if crate::ui::skin::primary(ui, "Use as sky map").clicked() {
                                         action = Some(Use::Hdri(path.clone()));
                                     }
                                 }
                                 Kind::Texture => {
                                     if let Selection::Object(i) = selection
-                                        && ui.button("Apply to the selected object").clicked()
+                                        && crate::ui::skin::button(ui, "Apply to the selected object").clicked()
                                     {
                                         action = Some(Use::Texture(path.clone(), Target::Object(i)));
                                     }
-                                    if ui.button("Apply to the floor").clicked() {
+                                    if crate::ui::skin::button(ui, "Apply to the floor").clicked() {
                                         action = Some(Use::Texture(path.clone(), Target::Floor));
                                     }
-                                    if ui.button("Apply to the walls").clicked() {
+                                    if crate::ui::skin::button(ui, "Apply to the walls").clicked() {
                                         action = Some(Use::Texture(path.clone(), Target::Walls));
                                     }
                                 }
                                 Kind::Model => {
-                                    if ui.button("Add to the scene").clicked() {
+                                    if crate::ui::skin::primary(ui, "Add to the scene").clicked() {
                                         action = Some(Use::Model(path.clone()));
                                     }
                                 }
                             });
-                        } else if !b.offline && ui.button("Download").on_hover_text(format!("Into scenes/{path}; each file's SHA-256 is pinned in scenes/assets.json")).clicked() {
+                        } else if !b.offline && crate::ui::skin::primary(ui, "Download").on_hover_text(format!("Into scenes/{path}; each file's SHA-256 is pinned in scenes/assets.json")).clicked() {
                             b.failed.clear();
                             b.jobs.push(assets::start(a.clone(), res.clone()));
                         }
@@ -615,7 +602,7 @@ impl crate::App {
                 if b.others {
                     ui.horizontal(|ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("Close").clicked() {
+                            if crate::ui::skin::button(ui, "Close").clicked() {
                                 open = false;
                             }
                         });
@@ -624,8 +611,7 @@ impl crate::App {
                     return;
                 }
                 ui.horizontal(|ui| {
-                    if ui
-                        .add(egui::TextEdit::singleline(&mut b.search).hint_text(field_hint("Search names and tags…")).desired_width(220.))
+                    if crate::ui::skin::text_edit(ui, 220., egui::TextEdit::singleline(&mut b.search).hint_text(field_hint("Search names and tags…")))
                         .changed()
                     {
                         b.page = 0;
@@ -633,17 +619,17 @@ impl crate::App {
                     if b.local {
                         if b.scan.is_some() {
                             ui.add(egui::Spinner::new());
-                        } else if ui.button("Rescan").on_hover_text("Look through the scenes folders again").clicked() {
+                        } else if crate::ui::skin::button(ui, "Rescan").on_hover_text("Look through the scenes folders again").clicked() {
                             b.scanned = false;
                         }
                     } else if b.loading.contains_key(&source) {
                         ui.add(egui::Spinner::new());
                         note(ui, "Fetching the catalog…");
-                    } else if !b.offline && ui.button("Refresh").on_hover_text("Fetch the catalog again").clicked() {
+                    } else if !b.offline && crate::ui::skin::button(ui, "Refresh").on_hover_text("Fetch the catalog again").clicked() {
                         b.refresh(source);
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Close").on_hover_text("Back to the image").clicked() {
+                        if crate::ui::skin::button(ui, "Close").on_hover_text("Back to the image").clicked() {
                             open = false;
                         }
                     });
@@ -676,16 +662,18 @@ impl crate::App {
                         }
                     }
                     if offered.contains(&true) {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 2.;
-                            let all = std::iter::once((true, ("", "All")));
-                            for (_, (tag, label)) in all.chain(offered.into_iter().zip(HDRI_CATEGORIES)).filter(|c| c.0) {
-                                if ui.selectable_label(b.category == tag, label).clicked() {
-                                    b.category = tag;
-                                    b.page = 0;
-                                }
-                            }
-                        });
+                        let all = std::iter::once((true, ("", "All")));
+                        let options: Vec<(&'static str, &str)> = all
+                            .chain(offered.into_iter().zip(HDRI_CATEGORIES))
+                            .filter(|c| c.0)
+                            .map(|(_, option)| option)
+                            .collect();
+                        let mut chosen = b.category;
+                        ui.horizontal(|ui| crate::ui::skin::segment(ui, &mut chosen, &options));
+                        if chosen != b.category {
+                            b.category = chosen;
+                            b.page = 0;
+                        }
                     }
                     // A category the list no longer offers (another kind or source) filters nothing.
                     let category = HDRI_CATEGORIES
@@ -716,11 +704,11 @@ impl crate::App {
                     }
                     note(ui, &line);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add_enabled(b.page + 1 < pages, egui::Button::new("▶")).clicked() {
+                        if ui.add_enabled(b.page + 1 < pages, crate::ui::skin::Button::new("▶")).clicked() {
                             b.page += 1;
                         }
                         ui.label(format!("{} / {pages}", b.page + 1));
-                        if ui.add_enabled(b.page > 0, egui::Button::new("◀")).clicked() {
+                        if ui.add_enabled(b.page > 0, crate::ui::skin::Button::new("◀")).clicked() {
                             b.page -= 1;
                         }
                     });

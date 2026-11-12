@@ -3,6 +3,7 @@
 //! kinds are documented above `trace` in pathtrace.hlsl). This module parses them into paths,
 //! draws them as 3D lines over the viewport, and shows the inspector window.
 use crate::gizmo::View;
+use crate::ui::skin::ShowSkin as _;
 use glam::{Vec2, Vec3};
 
 /// One recorded event, as the shader's `PathVertex` (48 B).
@@ -345,16 +346,14 @@ pub fn draw(painter: &egui::Painter, ppp: f32, view: &View, far: f32, pv: &PathV
 pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool {
     let mut open = pv.open;
     let mut again = false;
-    egui::Window::new("Path visualizer")
+    crate::ui::skin::window("Path visualizer")
         .open(&mut open)
         .default_pos([160., 120.])
         .default_width(400.)
-        .show(ctx, |ui| {
-            ui.label(
-                egui::RichText::new(
-                    "Click a pixel while this window is open (or Alt+click any time) to re-trace its paths with this frame's samples.",
-                )
-                .small(),
+        .show_skin(ctx, |ui| {
+            crate::ui::note(
+                ui,
+                "Click a pixel while this window is open (or Alt+click any time) to re-trace its paths with this frame's samples.",
             );
             if !perspective {
                 ui.label(
@@ -367,7 +366,8 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
                 ui.label("Paths");
                 ui.add(crate::slider(&mut pv.count, 1..=64));
                 if ui
-                    .add_enabled(pv.pixel.is_some(), egui::Button::new("Trace again"))
+                    .add_enabled_ui(pv.pixel.is_some(), |ui| crate::ui::skin::button(ui, "Trace again"))
+                    .inner
                     .on_hover_text("The same pixel with the current frame's samples")
                     .clicked()
                 {
@@ -376,11 +376,17 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
             });
             ui.horizontal(|ui| {
                 ui.label("Colour");
-                ui.selectable_value(&mut pv.coloring, Coloring::Bounce, "Bounce");
-                ui.selectable_value(&mut pv.coloring, Coloring::Throughput, "Throughput");
-                ui.selectable_value(&mut pv.coloring, Coloring::Event, "Event");
+                crate::ui::skin::segment(
+                    ui,
+                    &mut pv.coloring,
+                    &[
+                        (Coloring::Bounce, "Bounce"),
+                        (Coloring::Throughput, "Throughput"),
+                        (Coloring::Event, "Event"),
+                    ],
+                );
             });
-            ui.checkbox(&mut pv.light_samples, "Light samples")
+            crate::ui::skin::checkbox_label(ui, &mut pv.light_samples, "Light samples")
                 .on_hover_text("Shadow rays of next-event estimation: yellow reached the light, red was blocked");
             let Some([x, y]) = pv.pixel else {
                 return;
@@ -398,13 +404,13 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
                     "The recording ran out of space: fewer paths or bounces show them all.",
                 );
             }
-            ui.separator();
+            crate::ui::skin::separator(ui);
             egui::ScrollArea::vertical()
                 .id_salt("paths")
                 .max_height(180.)
                 .show(ui, |ui| {
-                    if ui
-                        .selectable_label(pv.selected.is_none(), "All paths")
+                    ui.spacing_mut().item_spacing.y = 2.;
+                    if crate::ui::skin::selectable_mono(ui, pv.selected.is_none(), "All paths")
                         .clicked()
                     {
                         pv.selected = None;
@@ -429,9 +435,7 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
                             "#{i:<2}  {bounces:>2} bounces  L {:.4}  {end}",
                             luminance(p.radiance)
                         );
-                        let label = egui::RichText::new(text).monospace();
-                        if ui
-                            .selectable_label(pv.selected == Some(i), label)
+                        if crate::ui::skin::selectable_mono(ui, pv.selected == Some(i), &text)
                             .clicked()
                         {
                             pv.selected = Some(i);
@@ -442,12 +446,12 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
             let Some(path) = pv.selected.and_then(|i| pv.paths.get(i)) else {
                 return;
             };
-            ui.separator();
+            crate::ui::skin::separator(ui);
             let n = path.vertices.len();
             let mut upto = pv.upto.min(n);
             ui.horizontal(|ui| {
                 ui.label("Vertices");
-                ui.add(egui::Slider::new(&mut upto, 1.min(n)..=n));
+                ui.add(crate::slider(&mut upto, 1.min(n)..=n));
             });
             pv.upto = upto;
             egui::ScrollArea::vertical()
@@ -459,7 +463,7 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
                         .num_columns(5)
                         .show(ui, |ui| {
                             for h in ["#", "Bounce", "Event", "Throughput", "Adds"] {
-                                ui.label(egui::RichText::new(h).strong());
+                                crate::ui::skin::heading(ui, h);
                             }
                             ui.end_row();
                             for (i, v) in path.vertices.iter().enumerate().take(upto) {
@@ -469,16 +473,17 @@ pub fn window(ctx: &egui::Context, pv: &mut PathView, perspective: bool) -> bool
                                     .filter(|l| l.vertex == i)
                                     .map(|l| luminance(l.contribution))
                                     .sum();
-                                ui.label(i.to_string());
-                                ui.label(v.bounce.to_string());
+                                let number = |text: String| egui::RichText::new(text).monospace();
+                                ui.label(number(i.to_string()));
+                                ui.label(number(v.bounce.to_string()));
                                 ui.colored_label(v.kind.color(), v.kind.name());
-                                ui.label(format!("{:.4}", luminance(v.throughput)));
+                                ui.label(number(format!("{:.4}", luminance(v.throughput))));
                                 let adds = v.emitted + lights;
-                                ui.label(if adds > 0. {
+                                ui.label(number(if adds > 0. {
                                     format!("{adds:.4}")
                                 } else {
                                     "–".into()
-                                })
+                                }))
                                 .on_hover_text(format!(
                                     "Emission {:.5}, light samples {lights:.5}",
                                     v.emitted

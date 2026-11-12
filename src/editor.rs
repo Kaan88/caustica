@@ -33,7 +33,7 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
                     cant_load(ui, &format!("{e:#}"));
                 }
             }
-            if ui.small_button("Load…").clicked() {
+            if crate::ui::skin::small_button(ui, "Load…").clicked() {
                 let mut dialog =
                     rfd::FileDialog::new().add_filter("Images", &["jpg", "jpeg", "png"]);
                 if let Some(folder) = crate::dirs::scene_roots()
@@ -50,7 +50,7 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
                     }
                 }
             }
-            if !m.texture.is_empty() && ui.small_button("Clear").clicked() {
+            if !m.texture.is_empty() && crate::ui::skin::small_button(ui, "Clear").clicked() {
                 m.texture.clear();
             }
         },
@@ -77,7 +77,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
     ui.horizontal(|ui| {
         crate::balls::ball(ui, Some(id), m, 48.)
             .on_hover_text("This material on a sphere (renders in the background, cached).");
-        egui::ComboBox::from_id_salt((id, "library"))
+        crate::ui::skin::ComboBox::from_id_salt((id, "library"))
             .selected_text("Apply a material…")
             .width(ui.available_width())
             .show_ui(ui, |ui| {
@@ -86,7 +86,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     let picked = ui
                         .horizontal(|ui| {
                             let r = crate::balls::ball(ui, None, &preset, 28.);
-                            r.clicked() | ui.selectable_label(false, *name).clicked()
+                            r.clicked() | crate::ui::skin::selectable(ui, false, *name).clicked()
                         })
                         .inner;
                     if picked {
@@ -97,7 +97,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
     });
     egui::Grid::new((id, "material"))
         .num_columns(2)
-        .spacing([12., 6.])
+        .spacing([8., 4.])
         .min_col_width(crate::ui::LABEL_WIDTH)
         .show(ui, |ui| {
             key_mark("color");
@@ -107,7 +107,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 "Base colour (the picker edits linear RGB, not screen colour).",
                 (m.spectrum > 0).then_some("A measured spectrum replaces it (Surface, below: set it to None)"),
                 |ui| {
-                    ui.color_edit_button_rgb(&mut m.color);
+                    crate::ui::skin::color_rgb(ui, &mut m.color);
                 },
             );
             key_mark("roughness");
@@ -195,14 +195,20 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 "Measured spectrum",
                 "Replaces the colour with a measured reflectance or emission spectrum: exact with Spectral on (Render tab), its colour under daylight otherwise. The Cornell box's walls and light were measured by Cornell's Program of Computer Graphics.",
                 |ui| {
-                    egui::ComboBox::from_id_salt("measured spectrum")
+                    crate::ui::skin::ComboBox::from_id_salt("measured spectrum")
                         .selected_text(
                             crate::spectrum::MEASURED_NAMES[(m.spectrum as usize)
                                 .min(crate::spectrum::MEASURED_NAMES.len() - 1)],
                         )
                         .show_ui(ui, |ui| {
                             for (i, n) in crate::spectrum::MEASURED_NAMES.iter().enumerate() {
-                                if ui.selectable_value(&mut m.spectrum, i as u32, *n).changed()
+                                if crate::ui::skin::selectable_value(
+                                    ui,
+                                    &mut m.spectrum,
+                                    i as u32,
+                                    *n,
+                                )
+                                .changed()
                                     && i > 0
                                 {
                                     m.color = crate::spectrum::measured(i as u32);
@@ -252,7 +258,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     "Sheen colour",
                     "Colour of the sheen (the picker edits linear RGB, not screen colour).",
                     |ui| {
-                        ui.color_edit_button_rgb(&mut m.sheen_color);
+                        crate::ui::skin::color_rgb(ui, &mut m.sheen_color);
                     },
                 );
                 key_mark("sheen_roughness");
@@ -382,7 +388,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         "Scatter colour",
                         "The share of light each scattering keeps, per channel.",
                         |ui| {
-                            ui.color_edit_button_rgb(&mut m.scatter_color);
+                            crate::ui::skin::color_rgb(ui, &mut m.scatter_color);
                         },
                     );
                     key_mark("extinction");
@@ -391,7 +397,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         "Extinction colour",
                         "How strongly each colour is scattered or absorbed, relative to the density. White treats all alike; more blue than red scatters blue out of a beam, so the object looks blue from the side and the light through it turns orange (opal glass, skimmed milk, a sunset).",
                         |ui| {
-                            ui.color_edit_button_rgb(&mut m.extinction);
+                            crate::ui::skin::color_rgb(ui, &mut m.extinction);
                             // Black would fail validation on load; it means grey.
                             if m.extinction.iter().all(|v| *v <= 0.) {
                                 m.extinction = [1.; 3];
@@ -417,7 +423,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 "Pattern",
                 "Procedural pattern, evaluated in world space.",
                 |ui| {
-                    egui::ComboBox::from_id_salt((id, "pattern"))
+                    crate::ui::skin::ComboBox::from_id_salt((id, "pattern"))
                         .selected_text(pattern_label(m.pattern))
                         .show_ui(ui, |ui| {
                             for p in [
@@ -426,7 +432,12 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                                 Pattern::Stripes,
                                 Pattern::Marble,
                             ] {
-                                ui.selectable_value(&mut m.pattern, p, pattern_label(p));
+                                crate::ui::skin::selectable_value(
+                                    ui,
+                                    &mut m.pattern,
+                                    p,
+                                    pattern_label(p),
+                                );
                             }
                         });
                 },
@@ -434,7 +445,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             if m.pattern != Pattern::Solid {
                 key_mark("secondary_color");
                 row(ui, "Second colour", "The pattern's other colour.", |ui| {
-                    ui.color_edit_button_rgb(&mut m.secondary_color);
+                    crate::ui::skin::color_rgb(ui, &mut m.secondary_color);
                 });
                 key_mark("pattern_scale");
                 row(ui, "Pattern scale", "Repetitions per scene unit.", |ui| {
@@ -465,30 +476,34 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
 }
 /// One collapsible block of the advanced material rows, with its own grid.
 fn group(ui: &mut egui::Ui, id: &str, title: &str, active: bool, add: impl FnOnce(&mut egui::Ui)) {
-    egui::CollapsingHeader::new(title)
-        .id_salt((id, "material group", title))
-        .default_open(active)
-        .show(ui, |ui| {
+    crate::ui::skin::fold_with(
+        ui,
+        (id, "material group", title),
+        title,
+        String::new(),
+        active,
+        |ui| {
             egui::Grid::new((id, "material group grid", title))
                 .num_columns(2)
-                .spacing([12., 6.])
+                .spacing([8., 4.])
                 .min_col_width(crate::ui::LABEL_WIDTH)
                 .show(ui, add);
-        });
+        },
+    );
 }
 pub fn shape_combo(ui: &mut egui::Ui, id: &str, shape: &mut Shape) {
-    egui::ComboBox::from_id_salt(id)
+    crate::ui::skin::ComboBox::from_id_salt(id)
         .selected_text(shape.label())
         .show_ui(ui, |ui| {
             for s in Shape::ALL {
-                ui.selectable_value(shape, s, s.label());
+                crate::ui::skin::selectable_value(ui, shape, s, s.label());
             }
         });
 }
 /// The Material tab for an object: its texture-map switch (meshes with maps) and material.
 pub fn object_material_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
     if crate::mesh::has_maps(o) {
-        ui.checkbox(&mut o.material.textures, "Texture maps").on_hover_text(
+        crate::ui::skin::checkbox_label(ui, &mut o.material.textures, "Texture maps").on_hover_text(
             "Base colour, normal and metallic-roughness maps from the mesh file. Colour, roughness and metallic below start at the maps' averages and scale them; off shows those averages as flat values.",
         );
     }
@@ -496,25 +511,26 @@ pub fn object_material_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
 }
 /// The Object tab for an object: its name, shape, placement and physics rows.
 pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: bool) {
-    ui.add(
-        egui::TextEdit::singleline(&mut o.name)
-            .char_limit(128)
-            .desired_width(f32::INFINITY),
+    crate::ui::skin::text_edit(
+        ui,
+        f32::INFINITY,
+        egui::TextEdit::singleline(&mut o.name).char_limit(128),
     );
     crate::ui::section(ui, "Shape and placement");
     egui::Grid::new("object")
         .num_columns(2)
-        .spacing([12., 6.])
+        .spacing([8., 4.])
+        .min_col_width(crate::ui::LABEL_WIDTH)
         .show(ui, |ui| {
             row(
                 ui,
                 "Surface",
                 "Mesh, or an exact procedural surface intersected in the shader (no facets): spheres, tori and fractals.",
                 |ui| {
-                    egui::ComboBox::from_id_salt("object sdf").selected_text(o.sdf.label()).show_ui(ui, |ui| {
+                    crate::ui::skin::ComboBox::from_id_salt("object sdf").selected_text(o.sdf.label()).show_ui(ui, |ui| {
                         for k in crate::scene::Sdf::ALL {
                             // A kind's detail means something else in another (power vs radius).
-                            if ui.selectable_value(&mut o.sdf, k, k.label()).changed() {
+                            if crate::ui::skin::selectable_value(ui, &mut o.sdf, k, k.label()).changed() {
                                 o.detail = 0.;
                             }
                         }
@@ -562,7 +578,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                         if let Err(e) = crate::mesh::load(&o.mesh) {
                             cant_load(ui, &format!("{e:#}"));
                         }
-                        if ui.small_button("Use a shape").clicked() {
+                        if crate::ui::skin::small_button(ui, "Use a shape").clicked() {
                             o.mesh.clear();
                         }
                     },
@@ -574,19 +590,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                 "Position",
                 "X and Z on the floor, in scene units (the Cornell box is 2 wide).",
                 |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut o.position[0])
-                            .speed(0.02)
-                            .range(-40. ..=40.)
-                            .prefix("x "),
-                    );
-                    ui.add(
-                        egui::DragValue::new(&mut o.position[1])
-                            .speed(0.02)
-                            .range(-40. ..=40.)
-                            .prefix("z "),
-                    );
-                    crate::revert_dot(ui, &mut o.position);
+                    crate::ui::drag_group(ui, &mut o.position, &["x ", "z "], "", 0.02, -40. ..=40.);
                 },
             );
             key_mark("grounded");
@@ -636,7 +640,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                     |ui| {
                         use crate::scene::Body;
                         for (b, name) in [(Body::Dynamic, "Dynamic"), (Body::Fixed, "Fixed"), (Body::None, "None")] {
-                            ui.selectable_value(&mut o.body, b, name);
+                            crate::ui::skin::selectable_value(ui, &mut o.body, b, name);
                         }
                         if !o.links.is_empty() {
                             own_tip(
@@ -663,7 +667,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                             use crate::scene::ClothPin;
                             for (p, name) in [(ClothPin::None, "Free"), (ClothPin::Corners, "Corners"), (ClothPin::Edge, "Edge")] {
                                 own_tip(
-                                    ui.selectable_value(&mut c.pin, p, name),
+                                    crate::ui::skin::selectable_value(ui, &mut c.pin, p, name),
                                     "Pins: none, the two corners of the far (−z) edge, or that whole edge (a curtain).",
                                 );
                             }
@@ -676,16 +680,14 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                                 "Bending stiffness: 0 silk, 1 canvas.",
                             );
                             own_tip(
-                                ui.add(
-                                    egui::DragValue::new(&mut c.mass)
+                                crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut c.mass)
                                         .speed(0.01)
                                         .range(0.01..=100.)
-                                        .suffix(" kg"),
-                                ),
+                                        .suffix(" kg"),),
                                 "The cloth's total mass: what a dynamic body it touches feels.",
                             );
                             own_tip(
-                                ui.checkbox(&mut c.self_collision, "Self-collision"),
+                                crate::ui::skin::checkbox_label(ui, &mut c.self_collision, "Self-collision"),
                                 "Folds push apart instead of passing through each other.",
                             );
                             if !o.maps_from.is_empty() {
@@ -694,7 +696,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                                     o.maps_from
                                 ));
                                 for u in &mut c.uv {
-                                    ui.add(egui::DragValue::new(u).speed(0.01).range(-64. ..=64.));
+                                    crate::ui::skin::drag_value(ui, egui::DragValue::new(u).speed(0.01).range(-64. ..=64.));
                                 }
                             }
                         }
@@ -713,7 +715,8 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
     more(ui, "object transform more", advanced, |ui| {
         egui::Grid::new("object advanced")
             .num_columns(2)
-            .spacing([12., 6.])
+            .spacing([8., 4.])
+            .min_col_width(crate::ui::LABEL_WIDTH)
             .show(ui, |ui| {
                 check_row(
                     ui,
@@ -774,7 +777,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
 /// A blackbody temperature: a checkbox (off = 0) and a kelvin slider.
 fn kelvin_ui(ui: &mut egui::Ui, t: &mut f32) {
     let mut on = *t > 0.;
-    if ui.checkbox(&mut on, "").changed() {
+    if crate::ui::skin::checkbox_label(ui, &mut on, "").changed() {
         *t = if on { 3200. } else { 0. };
     }
     if on {
@@ -786,25 +789,26 @@ fn kelvin_ui(ui: &mut egui::Ui, t: &mut f32) {
     }
 }
 pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: bool) {
-    ui.add(
-        egui::TextEdit::singleline(&mut l.name)
-            .char_limit(128)
-            .desired_width(f32::INFINITY),
+    crate::ui::skin::text_edit(
+        ui,
+        f32::INFINITY,
+        egui::TextEdit::singleline(&mut l.name).char_limit(128),
     );
     egui::Grid::new("area light")
         .num_columns(2)
-        .spacing([12., 6.])
+        .spacing([8., 4.])
+        .min_col_width(crate::ui::LABEL_WIDTH)
         .show(ui, |ui| {
             key_mark("enabled");
             check_row(ui, "On", "Switch this light on or off.", &mut l.enabled);
             check_row(ui, "Show outline", "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.", &mut l.outline);
             key_mark("kind");
             row(ui, "Kind", "Rectangle, disk and spot lights shine from their front; a sphere all round; a sun from far away in one direction, with sharp shadows when its angle is small.", |ui| {
-                egui::ComboBox::from_id_salt("light kind")
+                crate::ui::skin::ComboBox::from_id_salt("light kind")
                     .selected_text(l.kind.label())
                     .show_ui(ui, |ui| {
                         for k in LightKind::ALL {
-                            ui.selectable_value(&mut l.kind, k, k.label());
+                            crate::ui::skin::selectable_value(ui, &mut l.kind, k, k.label());
                         }
                     });
             });
@@ -825,7 +829,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
             row(ui, "Colour", "Colour of the light (the picker edits linear RGB, not screen colour).", |ui| {
                 ui.add_enabled_ui(l.temperature == 0., |ui| {
                     why_disabled(
-                        ui.color_edit_button_rgb(&mut l.color),
+                        crate::ui::skin::color_rgb(ui, &mut l.color),
                         "Untick Temperature to pick a colour",
                     );
                 });
@@ -848,7 +852,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_else(|| "None".into());
                         ui.label(name);
-                        if ui.small_button("Load…").clicked() {
+                        if crate::ui::skin::small_button(ui, "Load…").clicked() {
                             let mut dialog = rfd::FileDialog::new().add_filter("IES", &["ies"]);
                             if let Some(folder) = crate::dirs::scene_roots()
                                 .into_iter()
@@ -862,7 +866,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                                 l.ies = crate::mesh::store(&path);
                             }
                         }
-                        if !l.ies.is_empty() && ui.small_button("Clear").clicked() {
+                        if !l.ies.is_empty() && crate::ui::skin::small_button(ui, "Clear").clicked() {
                             l.ies.clear();
                         }
                         if !l.ies.is_empty()
@@ -875,15 +879,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
             }
             key_mark("position");
             row(ui, "Position", "In scene units.", |ui| {
-                for (p, axis) in l.position.iter_mut().zip(["x ", "y ", "z "]) {
-                    ui.add(
-                        egui::DragValue::new(p)
-                            .speed(0.025)
-                            .range(-50. ..=50.)
-                            .prefix(axis),
-                    );
-                }
-                crate::revert_dot(ui, &mut l.position);
+                crate::ui::drag_group(ui, &mut l.position, &["x ", "y ", "z "], "", 0.025, -50. ..=50.);
             });
             // A sphere's diameter is the first size; a sun has its angle instead.
             key_mark(match l.kind {
@@ -897,12 +893,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                     "Diameter",
                     "In scene units. Bigger lights give softer shadows.",
                     |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut l.size[0])
-                                .speed(0.01)
-                                .range(0.05..=40.),
-                        );
-                        crate::revert_dot(ui, &mut l.size[..1]);
+                        crate::ui::drag_group(ui, &mut l.size[..1], &[], "", 0.01, 0.05..=40.);
                     },
                 ),
                 LightKind::Sun => row(
@@ -922,10 +913,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                     "Size",
                     "Width and depth in scene units (a disk's diameters). Bigger lights give softer shadows.",
                     |ui| {
-                        for p in &mut l.size {
-                            ui.add(egui::DragValue::new(p).speed(0.025).range(0.05..=40.));
-                        }
-                        crate::revert_dot(ui, &mut l.size);
+                        crate::ui::drag_group(ui, &mut l.size, &[], "", 0.025, 0.05..=40.);
                     },
                 ),
             }
@@ -952,7 +940,8 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
     more(ui, "area light more", advanced, |ui| {
         egui::Grid::new("area light advanced")
             .num_columns(2)
-            .spacing([12., 6.])
+            .spacing([8., 4.])
+            .min_col_width(crate::ui::LABEL_WIDTH)
             .show(ui, |ui| {
                 key_mark("visible");
                 check_row(ui, "Visible to camera", "Show the light's panel in the image.", &mut l.visible);
@@ -964,11 +953,11 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         |ui| {
                             const BANDS: [&str; 6] =
                                 ["Automatic", "Bass", "Mid", "Treble", "Beats", "Nothing"];
-                            egui::ComboBox::from_id_salt("audio band")
+                            crate::ui::skin::ComboBox::from_id_salt("audio band")
                                 .selected_text(BANDS[l.audio_band.min(5) as usize])
                                 .show_ui(ui, |ui| {
                                     for (i, b) in BANDS.iter().enumerate() {
-                                        ui.selectable_value(&mut l.audio_band, i as u32, *b);
+                                        crate::ui::skin::selectable_value(ui, &mut l.audio_band, i as u32, *b);
                                     }
                                 });
                         },
@@ -990,15 +979,7 @@ fn rotation_row(ui: &mut egui::Ui, l: &mut AreaLight) {
         "Rotation",
         "Pitch, yaw and roll in degrees; at 0 the light points straight down.",
         |ui| {
-            for p in &mut l.rotation {
-                ui.add(
-                    egui::DragValue::new(p)
-                        .speed(1.)
-                        .range(-360. ..=360.)
-                        .suffix("°"),
-                );
-            }
-            crate::revert_dot(ui, &mut l.rotation);
+            crate::ui::drag_group(ui, &mut l.rotation, &[], "°", 1., -360. ..=360.);
         },
     );
 }

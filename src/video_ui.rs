@@ -1,6 +1,7 @@
 //! The video export dialog and its progress window (item 6). The options live in
 //! `UiState::video`; `redraw` starts the `video::Job` and renders it a pass at a time.
 use crate::App;
+use crate::ui::skin::ShowSkin as _;
 use crate::ui::{ACCENT, BAR, grid, note, row, section};
 use crate::video::{Easing, Format, PRORES_PROFILES};
 
@@ -46,23 +47,27 @@ impl App {
             self.ui.video.fps = animation.fps;
             self.ui.video.frames = animation.frames();
         }
-        egui::Window::new("Export video")
+        crate::ui::skin::window("Export video")
             .open(&mut open)
             .default_pos([160., 80.])
             .resizable(false)
             .collapsible(false)
-            .show(ctx, |ui| {
+            .show_skin(ctx, |ui| {
                 let o = &mut self.ui.video;
                 section(ui, "Output");
                 grid("video-output").show(ui, |ui| {
                     row(ui, "Format", "Videos go through ffmpeg; sequences are numbered files in a folder named after the file.", |ui| {
-                        egui::ComboBox::from_id_salt("video-format")
+                        crate::ui::skin::ComboBox::from_id_salt("video-format")
                             .selected_text(o.format.label())
                             .width(200.)
                             .show_ui(ui, |ui| {
                                 for f in Format::ALL {
                                     let usable = (!f.video() || ffmpeg) && (f != Format::Hdr10 || hdr);
-                                    let r = ui.add_enabled(usable, egui::Button::selectable(o.format == f, f.label()));
+                                    let r = ui
+                                        .add_enabled_ui(usable, |ui| {
+                                            crate::ui::skin::selectable(ui, o.format == f, f.label())
+                                        })
+                                        .inner;
                                     let r = if f == Format::Hdr10 && !hdr {
                                         r.on_disabled_hover_text("Needs HDR output (Look > Display).")
                                     } else if f.video() && !ffmpeg {
@@ -84,9 +89,8 @@ impl App {
                     match o.format.quality_range() {
                         Some((lo, hi, _)) if o.format == Format::ProRes => {
                             row(ui, "Profile", "ProRes profile: larger files keep more detail.", |ui| {
-                                for (i, name) in PRORES_PROFILES.iter().enumerate() {
-                                    ui.selectable_value(&mut o.quality, i as u32, *name);
-                                }
+                                let profiles: Vec<(u32, &str)> = PRORES_PROFILES.iter().enumerate().map(|(i, name)| (i as u32, *name)).collect();
+                                crate::ui::skin::segment(ui, &mut o.quality, &profiles);
                                 o.quality = o.quality.clamp(lo, hi);
                             });
                         }
@@ -99,10 +103,10 @@ impl App {
                     }
                     row(ui, "File", "Relative paths are in the working folder.", |ui| {
                         let mut text = o.path.to_string_lossy().into_owned();
-                        if ui.add(egui::TextEdit::singleline(&mut text).desired_width(200.)).changed() {
+                        if crate::ui::skin::text_edit(ui, 200., egui::TextEdit::singleline(&mut text)).changed() {
                             o.path = text.into();
                         }
-                        if ui.button("Browse…").clicked() {
+                        if crate::ui::skin::button(ui, "Browse…").clicked() {
                             let ext = o.format.extension();
                             let mut d = rfd::FileDialog::new().set_file_name(
                                 o.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -124,22 +128,22 @@ impl App {
                             .find(|s| [s.1, s.2] == [o.width, o.height])
                             .map(|s| s.0.to_string())
                             .unwrap_or_else(|| if [o.width, o.height] == window { "Window".into() } else { "Custom".into() });
-                        egui::ComboBox::from_id_salt("video-size")
+                        crate::ui::skin::ComboBox::from_id_salt("video-size")
                             .selected_text(current)
                             .width(110.)
                             .show_ui(ui, |ui| {
-                                if ui.selectable_label(false, format!("Window ({}×{})", window[0], window[1])).clicked() {
+                                if crate::ui::skin::selectable(ui, false, format!("Window ({}×{})", window[0], window[1])).clicked() {
                                     [o.width, o.height] = window;
                                 }
                                 for (name, w, h) in SIZES {
-                                    if ui.selectable_label([w, h] == [o.width, o.height], format!("{name} ({w}×{h})")).clicked() {
+                                    if crate::ui::skin::selectable(ui, [w, h] == [o.width, o.height], format!("{name} ({w}×{h})")).clicked() {
                                         [o.width, o.height] = [w, h];
                                     }
                                 }
                             });
-                        ui.add(egui::DragValue::new(&mut o.width).range(16..=8192));
+                        crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut o.width).range(16..=8192));
                         ui.label("×");
-                        ui.add(egui::DragValue::new(&mut o.height).range(16..=8192));
+                        crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut o.height).range(16..=8192));
                     });
                     let timed = !o.timeline || animation.is_empty();
                     row(ui, "Frame rate", "Frames per second. A timeline export takes the timeline's.", |ui| {
@@ -147,12 +151,13 @@ impl App {
                             ui.disable();
                         }
                         let seconds = o.frames as f32 / o.fps as f32;
-                        for fps in RATES {
-                            if ui.selectable_label(o.fps == fps, fps.to_string()).clicked() && o.fps != fps {
-                                // Keep the length in seconds.
-                                o.fps = fps;
-                                o.frames = ((seconds * fps as f32).round() as u32).max(1);
-                            }
+                        let names: Vec<String> = RATES.iter().map(|f| f.to_string()).collect();
+                        let options: Vec<(u32, &str)> = RATES.iter().copied().zip(names.iter().map(String::as_str)).collect();
+                        let mut fps = o.fps;
+                        if crate::ui::skin::segment(ui, &mut fps, &options) {
+                            // Keep the length in seconds.
+                            o.fps = fps;
+                            o.frames = ((seconds * fps as f32).round() as u32).max(1);
                         }
                     });
                     row(ui, "Length", "Duration in seconds; the frame count follows. A timeline export takes the timeline's.", |ui| {
@@ -166,7 +171,7 @@ impl App {
                         {
                             o.frames = ((seconds * o.fps as f32).round() as u32).max(1);
                         }
-                        ui.add(egui::DragValue::new(&mut o.frames).range(1..=100_000).suffix(" frames"));
+                        crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut o.frames).range(1..=100_000).suffix(" frames"));
                     });
                     row(ui, "Samples per frame", "Each frame converges this far before the next.", |ui| {
                         ui.add(crate::slider(&mut o.spp, 1..=65536).logarithmic(true).suffix(" spp"));
@@ -178,13 +183,19 @@ impl App {
                 section(ui, "Motion");
                 grid("video-motion").show(ui, |ui| {
                     row(ui, "Camera", "Orbit turns the camera around its target; Timeline plays the scene's keyframes (camera, objects, lights, materials), with motion blur when the timeline's shutter is open.", |ui| {
-                        ui.selectable_value(&mut o.timeline, false, "Orbit");
-                        ui.add_enabled_ui(!animation.is_empty() || simulated, |ui| {
-                            crate::ui::why_disabled(
-                                ui.selectable_value(&mut o.timeline, true, "Timeline"),
-                                "The scene has no keyframes (I keys the selection).",
-                            );
-                        });
+                        let available = !animation.is_empty() || simulated;
+                        let mut timeline = o.timeline;
+                        let r = ui
+                            .scope(|ui| {
+                                crate::ui::skin::segment(ui, &mut timeline, &[(false, "Orbit"), (true, "Timeline")]);
+                            })
+                            .response;
+                        // Without keyframes the Timeline half does nothing.
+                        if available || !timeline {
+                            o.timeline = timeline;
+                        } else {
+                            crate::ui::own_tip(r, "The scene has no keyframes (I keys the selection).");
+                        }
                     });
                 });
                 if o.timeline && simulated {
@@ -217,11 +228,10 @@ impl App {
                         ui.add(crate::slider(&mut o.distance, 0.1..=200.).logarithmic(true));
                     });
                     row(ui, "Easing", "Linear loops seamlessly at 360°; ease in-out starts and stops at rest.", |ui| {
-                        ui.selectable_value(&mut o.easing, Easing::Linear, "Linear");
-                        ui.selectable_value(&mut o.easing, Easing::EaseInOut, "Ease in-out");
+                        crate::ui::skin::segment(ui, &mut o.easing, &[(Easing::Linear, "Linear"), (Easing::EaseInOut, "Ease in-out")]);
                     });
                     row(ui, "", "", |ui| {
-                        if ui.button("Use the current camera").clicked() {
+                        if crate::ui::skin::button(ui, "Use the current camera").clicked() {
                             (o.pitch, o.distance) = camera;
                         }
                     });
@@ -237,7 +247,7 @@ impl App {
                     ),
                 );
                 ui.add_space(4.);
-                if ui.button("Render video").clicked() {
+                if crate::ui::skin::primary(ui, "Render video").clicked() {
                     start = true;
                 }
             });
@@ -304,11 +314,7 @@ impl App {
             .inner_margin(egui::Margin::symmetric(9, 2))
             .show(ui, |ui| {
                 ui.label(format!("{} {:.0} %", info.title, info.progress * 100.));
-                ui.add(
-                    egui::ProgressBar::new(info.progress)
-                        .desired_width(70.)
-                        .desired_height(6.),
-                );
+                crate::ui::skin::bar(ui, info.progress, 70., 8., "");
                 ui.monospace(info.left_text());
             })
             .response
@@ -345,7 +351,7 @@ impl App {
                     egui::Id::unique("export view"),
                 ))
                 .with_clip_rect(rect);
-            painter.rect_filled(rect, 0, egui::Color32::from_gray(16));
+            painter.rect_filled(rect, 0, egui::Color32::from_rgb(0x12, 0x12, 0x14));
             if let Some(t) = &self.ui.video_preview {
                 let size = t.size_vec2();
                 let scale = (rect.width() / size.x).min(rect.height() / size.y);
@@ -363,7 +369,7 @@ impl App {
             .pivot(egui::Align2::CENTER_TOP)
             .fixed_pos(rect.center_top() + egui::vec2(0., 10.))
             .show(ctx, |ui| {
-                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                crate::ui::skin::card(ui, |ui| {
                     ui.label(egui::RichText::new("Locked while exporting").small());
                 });
             });
@@ -404,7 +410,7 @@ impl App {
             .show(ui, |ui| {
                 let width = ui.available_width();
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(info.title).strong());
+                    ui.label(egui::RichText::new(info.title).font(crate::ui::skin::semibold(12.5)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.monospace(format!("{:.0} %", info.progress * 100.));
                     });
@@ -441,11 +447,7 @@ impl App {
                         info.left_text()
                     ),
                 );
-                ui.add(
-                    egui::ProgressBar::new(info.progress)
-                        .desired_width(width)
-                        .desired_height(8.),
-                );
+                crate::ui::skin::bar(ui, info.progress, width, 10., "");
                 if let Some((n, m)) = info.frame
                     && m > 1
                 {
@@ -458,9 +460,8 @@ impl App {
                 };
                 note(ui, &format!("{format} · {w}×{h}"));
                 ui.horizontal(|ui| {
-                    cancel = ui.button("Cancel").clicked();
-                    pref_changed = ui
-                        .checkbox(&mut self.ui.prefs.open_folder_done, "Open folder when done")
+                    cancel = crate::ui::skin::button(ui, "Cancel").clicked();
+                    pref_changed = crate::ui::skin::checkbox_label(ui, &mut self.ui.prefs.open_folder_done, "Open folder when done")
                         .changed();
                 });
             });
@@ -521,7 +522,7 @@ fn frame_strip(ui: &mut egui::Ui, current: u32, frames: u32) {
     let (done, now, left) = (
         ACCENT.gamma_multiply(0.5),
         ACCENT,
-        egui::Color32::from_gray(58),
+        egui::Color32::from_rgb(0x34, 0x34, 0x3a),
     );
     let span = |from: u32, to: u32| {
         egui::Rect::from_min_max(

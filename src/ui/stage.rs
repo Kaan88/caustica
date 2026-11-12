@@ -39,7 +39,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Fog colour",
         "The share of light each scattering keeps, per channel.",
         |ui| {
-            ui.color_edit_button_rgb(&mut f.color);
+            crate::ui::skin::color_rgb(ui, &mut f.color);
         },
     );
     key_mark("fog/extinction");
@@ -48,7 +48,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Fog extinction",
         "How strongly each colour is scattered, relative to the density. White treats all alike; more blue than red gives a bluish haze, and distant lights turn orange (as in Rayleigh scattering).",
         |ui| {
-            ui.color_edit_button_rgb(&mut f.extinction);
+            crate::ui::skin::color_rgb(ui, &mut f.extinction);
             // Black would fail validation on load; it means grey.
             if f.extinction.iter().all(|v| *v <= 0.) {
                 f.extinction = [1.; 3];
@@ -277,23 +277,23 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Off: the camera sees the background colour while the sky still lights.",
         &mut p.visible,
     );
-    ui.label(
-        egui::RichText::new("Night sky")
-            .strong()
-            .color(crate::ui::ACCENT),
-    );
+    // A heading in the grid's first column: `section` adds space, which a grid cannot take.
+    crate::ui::skin::heading(ui, "Night sky");
     ui.end_row();
     row(
         ui,
         "Camera",
         "One-click night looks. Naked eye: limiting magnitude 6.5, neutral airglow, the Eyes look on, no exposure bias. Night camera: magnitude 9, warmer and greener airglow, Eyes off, auto exposure with a bias for a 20 s, f/2.8, ISO 1600 shot. Either sets only those fields.",
         |ui| {
-            if ui.button("Naked eye").clicked() {
-                naked_eye(s);
-            }
-            if ui.button("Night camera").clicked() {
-                night_camera(s);
-            }
+            // Stacked: side by side they are wider than the controls' column.
+            ui.vertical(|ui| {
+                if crate::ui::skin::button(ui, "Naked eye").clicked() {
+                    naked_eye(s);
+                }
+                if crate::ui::skin::button(ui, "Night camera").clicked() {
+                    night_camera(s);
+                }
+            });
         },
     );
     let p = &mut s.physical_sky;
@@ -376,7 +376,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         "Day cycle",
         "Keys the time of day from 06:00 at the start of the timeline to 20:00 at its end (linear).",
         |ui| {
-            if ui.small_button("Key a day").clicked() {
+            if crate::ui::skin::small_button(ui, "Key a day").clicked() {
                 let a = &mut s.animation;
                 let path = "physical_sky/time";
                 let length = a.length;
@@ -481,11 +481,11 @@ pub(super) fn room_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: bool) {
         if s.cornell_room {
             key_mark("left");
             row_if(ui, "Left wall", "Colour of the left wall (the picker edits linear RGB, not screen colour).", o.walls, |ui| {
-                ui.color_edit_button_rgb(&mut s.left);
+                crate::ui::skin::color_rgb(ui, &mut s.left);
             });
             key_mark("right");
             row_if(ui, "Right wall", "Colour of the right wall (the picker edits linear RGB, not screen colour).", o.walls, |ui| {
-                ui.color_edit_button_rgb(&mut s.right);
+                crate::ui::skin::color_rgb(ui, &mut s.right);
             });
         }
         let base = if s.cornell_room {
@@ -495,7 +495,7 @@ pub(super) fn room_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: bool) {
         };
         key_mark("base");
         row_if(ui, base, "Colour of the other walls and the floor (the picker edits linear RGB, not screen colour).", o.base, |ui| {
-            ui.color_edit_button_rgb(&mut s.base);
+            crate::ui::skin::color_rgb(ui, &mut s.base);
         });
         key_mark("floor_extent");
         row(
@@ -520,7 +520,7 @@ pub(super) fn room_materials_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: b
         section(ui, "Walls");
         key_scope(&s.animation, "walls");
         editor::material_ui(ui, "walls", &mut s.walls, advanced);
-        ui.separator();
+        crate::ui::skin::separator(ui);
     }
     section(ui, "Floor");
     key_scope(&s.animation, "floor");
@@ -582,7 +582,7 @@ pub(super) fn sky_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: Option<&st
                     .file_name()
                     .map_or("None".into(), |n| n.to_string_lossy().to_string());
                 own_tip(ui.label(name), &s.hdri);
-                if ui.small_button("Load…").clicked()
+                if crate::ui::skin::small_button(ui, "Load…").clicked()
                     && let Some(path) = rfd::FileDialog::new()
                         .add_filter("HDRI", &["hdr", "exr"])
                         .set_directory(
@@ -597,7 +597,7 @@ pub(super) fn sky_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: Option<&st
                 {
                     s.hdri = crate::mesh::store(&path);
                 }
-                if !s.hdri.is_empty() && ui.small_button("Clear").clicked() {
+                if !s.hdri.is_empty() && crate::ui::skin::small_button(ui, "Clear").clicked() {
                     s.hdri.clear();
                 }
                 if !s.hdri.is_empty()
@@ -653,7 +653,7 @@ pub(super) fn sky_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: Option<&st
                     "The colour seen where rays escape the scene.",
                     o.background,
                     |ui| {
-                        ui.color_edit_button_rgb(&mut s.background);
+                        crate::ui::skin::color_rgb(ui, &mut s.background);
                     },
                 );
             });
@@ -677,8 +677,7 @@ pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
         ui,
         "Drag: orbit · Right or Shift-drag: pan · Wheel: zoom · Ctrl+click: focus",
     );
-    let reset = ui
-        .button("Reset camera")
+    let reset = crate::ui::skin::button(ui, "Reset camera")
         .on_hover_text("Back to the scene's own view")
         .clicked();
     grid("camera").show(ui, |ui| {
@@ -725,9 +724,9 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
     grid("lens").show(ui, |ui| {
         key_mark("projection");
         row(ui, "Camera model", "Orthographic, panorama and little planet use the native denoiser: RR, the temporal upscalers and the gizmo need a perspective camera.", |ui| {
-            egui::ComboBox::from_id_salt("projection").selected_text(PROJECTIONS[s.projection as usize]).show_ui(ui, |ui| {
+            crate::ui::skin::ComboBox::from_id_salt("projection").selected_text(PROJECTIONS[s.projection as usize]).show_ui(ui, |ui| {
                 for (i, n) in PROJECTIONS.iter().enumerate() {
-                    ui.selectable_value(&mut s.projection, i as u32, *n);
+                    crate::ui::skin::selectable_value(ui, &mut s.projection, i as u32, *n);
                 }
             });
         });
@@ -741,9 +740,9 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
             let name = |i: u32| if i == 0 { "Thin lens".to_string() } else { let l = &crate::lens::LENSES[i as usize - 1]; let n = crate::lens::INFO[i as usize - 1]; format!("{} f/{:.1}", l.name, n.f_number) };
             key_mark("lens_system");
             row(ui, "Lens", "Thin lens: an ideal lens with the aperture below. The others trace each ray through a real lens prescription (track 16): distortion, vignetting, chromatic aberration and bokeh come from the glass. Real lenses use the native denoiser.", |ui| {
-                egui::ComboBox::from_id_salt("lens_system").selected_text(name(s.lens_system)).show_ui(ui, |ui| {
+                crate::ui::skin::ComboBox::from_id_salt("lens_system").selected_text(name(s.lens_system)).show_ui(ui, |ui| {
                     for i in 0..=crate::lens::LENSES.len() as u32 {
-                        ui.selectable_value(&mut s.lens_system, i, name(i));
+                        crate::ui::skin::selectable_value(ui, &mut s.lens_system, i, name(i));
                     }
                 });
             });
@@ -771,12 +770,12 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
             });
             key_mark("aperture_blades");
             row(ui, "Aperture blades", "Shape of the aperture stop: round, or a polygon with this many blades.", |ui| {
-                egui::ComboBox::from_id_salt("lens_blades")
+                crate::ui::skin::ComboBox::from_id_salt("lens_blades")
                     .selected_text(if s.aperture_blades == 0 { "Round".to_string() } else { format!("{} blades", s.aperture_blades) })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut s.aperture_blades, 0, "Round");
+                        crate::ui::skin::selectable_value(ui, &mut s.aperture_blades, 0, "Round");
                         for n in [3, 5, 6, 7, 8, 9] {
-                            ui.selectable_value(&mut s.aperture_blades, n, format!("{n} blades"));
+                            crate::ui::skin::selectable_value(ui, &mut s.aperture_blades, n, format!("{n} blades"));
                         }
                     });
             });
@@ -798,12 +797,12 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
             });
             key_mark("aperture_blades");
             row(ui, "Aperture blades", "Shape of the bokeh: round, or a polygon with this many blades.", |ui| {
-                egui::ComboBox::from_id_salt("blades")
+                crate::ui::skin::ComboBox::from_id_salt("blades")
                     .selected_text(if s.aperture_blades == 0 { "Round".to_string() } else { format!("{} blades", s.aperture_blades) })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut s.aperture_blades, 0, "Round");
+                        crate::ui::skin::selectable_value(ui, &mut s.aperture_blades, 0, "Round");
                         for n in [3, 5, 6, 7, 8, 9] {
-                            ui.selectable_value(&mut s.aperture_blades, n, format!("{n} blades"));
+                            crate::ui::skin::selectable_value(ui, &mut s.aperture_blades, n, format!("{n} blades"));
                         }
                     });
             });
@@ -856,7 +855,7 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
         );
         key_mark("light_tint");
         row(ui, "Colour filter", "Tints the light, like a gel.", |ui| {
-            ui.color_edit_button_rgb(&mut s.light_tint);
+            crate::ui::skin::color_rgb(ui, &mut s.light_tint);
         });
         key_mark("light_size");
         row(ui, "Size", "Bigger lights give softer shadows.", |ui| {
@@ -868,15 +867,7 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
         });
         key_mark("light_position");
         row(ui, "Position", "In scene units.", |ui| {
-            for (p, axis) in s.light_position.iter_mut().zip(["x ", "y ", "z "]) {
-                ui.add(
-                    egui::DragValue::new(p)
-                        .speed(0.025)
-                        .range(-50. ..=50.)
-                        .prefix(axis),
-                );
-            }
-            crate::revert_dot(ui, &mut s.light_position);
+            crate::ui::drag_group(ui, &mut s.light_position, &["x ", "y ", "z "], "", 0.025, -50. ..=50.);
         });
     });
     more(ui, "main light more", advanced, |ui| {

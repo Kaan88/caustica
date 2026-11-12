@@ -43,6 +43,10 @@ Poly Haven (https://polyhaven.com) and ambientCG (https://ambientcg.com): CC0 1.
 - **Milky Way map** (`scenes/sky/milkyway.exr`): derived from the Deep Star Maps 2020 by NASA/Goddard Space Flight Center Scientific Visualization Studio (https://svs.gsfc.nasa.gov/4851), based on data from ESA/Gaia/DPAC, Hipparcos-2 and Tycho-2. Downsampled to 2048 x 1024. NASA media are not copyrighted and are free to use with credit; NASA does not endorse Caustica.
 - **Star table** (`scenes/sky/stars.bin`): derived from the HYG database v4.2 by David Nash (https://astronexus.com/hyg), under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). The stars with V magnitude 9 or brighter, in a binary layout. `scenes/sky/stars.bin` is under CC BY-SA 4.0 as well; `tools/prep_sky_data.py` regenerates it.
 
+## Fonts
+
+- **IBM Plex Sans and IBM Plex Mono** (`assets/fonts/IBMPlexSans-Regular.ttf`, `IBMPlexSans-SemiBold.ttf`, `IBMPlexMono-Regular.ttf`, built into the program): Copyright © 2017 IBM Corp. with Reserved Font Name "Plex", under the SIL Open Font License 1.1 (`licenses/IBM-Plex-OFL.txt`; `assets/fonts/IBM-Plex-LICENSE.txt` in the source). Source: https://github.com/IBM/plex. The files are unmodified.
+
 ## Rust crates
 
 Built with crates under MIT, Apache-2.0, BSD, Zlib, Unicode-3.0 and MPL-2.0 licences. `cargo metadata` lists each crate and its licence; `Cargo.lock` pins the versions.

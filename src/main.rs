@@ -713,6 +713,7 @@ impl App {
                 "--ui-advanced" => interface.advanced = true,
                 "--ui-scenes" => interface.show_scenes = true,
                 "--ui-shortcuts" => interface.show_shortcuts = true,
+                "--ui-skin-sheet" => interface.skin_sheet = true,
                 "--ui-palette" => {
                     interface.palette.open = true;
                     interface.palette.query = args
@@ -721,6 +722,7 @@ impl App {
                 }
                 "--ui-assets" => interface.assets.open = true,
                 "--ui-video" => interface.show_video = true,
+                "--ui-describe" => interface.show_describe = true,
                 // A PNG-sequence export started on the first frame, for a capture of its
                 // progress card (the frames go to the temp folder).
                 "--ui-export" => {
@@ -804,7 +806,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab render|look|lights|object|material|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-export --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --truth rows|all --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab render|look|lights|object|material|export --ui-advanced --ui-scenes --ui-shortcuts --ui-skin-sheet --ui-palette query --ui-assets --ui-video --ui-describe --ui-export --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --truth rows|all --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -1264,14 +1266,21 @@ impl App {
             if self.show_ui || self.exporting() {
                 self.ui(ui);
             }
+            ui::skin::flush(ui.ctx());
         });
         self.text_focus = ui::settle_focus(
             &ctx,
             output.platform_output.ime.is_some(),
             &mut self.focus_seen,
         );
+        // egui asked for the next frame now (a popup's sizing pass, a hover or press fade): an
+        // idle viewport draws it too, or a combo opens only when the pointer next moves.
+        let again = output
+            .viewport_output
+            .get(&egui::ViewportId::ROOT)
+            .is_some_and(|v| v.repaint_delay.is_zero());
         // That focus settles next frame, also in an idle viewport.
-        if self.focus_seen.is_some() {
+        if again || self.focus_seen.is_some() {
             window.request_redraw();
         }
         self.input
@@ -2561,66 +2570,120 @@ fn slider<'a, N: egui::emath::Numeric>(
         unsafe { reset_value::<N>(target as *const N) }
             .is_some_and(|r| differs(unsafe { *target }, r))
     });
-    let range = range.start().to_f64()..=range.end().to_f64();
-    let inner = egui::Slider::from_get_set(range, move |v: Option<f64>| {
-        // SAFETY: as above; egui calls this only while the slider is being shown.
+    let access: std::rc::Rc<dyn Fn(Option<f64>) -> f64 + 'a> = std::rc::Rc::new(move |v| {
+        // SAFETY: as above; the slider calls this only while it is being shown.
         unsafe {
             if let Some(v) = v {
                 *target = N::from_f64(v);
             }
             (*target).to_f64()
         }
-    })
-    .clamping(egui::SliderClamping::Edits);
+    });
     Slider {
-        inner: if N::INTEGRAL { inner.integer() } else { inner },
+        args: ui::skin::SliderArgs {
+            access,
+            range: range.start().to_f64()..=range.end().to_f64(),
+            integral: N::INTEGRAL,
+            logarithmic: false,
+            smallest_positive: None,
+            suffix: String::new(),
+            fixed_decimals: None,
+            formatter: None,
+            parser: None,
+        },
         reset,
         modified,
     }
 }
-/// `egui::Slider` plus a double-click reset and a "modified" dot (see `slider`).
+/// A slider with its number field, a double-click reset and a "modified" dot (see `slider`).
+/// It is egui's own slider, or inside `ui::skin::scope` the skin's.
 pub struct Slider<'a> {
-    inner: egui::Slider<'a>,
+    args: ui::skin::SliderArgs<'a>,
     reset: Box<dyn FnOnce() -> bool + 'a>,
     modified: Box<dyn Fn() -> bool + 'a>,
 }
 impl<'a> Slider<'a> {
     pub fn suffix(mut self, s: impl ToString) -> Self {
-        self.inner = self.inner.suffix(s.to_string());
+        self.args.suffix = s.to_string();
         self
     }
     pub fn logarithmic(mut self, on: bool) -> Self {
-        self.inner = self.inner.logarithmic(on);
+        self.args.logarithmic = on;
         self
     }
     pub fn smallest_positive(mut self, v: f64) -> Self {
-        self.inner = self.inner.smallest_positive(v);
+        self.args.smallest_positive = Some(v);
         self
     }
     pub fn fixed_decimals(mut self, n: usize) -> Self {
-        self.inner = self.inner.fixed_decimals(n);
+        self.args.fixed_decimals = Some(n);
         self
     }
     pub fn custom_formatter(
         mut self,
         f: impl 'a + Fn(f64, std::ops::RangeInclusive<usize>) -> String,
     ) -> Self {
-        self.inner = self.inner.custom_formatter(f);
+        self.args.formatter = Some(Box::new(f));
         self
     }
     pub fn custom_parser(mut self, f: impl 'a + Fn(&str) -> Option<f64>) -> Self {
-        self.inner = self.inner.custom_parser(f);
+        self.args.parser = Some(Box::new(f));
         self
     }
 }
 impl egui::Widget for Slider<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let mut response = ui.add(self.inner);
-        // A dot after a value that differs from the scene as loaded; clicking it reverts.
-        // The space is always taken, so the row does not shift when the dot appears.
-        let mut reset = slider_double_clicked(ui, &response);
-        reset |= modified_dot(ui, response.rect.height(), (self.modified)());
-        if reset && (self.reset)() {
+        let Slider {
+            args,
+            reset,
+            modified,
+        } = self;
+        // From the right: the number, and the rail in what is left. The dot takes no room of
+        // its own, so the number ends where a combo does: it sits in the gutter before the
+        // rail.
+        let mut args = args;
+        // The unit ("spp", "px") goes to the end of the label column when the row has the
+        // room, so the number field keeps its width and the rails are all one length.
+        // Otherwise (a long note, a slider after another control) it stays in the field.
+        let unit = ui::row_unit_room(ui).and_then(|(label, controls)| {
+            let text = args.suffix.trim();
+            let galley =
+                ui.painter()
+                    .layout_no_wrap(text.to_owned(), ui::skin::mono(11.), ui::skin::FAINT);
+            // Clear of the "modified" dot in the gutter.
+            let left = controls - 13. - galley.size().x - crate::timeline_ui::key_gutter();
+            (!text.is_empty() && label + 6. <= left).then_some((left, galley))
+        });
+        if unit.is_some() {
+            args.suffix.clear();
+        }
+        // In the properties panel the rail takes the row; elsewhere (a window that sizes
+        // itself to its content) it has the stock slider's length.
+        let width = if ui::skin::fills() {
+            ui.available_width()
+        } else {
+            ui.available_width().min(ui.spacing().slider_width + 66.)
+        };
+        let size = egui::vec2(width, ui::skin::CONTROL);
+        let layout = egui::Layout::right_to_left(egui::Align::Center);
+        let (mut response, rail) = ui
+            .allocate_ui_with_layout(size, layout, |ui| ui::skin::slider(ui, args))
+            .inner;
+        if let Some((left, galley)) = unit {
+            let at = egui::pos2(left, rail.center().y - galley.size().y / 2.);
+            ui.painter().galley(at, galley, ui::skin::FAINT);
+        }
+        let spot = egui::Rect::from_center_size(
+            // Clear of the thumb, which overhangs the rail's start by 5 points.
+            egui::pos2(rail.left() - 7.5, rail.center().y),
+            egui::vec2(5., ui::skin::CONTROL),
+        );
+        // A dot before a value that differs from the scene as loaded; clicking it reverts.
+        let dot = modified() && {
+            let dot = ui.interact(spot, response.id.with("modified"), egui::Sense::click());
+            paint_modified_dot(ui, spot, dot)
+        };
+        if (slider_double_clicked(ui, &response) || dot) && reset() {
             response.mark_changed();
         }
         if ui::slider_in_row(ui.ctx()) {
@@ -2633,9 +2696,9 @@ impl egui::Widget for Slider<'_> {
 /// The dot after a modified value (its space is always taken); true when it was clicked.
 fn modified_dot(ui: &mut egui::Ui, height: f32, modified: bool) -> bool {
     let (rect, dot) = ui.allocate_exact_size(egui::vec2(8., height), egui::Sense::click());
-    if !modified {
-        return false;
-    }
+    modified && paint_modified_dot(ui, rect, dot)
+}
+fn paint_modified_dot(ui: &egui::Ui, rect: egui::Rect, dot: egui::Response) -> bool {
     let color = if dot.hovered() {
         ui.visuals().strong_text_color()
     } else {
@@ -3998,13 +4061,24 @@ mod tests {
             ("ui/overlay.rs", include_str!("ui/overlay.rs")),
             ("ui/render_tab.rs", include_str!("ui/render_tab.rs")),
             ("ui/scene_tab.rs", include_str!("ui/scene_tab.rs")),
+            ("ui/skin.rs", include_str!("ui/skin.rs")),
             ("ui/stage.rs", include_str!("ui/stage.rs")),
             ("ui/windows.rs", include_str!("ui/windows.rs")),
         ] {
             for line in source.lines().filter(|l| !l.trim_start().starts_with("//")) {
                 for literal in line.split('"').skip(1).step_by(2) {
                     for c in literal.chars().filter(|c| !c.is_ascii()) {
-                        if !ctx.fonts_mut(|f| f.has_glyph(&font, c)) {
+                        // The skin's families fall back to the same fonts.
+                        let fonts = [
+                            font.clone(),
+                            crate::ui::skin::sans(12.5),
+                            crate::ui::skin::semibold(11.),
+                            crate::ui::skin::mono(11.5),
+                        ];
+                        if !fonts
+                            .iter()
+                            .all(|font| ctx.fonts_mut(|f| f.has_glyph(font, c)))
+                        {
                             missing
                                 .push(format!("{file}: {c:?} (U+{:04X}) in {literal:?}", c as u32));
                         }

@@ -225,7 +225,7 @@ pub fn ball(ui: &mut egui::Ui, slot: Option<&str>, m: &Material, size: f32) -> e
                 .color
                 .map(|c| (c.clamp(0., 1.).powf(1. / 2.2) * 255.) as u8);
             ui.painter()
-                .rect_filled(rect, 4., egui::Color32::from_gray(40));
+                .rect_filled(rect, 4., egui::Color32::from_rgb(0x14, 0x14, 0x16));
             ui.painter().circle_filled(
                 rect.center(),
                 size * 0.36,
