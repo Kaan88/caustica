@@ -908,6 +908,17 @@ pub fn key_selection(s: &mut Settings, tl: &Timeline, selection: crate::ui::Sele
     }
     n
 }
+/// Keys the value at `path` at `t` as it stands (an array's path keys its components): a
+/// property row's key mark. Returns the number of keys set: none for a value that can't be
+/// keyed, or that the scene's JSON leaves out at its default.
+pub fn key_path(s: &mut Settings, t: f32, path: &str) -> usize {
+    let v = serde_json::to_value(&*s).unwrap_or(Value::Null);
+    let leaves = keyable(&v, path);
+    for (p, leaf) in &leaves {
+        s.animation.key_leaf(p, t, leaf);
+    }
+    leaves.len()
+}
 /// Keys every float edited since the animation last applied, anywhere in the scene.
 pub fn key_changed(s: &mut Settings, tl: &Timeline) -> usize {
     let v = serde_json::to_value(&*s).unwrap_or(Value::Null);

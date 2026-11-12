@@ -11,13 +11,30 @@ use std::time::Duration;
 
 const PAGE: usize = 48;
 type CatalogResult = Result<Vec<Asset>, String>;
+/// Assets found in the scenes folders, each with the resolutions it is there at.
+type Local = Vec<(Asset, Vec<String>)>;
+/// Poly Haven's HDRI categories offered as a filter (tag, label). The catalog keeps categories
+/// in front of the tags; every HDRI carries at least one of these three.
+const HDRI_CATEGORIES: [(&str, &str); 3] = [
+    ("outdoor", "Outdoor"),
+    ("indoor", "Indoor"),
+    ("studio", "Studio"),
+];
+/// Running downloads the strip lists before it says "+ N more".
+const STRIP_ROWS: usize = 3;
 
 pub struct Browser {
     pub open: bool,
     /// Catalog tabs, or the list of other sources.
     others: bool,
+    /// The Downloaded list (what is in the scenes folders, across sources) instead of a catalog.
+    local: bool,
+    /// The Downloaded list's kind filter (None: all kinds).
+    local_kind: Option<Kind>,
     source: Source,
     kind: Kind,
+    /// HDRIs only: a tag of `HDRI_CATEGORIES`, or empty for all.
+    category: &'static str,
     search: String,
     page: usize,
     selected: Option<Asset>,
@@ -34,6 +51,12 @@ pub struct Browser {
     /// Thumbnails that failed (no preview, offline): counted so the window stops waiting.
     thumb_failed: usize,
     jobs: Vec<Job>,
+    /// Failed downloads (name, error): shown in the strip until dismissed or the next download.
+    failed: Vec<(String, String)>,
+    installed: Local,
+    /// A running scan of the scenes folders; `scanned` is false when one is due.
+    scan: Option<Receiver<Local>>,
+    scanned: bool,
     /// Self-test: a catalog to show without the network.
     pub offline: bool,
 }
@@ -42,8 +65,11 @@ impl Default for Browser {
         Self {
             open: false,
             others: false,
+            local: false,
+            local_kind: None,
             source: Source::PolyHaven,
             kind: Kind::Hdri,
+            category: "",
             search: String::new(),
             page: 0,
             selected: None,
@@ -58,6 +84,10 @@ impl Default for Browser {
             thumb_ready: vec![],
             thumb_failed: 0,
             jobs: vec![],
+            failed: vec![],
+            installed: vec![],
+            scan: None,
+            scanned: false,
             offline: false,
         }
     }
@@ -83,6 +113,7 @@ impl Browser {
         self.source = source;
         self.kind = assets.first().map_or(Kind::Hdri, |a| a.kind);
         self.catalogs.insert(source, assets);
+        self.scanned = false;
     }
     fn catalog(&mut self, source: Source) -> Option<&Vec<Asset>> {
         if !self.catalogs.contains_key(&source) && !self.loading.contains_key(&source) {
@@ -100,6 +131,39 @@ impl Browser {
             let _ = tx.send(assets::fetch_catalog(source).map_err(|e| format!("{e:#}")));
         });
         self.loading.insert(source, rx);
+    }
+    /// Looks for every catalog entry in the scenes folders, on a thread: some 15 000 paths.
+    /// Catalogs come from memory or the disk cache, never the network, so this works offline;
+    /// a source whose catalog was never fetched contributes nothing.
+    fn start_scan(&mut self) {
+        let mut catalogs = self.catalogs.clone();
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            let roots = crate::dirs::scene_roots();
+            let mut out: Local = vec![];
+            for source in Source::ALL {
+                let catalog = catalogs
+                    .remove(&source)
+                    .or_else(|| assets::cached_catalog(source));
+                for a in catalog.unwrap_or_default() {
+                    let have = |res: &str| {
+                        let rel = assets::use_path(&a, res);
+                        roots.iter().any(|r| r.join(&rel).is_file())
+                    };
+                    let found: Vec<String> = if a.resolutions.is_empty() {
+                        have("").then(String::new).into_iter().collect()
+                    } else {
+                        a.resolutions.iter().filter(|r| have(r)).cloned().collect()
+                    };
+                    if !found.is_empty() {
+                        out.push((a, found));
+                    }
+                }
+            }
+            let _ = tx.send(out);
+        });
+        self.scan = Some(rx);
+        self.scanned = true;
     }
     /// Four threads fetch thumbnails as cards are drawn.
     fn request_thumbnail(&mut self, a: &Asset) {
@@ -140,6 +204,7 @@ impl Browser {
                     self.status = format!("{}: {} assets", source.label(), catalog.len());
                     self.catalogs.insert(source, catalog);
                     self.loading.remove(&source);
+                    self.scanned = false;
                 }
                 Ok(Err(e)) => {
                     self.status = format!("{}: {e}", source.label());
@@ -171,6 +236,20 @@ impl Browser {
         }
         busy |= !self.thumb_ready.is_empty()
             || self.thumb_requested.len() > self.thumbs.len() + self.thumb_failed;
+        if let Some(rx) = &self.scan {
+            match rx.try_recv() {
+                Ok(found) => {
+                    self.installed = found;
+                    self.scan = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => busy = true,
+                Err(_) => self.scan = None,
+            }
+        }
+        if !self.scanned && self.scan.is_none() {
+            self.start_scan();
+            busy = true;
+        }
         let mut finished = vec![];
         self.jobs.retain(|job| {
             let done = job.result.lock().unwrap_or_else(|e| e.into_inner()).take();
@@ -182,10 +261,84 @@ impl Browser {
                 None => true,
             }
         });
+        // A new file is in the scenes folder: the Downloaded list is stale.
+        if finished.iter().any(|(_, result)| result.is_ok()) {
+            self.scanned = false;
+        }
         if busy || !self.jobs.is_empty() {
             ctx.request_repaint_after(Duration::from_millis(150));
         }
         finished
+    }
+    /// The foot of the details pane: one row per running download (name, bar, size, Cancel)
+    /// and the failures, which stay until dismissed or the next download.
+    fn download_strip(&mut self, ui: &mut egui::Ui) {
+        use std::sync::atomic::Ordering::Relaxed;
+        if !self.jobs.is_empty() {
+            let title = match self.jobs.len() {
+                1 => "DOWNLOADING".to_string(),
+                n => format!("DOWNLOADING {n}"),
+            };
+            ui.label(
+                egui::RichText::new(title)
+                    .small()
+                    .color(egui::Color32::from_gray(143)),
+            );
+        }
+        for job in self.jobs.iter().take(STRIP_ROWS) {
+            let name = if job.res.is_empty() {
+                job.asset.name.clone()
+            } else {
+                format!("{} · {}", job.asset.name, job.res)
+            };
+            ui.add(egui::Label::new(egui::RichText::new(name).small()).truncate());
+            let done = job.progress.done.load(Relaxed);
+            let total = job.progress.total.load(Relaxed);
+            let cancelling = job.progress.cancel.load(Relaxed);
+            // The total grows as each file of a set starts, and is 0 until the first answers.
+            let (fraction, size) = if total > 0 {
+                (
+                    (done as f32 / total as f32).min(1.),
+                    format!("{:.1} / {:.1} MB", done as f64 / 1e6, total as f64 / 1e6),
+                )
+            } else {
+                (0., format!("{:.1} MB", done as f64 / 1e6))
+            };
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // The thread sees the flag at its next read, so the row can linger a moment.
+                    let label = if cancelling {
+                        "Cancelling…"
+                    } else {
+                        "Cancel"
+                    };
+                    if ui
+                        .add_enabled(!cancelling, egui::Button::new(label))
+                        .clicked()
+                    {
+                        job.progress.cancel.store(true, Relaxed);
+                    }
+                    ui.add(
+                        egui::ProgressBar::new(fraction)
+                            .desired_width(ui.available_width())
+                            .text(size),
+                    );
+                });
+            });
+        }
+        if self.jobs.len() > STRIP_ROWS {
+            note(ui, &format!("+ {} more", self.jobs.len() - STRIP_ROWS));
+        }
+        if !self.failed.is_empty() {
+            let color = ui.visuals().error_fg_color;
+            for (name, error) in &self.failed {
+                let text = egui::RichText::new(format!("{name}: {error}"));
+                ui.add(egui::Label::new(text.small().color(color)).wrap());
+            }
+            if ui.small_button("Dismiss").clicked() {
+                self.failed.clear();
+            }
+        }
     }
 }
 /// A thumbnail card: image (or initial), name, and a green dot once downloaded.
@@ -283,129 +436,120 @@ impl crate::App {
                 Ok(path) => self
                     .ui
                     .toast(format!("Downloaded {} → scenes/{path}", asset.name)),
-                Err(e) => self.ui.error(format!("{}: {e}", asset.name)),
+                // The user's own Cancel is not a failure (`assets::save_stream` reports it so).
+                Err(e) if e == "Cancelled" => self.ui.toast(format!("Cancelled {}", asset.name)),
+                // Failures stay in the strip under the details, where the download was started.
+                Err(e) => self.ui.assets.failed.push((asset.name, e)),
             }
         }
         let mut open = true;
         let mut action = None;
         let selection = self.ui.selection;
+        // The same frame as the scene browser, over the viewport: sources and kinds at the left,
+        // the cards, and the selected asset's details and actions at the right.
+        let rect = crate::ui::central_rect(ctx);
         egui::Window::new("Assets")
-            .open(&mut open)
-            .default_size([820., 640.])
-            .default_pos([140., 60.])
-            .collapsible(false)
+            .title_bar(false)
+            .resizable(false)
+            .fixed_rect(rect)
+            .frame(egui::Frame::new().fill(egui::Color32::from_gray(24)))
             .show(ctx, |ui| {
+                ui.set_min_size(rect.size());
                 let b = &mut self.ui.assets;
-                ui.horizontal(|ui| {
-                    for source in Source::ALL {
-                        if ui.selectable_label(!b.others && b.source == source, source.label()).clicked() {
-                            b.others = false;
-                            b.source = source;
-                            if !source.kinds().contains(&b.kind) {
-                                b.kind = source.kinds()[0];
-                            }
-                            b.page = 0;
-                        }
-                    }
-                    if ui.selectable_label(b.others, "Other sources").clicked() {
-                        b.others = true;
-                    }
-                });
-                ui.separator();
-                if b.others {
-                    other_sources(ui);
-                    return;
-                }
-                let source = b.source;
-                ui.horizontal(|ui| {
-                    if source.kinds().len() > 1 {
-                        for kind in source.kinds() {
-                            if ui.selectable_label(b.kind == *kind, kind.label()).clicked() {
-                                b.kind = *kind;
+                let header = |ui: &mut egui::Ui, text: &str| {
+                    ui.add_space(8.);
+                    ui.label(egui::RichText::new(text).small().color(egui::Color32::from_gray(143)));
+                };
+                egui::Panel::left("assets side")
+                    .exact_size(200.)
+                    .resizable(false)
+                    .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(6, 4)))
+                    .show(ui, |ui| {
+                        header(ui, "SOURCE");
+                        for source in Source::ALL {
+                            let on = !b.others && !b.local && b.source == source;
+                            if crate::ui::tree_row(ui, 0., on, source.label(), "").clicked() {
+                                b.others = false;
+                                b.local = false;
+                                b.source = source;
+                                if !source.kinds().contains(&b.kind) {
+                                    b.kind = source.kinds()[0];
+                                }
                                 b.page = 0;
                             }
                         }
-                        ui.separator();
-                    }
-                    if ui
-                        .add(egui::TextEdit::singleline(&mut b.search).hint_text(field_hint("Search names and tags…")).desired_width(220.))
-                        .changed()
-                    {
-                        b.page = 0;
-                    }
-                    if b.loading.contains_key(&source) {
-                        ui.add(egui::Spinner::new());
-                        note(ui, "Fetching the catalog…");
-                    } else if !b.offline && ui.button("Refresh").on_hover_text("Fetch the catalog again").clicked() {
-                        b.refresh(source);
-                    }
-                });
-                let kind = b.kind;
-                let search = b.search.to_lowercase();
-                let list: Vec<Asset> = b
-                    .catalog(source)
-                    .map(|c| {
-                        c.iter()
-                            .filter(|a| a.kind == kind)
-                            .filter(|a| {
-                                search.is_empty()
-                                    || a.name.to_lowercase().contains(&search)
-                                    || a.id.to_lowercase().contains(&search)
-                                    || a.tags.iter().any(|t| t.contains(&search))
-                            })
-                            .cloned()
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let pages = list.len().div_ceil(PAGE).max(1);
-                b.page = b.page.min(pages - 1);
-                ui.horizontal(|ui| {
-                    let mut line = format!("{} {}, most downloaded first · {}", list.len(), kind.label().to_lowercase(), source.license());
-                    if !b.status.is_empty() {
-                        line += &format!(" · {}", b.status);
-                    }
-                    note(ui, &line);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add_enabled(b.page + 1 < pages, egui::Button::new("▶")).clicked() {
-                            b.page += 1;
+                        if crate::ui::tree_row(ui, 0., b.others, "Other sources…", "").clicked() {
+                            b.others = true;
+                            b.local = false;
                         }
-                        ui.label(format!("{} / {pages}", b.page + 1));
-                        if ui.add_enabled(b.page > 0, egui::Button::new("◀")).clicked() {
-                            b.page -= 1;
+                        header(ui, "ON THIS COMPUTER");
+                        // The count is of everything found, whatever the kind filter says.
+                        let count = if b.scan.is_some() && b.installed.is_empty() { "…".to_string() } else { b.installed.len().to_string() };
+                        if crate::ui::tree_row(ui, 0., b.local, "Downloaded", &count).on_hover_text("What is already in the scenes folders, from every source. Works offline.").clicked() {
+                            b.local = true;
+                            b.others = false;
+                            b.page = 0;
                         }
-                    });
-                });
-                egui::ScrollArea::vertical().id_salt("asset grid").max_height(420.).auto_shrink([false, true]).show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        for a in list.iter().skip(b.page * PAGE).take(PAGE) {
-                            b.request_thumbnail(a);
-                            let res = b.res.get(&(a.source, a.kind)).cloned().unwrap_or_else(|| default_res(a));
-                            let selected = b.selected.as_ref().is_some_and(|s| key(s) == key(a));
-                            let r = card(ui, a, b.thumbs.get(&key(a)), selected, assets::installed(a, &res));
-                            if r.clicked() {
-                                b.selected = Some(a.clone());
+                        if b.local {
+                            header(ui, "KIND");
+                            if crate::ui::tree_row(ui, 0., b.local_kind.is_none(), "All", &count).clicked() {
+                                b.local_kind = None;
+                                b.page = 0;
+                            }
+                            for kind in Kind::ALL {
+                                let n = b.installed.iter().filter(|(a, _)| a.kind == kind).count();
+                                if crate::ui::tree_row(ui, 0., b.local_kind == Some(kind), kind.label(), &n.to_string()).clicked() {
+                                    b.local_kind = Some(kind);
+                                    b.page = 0;
+                                }
+                            }
+                        } else if !b.others {
+                            header(ui, "KIND");
+                            for kind in b.source.kinds() {
+                                if crate::ui::tree_row(ui, 0., b.kind == *kind, kind.label(), "").clicked() {
+                                    b.kind = *kind;
+                                    b.page = 0;
+                                }
                             }
                         }
                     });
-                    if list.is_empty() && !b.loading.contains_key(&source) {
-                        note(ui, "Nothing here: check the search, or Refresh (needs the internet once; catalogs are cached).");
-                    }
-                });
-                ui.separator();
-                let Some(a) = b.selected.clone().filter(|a| a.source == source && a.kind == kind) else {
-                    note(ui, "Pick an asset. A green dot means it is already in the scenes folder at the chosen resolution.");
-                    return;
-                };
-                ui.horizontal(|ui| {
-                    match b.thumbs.get(&key(&a)) {
-                        Some(t) => {
-                            ui.add(egui::Image::new((t.id(), egui::vec2(160., 160.))).maintain_aspect_ratio(true).corner_radius(4.));
+                let (source, kind) = (b.source, b.kind);
+                egui::Panel::right("assets details")
+                    .exact_size(300.)
+                    .resizable(false)
+                    .frame(egui::Frame::new().inner_margin(14))
+                    .show(ui, |ui| {
+                        // Every running download, whatever is selected or listed.
+                        if !b.jobs.is_empty() || !b.failed.is_empty() {
+                            egui::Panel::bottom("assets downloads")
+                                .resizable(false)
+                                .frame(egui::Frame::new().inner_margin(egui::Margin { top: 8, ..Default::default() }))
+                                .show(ui, |ui| b.download_strip(ui));
                         }
-                        None => {
-                            placeholder(ui, &a.name, egui::vec2(160., 160.));
+                        if b.others {
+                            return;
                         }
-                    }
-                    ui.vertical(|ui| {
+                        let listed = |a: &Asset| {
+                            if b.local {
+                                b.local_kind.is_none_or(|k| a.kind == k)
+                            } else {
+                                a.source == source && a.kind == kind
+                            }
+                        };
+                        let Some(a) = b.selected.clone().filter(listed) else {
+                            note(ui, "Pick an asset. A green dot means it is already in the scenes folder at the chosen resolution.");
+                            return;
+                        };
+                        let width = ui.available_width();
+                        match b.thumbs.get(&key(&a)) {
+                            Some(t) => {
+                                ui.add(egui::Image::new((t.id(), egui::vec2(width, width * 0.6))).maintain_aspect_ratio(true).corner_radius(6.));
+                            }
+                            None => {
+                                placeholder(ui, &a.name, egui::vec2(width, width * 0.6));
+                            }
+                        }
+                        ui.add_space(4.);
                         ui.label(egui::RichText::new(&a.name).heading());
                         note(ui, &a.credit);
                         ui.horizontal_wrapped(|ui| {
@@ -427,20 +571,19 @@ impl crate::App {
                         let path = assets::use_path(&a, &res);
                         let running = b.jobs.iter().find(|j| key(&j.asset) == key(&a) && j.res == res);
                         if let Some(job) = running {
-                            let done = job.progress.done.load(std::sync::atomic::Ordering::Relaxed);
-                            let total = job.progress.total.load(std::sync::atomic::Ordering::Relaxed);
-                            ui.horizontal(|ui| {
-                                let fraction = if total > 0 { done as f32 / total as f32 } else { 0. };
-                                ui.add(egui::ProgressBar::new(fraction).desired_width(220.).text(format!("{:.1} MB", done as f64 / 1e6)));
-                                if ui.button("Cancel").clicked() {
-                                    job.progress.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                                }
-                            });
+                            // The bar is in the strip at the foot of this pane. Cancel is here
+                            // too, because the strip shows only its first rows.
+                            note(ui, &format!("Downloading into scenes/{path}…"));
+                            let cancelling = job.progress.cancel.load(std::sync::atomic::Ordering::Relaxed);
+                            let label = if cancelling { "Cancelling…" } else { "Cancel download" };
+                            if ui.add_enabled(!cancelling, egui::Button::new(label)).clicked() {
+                                job.progress.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                            }
                         } else if assets::installed(&a, &res) {
                             note(ui, &format!("In scenes/{path}"));
-                            ui.horizontal(|ui| match a.kind {
+                            ui.vertical(|ui| match a.kind {
                                 Kind::Hdri => {
-                                    if ui.button("Use as HDRI").clicked() {
+                                    if ui.button("Use as sky map").clicked() {
                                         action = Some(Use::Hdri(path.clone()));
                                     }
                                 }
@@ -464,9 +607,155 @@ impl crate::App {
                                 }
                             });
                         } else if !b.offline && ui.button("Download").on_hover_text(format!("Into scenes/{path}; each file's SHA-256 is pinned in scenes/assets.json")).clicked() {
+                            b.failed.clear();
                             b.jobs.push(assets::start(a.clone(), res.clone()));
                         }
                     });
+                egui::Frame::new().inner_margin(12).show(ui, |ui| {
+                if b.others {
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close").clicked() {
+                                open = false;
+                            }
+                        });
+                    });
+                    other_sources(ui);
+                    return;
+                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut b.search).hint_text(field_hint("Search names and tags…")).desired_width(220.))
+                        .changed()
+                    {
+                        b.page = 0;
+                    }
+                    if b.local {
+                        if b.scan.is_some() {
+                            ui.add(egui::Spinner::new());
+                        } else if ui.button("Rescan").on_hover_text("Look through the scenes folders again").clicked() {
+                            b.scanned = false;
+                        }
+                    } else if b.loading.contains_key(&source) {
+                        ui.add(egui::Spinner::new());
+                        note(ui, "Fetching the catalog…");
+                    } else if !b.offline && ui.button("Refresh").on_hover_text("Fetch the catalog again").clicked() {
+                        b.refresh(source);
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("Close").on_hover_text("Back to the image").clicked() {
+                            open = false;
+                        }
+                    });
+                });
+                let kind = b.kind;
+                let search = b.search.to_lowercase();
+                let found = |a: &Asset| {
+                    search.is_empty()
+                        || a.name.to_lowercase().contains(&search)
+                        || a.id.to_lowercase().contains(&search)
+                        || a.tags.iter().any(|t| t.contains(&search))
+                };
+                let local = b.local;
+                let list: Vec<Asset> = if local {
+                    let only = b.local_kind;
+                    b.installed
+                        .iter()
+                        .map(|(a, _)| a)
+                        .filter(|a| only.is_none_or(|k| a.kind == k) && found(a))
+                        .cloned()
+                        .collect()
+                } else {
+                    // The categories this catalog really has; a source without them gets no row.
+                    let mut offered = [false; HDRI_CATEGORIES.len()];
+                    if kind == Kind::Hdri {
+                        for a in b.catalog(source).into_iter().flatten().filter(|a| a.kind == kind) {
+                            for (on, (tag, _)) in offered.iter_mut().zip(HDRI_CATEGORIES) {
+                                *on |= a.tags.iter().any(|t| t == tag);
+                            }
+                        }
+                    }
+                    if offered.contains(&true) {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.;
+                            let all = std::iter::once((true, ("", "All")));
+                            for (_, (tag, label)) in all.chain(offered.into_iter().zip(HDRI_CATEGORIES)).filter(|c| c.0) {
+                                if ui.selectable_label(b.category == tag, label).clicked() {
+                                    b.category = tag;
+                                    b.page = 0;
+                                }
+                            }
+                        });
+                    }
+                    // A category the list no longer offers (another kind or source) filters nothing.
+                    let category = HDRI_CATEGORIES
+                        .iter()
+                        .zip(offered)
+                        .find(|((tag, _), on)| *on && *tag == b.category)
+                        .map_or("", |((tag, _), _)| *tag);
+                    b.catalog(source)
+                        .map(|c| {
+                            c.iter()
+                                .filter(|a| a.kind == kind && found(a))
+                                .filter(|a| category.is_empty() || a.tags.iter().any(|t| t == category))
+                                .cloned()
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                };
+                let pages = list.len().div_ceil(PAGE).max(1);
+                b.page = b.page.min(pages - 1);
+                ui.horizontal(|ui| {
+                    let mut line = if local {
+                        format!("{} downloaded, in the scenes folders", list.len())
+                    } else {
+                        format!("{} {}, most downloaded first · {}", list.len(), kind.label().to_lowercase(), source.license())
+                    };
+                    if !local && !b.status.is_empty() {
+                        line += &format!(" · {}", b.status);
+                    }
+                    note(ui, &line);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add_enabled(b.page + 1 < pages, egui::Button::new("▶")).clicked() {
+                            b.page += 1;
+                        }
+                        ui.label(format!("{} / {pages}", b.page + 1));
+                        if ui.add_enabled(b.page > 0, egui::Button::new("◀")).clicked() {
+                            b.page -= 1;
+                        }
+                    });
+                });
+                egui::ScrollArea::vertical().id_salt("asset grid").auto_shrink([false; 2]).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for a in list.iter().skip(b.page * PAGE).take(PAGE) {
+                            b.request_thumbnail(a);
+                            let res = b.res.get(&(a.source, a.kind)).cloned().unwrap_or_else(|| default_res(a));
+                            let selected = b.selected.as_ref().is_some_and(|s| key(s) == key(a));
+                            // The Downloaded list holds only what the scan found, at some resolution.
+                            let r = card(ui, a, b.thumbs.get(&key(a)), selected, local || assets::installed(a, &res));
+                            if r.clicked() {
+                                b.selected = Some(a.clone());
+                                // Show the copy that is there (the largest), not a Download button
+                                // for the resolution chosen last.
+                                let have = b.installed.iter().find(|(i, _)| key(i) == key(a)).map(|(_, have)| have);
+                                if local && let Some(have) = have && !have.contains(&res) && let Some(largest) = have.last() {
+                                    b.res.insert((a.source, a.kind), largest.clone());
+                                }
+                            }
+                        }
+                    });
+                    if local {
+                        if list.is_empty() && b.scan.is_some() {
+                            note(ui, "Looking through the scenes folders…");
+                        } else if list.is_empty() && b.installed.is_empty() {
+                            note(ui, "Nothing downloaded yet. A source's assets are listed here once its catalog has been fetched (open the source once while online).");
+                        } else if list.is_empty() {
+                            note(ui, "Nothing here: check the search and the kind.");
+                        }
+                    } else if list.is_empty() && !b.loading.contains_key(&source) {
+                        note(ui, "Nothing here: check the search, or Refresh (needs the internet once; catalogs are cached).");
+                    }
+                });
                 });
             });
         self.ui.assets.open = open;
@@ -480,7 +769,7 @@ impl crate::App {
             Use::Hdri(path) => {
                 self.settings.hdri = path;
                 self.ui
-                    .toast("HDRI set (Stage → HDRI for strength and rotation)");
+                    .toast("HDRI set (Lights > HDRI for strength and rotation)");
             }
             Use::Texture(path, target) => {
                 let maps = crate::texture::load(&path);
@@ -510,7 +799,7 @@ impl crate::App {
 fn other_sources(ui: &mut egui::Ui) {
     note(
         ui,
-        "These have no public API the app can browse (or need an account). Download in a web browser, then use + Add, Mesh file… (OBJ, glTF, GLB) or Stage → HDRI → Load….",
+        "These have no public API the app can browse (or need an account). Download in a web browser, then use + Add, Mesh file… (OBJ, glTF, GLB) or Lights > HDRI > Load….",
     );
     egui::ScrollArea::vertical()
         .id_salt("other sources")

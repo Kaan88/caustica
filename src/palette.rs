@@ -6,7 +6,7 @@
 //! Running an entry is `App::run_palette` (ui/windows.rs).
 use crate::ui::Tab;
 
-/// What a setting needs selected in the Scene tab before its inspector shows.
+/// What a setting needs selected before its inspector shows (Lights, Object and Material).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Focus {
     /// Nothing: Render, Look and Export rows, or the outliner.
@@ -21,8 +21,8 @@ pub enum Focus {
     AreaLight,
 }
 
-/// Windows the palette opens.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Windows the palette opens. Serialized by name in the prefs (pinned top-bar buttons).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Win {
     Remote,
     Console,
@@ -34,10 +34,12 @@ pub enum Win {
     Scopes,
     Graph,
     Paths,
+    Describe,
+    Puzzle,
 }
 
-/// Things the palette does.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Things the palette does. Serialized by name in the prefs (pinned top-bar buttons).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Do {
     OpenScene,
     SaveScene,
@@ -57,6 +59,30 @@ pub enum Do {
     HidePanel,
     UpdateCheck,
     LockExposure,
+    /// Toggles the A/B split (freezing a reference first when there is none).
+    Compare,
+    Randomize,
+    Today,
+    HighRes,
+}
+
+/// Live controls that can be pinned to the top bar (Menu > Settings > Top bar).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub enum Widget {
+    /// The exposure in stops: the bias in auto, the exposure itself in manual.
+    Exposure,
+    Denoiser,
+    MaxSamples,
+}
+impl Widget {
+    pub const ALL: [Widget; 3] = [Widget::Exposure, Widget::Denoiser, Widget::MaxSamples];
+    pub fn label(self) -> &'static str {
+        match self {
+            Widget::Exposure => "Exposure (EV)",
+            Widget::Denoiser => "Denoiser",
+            Widget::MaxSamples => "Sample cap",
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -108,7 +134,7 @@ const fn act(label: &'static str, words: &'static str, key: &'static str, d: Do)
 }
 
 use Focus::*;
-use Tab::{Export, Look, Render, Scene};
+use Tab::{Export, Lights, Look, Material, Render};
 
 /// Every entry. Settings first (one per section or well-known row), then the windows and
 /// commands that sit in the Menu or behind a key. Always-visible buttons are left out.
@@ -251,8 +277,8 @@ pub const ENTRIES: &[Entry] = &[
         "Display",
     ),
     go(
-        "Compare (A/B split)",
-        "reference split freeze",
+        "Compare settings",
+        "a/b reference split freeze",
         Look,
         Keep,
         "Compare",
@@ -268,118 +294,131 @@ pub const ENTRIES: &[Entry] = &[
     go(
         "Save the image",
         "png exr jpeg screenshot",
-        Look,
+        Export,
         Keep,
         "Save the current image",
     ),
     go(
-        "High-resolution render",
-        "export still big",
-        Look,
+        "High-resolution still",
+        "export render big",
+        Export,
         Keep,
-        "High-resolution render",
+        "High-resolution still",
     ),
     go(
         "Video export",
         "turntable mp4 prores sequence",
-        Look,
+        Export,
         Keep,
         "Video",
     ),
-    // Scene tab
+    // Lights, Object and Material tabs
     go(
         "Outliner",
         "objects list hierarchy",
-        Scene,
+        Tab::Object,
         Keep,
         "Outliner",
     ),
-    go("Room", "cornell walls floor ceiling", Scene, Stage, "Room"),
     go(
-        "Wall material",
-        "left right back wall",
-        Scene,
+        "Room",
+        "cornell walls floor ceiling",
+        Tab::Object,
         Stage,
         "Room",
     ),
     go(
-        "Sky light",
-        "environment ambient",
-        Scene,
+        "Wall material",
+        "left right back wall floor",
+        Material,
         Stage,
-        "Sky and light",
+        "Walls and floor",
+    ),
+    go(
+        "Sky light",
+        "environment ambient sun physical sky",
+        Lights,
+        Keep,
+        "Sky and sun",
     ),
     go(
         "HDRI",
         "environment panorama rotation strength",
-        Scene,
-        Stage,
-        "Sky and light",
+        Lights,
+        Keep,
+        "HDRI",
     ),
-    go("Fog", "volume smoke haze", Scene, Stage, "Fog"),
+    go("Fog", "volume smoke haze", Lights, Keep, "Fog"),
     go(
         "Camera",
         "orbit distance target field of view fov",
-        Scene,
+        Tab::Object,
         Camera,
         "Camera",
     ),
-    go("Field of view", "fov angle", Scene, Camera, "Camera"),
+    go("Field of view", "fov angle", Tab::Object, Camera, "Camera"),
     go(
         "Lens",
         "aperture f-number depth of field focus bokeh",
-        Scene,
+        Tab::Object,
         Camera,
         "Lens",
     ),
     go(
         "Camera model",
         "orthographic panorama little planet fisheye",
-        Scene,
+        Tab::Object,
         Camera,
         "Lens",
     ),
     go(
         "Main light",
         "sun intensity size position",
-        Scene,
+        Lights,
         MainLight,
         "Main light",
     ),
     go(
         "Flashlight",
         "torch headlamp beam",
-        Scene,
+        Lights,
         Flashlight,
         "Flashlight",
     ),
     go(
         "Area light",
         "emitter panel disc sphere light",
-        Scene,
+        Lights,
         AreaLight,
         "Area light",
     ),
     go(
+        "Audio: lights follow the music",
+        "sound reactive bass beat",
+        Lights,
+        Keep,
+        "Audio",
+    ),
+    go(
         "Object material",
         "glass metal roughness coating clear coat",
-        Scene,
+        Material,
         Object,
-        "Object",
+        "Material",
     ),
     go(
         "Object transform",
         "position rotation scale",
-        Scene,
+        Tab::Object,
         Object,
         "Object",
     ),
     go(
         "Physics",
-        "simulate rigid bodies cloth",
-        Scene,
+        "simulate rigid bodies cloth gravity wind",
+        Tab::Object,
         Keep,
-        "Outliner",
+        "Physics world",
     ),
     // Export tab
     go("Export", "output files", Export, Keep, "Export"),
@@ -404,6 +443,13 @@ pub const ENTRIES: &[Entry] = &[
     win("Scopes", "histogram waveform vectorscope", "", Win::Scopes),
     win("Convergence graph", "rmse noise reference", "", Win::Graph),
     win("Path visualizer", "trace pixel paths", "P", Win::Paths),
+    win(
+        "Describe a scene (AI)",
+        "text to scene generate critique model",
+        "",
+        Win::Describe,
+    ),
+    win("Laser puzzle", "game mirrors beam levels", "", Win::Puzzle),
     // Commands
     act("Open scene", "load file", "Ctrl+O", Do::OpenScene),
     act("Save scene", "write", "Ctrl+S", Do::SaveScene),
@@ -441,6 +487,20 @@ pub const ENTRIES: &[Entry] = &[
         "ae-l ael auto exposure manual freeze meter",
         "",
         Do::LockExposure,
+    ),
+    act(
+        "Compare (A/B split)",
+        "reference split before after",
+        "",
+        Do::Compare,
+    ),
+    act("Randomize the scene", "random variation", "", Do::Randomize),
+    act("Seed of the day", "today random daily", "", Do::Today),
+    act(
+        "Render a high-resolution still",
+        "export big image",
+        "",
+        Do::HighRes,
     ),
     act(
         "Check for updates at startup",

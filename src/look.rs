@@ -118,7 +118,9 @@ pub fn color_wheel(
             5.,
             egui::Stroke::new(1_f32, egui::Color32::BLACK),
         );
-        ui.spacing_mut().slider_width = size - 30.;
+        // Three wheels fit the property column beside the tab strip (about 300 points).
+        ui.spacing_mut().slider_width = size - 46.;
+        ui.spacing_mut().item_spacing.x = 4.;
         let r = ui.add(crate::slider(&mut level, -range..=range).fixed_decimals(2));
         // The level is a local, so the double-click reset is done here.
         if crate::slider_double_clicked(ui, &r) {

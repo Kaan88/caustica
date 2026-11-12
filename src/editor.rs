@@ -1,6 +1,7 @@
 //! Inspectors for the Scene tab: objects, area lights and materials. Every range matches
 //! `Settings::validate`, and every slider goes through `crate::slider` (clamps edits only).
 use crate::scene::{AreaLight, LightKind, Material, Object, Pattern, Shape};
+use crate::timeline_ui::key_mark;
 use crate::ui::{cant_load, check_row, check_row_with, more, own_tip, row, row_if, why_disabled};
 
 pub fn pattern_label(p: Pattern) -> &'static str {
@@ -55,6 +56,7 @@ fn texture_row(ui: &mut egui::Ui, m: &mut Material) {
         },
     );
     if !m.texture.is_empty() {
+        key_mark("texture_scale");
         row(
             ui,
             "Texture scale",
@@ -98,6 +100,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
         .spacing([12., 6.])
         .min_col_width(crate::ui::LABEL_WIDTH)
         .show(ui, |ui| {
+            key_mark("color");
             row_if(
                 ui,
                 "Colour",
@@ -107,6 +110,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.color_edit_button_rgb(&mut m.color);
                 },
             );
+            key_mark("roughness");
             row(
                 ui,
                 "Roughness",
@@ -115,6 +119,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.roughness, 0. ..=1.));
                 },
             );
+            key_mark("metallic");
             row(
                 ui,
                 "Metal",
@@ -123,6 +128,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.metallic, 0. ..=1.));
                 },
             );
+            key_mark("transmission");
             row(
                 ui,
                 "Glass",
@@ -131,6 +137,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.transmission, 0. ..=1.));
                 },
             );
+            key_mark("emission");
             row(
                 ui,
                 "Glow",
@@ -140,6 +147,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
             if m.emission > 0. {
+                key_mark("temperature");
                 row(
                     ui,
                     "Temperature",
@@ -163,6 +171,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
     let glass = m.transmission > 0.;
     more(ui, (id, "material more"), advanced, |ui| {
         group(ui, id, "Surface", surface, |ui| {
+            key_mark("reflectivity");
             row(
                 ui,
                 "Reflection",
@@ -171,6 +180,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.reflectivity, 0. ..=1.));
                 },
             );
+            key_mark("ior");
             row(
                 ui,
                 "Index of refraction",
@@ -202,6 +212,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
 
+            key_mark("splitter");
             check_row(
                 ui,
                 "Beam splitter",
@@ -210,6 +221,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             );
         });
         group(ui, id, "Coatings", coatings, |ui| {
+            key_mark("clearcoat");
             row(
                 ui,
                 "Clear coat",
@@ -219,10 +231,12 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
             if m.clearcoat > 0. {
+                key_mark("clearcoat_roughness");
                 row(ui, "Coat roughness", "0 is a mirror-sharp varnish.", |ui| {
                     ui.add(crate::slider(&mut m.clearcoat_roughness, 0. ..=1.));
                 });
             }
+            key_mark("sheen");
             row(
                 ui,
                 "Sheen",
@@ -232,6 +246,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
             if m.sheen > 0. {
+                key_mark("sheen_color");
                 row(
                     ui,
                     "Sheen colour",
@@ -240,6 +255,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         ui.color_edit_button_rgb(&mut m.sheen_color);
                     },
                 );
+                key_mark("sheen_roughness");
                 row(
                     ui,
                     "Sheen roughness",
@@ -250,6 +266,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 );
             }
 
+            key_mark("iridescence");
             row(
                 ui,
                 "Thin film",
@@ -259,6 +276,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
             if m.iridescence > 0. {
+                key_mark("iridescence_thickness");
                 row(
                     ui,
                     "Film thickness",
@@ -269,6 +287,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         );
                     },
                 );
+                key_mark("iridescence_ior");
                 row(
                     ui,
                     "Film IOR",
@@ -280,6 +299,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             }
         });
         group(ui, id, "Brushed and grating", brushed, |ui| {
+            key_mark("anisotropy");
             row(
                 ui,
                 "Anisotropy",
@@ -288,6 +308,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.anisotropy, 0. ..=1.));
                 },
             );
+            key_mark("grating");
             row(
                 ui,
                 "Diffraction grating",
@@ -297,6 +318,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
             if m.grating > 0. {
+                key_mark("grating_spacing");
                 row(
                     ui,
                     "Groove spacing",
@@ -307,6 +329,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 );
             }
             if m.anisotropy > 0. || m.grating > 0. {
+                key_mark("anisotropy_rotation");
                 row(
                     ui,
                     "Brush direction",
@@ -315,6 +338,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                         ui.add(crate::slider(&mut m.anisotropy_rotation, -180. ..=180.));
                     },
                 );
+                key_mark("anisotropy_spun");
                 check_row(
                     ui,
                     "Spun",
@@ -326,6 +350,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
         if glass {
             group(ui, id, "Volume", volume, |ui| {
                 let mut on = m.dispersion > 0.;
+                key_mark("dispersion");
                 let dispersion = check_row_with(
                     ui,
                     "Dispersion",
@@ -341,6 +366,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 if dispersion.changed() {
                     m.dispersion = if on { 30. } else { 0. };
                 }
+                key_mark("density");
                 row(
                     ui,
                     "Volume density",
@@ -350,6 +376,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     },
                 );
                 if m.density > 0. {
+                    key_mark("scatter_color");
                     row(
                         ui,
                         "Scatter colour",
@@ -358,6 +385,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                             ui.color_edit_button_rgb(&mut m.scatter_color);
                         },
                     );
+                    key_mark("extinction");
                     row(
                         ui,
                         "Extinction colour",
@@ -370,6 +398,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                             }
                         },
                     );
+                    key_mark("phase");
                     row(
                         ui,
                         "Scatter direction",
@@ -382,6 +411,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
             });
         }
         group(ui, id, "Pattern", pattern, |ui| {
+            key_mark("pattern");
             row(
                 ui,
                 "Pattern",
@@ -402,15 +432,18 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                 },
             );
             if m.pattern != Pattern::Solid {
+                key_mark("secondary_color");
                 row(ui, "Second colour", "The pattern's other colour.", |ui| {
                     ui.color_edit_button_rgb(&mut m.secondary_color);
                 });
+                key_mark("pattern_scale");
                 row(ui, "Pattern scale", "Repetitions per scene unit.", |ui| {
                     ui.add(crate::slider(&mut m.pattern_scale, 0.1..=100.).logarithmic(true));
                 });
             }
         });
         group(ui, id, "Other", other, |ui| {
+            key_mark("priority");
             row(
                 ui,
                 "Priority",
@@ -420,6 +453,7 @@ pub fn material_ui(ui: &mut egui::Ui, id: &str, m: &mut Material, advanced: bool
                     ui.add(crate::slider(&mut m.priority, 0..=7));
                 },
             );
+            key_mark("unlit");
             check_row(
                 ui,
                 "Glow only",
@@ -451,21 +485,23 @@ pub fn shape_combo(ui: &mut egui::Ui, id: &str, shape: &mut Shape) {
             }
         });
 }
-pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: bool) {
-    ui.add(
-        egui::TextEdit::singleline(&mut o.name)
-            .char_limit(128)
-            .desired_width(f32::INFINITY),
-    );
-    ui.label(egui::RichText::new("Material").strong());
+/// The Material tab for an object: its texture-map switch (meshes with maps) and material.
+pub fn object_material_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool) {
     if crate::mesh::has_maps(o) {
         ui.checkbox(&mut o.material.textures, "Texture maps").on_hover_text(
             "Base colour, normal and metallic-roughness maps from the mesh file. Colour, roughness and metallic below start at the maps' averages and scale them; off shows those averages as flat values.",
         );
     }
     material_ui(ui, "object", &mut o.material, advanced);
-    ui.separator();
-    ui.label(egui::RichText::new("Shape and placement").strong());
+}
+/// The Object tab for an object: its name, shape, placement and physics rows.
+pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: bool) {
+    ui.add(
+        egui::TextEdit::singleline(&mut o.name)
+            .char_limit(128)
+            .desired_width(f32::INFINITY),
+    );
+    crate::ui::section(ui, "Shape and placement");
     egui::Grid::new("object")
         .num_columns(2)
         .spacing([12., 6.])
@@ -486,6 +522,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                 },
             );
             if let Some((label, range, default)) = o.sdf.detail() {
+                key_mark("detail");
                 row(ui, label, "The procedural surface's shape parameter (reset: its default).", |ui| {
                     let mut v = if o.detail > 0. { o.detail } else { default };
                     if ui.add(crate::slider(&mut v, range)).changed() {
@@ -494,6 +531,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                 });
             }
             if o.sdf == crate::scene::Sdf::Metaballs {
+                key_mark("phase");
                 row(ui, "Phase", "Where the blobs are; key it (I) and play the timeline to animate them.", |ui| {
                     ui.add(crate::slider(&mut o.phase, 0. ..=100.));
                 });
@@ -530,6 +568,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                     },
                 );
             }
+            key_mark("position");
             row(
                 ui,
                 "Position",
@@ -550,12 +589,16 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                     crate::revert_dot(ui, &mut o.position);
                 },
             );
+            key_mark("grounded");
             check_row(ui, "Rest on floor", "Keep the object standing on the floor.", &mut o.grounded);
             let mut seen = !o.camera_hidden;
+            key_mark("camera_hidden");
             if check_row(ui, "Visible to camera", "Off: camera rays pass through the object, while reflections, refractions and shadows still see it (the walk avatar's head).", &mut seen).changed() {
                 o.camera_hidden = !seen;
             }
+            key_mark("casts_shadows");
             check_row(ui, "Casts shadows", "Off: lights shine through the object, while the camera and reflections still see it.", &mut o.casts_shadows);
+            key_mark("elevation");
             row(
                 ui,
                 if o.grounded {
@@ -568,6 +611,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                     ui.add(crate::slider(&mut o.elevation, -40. ..=40.).suffix(" units"));
                 },
             );
+            key_mark("size");
             row(ui, "Scale", "Overall scale.", |ui| {
                 ui.add(
                     crate::slider(&mut o.size, 0.05..=30.)
@@ -575,11 +619,13 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                         .suffix("×"),
                 );
             });
+            key_mark("rotation");
             row(ui, "Yaw", "Rotation around the vertical axis.", |ui| {
                 ui.add(crate::slider(&mut o.rotation, -180. ..=180.).suffix("°"));
             });
             // Only the simulation reads these; a cloth keeps its row, or it could not be turned off.
             if physics {
+                key_mark("mass");
                 row(ui, "Mass", "Density multiplier of its physics body (1 = default)", |ui| {
                     ui.add(crate::slider(&mut o.mass, 0.01..=100.).logarithmic(true).suffix("×"));
                 });
@@ -675,6 +721,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                     "The gizmo can't move it (laser puzzle walls and targets)",
                     &mut o.locked,
                 );
+                key_mark("stretch");
                 row(
                     ui,
                     "Height scale",
@@ -687,6 +734,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                         );
                     },
                 );
+                key_mark("scale_xz/0");
                 row(
                     ui,
                     "Width scale",
@@ -699,6 +747,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                         );
                     },
                 );
+                key_mark("scale_xz/1");
                 row(
                     ui,
                     "Depth scale",
@@ -711,9 +760,11 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                         );
                     },
                 );
+                key_mark("tilt/0");
                 row(ui, "Pitch", "Tilt forward or back.", |ui| {
                     ui.add(crate::slider(&mut o.tilt[0], -180. ..=180.).suffix("°"));
                 });
+                key_mark("tilt/1");
                 row(ui, "Roll", "Tilt sideways.", |ui| {
                     ui.add(crate::slider(&mut o.tilt[1], -180. ..=180.).suffix("°"));
                 });
@@ -744,8 +795,10 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
         .num_columns(2)
         .spacing([12., 6.])
         .show(ui, |ui| {
+            key_mark("enabled");
             check_row(ui, "On", "Switch this light on or off.", &mut l.enabled);
             check_row(ui, "Show outline", "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.", &mut l.outline);
+            key_mark("kind");
             row(ui, "Kind", "Rectangle, disk and spot lights shine from their front; a sphere all round; a sun from far away in one direction, with sharp shadows when its angle is small.", |ui| {
                 egui::ComboBox::from_id_salt("light kind")
                     .selected_text(l.kind.label())
@@ -760,6 +813,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                 LightKind::Sun => "Brightness of a white surface facing the sun; independent of its angle.",
                 _ => "Brightness as a 1 × 1 panel; it does not change with the size.",
             };
+            key_mark("intensity");
             row(ui, "Intensity", intensity, |ui| {
                 ui.add(
                     crate::slider(&mut l.intensity, 0. ..=2000.)
@@ -767,6 +821,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         .suffix("×"),
                 );
             });
+            key_mark("color");
             row(ui, "Colour", "Colour of the light (the picker edits linear RGB, not screen colour).", |ui| {
                 ui.add_enabled_ui(l.temperature == 0., |ui| {
                     why_disabled(
@@ -775,6 +830,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                     );
                 });
             });
+            key_mark("temperature");
             row(
                 ui,
                 "Temperature",
@@ -817,6 +873,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                     },
                 );
             }
+            key_mark("position");
             row(ui, "Position", "In scene units.", |ui| {
                 for (p, axis) in l.position.iter_mut().zip(["x ", "y ", "z "]) {
                     ui.add(
@@ -827,6 +884,12 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                     );
                 }
                 crate::revert_dot(ui, &mut l.position);
+            });
+            // A sphere's diameter is the first size; a sun has its angle instead.
+            key_mark(match l.kind {
+                LightKind::Sphere => "size/0",
+                LightKind::Sun => "angle",
+                _ => "size",
             });
             match l.kind {
                 LightKind::Sphere => row(
@@ -867,9 +930,11 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                 ),
             }
             if l.kind == LightKind::Spot {
+                key_mark("spread");
                 row(ui, "Spread", "Full angle of the cone of light.", |ui| {
                     ui.add(crate::slider(&mut l.spread, 1. ..=179.).suffix("°"));
                 });
+                key_mark("blend");
                 row(
                     ui,
                     "Blend",
@@ -889,12 +954,13 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
             .num_columns(2)
             .spacing([12., 6.])
             .show(ui, |ui| {
+                key_mark("visible");
                 check_row(ui, "Visible to camera", "Show the light's panel in the image.", &mut l.visible);
                 if audio {
                     row(
                         ui,
                         "Follows",
-                        "What this light follows while lights follow the music (the Audio section of the Scene tab)",
+                        "What this light follows while lights follow the music (Lights > Audio)",
                         |ui| {
                             const BANDS: [&str; 6] =
                                 ["Automatic", "Bass", "Mid", "Treble", "Beats", "Nothing"];
@@ -908,6 +974,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
                         },
                     );
                 }
+                key_mark("shadows");
                 check_row(ui, "Casts shadows", "The light's own panel blocks other lights. Off: they shine through it, while reflections still see it.", &mut l.shadows);
                 // A sphere looks the same turned any way, so it has no rotation to set.
                 if !matches!(l.kind, LightKind::Spot | LightKind::Sun | LightKind::Sphere) {
@@ -917,6 +984,7 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
     });
 }
 fn rotation_row(ui: &mut egui::Ui, l: &mut AreaLight) {
+    key_mark("rotation");
     row(
         ui,
         "Rotation",

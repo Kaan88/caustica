@@ -1,10 +1,138 @@
-//! The Scene tab.
+//! The outliner and the Lights, Object and Material tabs (together, the old Scene tab), and the
+//! windows that were its sections (the laser puzzle).
 use super::*;
+use crate::timeline_ui::{key_mark, key_scope};
 use egui::collapsing_header::{CollapsingState, HeaderResponse};
 
+/// How far the outliner's children sit in from their group.
+const INDENT: f32 = 16.;
+
+/// An arrow that points right (closed) or down (open) and a label, as one clickable line.
+fn disclosure(ui: &mut egui::Ui, open: bool, text: &str, color: egui::Color32) -> egui::Response {
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), font, color);
+    let size = egui::vec2(18. + galley.size().x, ui.spacing().interact_size.y);
+    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+    if ui.is_rect_visible(rect) {
+        let c = egui::pos2(rect.left() + 7., rect.center().y);
+        let points = if open {
+            [
+                egui::vec2(-4., -2.5),
+                egui::vec2(4., -2.5),
+                egui::vec2(0., 3.5),
+            ]
+        } else {
+            [
+                egui::vec2(-2.5, -4.),
+                egui::vec2(3.5, 0.),
+                egui::vec2(-2.5, 4.),
+            ]
+        };
+        ui.painter().add(egui::Shape::convex_polygon(
+            points.map(|p| c + p).to_vec(),
+            color,
+            egui::Stroke::NONE,
+        ));
+        ui.painter().galley(
+            egui::pos2(rect.left() + 18., rect.center().y - galley.size().y / 2.),
+            galley,
+            color,
+        );
+    }
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+/// What the selection is called: in the folded outliner's line and the tab titles.
+/// Whether `sel` holds keyframes (the outliner's diamond).
+fn has_keys(s: &Settings, sel: Selection) -> bool {
+    if s.animation.tracks.is_empty() {
+        return false;
+    }
+    let prefixes = crate::anim::prefixes(sel);
+    s.animation
+        .tracks
+        .iter()
+        .any(|t| !t.keys.is_empty() && crate::anim::under_any(&t.path, &prefixes))
+}
+pub(super) fn selection_label(s: &Settings, sel: Selection) -> String {
+    match sel {
+        Selection::None => "Nothing".into(),
+        Selection::Stage => "Stage".into(),
+        Selection::Camera => "Camera".into(),
+        Selection::MainLight => "Main light".into(),
+        Selection::Flashlight => "Flashlight".into(),
+        Selection::Light(i) => s.lights.get(i).map_or("Light".into(), |l| l.name.clone()),
+        Selection::Object(i) => s.objects.get(i).map_or("Object".into(), |o| o.name.clone()),
+    }
+}
+/// The entries of an Add menu (the outliner's + and the rail's): objects, lights, a mesh file.
+pub(super) fn add_menu(ui: &mut egui::Ui, state: &mut UiState, s: &mut Settings) {
+    let room = s.objects.len() < scene::MAX_OBJECTS;
+    ui.add_enabled_ui(room, |ui| {
+        ui.menu_button("Object", |ui| {
+            for shape in scene::Shape::ALL {
+                if ui.button(shape.label()).clicked() {
+                    state.checkpoint(s);
+                    s.objects.push(editor::new_object(shape, s.objects.len()));
+                    state.selection = Selection::Object(s.objects.len() - 1);
+                    ui.close();
+                }
+            }
+        })
+        .response
+        .on_disabled_hover_text(format!("Limit of {} objects reached", scene::MAX_OBJECTS));
+    });
+    ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
+        ui.menu_button("Light", |ui| {
+            for kind in scene::LightKind::ALL {
+                if ui.button(kind.label()).clicked() {
+                    state.checkpoint(s);
+                    s.lights.push(editor::new_light(kind, s.lights.len() + 1));
+                    state.selection = Selection::Light(s.lights.len() - 1);
+                    ui.close();
+                }
+            }
+        })
+        .response
+        .on_disabled_hover_text(format!("Limit of {} lights reached", scene::MAX_LIGHTS));
+    });
+    ui.separator();
+    ui.checkbox(&mut state.mesh_z_up, "Z-up")
+        .on_hover_text("Stand the next imported mesh upright when its file is Z-up (scans, CAD)");
+    if ui
+        .add_enabled(room, egui::Button::new("Mesh file…"))
+        .on_hover_text("Import an OBJ, glTF, GLB, PLY or STL file (glTF lights come along)")
+        .on_disabled_hover_text(format!("Limit of {} objects reached", scene::MAX_OBJECTS))
+        .clicked()
+    {
+        // The file dialog blocks: the menu closes first.
+        ui.close();
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Meshes", &["obj", "gltf", "glb", "ply", "stl"])
+            .set_directory(crate::scenes::folder().unwrap_or_default())
+            .pick_file()
+        {
+            state.import_mesh(path, state.mesh_z_up);
+        }
+    }
+}
+/// The outliner's Sky row: what lights the scene from outside.
+fn sky_state(s: &Settings) -> &'static str {
+    if s.physical_sky.on {
+        "physical"
+    } else if !s.hdri.is_empty() {
+        "HDRI"
+    } else if s.sky > 0. {
+        "sky light"
+    } else {
+        "off"
+    }
+}
+
 impl App {
-    pub(super) fn scene_tab(&mut self, ui: &mut egui::Ui, known: bool) {
-        self.describe_ui(ui);
+    /// The outliner: a header line (name, filter, + Add), then the tree. `foldable`: above
+    /// Render, Look and Export, or in a short column, the tree shows only while it is opened
+    /// from the header. `height` is the tree's room in points.
+    pub(super) fn outliner(&mut self, ui: &mut egui::Ui, known: bool, foldable: bool, height: f32) {
         let description = if known {
             crate::presets::description(self.preset).to_string()
         } else if let Some(i) = self.scene_entry() {
@@ -12,215 +140,225 @@ impl App {
         } else {
             "Custom scene from a settings file.".to_string()
         };
-        let g = self.gpu.as_ref().unwrap();
-        let aspect = g.width as f32 / g.height as f32;
-        let awake = self.physics.as_ref().map_or(0, |p| p.awake());
-        let (moves, solved) = (self.laser.moves, self.laser.solved);
         let s = &mut self.settings;
         let state = &mut self.ui;
-        note(ui, &description);
-        section(ui, "Outliner");
-        // Shift+click adds to the selection or removes from it (multi-select, 3b).
-        let shift = ui.input(|i| i.modifiers.shift);
-        let pick = |state: &mut UiState, r: &egui::Response, sel: Selection| {
-            if r.clicked() {
-                if shift {
-                    state.toggle(sel);
-                } else {
-                    state.select(sel);
-                }
-            }
-        };
-        let mut shown = outliner_rows(s, &state.search);
-        let objects_shown = |rows: &[OutlinerRow]| {
-            rows.iter()
-                .filter(|r| matches!(r, OutlinerRow::Object(_)))
-                .count()
-        };
-        ui.label(
-            egui::RichText::new(if state.search.is_empty() {
-                format!("Objects ({} / {})", s.objects.len(), scene::MAX_OBJECTS)
+        let open = !foldable || state.outliner_open;
+        ui.horizontal(|ui| {
+            let color = if open {
+                ACCENT
             } else {
-                format!(
-                    "Objects ({} of {} / {})",
-                    objects_shown(&shown),
-                    s.objects.len(),
-                    scene::MAX_OBJECTS
-                )
-            })
-            .small(),
-        );
-        // A search stays clearable when the list has shrunk below the box's threshold.
-        if shown.len() > 8 || !state.search.is_empty() {
-            ui.horizontal(|ui| {
-                let clear = !state.search.is_empty();
-                // Short of the × and the box's frame: a row wider than the panel widens it.
-                let width = (ui.available_width() - 44.).min(280.);
-                let r = ui.add(
-                    egui::TextEdit::singleline(&mut state.search)
-                        .desired_width(width)
-                        .hint_text(field_hint("Search the outliner…")),
-                );
-                if r.changed() {
-                    shown = outliner_rows(s, &state.search);
+                egui::Color32::from_gray(154)
+            };
+            let header = disclosure(ui, open, "Outliner", color);
+            let header = header.on_hover_text(
+                "The list of everything in the scene. It folds away above Render, Look and Export",
+            );
+            if foldable && header.clicked() {
+                state.outliner_open = !state.outliner_open;
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if !open {
+                    let name = selection_label(s, state.selection);
+                    let more = state.also.len();
+                    let text = match (state.selection, more) {
+                        (Selection::None, _) => "nothing selected".to_string(),
+                        (_, 0) => format!("{name} selected"),
+                        _ => format!("{name} and {more} more selected"),
+                    };
+                    ui.add(egui::Label::new(egui::RichText::new(text).small().weak()).truncate());
+                    return;
                 }
+                // Sticky like crate::ui::sticky_menu (the Z-up checkbox inside must not close
+                // it; the buttons call ui.close()).
+                egui::containers::menu::MenuButton::new("+")
+                    .config(
+                        egui::containers::menu::MenuConfig::new()
+                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+                    )
+                    .ui(ui, |ui| add_menu(ui, state, s))
+                    .0
+                    .on_hover_text("Add an object, a light or a mesh file");
+                let clear = !state.search.is_empty();
                 if clear
                     && ui
                         .small_button("×")
-                        .on_hover_text("Clear the search")
+                        .on_hover_text("Clear the filter")
                         .clicked()
                 {
                     state.search.clear();
-                    shown = outliner_rows(s, "");
                 }
-            });
-        }
-        // One list, so the wheel has one list to get through on its way to the panel. Only the
-        // rows in view are laid out (4096 objects stay cheap).
-        let row_height = ui.spacing().interact_size.y;
-        egui::ScrollArea::vertical()
-            .id_salt("outliner")
-            .max_height(260.)
-            .show_rows(ui, row_height, shown.len(), |ui, rows| {
-                for &row in &shown[rows] {
-                    match row {
-                        OutlinerRow::Stage => {
-                            ui.selectable_value(
-                                &mut state.selection,
-                                Selection::Stage,
-                                "Stage: room, floor and sky",
-                            );
-                        }
-                        OutlinerRow::Camera => {
-                            ui.selectable_value(&mut state.selection, Selection::Camera, "Camera");
-                        }
-                        OutlinerRow::MainLight => {
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut s.light_on, "").on_hover_text("On / off");
-                                let r = ui.selectable_label(
-                                    state.is_selected(Selection::MainLight),
-                                    "Main light",
-                                );
-                                pick(state, &r, Selection::MainLight);
-                            });
-                        }
-                        OutlinerRow::Flashlight => flashlight_row(ui, state, &mut s.flashlight),
-                        OutlinerRow::Light(i) => {
-                            let l = &mut s.lights[i];
-                            ui.horizontal(|ui| {
-                                ui.push_id(("light", i), |ui| {
-                                    ui.checkbox(&mut l.enabled, "").on_hover_text("On / off");
-                                });
-                                let r = ui.selectable_label(
-                                    state.is_selected(Selection::Light(i)),
-                                    format!("Light · {}", l.name),
-                                );
-                                pick(state, &r, Selection::Light(i));
-                            });
-                        }
-                        OutlinerRow::Object(i) => {
-                            let o = &mut s.objects[i];
-                            ui.horizontal(|ui| {
-                                ui.push_id(("object", i), |ui| {
-                                    ui.checkbox(&mut o.visible, "").on_hover_text("Include in the scene (off: hidden from the render and from lighting)");
-                                });
-                                let r = ui.selectable_label(
-                                    state.is_selected(Selection::Object(i)),
-                                    &o.name,
-                                );
-                                pick(state, &r, Selection::Object(i));
-                                // A right click keeps a selection the row is part of (its menu
-                                // acts on all of it).
-                                if r.secondary_clicked() && !state.is_selected(Selection::Object(i))
-                                {
-                                    state.select(Selection::Object(i));
-                                }
-                                r.context_menu(|ui| {
-                                    if let Some(c) = context_items(ui, true) {
-                                        state.pending = Some(c);
-                                    }
-                                });
-                            });
-                        }
-                    }
-                }
-            });
-        // Sticky like crate::ui::sticky_menu (the Z-up checkbox inside must not close it; the
-        // buttons call ui.close()), built here to keep the button's response for its tooltip.
-        egui::containers::menu::MenuButton::new("+ Add")
-            .config(
-                egui::containers::menu::MenuConfig::new()
-                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
-            )
-            .ui(ui, |ui| {
-                let room = s.objects.len() < scene::MAX_OBJECTS;
-                ui.add_enabled_ui(room, |ui| {
-                    ui.menu_button("Object", |ui| {
-                        for shape in scene::Shape::ALL {
-                            if ui.button(shape.label()).clicked() {
-                                state.checkpoint(s);
-                                s.objects.push(editor::new_object(shape, s.objects.len()));
-                                state.selection = Selection::Object(s.objects.len() - 1);
-                                ui.close();
-                            }
-                        }
-                    })
-                    .response
-                    .on_disabled_hover_text(format!(
-                        "Limit of {} objects reached",
-                        scene::MAX_OBJECTS
-                    ));
-                });
-                ui.add_enabled_ui(s.lights.len() < scene::MAX_LIGHTS, |ui| {
-                    ui.menu_button("Light", |ui| {
-                        for kind in scene::LightKind::ALL {
-                            if ui.button(kind.label()).clicked() {
-                                state.checkpoint(s);
-                                s.lights.push(editor::new_light(kind, s.lights.len() + 1));
-                                state.selection = Selection::Light(s.lights.len() - 1);
-                                ui.close();
-                            }
-                        }
-                    })
-                    .response
-                    .on_disabled_hover_text(format!(
-                        "Limit of {} lights reached",
-                        scene::MAX_LIGHTS
-                    ));
-                });
-                ui.separator();
-                ui.checkbox(&mut state.mesh_z_up, "Z-up").on_hover_text(
-                    "Stand the next imported mesh upright when its file is Z-up (scans, CAD)",
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.search)
+                        .desired_width(110.)
+                        .hint_text(field_hint("Filter…")),
                 );
-                if ui
-                    .add_enabled(room, egui::Button::new("Mesh file…"))
-                    .on_hover_text(
-                        "Import an OBJ, glTF, GLB, PLY or STL file (glTF lights come along)",
-                    )
-                    .on_disabled_hover_text(format!(
-                        "Limit of {} objects reached",
-                        scene::MAX_OBJECTS
-                    ))
-                    .clicked()
-                {
-                    // The file dialog blocks: the menu closes first.
-                    ui.close();
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Meshes", &["obj", "gltf", "glb", "ply", "stl"])
-                        .set_directory(crate::scenes::folder().unwrap_or_default())
-                        .pick_file()
-                    {
-                        state.import_mesh(path, state.mesh_z_up);
-                    }
-                }
-            })
-            .0
-            .on_hover_text("Add an object, a light or a mesh file");
+            });
+        });
         if let Some(job) = state.mesh_imports.first() {
             ui.horizontal(|ui| {
                 ui.spinner();
                 ui.label(format!("Importing {}…", job.name));
             });
+        }
+        if open {
+            // Shift+click adds to the selection or removes from it (multi-select, 3b).
+            let shift = ui.input(|i| i.modifiers.shift);
+            let rows = outliner_rows(s, &state.search, state.outliner_closed);
+            let filtered = !state.search.is_empty();
+            let tab = state.tab;
+            // What was clicked: the item, and whether it was the Sky row.
+            let mut picked: Option<(Selection, bool)> = None;
+            // One list, so the wheel has one list to get through. Only the rows in view are
+            // laid out (4096 objects stay cheap).
+            let row_height = ui.spacing().interact_size.y;
+            ui.spacing_mut().item_spacing.y = 2.;
+            egui::ScrollArea::vertical()
+                .id_salt("outliner")
+                .max_height(height)
+                .auto_shrink([false, foldable])
+                .show_rows(ui, row_height, rows.len(), |ui, range| {
+                    for &row in &rows[range] {
+                        match row {
+                            OutlinerRow::Stage => {
+                                let on = state.selection == Selection::Stage && tab != Tab::Lights;
+                                if tree_row(ui, 0., on, "Stage", "room and floor")
+                                    .on_hover_text(&description)
+                                    .clicked()
+                                {
+                                    picked = Some((Selection::Stage, false));
+                                }
+                            }
+                            OutlinerRow::Camera => {
+                                let on = state.is_selected(Selection::Camera);
+                                let dim = PROJECTIONS
+                                    .get(s.projection as usize)
+                                    .filter(|_| s.projection != 0)
+                                    .copied()
+                                    .unwrap_or("");
+                                let keyed = has_keys(s, Selection::Camera);
+                                if tree_row_keyed(ui, INDENT, on, "Camera", dim, keyed).clicked() {
+                                    picked = Some((Selection::Camera, false));
+                                }
+                            }
+                            OutlinerRow::Sky => {
+                                let on = state.selection == Selection::Stage && tab == Tab::Lights;
+                                if tree_row(ui, INDENT, on, "Sky", sky_state(s))
+                                    .on_hover_text("The sky, the sun, an HDRI and fog: the top of the Lights tab")
+                                    .clicked()
+                                {
+                                    picked = Some((Selection::Stage, true));
+                                }
+                            }
+                            OutlinerRow::MainLight => {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(INDENT);
+                                    ui.checkbox(&mut s.light_on, "").on_hover_text("On / off");
+                                    let on = state.is_selected(Selection::MainLight);
+                                    let dim = if s.light_on { "" } else { "off" };
+                                    let keyed = has_keys(s, Selection::MainLight);
+                                    if tree_row_keyed(ui, 0., on, "Main light", dim, keyed).clicked() {
+                                        picked = Some((Selection::MainLight, false));
+                                    }
+                                });
+                            }
+                            OutlinerRow::Flashlight => {
+                                let was = state.selection;
+                                flashlight_row(ui, state, &mut s.flashlight, INDENT);
+                                if state.selection != was {
+                                    state.selection = was;
+                                    picked = Some((Selection::Flashlight, false));
+                                }
+                            }
+                            OutlinerRow::Lights => {
+                                let text = format!("Area lights ({})", s.lights.len());
+                                let closed = state.outliner_closed[0] && !filtered;
+                                if disclosure(ui, !closed, &text, egui::Color32::from_gray(200))
+                                    .clicked()
+                                {
+                                    state.outliner_closed[0] = !state.outliner_closed[0];
+                                }
+                            }
+                            OutlinerRow::Light(i) => {
+                                let keyed = has_keys(s, Selection::Light(i));
+                                let l = &mut s.lights[i];
+                                ui.horizontal(|ui| {
+                                    ui.add_space(INDENT);
+                                    ui.push_id(("light", i), |ui| {
+                                        ui.checkbox(&mut l.enabled, "").on_hover_text("On / off");
+                                    });
+                                    let on = state.is_selected(Selection::Light(i));
+                                    let dim = if l.enabled { l.kind.label() } else { "off" };
+                                    if tree_row_keyed(ui, 0., on, &l.name, dim, keyed).clicked() {
+                                        picked = Some((Selection::Light(i), false));
+                                    }
+                                });
+                            }
+                            OutlinerRow::Objects => {
+                                let shown = rows
+                                    .iter()
+                                    .filter(|r| matches!(r, OutlinerRow::Object(_)))
+                                    .count();
+                                let text = if filtered {
+                                    format!("Objects ({shown} of {})", s.objects.len())
+                                } else {
+                                    format!("Objects ({})", s.objects.len())
+                                };
+                                let closed = state.outliner_closed[1] && !filtered;
+                                if disclosure(ui, !closed, &text, egui::Color32::from_gray(200))
+                                    .on_hover_text(format!(
+                                        "{} of at most {} objects",
+                                        s.objects.len(),
+                                        scene::MAX_OBJECTS
+                                    ))
+                                    .clicked()
+                                {
+                                    state.outliner_closed[1] = !state.outliner_closed[1];
+                                }
+                            }
+                            OutlinerRow::Object(i) => {
+                                let keyed = has_keys(s, Selection::Object(i));
+                                let o = &mut s.objects[i];
+                                ui.horizontal(|ui| {
+                                    ui.add_space(INDENT);
+                                    ui.push_id(("object", i), |ui| {
+                                        ui.checkbox(&mut o.visible, "").on_hover_text("Include in the scene (off: hidden from the render and from lighting)");
+                                    });
+                                    let on = state.is_selected(Selection::Object(i));
+                                    let dim = if o.visible { "" } else { "hidden" };
+                                    let r = tree_row_keyed(ui, 0., on, &o.name, dim, keyed);
+                                    if r.clicked() {
+                                        picked = Some((Selection::Object(i), false));
+                                    }
+                                    // A right click keeps a selection the row is part of (its
+                                    // menu acts on all of it).
+                                    if r.secondary_clicked() && !on {
+                                        state.select(Selection::Object(i));
+                                    }
+                                    r.context_menu(|ui| {
+                                        if let Some(c) = context_items(ui, true) {
+                                            state.pending = Some(c);
+                                        }
+                                    });
+                                });
+                            }
+                        }
+                    }
+                });
+            if let Some((sel, sky)) = picked {
+                // The fixed rows are not transformable: a plain click even with Shift.
+                if shift && transformable(sel) {
+                    state.toggle(sel);
+                } else {
+                    state.select(sel);
+                }
+                // The tabs that show the selection follow it; the Sky row is the Lights tab.
+                if sky {
+                    state.tab = Tab::Lights;
+                } else if state.tab.follows_selection() {
+                    state.tab = state.tab.after_pick(sel, false);
+                    state.scroll_to_inspector = true;
+                }
+            }
         }
         // A selection can outlive its item (preset switch, load, undo-free deletes).
         state.selection = match state.selection {
@@ -228,20 +366,184 @@ impl App {
             Selection::Light(i) if i >= s.lights.len() => Selection::MainLight,
             other => other,
         };
+    }
+    /// Lights: the sky, HDRI, background and fog on top whatever is selected, the selected
+    /// light under them, and the audio feature last.
+    pub(super) fn lights_tab(&mut self, ui: &mut egui::Ui) {
+        let advanced = self.ui.advanced;
+        self.key_marks_begin();
+        let s = &mut self.settings;
+        let state = &mut self.ui;
+        let title = match state.selection {
+            sel @ (Selection::MainLight | Selection::Flashlight | Selection::Light(_)) => {
+                selection_label(s, sel)
+            }
+            _ => "Lights".to_string(),
+        };
+        tab_title(ui, &title);
+        sky_ui(ui, s, state.environment_error.as_deref());
         ui.separator();
-        // A pick in the viewport brings its inspector into view; outliner clicks don't scroll,
-        // or the rows would leave from under the pointer.
+        // A pick brings the light's inspector into view, under the sky blocks.
+        if std::mem::take(&mut state.scroll_to_inspector)
+            && !matches!(state.selection, Selection::Stage | Selection::None)
+        {
+            ui.scroll_to_cursor(Some(egui::Align::TOP));
+        }
+        match state.selection {
+            Selection::MainLight => main_light_ui(ui, s, advanced),
+            Selection::Flashlight => {
+                section(ui, "Flashlight");
+                if !s.flashlight {
+                    note(ui, "Off: tick it in the outliner, or press T.");
+                }
+                flashlight_settings(ui, &mut s.flashlight_config, advanced);
+            }
+            Selection::Light(i) if i < s.lights.len() => {
+                ui.horizontal(|ui| {
+                    section(ui, "Area light");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button("Delete").on_hover_text("Del").clicked()
+                            && let Some(name) = state.delete_selected(s)
+                        {
+                            state.toast(format!("Deleted {name}"));
+                        }
+                    });
+                });
+                // Delete above can have dropped it.
+                if let Selection::Light(i) = state.selection
+                    && i < s.lights.len()
+                {
+                    let audio = s.audio.enabled;
+                    key_scope(&s.animation, &format!("lights/{i}"));
+                    editor::light_ui(ui, &mut s.lights[i], advanced, audio);
+                    key_scope(&s.animation, "");
+                }
+            }
+            _ => note(
+                ui,
+                "Pick a light in the outliner or the viewport for its settings. + in the outliner adds one.",
+            ),
+        }
+        ui.separator();
+        // Track 19 audio-reactive lights (see audio.rs).
+        feature(
+            ui,
+            "Audio: lights follow the music",
+            "Lights pulse with whatever sound the PC is playing (not the microphone). Each light follows bass, mid or treble (choose per light under Follows); the main light defaults to bass. The lighting changes every frame, so the picture never settles on its own: set Render → Reconstruction → Denoiser to Ray Reconstruction. The scene's own light settings are not changed.",
+            &mut s.audio.enabled,
+        )
+        .body(|ui| {
+            let a = &mut s.audio;
+        if a.enabled {
+            egui::Grid::new("audio").num_columns(2).show(ui, |ui| {
+                key_mark("audio/gain");
+                row(ui, "Gain", "Added intensity at full level (×)", |ui| {
+                    ui.add(crate::slider(&mut a.gain, 0. ..=8.));
+                });
+                key_mark("audio/floor");
+                row(ui, "Floor", "Intensity at silence (×)", |ui| {
+                    ui.add(crate::slider(&mut a.floor, 0. ..=1.));
+                });
+                key_mark("audio/smoothing");
+                row(ui, "Smoothing", "Higher is calmer", |ui| {
+                    ui.add(crate::slider(&mut a.smoothing, 0. ..=0.99));
+                });
+                key_mark("audio/color_shift");
+                row(
+                    ui,
+                    "Colour shift",
+                    "How far each light's colour moves toward its band's at full level: bass red, mid green, treble blue, beats white. Each light's band is in its own settings.",
+                    |ui| {
+                        ui.add(crate::slider(&mut a.color_shift, 0. ..=1.));
+                    },
+                );
+            });
+        } else {
+            note(ui, "Off: tick the box to turn it on.");
+        }
+        });
+        self.key_marks_end();
+    }
+    /// Object: the selected object's name, shape, placement and physics; the Room for the
+    /// Stage; the camera and lens otherwise. The physics world is always at the bottom.
+    pub(super) fn object_tab(&mut self, ui: &mut egui::Ui) {
+        let g = self.gpu.as_ref().unwrap();
+        let aspect = g.width as f32 / g.height as f32;
+        let awake = self.physics.as_ref().map_or(0, |p| p.awake());
+        let advanced = self.ui.advanced;
+        self.key_marks_begin();
+        let s = &mut self.settings;
+        let state = &mut self.ui;
+        let title = match state.selection {
+            sel @ Selection::Object(_) => selection_label(s, sel),
+            Selection::Stage => "Room".to_string(),
+            _ => "Camera".to_string(),
+        };
+        tab_title(ui, &title);
         if std::mem::take(&mut state.scroll_to_inspector) {
             ui.scroll_to_cursor(Some(egui::Align::TOP));
         }
-        let advanced = state.advanced;
         match state.selection {
-            Selection::None => note(
-                ui,
-                "Click an object in the viewport, or pick an item above.",
-            ),
-            Selection::Stage => stage_ui(ui, s, advanced, state.environment_error.as_deref()),
-            Selection::Camera => {
+            Selection::Object(i) if i < s.objects.len() => {
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            s.objects.len() < scene::MAX_OBJECTS,
+                            egui::Button::new("Duplicate"),
+                        )
+                        .on_hover_text("Ctrl+D")
+                        .on_disabled_hover_text(format!(
+                            "Limit of {} objects reached",
+                            scene::MAX_OBJECTS
+                        ))
+                        .clicked()
+                    {
+                        state.duplicate_selected(s, true);
+                    }
+                    if ui.button("Delete").on_hover_text("Del").clicked()
+                        && let Some(name) = state.delete_selected(s)
+                    {
+                        state.toast(format!("Deleted {name}"));
+                    }
+                    if ui
+                        .button("Frame")
+                        .on_hover_text("Fit the camera to this object (F)")
+                        .clicked()
+                    {
+                        s.focus_object(i, aspect);
+                    }
+                });
+                // Delete above can have moved or dropped it.
+                if let Selection::Object(i) = state.selection
+                    && i < s.objects.len()
+                {
+                    let physics = s.physics.enabled;
+                    key_scope(&s.animation, &format!("objects/{i}"));
+                    editor::object_ui(ui, &mut s.objects[i], advanced, physics);
+                    portal_ui(ui, state, s, i);
+                    key_scope(&s.animation, "");
+                }
+            }
+            Selection::Stage => room_ui(ui, s, state.environment_error.is_some()),
+            other => {
+                if matches!(
+                    other,
+                    Selection::MainLight | Selection::Flashlight | Selection::Light(_)
+                ) {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} is a light: its settings are in",
+                                selection_label(s, other)
+                            ))
+                            .small()
+                            .weak(),
+                        );
+                        if ui.small_button("Lights").clicked() {
+                            state.tab = Tab::Lights;
+                        }
+                    });
+                }
                 let camera = (s.yaw, s.pitch, s.distance, s.target);
                 if camera_ui(ui, s) {
                     let mut d = Settings::default();
@@ -253,60 +555,6 @@ impl App {
                 state.camera_edit |= camera != (s.yaw, s.pitch, s.distance, s.target);
                 if ui.button("Frame the scene (F)").clicked() {
                     self.actions.frame_scene = true;
-                }
-            }
-            Selection::MainLight => main_light_ui(ui, s, advanced),
-            Selection::Flashlight => {
-                section(ui, "Flashlight");
-                if !s.flashlight {
-                    note(ui, "Off: tick it in the outliner, or press T.");
-                }
-                flashlight_settings(ui, &mut s.flashlight_config, advanced);
-            }
-            Selection::Light(i) => {
-                section(ui, "Area light");
-                let audio = s.audio.enabled;
-                editor::light_ui(ui, &mut s.lights[i], advanced, audio);
-                if ui.button("Delete light (Del)").clicked()
-                    && let Some(name) = state.delete_selected(s)
-                {
-                    state.toast(format!("Deleted {name}"));
-                }
-            }
-            Selection::Object(i) => {
-                section(ui, "Object");
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
-                            s.objects.len() < scene::MAX_OBJECTS,
-                            egui::Button::new("Duplicate (Ctrl+D)"),
-                        )
-                        .on_disabled_hover_text(format!(
-                            "Limit of {} objects reached",
-                            scene::MAX_OBJECTS
-                        ))
-                        .clicked()
-                    {
-                        state.duplicate_selected(s, true);
-                    }
-                    if ui.button("Delete (Del)").clicked()
-                        && let Some(name) = state.delete_selected(s)
-                    {
-                        state.toast(format!("Deleted {name}"));
-                    }
-                    if ui
-                        .button("Frame (F)")
-                        .on_hover_text("Fit the camera to this object")
-                        .clicked()
-                    {
-                        s.focus_object(i, aspect);
-                    }
-                });
-                // Delete above can have moved or dropped it.
-                if let Selection::Object(i) = state.selection {
-                    let physics = s.physics.enabled;
-                    editor::object_ui(ui, &mut s.objects[i], advanced, physics);
-                    portal_ui(ui, state, s, i);
                 }
             }
         }
@@ -322,6 +570,7 @@ impl App {
             let p = &mut s.physics;
         if p.enabled {
             egui::Grid::new("physics").num_columns(2).show(ui, |ui| {
+                key_mark("physics/gravity");
                 row(
                     ui,
                     "Gravity",
@@ -330,6 +579,7 @@ impl App {
                         ui.add(crate::slider(&mut p.gravity, -30. ..=30.));
                     },
                 );
+                key_mark("physics/speed");
                 row(
                     ui,
                     "Speed",
@@ -338,12 +588,15 @@ impl App {
                         ui.add(crate::slider(&mut p.speed, 0. ..=4.));
                     },
                 );
+                key_mark("physics/bounce");
                 row(ui, "Bounce", "Restitution of every body", |ui| {
                     ui.add(crate::slider(&mut p.bounce, 0. ..=1.));
                 });
+                key_mark("physics/friction");
                 row(ui, "Friction", "Friction of every body", |ui| {
                     ui.add(crate::slider(&mut p.friction, 0. ..=2.));
                 });
+                key_mark("physics/down");
                 row(
                     ui,
                     "Gravity direction",
@@ -355,6 +608,7 @@ impl App {
                         crate::revert_dot(ui, &mut p.down);
                     },
                 );
+                key_mark("physics/wind");
                 row(
                     ui,
                     "Wind",
@@ -366,6 +620,7 @@ impl App {
                         crate::revert_dot(ui, &mut p.wind);
                     },
                 );
+                key_mark("physics/gusts");
                 row(
                     ui,
                     "Gusts",
@@ -435,39 +690,63 @@ impl App {
             note(ui, "Off: tick the box to turn it on.");
         }
         });
-        // Track 19 audio-reactive lights (see audio.rs).
-        feature(
-            ui,
-            "Audio: lights follow the music",
-            "Lights pulse with whatever sound the PC is playing (not the microphone). Each light follows bass, mid or treble (choose per light under Follows); the main light defaults to bass. The lighting changes every frame, so the picture never settles on its own: set Render → Reconstruction → Denoiser to Ray Reconstruction. The scene's own light settings are not changed.",
-            &mut s.audio.enabled,
-        )
-        .body(|ui| {
-            let a = &mut s.audio;
-        if a.enabled {
-            egui::Grid::new("audio").num_columns(2).show(ui, |ui| {
-                row(ui, "Gain", "Added intensity at full level (×)", |ui| {
-                    ui.add(crate::slider(&mut a.gain, 0. ..=8.));
-                });
-                row(ui, "Floor", "Intensity at silence (×)", |ui| {
-                    ui.add(crate::slider(&mut a.floor, 0. ..=1.));
-                });
-                row(ui, "Smoothing", "Higher is calmer", |ui| {
-                    ui.add(crate::slider(&mut a.smoothing, 0. ..=0.99));
-                });
-                row(
+        self.key_marks_end();
+    }
+    /// Material: the selected object's, or the walls and floor with the Stage selected.
+    pub(super) fn material_tab(&mut self, ui: &mut egui::Ui) {
+        let advanced = self.ui.advanced;
+        self.key_marks_begin();
+        let s = &mut self.settings;
+        let state = &mut self.ui;
+        state.scroll_to_inspector = false;
+        match state.selection {
+            Selection::Object(i) if i < s.objects.len() => {
+                tab_title(ui, &format!("{} · Material", s.objects[i].name));
+                key_scope(&s.animation, &format!("objects/{i}/material"));
+                editor::object_material_ui(ui, &mut s.objects[i], advanced);
+            }
+            Selection::Stage => {
+                tab_title(ui, "Walls and floor");
+                room_materials_ui(ui, s, advanced);
+            }
+            other => {
+                tab_title(ui, "Material");
+                let what = selection_label(s, other);
+                note(
                     ui,
-                    "Colour shift",
-                    "How far each light's colour moves toward its band's at full level: bass red, mid green, treble blue, beats white. Each light's band is in its own settings.",
-                    |ui| {
-                        ui.add(crate::slider(&mut a.color_shift, 0. ..=1.));
+                    &if other == Selection::None {
+                        "Select an object for its material, or the Stage for the walls and floor."
+                            .to_string()
+                    } else {
+                        format!(
+                            "{what} has no material. Select an object, or the Stage for the walls and floor."
+                        )
                     },
                 );
-            });
-        } else {
-            note(ui, "Off: tick the box to turn it on.");
+            }
         }
-        });
+        self.key_marks_end();
+    }
+    /// The laser puzzle's window (Menu > Window): it opens by itself when a scene turns the
+    /// puzzle on, and can then be closed.
+    pub(super) fn puzzle_window(&mut self, ctx: &egui::Context) {
+        let on = self.settings.puzzle.enabled;
+        if on && !self.ui.puzzle_was_on {
+            self.ui.show_puzzle = true;
+        }
+        self.ui.puzzle_was_on = on;
+        if !self.ui.show_puzzle {
+            return;
+        }
+        let (moves, solved) = (self.laser.moves, self.laser.solved);
+        let s = &mut self.settings;
+        let state = &mut self.ui;
+        let mut open = true;
+        egui::Window::new("Laser puzzle")
+            .open(&mut open)
+            .default_width(340.)
+            .default_pos(central_rect(ctx).left_top() + egui::vec2(12., 48.))
+            .show(ctx, |ui| {
         // Track 17 laser puzzle (see laser.rs).
         feature(
             ui,
@@ -608,56 +887,82 @@ impl App {
             note(ui, "Off: tick the box to turn it on.");
         }
         });
+            });
+        self.ui.show_puzzle = open;
     }
 }
-/// One row of the outliner's list.
+/// One row of the outliner's tree. The Stage's children (Camera, Sky, Main light, Flashlight)
+/// follow it; `Lights` and `Objects` are the headers of the two groups that can be closed.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum OutlinerRow {
     Stage,
     Camera,
+    Sky,
     MainLight,
     Flashlight,
+    Lights,
     Light(usize),
+    Objects,
     Object(usize),
 }
-/// The list in order, narrowed by the search (a light's row reads "Light · name").
-fn outliner_rows(s: &scene::Settings, search: &str) -> Vec<OutlinerRow> {
+/// The tree in order. A filter narrows every row by name (a light's row also answers to
+/// "light"), drops the group headers that have nothing left under them and opens closed groups;
+/// `closed` is the Area lights and Objects groups.
+fn outliner_rows(s: &scene::Settings, search: &str, closed: [bool; 2]) -> Vec<OutlinerRow> {
     let search = search.to_lowercase();
+    let filtered = !search.is_empty();
     let hit = |name: &str| name.to_lowercase().contains(&search);
     let fixed = [
         ("stage", OutlinerRow::Stage),
         ("camera", OutlinerRow::Camera),
+        ("sky", OutlinerRow::Sky),
         ("main light", OutlinerRow::MainLight),
         ("flashlight", OutlinerRow::Flashlight),
     ];
-    let lights = s.lights.iter().enumerate();
-    let objects = s.objects.iter().enumerate();
-    fixed
+    let mut rows: Vec<OutlinerRow> = fixed
         .into_iter()
         .filter(|(name, _)| hit(name))
         .map(|(_, row)| row)
-        .chain(
-            lights
-                .filter(|(_, l)| "light".contains(&search) || hit(&l.name))
-                .map(|(i, _)| OutlinerRow::Light(i)),
-        )
-        .chain(
-            objects
-                .filter(|(_, o)| hit(&o.name))
-                .map(|(i, _)| OutlinerRow::Object(i)),
-        )
-        .collect()
+        .collect();
+    let lights: Vec<OutlinerRow> = s
+        .lights
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| (filtered && "light".contains(&search)) || hit(&l.name))
+        .map(|(i, _)| OutlinerRow::Light(i))
+        .collect();
+    if !s.lights.is_empty() && (!filtered || !lights.is_empty()) {
+        rows.push(OutlinerRow::Lights);
+    }
+    if filtered || !closed[0] {
+        rows.extend(lights);
+    }
+    let objects: Vec<OutlinerRow> = s
+        .objects
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| hit(&o.name))
+        .map(|(i, _)| OutlinerRow::Object(i))
+        .collect();
+    if !filtered || !objects.is_empty() {
+        rows.push(OutlinerRow::Objects);
+    }
+    if filtered || !closed[1] {
+        rows.extend(objects);
+    }
+    rows
 }
 /// The outliner's row: its on/off box and a label that opens its inspector. Ticking it selects it,
 /// so its settings open when it is turned on. Not transformable, so a plain click even with Shift.
-fn flashlight_row(ui: &mut egui::Ui, state: &mut UiState, on: &mut bool) {
+fn flashlight_row(ui: &mut egui::Ui, state: &mut UiState, on: &mut bool, indent: f32) {
     ui.horizontal(|ui| {
+        ui.add_space(indent);
         let tick = ui.checkbox(on, "").on_hover_text("On / off (T)");
         if tick.changed() && *on {
             state.select(Selection::Flashlight);
         }
-        let r = ui
-            .selectable_label(state.is_selected(Selection::Flashlight), "Flashlight")
+        let dim = if *on { "T" } else { "off · T" };
+        let r = tree_row(ui, 0., state.is_selected(Selection::Flashlight), "Flashlight", dim)
             .on_hover_text(
                 "A flashlight carried beside the camera, aimed where you look (with walk mode: a horror game)",
             );
@@ -872,7 +1177,7 @@ mod tests {
         frame(ctx, vec![], &mut add);
     }
     #[test]
-    fn the_outliner_is_one_list_and_the_search_narrows_all_of_it() {
+    fn the_outliner_is_one_tree_and_the_filter_narrows_all_of_it() {
         let mut s = scene::Settings::default();
         s.objects.clear();
         s.lights.clear();
@@ -882,24 +1187,47 @@ mod tests {
         s.objects.push(editor::new_object(scene::Shape::ALL[0], 0));
         s.objects[0].name = "Red chair".into();
         use OutlinerRow as R;
+        let open = [false; 2];
         assert_eq!(
-            outliner_rows(&s, ""),
+            outliner_rows(&s, "", open),
             [
                 R::Stage,
                 R::Camera,
+                R::Sky,
                 R::MainLight,
                 R::Flashlight,
+                R::Lights,
                 R::Light(0),
+                R::Objects,
                 R::Object(0)
             ]
         );
-        assert_eq!(outliner_rows(&s, "CHAIR"), [R::Object(0)]);
-        assert_eq!(outliner_rows(&s, "wind"), [R::Light(0)]);
+        // Closed groups keep their header; a filter looks inside them all the same.
+        assert_eq!(
+            outliner_rows(&s, "", [true, true]),
+            [
+                R::Stage,
+                R::Camera,
+                R::Sky,
+                R::MainLight,
+                R::Flashlight,
+                R::Lights,
+                R::Objects
+            ]
+        );
+        assert_eq!(
+            outliner_rows(&s, "CHAIR", [true, true]),
+            [R::Objects, R::Object(0)]
+        );
+        assert_eq!(outliner_rows(&s, "wind", open), [R::Lights, R::Light(0)]);
         // "light" is on the light's row, whatever its name.
         assert_eq!(
-            outliner_rows(&s, "light"),
-            [R::MainLight, R::Flashlight, R::Light(0)]
+            outliner_rows(&s, "light", open),
+            [R::MainLight, R::Flashlight, R::Lights, R::Light(0)]
         );
+        // No area lights: no empty group. Objects keeps its header (it holds the count).
+        s.lights.clear();
+        assert_eq!(outliner_rows(&s, "", open)[5..], [R::Objects, R::Object(0)]);
     }
     #[test]
     fn a_feature_header_opens_once_when_turned_on() {
@@ -939,11 +1267,11 @@ mod tests {
         state.select(Selection::Object(0));
         let mut on = false;
         let tick = egui::pos2(18., 18.);
-        click(&ctx, tick, |ui| flashlight_row(ui, &mut state, &mut on));
+        click(&ctx, tick, |ui| flashlight_row(ui, &mut state, &mut on, 0.));
         assert!(on);
         assert_eq!(state.selection, Selection::Flashlight);
         state.select(Selection::Stage);
-        click(&ctx, tick, |ui| flashlight_row(ui, &mut state, &mut on));
+        click(&ctx, tick, |ui| flashlight_row(ui, &mut state, &mut on, 0.));
         assert!(!on);
         assert_eq!(state.selection, Selection::Stage);
     }
@@ -953,7 +1281,7 @@ mod tests {
         let mut state = UiState::default();
         let mut on = false;
         click(&ctx, egui::pos2(60., 18.), |ui| {
-            flashlight_row(ui, &mut state, &mut on)
+            flashlight_row(ui, &mut state, &mut on, 0.)
         });
         assert!(!on);
         assert_eq!(state.selection, Selection::Flashlight);

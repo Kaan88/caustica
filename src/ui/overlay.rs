@@ -32,10 +32,13 @@ impl App {
         }
         let view = gizmo::View::new(&self.settings, [g.width, g.height]);
         let ppp = ctx.pixels_per_point();
-        let painter = ctx.layer_painter(egui::LayerId::new(
-            egui::Order::Background,
-            egui::Id::unique("gizmo"),
-        ));
+        // Clipped to the viewport: the image runs on under the panels, and so would the outlines.
+        let painter = ctx
+            .layer_painter(egui::LayerId::new(
+                egui::Order::Background,
+                egui::Id::unique("gizmo"),
+            ))
+            .with_clip_rect(super::central_rect(ctx));
         let targets = self.ui.targets();
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, &targets);
         // With "Beam in image" the rods show the beam in the render itself; the overlay line on
@@ -291,7 +294,7 @@ impl App {
         if targets.iter().any(|t| {
             matches!(t, Selection::Object(i) if self.settings.objects.get(*i).is_some_and(|o| o.locked))
         }) {
-            self.ui.toast("Locked: unlock it under More");
+            self.ui.toast("Locked: unlock it in Object > More");
             return false;
         }
         if !targets.is_empty() && !gizmo::allows(&targets, mode) {

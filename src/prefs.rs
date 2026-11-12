@@ -38,12 +38,80 @@ pub struct Prefs {
     /// The version the user chose to skip.
     pub update_skip: String,
     /// Where the UI was left: tab, gizmo tool, Local axes, pivot, snap target, panel width.
+    #[serde(deserialize_with = "lenient_tab")]
     pub tab: crate::ui::Tab,
     pub tool: crate::gizmo::Tool,
     pub local: bool,
     pub pivot: crate::gizmo::Pivot,
     pub snap_to: crate::snap::Target,
     pub panel_width: f32,
+    /// The outliner's share of the right column's height.
+    pub outliner_split: f32,
+    /// The top bar's pinned buttons, left to right (palette entries by name). Read leniently:
+    /// a name this version doesn't know is skipped (`pins`). A pin drawn as its icon alone is
+    /// `{"pin": …, "icon_only": true}` instead of the bare pin.
+    pub top_pins: Vec<serde_json::Value>,
+    /// Export tab: show the file in its folder when an export ends.
+    pub open_folder_done: bool,
+    /// The last exports, newest first (`UiState::export_ended`).
+    pub recent_exports: Vec<RecentExport>,
+    /// Scenes browser: the cards' order and their size (0 small, 1 medium, 2 large).
+    #[serde(deserialize_with = "lenient")]
+    pub scene_sort: SceneSort,
+    #[serde(deserialize_with = "lenient")]
+    pub scene_cards: u8,
+}
+/// The Scenes browser's card orders.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SceneSort {
+    /// As listed: by pack, under a heading per pack.
+    #[default]
+    Pack,
+    Name,
+    /// The remembered recent scenes first, latest first.
+    Recent,
+    Favorites,
+    /// By the file's date, newest first.
+    Modified,
+}
+impl SceneSort {
+    pub const ALL: [(SceneSort, &str); 5] = [
+        (SceneSort::Pack, "Pack"),
+        (SceneSort::Name, "Name"),
+        (SceneSort::Recent, "Recently used"),
+        (SceneSort::Favorites, "Favorites first"),
+        (SceneSort::Modified, "Date modified"),
+    ];
+    pub fn name(self) -> &'static str {
+        Self::ALL
+            .iter()
+            .find(|(s, _)| *s == self)
+            .map_or("", |(_, name)| name)
+    }
+}
+/// A value this version can't read (a sort order from a newer one) becomes the default, like
+/// `lenient_tab`.
+fn lenient<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned + Default,
+{
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(value).unwrap_or_default())
+}
+/// A tab name this version doesn't know (a file from a newer one) reads as the default tab,
+/// instead of failing the whole file and with it the favourites and recents.
+fn lenient_tab<'de, D: serde::Deserializer<'de>>(d: D) -> Result<crate::ui::Tab, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(value).unwrap_or(crate::ui::Tab::Object))
+}
+/// One line of the Export tab's Recent exports.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[serde(default)]
+pub struct RecentExport {
+    pub file: String,
+    /// "saved", "cancelled" or "failed".
+    pub state: String,
 }
 impl Default for Prefs {
     fn default() -> Self {
@@ -61,14 +129,66 @@ impl Default for Prefs {
             vulkan: false,
             update_check: true,
             update_skip: String::new(),
-            tab: crate::ui::Tab::Scene,
+            tab: crate::ui::Tab::Object,
             tool: crate::gizmo::Tool::Move,
             local: false,
             pivot: crate::gizmo::Pivot::Median,
             snap_to: crate::snap::Target::Increment,
             panel_width: 370.,
+            outliner_split: 0.3,
+            top_pins: default_pins(),
+            open_folder_done: false,
+            recent_exports: Vec::new(),
+            scene_sort: SceneSort::Pack,
+            scene_cards: 1,
         }
     }
+}
+/// The right column's width range, in points (the tab strip takes 36 of them).
+pub const PANEL_WIDTH: (f32, f32) = (360., 560.);
+/// A top-bar button: a palette command, a window or a live widget.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Pin {
+    Do(crate::palette::Do),
+    Window(crate::palette::Win),
+    Widget(crate::palette::Widget),
+}
+/// A pin with its choices, as the file holds one that has any.
+#[derive(Serialize, Deserialize)]
+struct PinEntry {
+    pin: Pin,
+    #[serde(default)]
+    icon_only: bool,
+}
+/// One `top_pins` entry: the pin and "Icon only". None for what this version doesn't know.
+fn read_pin(v: &serde_json::Value) -> Option<(Pin, bool)> {
+    if let Ok(p) = serde_json::from_value::<Pin>(v.clone()) {
+        return Some((p, false));
+    }
+    serde_json::from_value::<PinEntry>(v.clone())
+        .ok()
+        .map(|e| (e.pin, e.icon_only))
+}
+/// The bare pin, so a file without choices reads as it always did.
+fn write_pin(pin: Pin, icon_only: bool) -> serde_json::Value {
+    if icon_only {
+        serde_json::to_value(PinEntry { pin, icon_only })
+    } else {
+        serde_json::to_value(pin)
+    }
+    .expect("a pin serializes")
+}
+fn default_pins() -> Vec<serde_json::Value> {
+    use crate::palette::{Do, Win};
+    [
+        Pin::Window(Win::Scenes),
+        Pin::Window(Win::Assets),
+        Pin::Do(Do::Compare),
+        Pin::Do(Do::SavePng),
+    ]
+    .iter()
+    .map(|p| write_pin(*p, false))
+    .collect()
 }
 /// %APPDATA%\Caustica, or beside the exe when portable (see `dirs::config`).
 pub fn app_dir() -> Option<PathBuf> {
@@ -89,11 +209,17 @@ impl Prefs {
             1.
         };
         p.panel_width = if p.panel_width.is_finite() {
-            p.panel_width.clamp(320., 560.)
+            p.panel_width.clamp(PANEL_WIDTH.0, PANEL_WIDTH.1)
         } else {
             370.
         };
+        p.outliner_split = if p.outliner_split.is_finite() {
+            p.outliner_split.clamp(0.1, 0.45)
+        } else {
+            0.3
+        };
         p.recent.truncate(RECENT);
+        p.scene_cards = p.scene_cards.min(2);
         p.migrate();
         p
     }
@@ -112,6 +238,54 @@ impl Prefs {
                 let _ = std::fs::write(p, json);
             }
         }
+    }
+    /// The pinned buttons this version knows, in order, without repeats.
+    pub fn pins(&self) -> Vec<Pin> {
+        let mut pins: Vec<Pin> = Vec::new();
+        for v in &self.top_pins {
+            if let Some((p, _)) = read_pin(v)
+                && !pins.contains(&p)
+            {
+                pins.push(p);
+            }
+        }
+        pins
+    }
+    /// The pin is drawn as its icon alone ("Icon only" in its right-click menu). The first
+    /// entry of a pin counts, as in `pins`.
+    pub fn pin_icon_only(&self, pin: Pin) -> bool {
+        self.top_pins
+            .iter()
+            .filter_map(read_pin)
+            .find(|(p, _)| *p == pin)
+            .is_some_and(|(_, icon_only)| icon_only)
+    }
+    pub fn set_pin_icon_only(&mut self, pin: Pin, on: bool) {
+        let mut seen = false;
+        for v in &mut self.top_pins {
+            if read_pin(v).is_some_and(|(p, _)| p == pin) && !seen {
+                *v = write_pin(pin, on);
+                seen = true;
+            }
+        }
+    }
+    /// Replaces the known pins and keeps the entries of a newer version at the end. A pin that
+    /// stays keeps its "Icon only"; one that is pinned again later starts with its label.
+    pub fn set_pins(&mut self, pins: &[Pin]) {
+        let unknown: Vec<_> = self
+            .top_pins
+            .iter()
+            .filter(|v| read_pin(v).is_none())
+            .cloned()
+            .collect();
+        self.top_pins = pins
+            .iter()
+            .map(|p| write_pin(*p, self.pin_icon_only(*p)))
+            .chain(unknown)
+            .collect();
+    }
+    pub fn reset_pins(&mut self) {
+        self.top_pins = default_pins();
     }
     pub fn is_favorite(&self, scene: &Path) -> bool {
         self.favorites.contains(&key(scene))
@@ -186,6 +360,16 @@ pub fn key(scene: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A tab from another version costs the tab, not the file.
+    #[test]
+    fn an_unknown_tab_keeps_the_rest_of_the_file() {
+        let p: Prefs = serde_json::from_str(r#"{"tab":"Nodes","zoom":1.5}"#).unwrap();
+        assert_eq!((p.tab, p.zoom), (crate::ui::Tab::Object, 1.5));
+        let p: Prefs = serde_json::from_str(r#"{"tab":"Scene"}"#).unwrap();
+        assert_eq!(p.tab, crate::ui::Tab::Object);
+        let p: Prefs = serde_json::from_str(r#"{"tab":"Look"}"#).unwrap();
+        assert_eq!(p.tab, crate::ui::Tab::Look);
+    }
     #[test]
     fn recent_scenes_move_to_the_front_and_favourites_toggle() {
         let mut p = Prefs::default();
@@ -205,6 +389,25 @@ mod tests {
         // Unknown fields and missing ones are fine: older and newer files load.
         let p: Prefs = serde_json::from_str(r#"{"zoom": 1.5, "future": 1}"#).unwrap();
         assert_eq!((p.zoom, p.favorites.len()), (1.5, 0));
+    }
+    /// The Scenes browser's sort and card size survive the file; a sort this version doesn't
+    /// know reads as the default and keeps the rest.
+    #[test]
+    fn the_scene_sort_round_trips_and_reads_leniently() {
+        let mut p = Prefs::default();
+        assert_eq!((p.scene_sort, p.scene_cards), (SceneSort::Pack, 1));
+        (p.scene_sort, p.scene_cards) = (SceneSort::Modified, 2);
+        let back: Prefs = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        assert_eq!(back, p);
+        let p: Prefs =
+            serde_json::from_str(r#"{"scene_sort":"Rating","scene_cards":-1,"zoom":1.5}"#).unwrap();
+        assert_eq!(
+            (p.scene_sort, p.scene_cards, p.zoom),
+            (SceneSort::Pack, 0, 1.5)
+        );
+        for (sort, name) in SceneSort::ALL {
+            assert_eq!(sort.name(), name);
+        }
     }
     #[test]
     fn the_old_default_name_migrates_once() {
@@ -231,6 +434,36 @@ mod tests {
         let back: Prefs = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
         assert_eq!(back, p);
         assert_eq!(Prefs::default().tool, crate::gizmo::Tool::Move);
+    }
+    /// "Icon only" lives in the pin's own entry: bare pins and unknown entries read as before,
+    /// the choice survives reordering and a save, and unpinning or the reset drops it.
+    #[test]
+    fn icon_only_pins_round_trip_beside_bare_and_unknown_ones() {
+        use crate::palette::{Do, Win};
+        let (scenes, compare) = (Pin::Window(Win::Scenes), Pin::Do(Do::Compare));
+        let mut p: Prefs = serde_json::from_str(
+            r#"{"top_pins":[{"Window":"Scenes"},{"Do":"FromTheFuture"},
+                {"pin":{"Do":"Compare"},"icon_only":true},{"pin":{"Do":"Later"},"icon_only":true},
+                {"pin":{"Window":"Scenes"},"icon_only":true}]}"#,
+        )
+        .unwrap();
+        assert_eq!(p.pins(), [scenes, compare]);
+        assert!(!p.pin_icon_only(scenes) && p.pin_icon_only(compare));
+        p.set_pin_icon_only(scenes, true);
+        p.set_pins(&[compare, scenes]);
+        let mut p: Prefs = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        assert_eq!(p.pins(), [compare, scenes]);
+        assert!(p.pin_icon_only(scenes) && p.pin_icon_only(compare));
+        // Both entries of a newer version are still in the file.
+        assert_eq!(p.top_pins.len(), 4);
+        p.set_pin_icon_only(compare, false);
+        assert_eq!(p.top_pins[0], serde_json::json!({"Do": "Compare"}));
+        p.set_pins(&[compare]);
+        p.set_pins(&[compare, scenes]);
+        assert!(!p.pin_icon_only(scenes));
+        p.set_pin_icon_only(scenes, true);
+        p.reset_pins();
+        assert!(!p.pin_icon_only(scenes) && p.top_pins == Prefs::default().top_pins);
     }
     #[test]
     fn a_session_round_trips_and_a_bad_one_is_ignored() {

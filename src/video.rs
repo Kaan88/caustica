@@ -805,7 +805,8 @@ pub struct Job {
     pending: Option<Frame>,
     frame_started: Instant,
     pub started: Instant,
-    /// The last finished frame, at most 360 pixels wide, until the UI takes it.
+    /// The last finished frame (before the first one, the view the export started from), at
+    /// most 960 pixels a side, until the UI takes it.
     pub preview: Option<egui::ColorImage>,
     /// Shown with the result, e.g. that ffmpeg was missing.
     pub note: String,
@@ -1042,7 +1043,10 @@ impl Job {
             g.keep_exposure = false;
         }
         let rgba = g.read_rgba8(10)?;
-        self.preview = Some(preview(&rgba, g.width, g.height));
+        // Only when the UI took the last one: at most one a redraw, however fast the frames come.
+        if self.preview.is_none() {
+            self.preview = Some(preview(&rgba, g.width, g.height));
+        }
         let frame = match self.options.format {
             Format::Hdr10 => Frame::Scrgb(g.read_floats(26)?),
             f if f.video() => Frame::Rgba8(rgba),
@@ -1456,14 +1460,24 @@ impl Drop for CpuExport {
         }
     }
 }
-/// A small RGBA copy for the progress window (nearest texel).
-fn preview(rgba: &[u8], w: u32, h: u32) -> egui::ColorImage {
-    let step = w.div_ceil(360).max(1);
-    let (pw, ph) = (w.div_ceil(step), h.div_ceil(step));
+/// A small RGBA copy for the viewport and the progress card (nearest texel): wide enough to
+/// fill the viewport, small enough to upload every redraw.
+pub fn preview(rgba: &[u8], w: u32, h: u32) -> egui::ColorImage {
+    let m = w.max(h).max(1) as u64;
+    let fit = |v: u32| {
+        if m <= 960 {
+            v
+        } else {
+            (v as u64 * 960).div_ceil(m).max(1) as u32
+        }
+    };
+    let (pw, ph) = (fit(w), fit(h));
     let mut pixels = Vec::with_capacity((pw * ph) as usize);
     for y in 0..ph {
         for x in 0..pw {
-            let i = (((y * step).min(h - 1) * w + (x * step).min(w - 1)) * 4) as usize;
+            let sx = ((x as u64 * w as u64 / pw as u64) as u32).min(w - 1);
+            let sy = ((y as u64 * h as u64 / ph as u64) as u32).min(h - 1);
+            let i = ((sy as u64 * w as u64 + sx as u64) * 4) as usize;
             pixels.push(egui::Color32::from_rgb(rgba[i], rgba[i + 1], rgba[i + 2]));
         }
     }

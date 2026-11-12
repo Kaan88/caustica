@@ -696,12 +696,17 @@ impl App {
                 "--ui-tab" => {
                     interface.tab_from_args = true;
                     interface.tab = match args.next().context("--ui-tab needs a name")?.as_str() {
-                        "scene" => ui::Tab::Scene,
+                        // "scene" is the old name of the tab that became these three.
+                        "object" | "scene" => ui::Tab::Object,
+                        "lights" => ui::Tab::Lights,
+                        "material" => ui::Tab::Material,
                         "render" => ui::Tab::Render,
                         "look" => ui::Tab::Look,
                         "export" => ui::Tab::Export,
                         other => {
-                            bail!("--ui-tab: unknown tab {other} (scene, render, look, export)")
+                            bail!(
+                                "--ui-tab: unknown tab {other} (render, look, lights, object, material, export)"
+                            )
                         }
                     }
                 }
@@ -716,6 +721,15 @@ impl App {
                 }
                 "--ui-assets" => interface.assets.open = true,
                 "--ui-video" => interface.show_video = true,
+                // A PNG-sequence export started on the first frame, for a capture of its
+                // progress card (the frames go to the temp folder).
+                "--ui-export" => {
+                    let mut o = interface.video.clone();
+                    (o.format, o.width, o.height, o.frames, o.spp) =
+                        (video::Format::Png, 640, 360, 100, 8);
+                    o.path = std::env::temp_dir().join("caustica-ui-export");
+                    interface.video_pending = Some(o);
+                }
                 // Path visualizer open, recording the paths through output pixel X,Y (and
                 // selecting path I).
                 "--ui-paths" => {
@@ -790,7 +804,7 @@ impl App {
                 "--help" => {
                     println!("Caustica {VERSION}");
                     println!(
-                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab scene|render|look|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --truth rows|all --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
+                        "Caustica: --version --frames N --capture image.png|image.exr --width N --height N --scale 0.25..1 --spp 1..16 --samples N --preset 0..23 --settings file.json --set key=json --rr --no-rr --require-rr --raw --oidn --debug --headless --cpu --cpu-denoise --no-vsync --capture-ui --script file.rhai --describe \"text\" --describe-edit \"text\" --ui-tab render|look|lights|object|material|export --ui-advanced --ui-scenes --ui-shortcuts --ui-palette query --ui-assets --ui-video --ui-export --ui-scopes --ui-tool select|move|rotate|scale --ui-select stage|camera|main-light|flashlight|light:N|object:N --capture-sequence dir --time T --reference SPP --truth rows|all --reference-time T --reference-lenient --make-thumbnails [--cpu] --thumbnails-out dir --thumbnails-only a,b --mesh-info file… --fetch-asset source/kind/id[@res]… --asset-catalog source… --orbit-test --drag-test --turntable out.mp4 --turntable-frames N --turntable-spp N --turntable-format h264|h265|hdr10|prores|png|exr --turntable-timeline --self-test"
                     );
                     for (i, name) in PRESETS.iter().enumerate() {
                         println!("  preset {i:2}: {name}");
@@ -1245,12 +1259,9 @@ impl App {
         ui::keep_tab_for_app(&mut input, self.text_focus && self.ui.transform.is_none());
         let ctx = self.egui.clone();
         let mut output = ctx.run_ui(input, |ui| {
-            // During an export only its progress window is drawn (and takes input): the scene
-            // must not change under it.
-            if self.export.is_some() || self.cpu_export.is_some() {
-                let ctx = ui.ctx().clone();
-                self.export_window(&ctx);
-            } else if self.show_ui {
+            // An export shows the UI even when it is hidden (Tab): locked, with the progress
+            // card in the Export tab (`draw_ui`), so the scene does not change under it.
+            if self.show_ui || self.exporting() {
                 self.ui(ui);
             }
         });
@@ -1717,11 +1728,14 @@ impl App {
             self.actions.cancel_export = false;
             if let Some(job) = &self.cpu_export {
                 job.cancel();
+                self.ui.export_cancelled = true;
             }
             if let Some(job) = self.export.take() {
+                self.ui.video_preview = None;
                 let out = job.options.output();
                 let text = unsafe { job.finish(g, s, true)? };
                 println!("EXPORT {text}");
+                self.ui.export_ended(&out, "cancelled", false);
                 self.ui.toast_file(text, out);
             }
         }
@@ -1795,12 +1809,15 @@ impl App {
             let job_done = job.done();
             if step.is_err() || job_done {
                 let job = self.export.take().unwrap();
+                self.ui.video_preview = None;
                 let (out, still, width) =
                     (job.options.output(), job.options.still, job.options.width);
                 let result = unsafe { job.finish(g, s, step.is_err()) };
                 match step.and(result) {
                     Ok(text) => {
                         println!("EXPORT {text}");
+                        self.ui
+                            .export_ended(&out, "saved", !self.hidden && !self.self_test);
                         self.ui.toast_file(text, out);
                         if let Some(st) = &mut self.stats {
                             if still {
@@ -1815,6 +1832,7 @@ impl App {
                     }
                     Err(e) => {
                         println!("EXPORT failed: {e:#}");
+                        self.ui.export_ended(&out, "failed", false);
                         self.ui.error(format!("Video export failed: {e:#}"));
                     }
                 }
@@ -1889,12 +1907,11 @@ impl App {
                         // A right click on part of the selection keeps all of it for the menu.
                         self.ui.select(sel);
                     }
-                    // Look and Render keep their tab on a click (a double-click, which frames,
-                    // still opens Scene); the toast says where the inspector went.
-                    let keep_tab = pick_keeps_tab(self.ui.tab, frame_pick);
-                    if !keep_tab {
-                        self.ui.tab = ui::Tab::Scene;
-                    }
+                    // Render, Look and Export keep their tab on a click (a double-click, which
+                    // frames, still opens the inspector); the toast says where it went.
+                    let tab = self.ui.tab.after_pick(sel, frame_pick);
+                    let keep_tab = !tab.follows_selection();
+                    self.ui.tab = tab;
                     self.ui.panel_hidden = false;
                     self.ui.scroll_to_inspector = !menu && !keep_tab;
                     self.show_ui = true;
@@ -1910,8 +1927,9 @@ impl App {
                             _ => None,
                         };
                         if let Some(name) = name {
+                            let home = ui::Tab::Object.after_pick(sel, true).label();
                             self.ui.toast(format!(
-                                "Selected {name}: open Scene to edit it, Esc to deselect"
+                                "Selected {name}: open {home} to edit it, Esc to deselect"
                             ));
                         }
                     }
@@ -2265,15 +2283,29 @@ impl App {
         if self.cpu_export.as_ref().is_some_and(|j| j.finished()) {
             let job = self.cpu_export.take().unwrap();
             let out = job.options.output();
+            let cancelled = std::mem::take(&mut self.ui.export_cancelled);
             if let Some(live) = &self.cpu_reference {
                 live.set_paused(false);
             }
             match job.join() {
                 Ok(text) => {
                     println!("EXPORT {text}");
+                    if cancelled {
+                        self.ui.export_ended(&out, "cancelled", false);
+                    } else {
+                        self.ui
+                            .export_ended(&out, "saved", !self.hidden && !self.self_test);
+                    }
                     self.ui.toast_file(text, out);
                 }
-                Err(e) => self.ui.error(format!("Export: {e:#}")),
+                Err(e) => {
+                    self.ui.export_ended(
+                        &out,
+                        if cancelled { "cancelled" } else { "failed" },
+                        false,
+                    );
+                    self.ui.error(format!("Export: {e:#}"));
+                }
             }
         }
         // The software view exports on the CPU renderer (its own thread), the viewport's
@@ -2290,12 +2322,19 @@ impl App {
             self.cpu_export = Some(video::CpuExport::start(s, options));
         }
         if let Some(options) = self.ui.video_pending.take() {
+            // The view as it is now, read before the output takes the export's size: the
+            // viewport and the card show it until the first frame is done (a still has only
+            // that one), so the viewport never goes blank.
+            let before = unsafe { g.read_rgba8(10) }
+                .ok()
+                .map(|rgba| video::preview(&rgba, g.width, g.height));
             match unsafe { video::Job::start(g, s, options) } {
-                Ok(job) => {
+                Ok(mut job) => {
                     // Input is ignored while it runs, so nothing may stay held.
                     self.drag = None;
                     self.keys_down.clear();
                     self.ui.video_preview = None;
+                    job.preview = before;
                     self.export = Some(job);
                 }
                 Err(e) => self.ui.error(format!("Export: {e:#}")),
@@ -3277,7 +3316,7 @@ impl ApplicationHandler for App {
                         KeyCode::KeyG | KeyCode::KeyS if !self.ctrl => {
                             self.ui.toast("Select an object or light first");
                         }
-                        // Escape closes the scene browser, else deselects; closing the window is
+                        // Escape closes the scene or asset browser, else deselects; closing the window is
                         // the only way to quit.
                         KeyCode::Escape => {
                             if self.ui.context_menu.take().is_none()
@@ -3285,6 +3324,8 @@ impl ApplicationHandler for App {
                             {
                                 if self.ui.show_scenes {
                                     self.ui.show_scenes = false;
+                                } else if self.ui.assets.open {
+                                    self.ui.assets.open = false;
                                 } else {
                                     self.ui.select(ui::Selection::None);
                                 }
@@ -3322,7 +3363,7 @@ impl ApplicationHandler for App {
                         KeyCode::KeyE | KeyCode::KeyN
                             if !self.settings.physics.enabled && over_view && !self.ctrl =>
                         {
-                            self.ui.toast("Physics is off (Scene tab, Simulate)");
+                            self.ui.toast("Physics is off (Object > Physics world)");
                         }
                         KeyCode::KeyP if self.ctrl => {
                             self.ui.show_scenes = !self.ui.show_scenes;
@@ -3348,7 +3389,7 @@ impl ApplicationHandler for App {
                         KeyCode::KeyC => {
                             self.actions.reference = true;
                             self.ui
-                                .toast("Reference frozen: turn on Show split in the Look tab");
+                                .toast("Reference frozen: Compare in the top bar or Look > Compare shows the split");
                         }
                         KeyCode::Digit1
                         | KeyCode::Digit2
@@ -3755,22 +3796,27 @@ fn run() -> Result<()> {
     }
     Ok(())
 }
-/// A viewport click keeps the Look or Render tab; a double-click (frame) and every other tab go
-/// to Scene, as the inspector lives there.
-fn pick_keeps_tab(tab: ui::Tab, frame_pick: bool) -> bool {
-    !frame_pick && matches!(tab, ui::Tab::Look | ui::Tab::Render)
-}
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn a_pick_keeps_look_and_render_but_not_a_double_click() {
-        use super::{pick_keeps_tab, ui::Tab};
-        assert!(pick_keeps_tab(Tab::Look, false));
-        assert!(pick_keeps_tab(Tab::Render, false));
-        assert!(!pick_keeps_tab(Tab::Render, true));
-        assert!(!pick_keeps_tab(Tab::Scene, false));
-        assert!(!pick_keeps_tab(Tab::Export, false));
+    fn a_pick_opens_the_selections_tab_and_leaves_render_look_and_export() {
+        use super::ui::{Selection as S, Tab};
+        for tab in [Tab::Render, Tab::Look, Tab::Export] {
+            assert_eq!(tab.after_pick(S::Object(0), false), tab);
+            // A double-click frames the object and opens its inspector.
+            assert_eq!(tab.after_pick(S::Object(0), true), Tab::Object);
+            assert_eq!(tab.after_pick(S::Light(0), true), Tab::Lights);
+        }
+        assert_eq!(Tab::Object.after_pick(S::Light(0), false), Tab::Lights);
+        assert_eq!(Tab::Object.after_pick(S::MainLight, false), Tab::Lights);
+        assert_eq!(Tab::Lights.after_pick(S::Object(1), false), Tab::Object);
+        assert_eq!(Tab::Lights.after_pick(S::Camera, false), Tab::Object);
+        // Material stays for what has one.
+        assert_eq!(Tab::Material.after_pick(S::Object(1), false), Tab::Material);
+        assert_eq!(Tab::Material.after_pick(S::Stage, false), Tab::Material);
+        assert_eq!(Tab::Material.after_pick(S::Light(0), false), Tab::Lights);
+        assert_eq!(Tab::Material.after_pick(S::Camera, false), Tab::Object);
     }
 
     /// A double-click on a slider (driven through egui's real input) resets the field to the
@@ -3947,6 +3993,7 @@ mod tests {
             ("console.rs", include_str!("console.rs")),
             ("ui/ai.rs", include_str!("ui/ai.rs")),
             ("ui/chrome.rs", include_str!("ui/chrome.rs")),
+            ("ui/icons.rs", include_str!("ui/icons.rs")),
             ("ui/look_tab.rs", include_str!("ui/look_tab.rs")),
             ("ui/overlay.rs", include_str!("ui/overlay.rs")),
             ("ui/render_tab.rs", include_str!("ui/render_tab.rs")),

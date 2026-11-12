@@ -278,15 +278,19 @@ impl App {
             // Draw every inspector and tab once, with the advanced rows, under the debug layer.
             190 => {
                 self.ui.advanced = true;
-                self.ui.tab = ui::Tab::Scene;
+                self.ui.tab = ui::Tab::Object;
                 self.ui.selection = ui::Selection::Object(0);
             }
             191 => {
                 self.settings.lights.push(scene::AreaLight::default());
                 self.ui.selection = ui::Selection::Light(self.settings.lights.len() - 1);
+                self.ui.tab = ui::Tab::Lights;
             }
             192 => self.ui.selection = ui::Selection::MainLight,
-            193 => self.ui.selection = ui::Selection::Camera,
+            193 => {
+                self.ui.selection = ui::Selection::Camera;
+                self.ui.tab = ui::Tab::Object;
+            }
             194 => self.ui.tab = ui::Tab::Look,
             // DLAA: DLSS Super Resolution at 100% as anti-aliasing, then back to RR.
             196 => {
@@ -302,12 +306,17 @@ impl App {
             // Gizmos: each tool drawn on an object and on the main light, then a modal
             // G X 0.5 Enter through the same code the keys use, and its undo.
             198 => {
-                self.ui.tab = ui::Tab::Scene;
+                self.ui.tab = ui::Tab::Object;
                 self.ui.selection = ui::Selection::Object(0);
                 self.ui.tool = gizmo::Tool::Move;
             }
-            199 => self.ui.tool = gizmo::Tool::Rotate,
+            // The Material tab is drawn once here, on the selected object.
+            199 => {
+                self.ui.tool = gizmo::Tool::Rotate;
+                self.ui.tab = ui::Tab::Material;
+            }
             200 => {
+                self.ui.tab = ui::Tab::Object;
                 self.ui.tool = gizmo::Tool::Scale;
                 self.ui.selection = ui::Selection::MainLight;
             }
@@ -1039,7 +1048,7 @@ impl App {
                 use crate::palette::{Act, Focus};
                 self.ui.palette.open = true;
                 self.ui.palette.query = "script".into();
-                self.ui.tab = ui::Tab::Scene;
+                self.ui.tab = ui::Tab::Object;
                 self.run_palette(Act::Go(ui::Tab::Look, Focus::Stage, "Sky and light"));
                 anyhow::ensure!(
                     self.ui.tab == ui::Tab::Look && self.ui.selection == ui::Selection::Stage,
@@ -1052,7 +1061,7 @@ impl App {
             }
             242 => {
                 self.ui.palette.open = false;
-                self.ui.tab = ui::Tab::Scene;
+                self.ui.tab = ui::Tab::Object;
             }
             // The exposure meter (E3) and the Eyes look (E4) on their own frames; every other
             // frame renders with both off (the pin at the end of this function). The self-test
@@ -1148,7 +1157,7 @@ impl App {
             283 => {
                 self.settings.restir = true;
                 self.settings.spp = 2;
-                self.ui.tab = ui::Tab::Scene;
+                self.ui.tab = ui::Tab::Object;
                 for (n, kind) in scene::LightKind::ALL.into_iter().enumerate() {
                     let mut l = editor::new_light(kind, n);
                     l.outline = true;

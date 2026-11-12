@@ -3,6 +3,7 @@
 //! because every `Settings` field outside the exclusion list restarts the render.
 mod ai;
 mod chrome;
+pub(crate) mod icons;
 mod look_tab;
 mod overlay;
 mod render_tab;
@@ -19,6 +20,11 @@ use std::time::{Duration, Instant};
 
 pub const ACCENT: egui::Color32 = egui::Color32::from_rgb(96, 202, 216);
 pub(crate) const WARN: egui::Color32 = egui::Color32::from_rgb(232, 176, 72);
+/// The fill of what is selected or switched on: rail tools, outliner rows, pressed pins.
+pub(crate) const SELECT: egui::Color32 = egui::Color32::from_rgb(43, 107, 122);
+/// The bars' background (top bar, rail, tab strip, status bar) and the hairlines between areas.
+pub(crate) const BAR: egui::Color32 = egui::Color32::from_rgb(32, 32, 32);
+pub(crate) const HAIRLINE: egui::Color32 = egui::Color32::from_rgb(44, 44, 44);
 const VIEWS: [&str; 13] = [
     "Beauty",
     "Normals",
@@ -154,10 +160,53 @@ type ThumbnailJobs = (
 );
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Tab {
-    Scene,
     Render,
     Look,
+    Lights,
+    /// Old prefs files say "Scene": the tab that was split into Lights, Object and Material.
+    #[serde(alias = "Scene")]
+    Object,
+    Material,
     Export,
+}
+impl Tab {
+    /// In the order of the tab strip.
+    pub const ALL: [Tab; 6] = [
+        Tab::Render,
+        Tab::Look,
+        Tab::Lights,
+        Tab::Object,
+        Tab::Material,
+        Tab::Export,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Tab::Render => "Render",
+            Tab::Look => "Look",
+            Tab::Lights => "Lights",
+            Tab::Object => "Object",
+            Tab::Material => "Material",
+            Tab::Export => "Export",
+        }
+    }
+    /// Render, Look and Export don't depend on the selection: a pick leaves them open, and the
+    /// outliner folds to one line above them.
+    pub fn follows_selection(self) -> bool {
+        matches!(self, Tab::Lights | Tab::Object | Tab::Material)
+    }
+    /// The tab after `sel` was picked while `self` was open: a light opens Lights, anything else
+    /// Object (Material stays for an object or the stage, which have one). Render, Look and
+    /// Export stay put unless `force` (a double-click, a palette entry).
+    pub fn after_pick(self, sel: Selection, force: bool) -> Tab {
+        if !force && !self.follows_selection() {
+            return self;
+        }
+        match sel {
+            Selection::MainLight | Selection::Flashlight | Selection::Light(_) => Tab::Lights,
+            Selection::Object(_) | Selection::Stage if self == Tab::Material => Tab::Material,
+            _ => Tab::Object,
+        }
+    }
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Selection {
@@ -236,8 +285,23 @@ pub struct UiState {
     pub mesh_z_up: bool,
     /// Mesh files being parsed on worker threads; `land_mesh_imports` adds them when done.
     pub mesh_imports: Vec<MeshImport>,
-    /// A viewport pick: the Scene tab brings the inspector into view once.
+    /// A viewport pick: the tab brings the selection's inspector into view once.
     pub scroll_to_inspector: bool,
+    /// The outliner's body is shown where it folds to one line (Render, Look, Export, or a short
+    /// column).
+    pub outliner_open: bool,
+    /// The outliner's share of the right column, while its edge is dragged (saved on release).
+    pub outliner_split: f32,
+    pub(crate) outliner_resized: bool,
+    /// The outliner's Area lights and Objects groups are closed.
+    pub outliner_closed: [bool; 2],
+    /// Windows that were sections of the old Scene tab.
+    pub show_describe: bool,
+    pub show_puzzle: bool,
+    /// The scene's puzzle was on last frame: turning on opens its window once.
+    pub(crate) puzzle_was_on: bool,
+    /// Menu > Settings > Reset everything asks first.
+    pub confirm_reset: bool,
     pub search: String,
     pub export_scale: u32,
     pub export_samples: u32,
@@ -287,8 +351,13 @@ pub struct UiState {
     pub scenes: Vec<crate::scenes::Entry>,
     scene_search: String,
     scene_tag: Option<String>,
-    /// Scenes window list: 0 all, 1 favourites, 2 recent (most recent first).
+    /// Scenes window list: 0 all, 1 favourites, 2 recent (most recent first), 3 the user's own.
     scene_list: u8,
+    /// Scene files' dates for the browser's Date modified order, read when that order is first
+    /// shown and again after the list is.
+    scene_dates: std::collections::HashMap<std::path::PathBuf, Option<std::time::SystemTime>>,
+    /// The scene browser's middle: 0 the cards, 1 Generate, 2 Save current scene.
+    scene_page: u8,
     /// Preferences (prefs.rs); written back only when `prefs_live` (interactive runs).
     pub prefs: crate::prefs::Prefs,
     pub prefs_live: bool,
@@ -393,6 +462,8 @@ pub struct UiState {
     session_prompt_until: Instant,
     /// The first close during an export: a second one soon after cancels it.
     pub close_armed: Option<Instant>,
+    /// The running CPU export was cancelled (it ends on its own thread a moment later).
+    pub export_cancelled: bool,
     /// The side panel's width, for the preferences.
     pub panel_width: f32,
     /// The user dragged the panel's edge; saved when the drag ends.
@@ -424,7 +495,7 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            tab: Tab::Scene,
+            tab: Tab::Object,
             advanced: false,
             panel_hidden: false,
             exposure_held: false,
@@ -432,6 +503,14 @@ impl Default for UiState {
             mesh_z_up: false,
             mesh_imports: vec![],
             scroll_to_inspector: false,
+            outliner_open: false,
+            outliner_split: 0.3,
+            outliner_resized: false,
+            outliner_closed: [false; 2],
+            show_describe: false,
+            show_puzzle: false,
+            puzzle_was_on: false,
+            confirm_reset: false,
             search: String::new(),
             export_scale: 2,
             export_samples: 128,
@@ -480,6 +559,8 @@ impl Default for UiState {
             scene_search: String::new(),
             scene_tag: None,
             scene_list: 0,
+            scene_dates: Default::default(),
+            scene_page: 0,
             prefs: Default::default(),
             prefs_live: false,
             restart: false,
@@ -539,6 +620,7 @@ impl Default for UiState {
             session_offer: None,
             session_prompt_until: Instant::now(),
             close_armed: None,
+            export_cancelled: false,
             panel_width: 370.,
             panel_resized: false,
             describe: String::new(),
@@ -647,9 +729,28 @@ impl UiState {
             self.toasts.remove(0);
         }
     }
-    /// Scenes window list: 0 all, 1 favourites, 2 recent.
+    /// Scenes window list: 0 all, 1 favourites, 2 recent, 3 My scenes.
     pub fn set_scene_list(&mut self, list: u8) {
-        self.scene_list = list.min(2);
+        self.scene_list = list.min(3);
+    }
+    /// An export ended: it joins Recent exports, and its folder opens if the user asked for
+    /// that (`open`: not in hidden or scripted runs).
+    pub fn export_ended(&mut self, file: &std::path::Path, state: &str, open: bool) {
+        let file_name = file.display().to_string();
+        let recent = &mut self.prefs.recent_exports;
+        recent.retain(|e| e.file != file_name);
+        recent.insert(
+            0,
+            crate::prefs::RecentExport {
+                file: file_name,
+                state: state.into(),
+            },
+        );
+        recent.truncate(8);
+        self.save_prefs();
+        if open && state == "saved" && self.prefs.open_folder_done {
+            show_in_folder(file);
+        }
     }
     /// Writes the preferences file (interactive runs only).
     pub fn save_prefs(&self) {
@@ -1268,7 +1369,12 @@ fn row_controls<R>(
         },
     );
     let controls = ui.horizontal(|ui| {
-        ui.spacing_mut().slider_width = 130.;
+        // The key mark's slot, in the tabs whose values the timeline keys.
+        crate::timeline_ui::key_slot(ui);
+        // The slider gives way in a narrow column (a number box of up to 76 points follows
+        // it), and a long combo text is cut, so a row never runs past the column's edge.
+        ui.spacing_mut().slider_width = (ui.available_width() - 84.).clamp(48., 130.);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
         add(ui)
     });
     let state = row_state(ui.ctx());
@@ -1398,6 +1504,187 @@ pub fn more(
 pub(crate) fn section(ui: &mut egui::Ui, title: &str) {
     ui.add_space(4.);
     ui.label(egui::RichText::new(title).strong().color(ACCENT));
+}
+/// The name at the top of a property tab.
+pub(crate) fn tab_title(ui: &mut egui::Ui, title: &str) {
+    ui.add_space(2.);
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(title)
+                .heading()
+                .color(egui::Color32::from_gray(230)),
+        )
+        .truncate(),
+    );
+    ui.add_space(2.);
+}
+/// A collapsible section of a property tab. Its header is one clickable line: an arrow, the
+/// title, and at the right a preview of the values inside, so a closed section still tells the
+/// state. Open or closed is remembered per section.
+pub(crate) fn fold<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    preview: impl Into<String>,
+    default_open: bool,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<R> {
+    use egui::collapsing_header::CollapsingState;
+    let id = ui.make_persistent_id(("fold", title));
+    let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
+    let height = ui.spacing().interact_size.y + 8.;
+    let (rect, r) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), height),
+        egui::Sense::click(),
+    );
+    let r = r.on_hover_cursor(egui::CursorIcon::PointingHand);
+    if r.clicked() {
+        state.toggle(ui);
+    }
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+        painter.hline(
+            rect.x_range(),
+            rect.top(),
+            egui::Stroke::new(1_f32, HAIRLINE),
+        );
+        let color = if r.hovered() {
+            egui::Color32::from_rgb(150, 225, 236)
+        } else {
+            ACCENT
+        };
+        // The arrow turns with the body's animation.
+        let openness = state.openness(ui.ctx());
+        let centre = egui::pos2(rect.left() + 9., rect.center().y);
+        let arrow = egui::Rect::from_center_size(centre, egui::vec2(8., 8.));
+        let turn = egui::emath::Rot2::from_angle(openness * std::f32::consts::FRAC_PI_2);
+        let points = [
+            egui::vec2(-2.5, -4.),
+            egui::vec2(3.5, 0.),
+            egui::vec2(-2.5, 4.),
+        ]
+        .map(|p| arrow.center() + turn * p);
+        painter.add(egui::Shape::convex_polygon(
+            points.to_vec(),
+            color,
+            egui::Stroke::NONE,
+        ));
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let title = painter.text(
+            egui::pos2(rect.left() + 20., rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            title,
+            font,
+            color,
+        );
+        let preview: String = preview.into();
+        if !preview.is_empty() {
+            let font = egui::FontId::monospace(12.);
+            let galley = painter.layout_no_wrap(preview, font, egui::Color32::from_gray(154));
+            // Right-aligned; what does not fit beside the title is cut off at its left.
+            let room = egui::Rect::from_min_max(
+                egui::pos2(title.right() + 12., rect.top()),
+                egui::pos2(rect.right() - 4., rect.bottom()),
+            );
+            let at = egui::pos2(
+                room.right() - galley.size().x,
+                rect.center().y - galley.size().y / 2.,
+            );
+            painter
+                .with_clip_rect(room.intersect(ui.clip_rect()))
+                .galley(at, galley, egui::Color32::from_gray(154));
+        }
+    }
+    state
+        .show_body_unindented(ui, |ui| {
+            let inner = add(ui);
+            ui.add_space(4.);
+            inner
+        })
+        .map(|r| r.inner)
+}
+/// One row of the outliner's tree: `label` after `indent`, `dim` text at the right, filled when
+/// selected. Takes the rest of the line.
+pub(crate) fn tree_row(
+    ui: &mut egui::Ui,
+    indent: f32,
+    selected: bool,
+    label: &str,
+    dim: &str,
+) -> egui::Response {
+    tree_row_keyed(ui, indent, selected, label, dim, false)
+}
+/// `tree_row` with a diamond at the right for something that holds keyframes.
+pub(crate) fn tree_row_keyed(
+    ui: &mut egui::Ui,
+    indent: f32,
+    selected: bool,
+    label: &str,
+    dim: &str,
+    keyed: bool,
+) -> egui::Response {
+    let height = ui.spacing().interact_size.y;
+    let (rect, r) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), height),
+        egui::Sense::click(),
+    );
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+        if selected {
+            painter.rect_filled(rect, 3., SELECT);
+        } else if r.hovered() {
+            painter.rect_filled(rect, 3., egui::Color32::from_gray(44));
+        }
+        let (text, faint) = if selected {
+            (egui::Color32::WHITE, egui::Color32::from_rgb(217, 238, 242))
+        } else {
+            (egui::Color32::from_gray(218), egui::Color32::from_gray(143))
+        };
+        let mut right = rect.right() - 6.;
+        if keyed {
+            let c = egui::pos2(right - 4., rect.center().y);
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    c + egui::vec2(0., -4.),
+                    c + egui::vec2(4., 0.),
+                    c + egui::vec2(0., 4.),
+                    c + egui::vec2(-4., 0.),
+                ],
+                if selected {
+                    egui::Color32::WHITE
+                } else {
+                    ACCENT
+                },
+                egui::Stroke::NONE,
+            ));
+            right -= 14.;
+        }
+        if !dim.is_empty() {
+            let galley =
+                painter.layout_no_wrap(dim.to_owned(), egui::FontId::proportional(12.), faint);
+            right -= galley.size().x;
+            painter.galley(
+                egui::pos2(right, rect.center().y - galley.size().y / 2.),
+                galley,
+                faint,
+            );
+            right -= 8.;
+        }
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let left = rect.left() + 6. + indent;
+        painter
+            .with_clip_rect(
+                egui::Rect::from_min_max(rect.min, egui::pos2(right, rect.bottom()))
+                    .intersect(ui.clip_rect()),
+            )
+            .text(
+                egui::pos2(left, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                label,
+                font,
+                text,
+            );
+    }
+    r
 }
 /// The label column of the Stage and material grids. Blocks that are separate grids give
 /// their columns the same minimum, so the controls line up from one block to the next.
@@ -1542,14 +1829,16 @@ fn pipeline(app: &App) -> (String, bool) {
 pub fn view_name(view: u32) -> &'static str {
     VIEWS[view as usize]
 }
-/// A scene card: thumbnail (or a placeholder) and the title under it, all cards the same size.
+/// A scene card: thumbnail (or a placeholder) and the title under it, all cards the same size
+/// (`width` points wide, 16:10).
 fn card(
     ui: &mut egui::Ui,
     e: &crate::scenes::Entry,
     texture: Option<&egui::TextureHandle>,
     selected: bool,
+    width: f32,
 ) -> egui::Response {
-    let size = egui::vec2(160., 100.);
+    let size = egui::vec2(width, width * 0.625);
     let (rect, r) = ui.allocate_exact_size(egui::vec2(size.x, size.y + 18.), egui::Sense::click());
     let image = egui::Rect::from_min_size(rect.min, size);
     match texture {
@@ -1563,7 +1852,7 @@ fn card(
                 image.center(),
                 egui::Align2::CENTER_CENTER,
                 e.title.chars().next().unwrap_or('?'),
-                egui::FontId::proportional(40.),
+                egui::FontId::proportional(size.y * 0.4),
                 egui::Color32::from_gray(110),
             );
         }
@@ -1581,8 +1870,10 @@ fn card(
             egui::StrokeKind::Outside,
         );
     }
-    let title: String = if e.title.chars().count() > 26 {
-        e.title.chars().take(25).collect::<String>() + "…"
+    // As many characters as the card is wide: 26 on the medium one.
+    let fit = (width * 0.1625) as usize;
+    let title: String = if e.title.chars().count() > fit {
+        e.title.chars().take(fit - 1).collect::<String>() + "…"
     } else {
         e.title.clone()
     };
@@ -1717,7 +2008,10 @@ impl App {
         self.ui.tidy_selection(&self.settings);
         self.draw_ui(root);
         crate::clear_reset_sources();
-        self.track_edits(ctx);
+        // Nothing can be edited while an export runs.
+        if !self.exporting() {
+            self.track_edits(ctx);
+        }
     }
     /// Panel edits become undo steps, and unsaved work reaches last-session.json.
     fn track_edits(&mut self, ctx: &egui::Context) {
@@ -1791,15 +2085,41 @@ impl App {
             self.preset = i;
         }
         self.top_bar(root, known.is_some());
-        if !self.ui.panel_hidden {
+        // An export locks everything but its card: the bars and the rail are drawn disabled,
+        // the column shows Export, and no window, overlay or shortcut sheet opens.
+        if self.exporting() {
             self.status_bar(root);
-            self.timeline_panel(root);
+            self.tool_rail(root);
             self.side_panel(root, known.is_some());
+            set_central_rect(ctx, root.available_rect_before_wrap());
+            self.export_lock_note(ctx);
+            self.toasts(ctx);
+            return;
+        }
+        if !self.ui.panel_hidden {
+            // The rail and the right column before the timeline, which then runs under the
+            // viewport only and leaves the column its full height.
+            self.status_bar(root);
+            self.tool_rail(root);
+            self.side_panel(root, known.is_some());
+            self.timeline_panel(root);
         }
         // What the panels left: popups and toasts stay out of them (egui 0.34's content_rect no
         // longer shrinks, and `available_rect` is deprecated).
         set_central_rect(ctx, root.available_rect_before_wrap());
         self.cpu_view_message(ctx);
+        self.transform_strip(ctx);
+        self.describe_window(ctx);
+        self.puzzle_window(ctx);
+        self.reset_dialog(ctx);
+        // Both browsers fill the viewport: the one opened last replaces the other.
+        if self.ui.show_scenes && self.ui.assets.open {
+            if self.ui.scenes_were_open {
+                self.ui.show_scenes = false;
+            } else {
+                self.ui.assets.open = false;
+            }
+        }
         self.scenes_window(ctx);
         self.assets_window(ctx);
         self.video_window(ctx);
@@ -1947,10 +2267,16 @@ impl App {
             self.ui.pivot,
             self.ui.snap_to,
         );
-        let panel_moved = self.ui.panel_resized && !ctx.input(|i| i.pointer.any_down());
+        let released = !ctx.input(|i| i.pointer.any_down());
+        let mut panel_moved = self.ui.panel_resized && released;
         if panel_moved {
             self.ui.panel_resized = false;
             p.panel_width = self.ui.panel_width;
+        }
+        if self.ui.outliner_resized && released {
+            self.ui.outliner_resized = false;
+            p.outliner_split = self.ui.outliner_split;
+            panel_moved = true;
         }
         if panel_moved || layout != (p.tab, p.tool, p.local, p.pivot, p.snap_to) {
             (p.tab, p.tool, p.local, p.pivot, p.snap_to) = layout;
@@ -1967,7 +2293,7 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.label("Left drag orbits · right drag pans · wheel zooms · click selects · right-click opens a menu · F1 lists every shortcut");
-                                ui.label("Scenes: pick a scene · Look tab: adjust the image · F12: save PNG · Tab: hide the panel");
+                                ui.label("Scenes: pick a scene · Look tab: adjust the image · F12: save PNG · Tab: hide the panels · Ctrl+K: find anything");
                             });
                             seen = ui.button("Got it").clicked();
                         });

@@ -26,87 +26,55 @@ fn denoiser_idle(rr_active: bool, battle: bool) -> Option<&'static str> {
 fn pattern_is_random(rr_active: bool, integrator: u32, battle: bool) -> bool {
     rr_active || (integrator != 0 && !battle)
 }
+/// The Reconstruction header: the quality mode and what denoises. Beside that title the
+/// header's monospace preview has room for about 26 characters and `fold` cuts off the rest at
+/// the left, so a longer pair drops what the mode's name repeats: "(100%)" from an AA mode,
+/// the name from a scaled one.
+fn reconstruction_preview(quality: &str, scale: f32, runs: &str) -> String {
+    let full = format!("{quality} · {runs}");
+    if full.chars().count() <= 26 {
+        full
+    } else if scale >= 0.995 {
+        format!("{} · {runs}", quality.trim_end_matches(" (100%)"))
+    } else {
+        format!("{:.0}% · {runs}", scale * 100.)
+    }
+}
+/// An upscaler's name in the Upscaling header, where the combo's full label does not fit.
+fn upscaler_short(u: Upscaler) -> &'static str {
+    match u {
+        Upscaler::Bilinear => "Bilinear",
+        Upscaler::Bicubic => "Bicubic",
+        Upscaler::Dlss => "DLSS",
+        Upscaler::Fsr => "FSR",
+        Upscaler::Xess => "XeSS",
+    }
+}
 
 impl App {
     pub(super) fn render_tab(&mut self, ui: &mut egui::Ui) {
         let g = self.gpu.as_ref().unwrap();
         let s = &mut self.settings;
         let advanced = self.ui.advanced;
-        section(ui, "Renderer");
-        ui.horizontal(|ui| {
-            ui.add_enabled_ui(g.ray_tracing, |ui| {
-                ui.selectable_value(&mut self.cpu_view, false, "GPU")
-                    .on_hover_text("The viewport shows the GPU's path tracer")
-                    .on_disabled_hover_text(chrome::NO_RT_HELP);
-            });
-            ui.selectable_value(&mut self.cpu_view, true, "CPU (software)")
-                .on_hover_text(chrome::CPU_VIEW_HELP);
-        });
-        if self.cpu_view {
-            if let Some(live) = self.cpu_reference.as_ref().filter(|l| l.view) {
-                let st = live.state();
-                note(
-                    ui,
-                    &format!(
-                        "{} threads at low priority. {} / {} spp, {:.1} s.",
-                        st.threads, st.samples, st.cap, st.seconds
-                    ),
-                );
-                let text = chrome::cpu_view_text(&st);
-                if !text.is_empty() {
-                    ui.label(egui::RichText::new(text).small().color(WARN));
-                }
-            }
-            ui.checkbox(&mut self.cpu_denoise, "Denoise the CPU view")
-                .on_hover_text("The native denoiser's spatial passes on the CPU's mean, for looking at only: saved EXRs keep the plain mean. Turning it on starts the render over.");
-            if self.cpu_denoise {
-                ui.add(crate::slider(&mut s.denoise_strength, 0. ..=1.))
-                    .on_hover_text("How strongly the denoiser smooths.");
-            }
-            note(
-                ui,
-                "It always shows the plain image, whatever the view keys pick. The GPU settings below wait for the GPU view.",
-            );
-            if advanced {
-                ui.collapsing("CPU truth", |ui| {
-                    note(
-                        ui,
-                        "Exact versions of the shortcuts the CPU copies from the GPU, for measuring them. All off is the GPU's model. Changing one starts the render over.",
-                    );
-                    let mut t = s.truth;
-                    let mut flags = [
-                        ("Russian roulette off", &mut t.roulette),
-                        ("Firefly clamp off", &mut t.firefly),
-                        ("No pdf floors", &mut t.floors),
-                        ("Uncapped fog collisions", &mut t.collisions),
-                        ("No fog early out", &mut t.fog_cutoff),
-                        ("No absorption colour floor", &mut t.absorption_floor),
-                        ("Exact SDF marching", &mut t.sdf_march),
-                        ("Rough glass BTDF", &mut t.glass_btdf),
-                        ("Internal re-reflection (pending)", &mut t.internal_reflection),
-                        ("Multiple scattering (pending)", &mut t.multiscatter),
-                        ("Conductor Fresnel (pending)", &mut t.fresnel),
-                        ("Float-error ray offsets (pending)", &mut t.offsets),
-                        ("Shadow terminator (pending)", &mut t.shadow_terminator),
-                    ];
-                    for (label, on) in &mut flags {
-                        ui.checkbox(on, *label);
-                    }
-                    if t != s.truth {
-                        s.truth = t;
-                    }
-                });
-            }
-        }
-        section(ui, "Reconstruction");
-        note(
-            ui,
-            "Denoiser and resolution are also set together by the top bar's Quality menu; Alt+D cycles the denoiser.",
-        );
+        tab_title(ui, "Render");
         let caps = g.capabilities();
         // At 100% only DLAA / Native AA runs an upscaler (`Gpu::prepare_upscaler`'s test).
         let at_native = g.rw >= g.width && !(s.native_aa && s.upscaler.temporal());
-        grid("reconstruction").show(ui, |ui| {
+        let preview = reconstruction_preview(
+            &quality_label(s),
+            s.scale,
+            // What runs, not only what is chosen: battle mode shows raw samples, and Ray
+            // Reconstruction that cannot run falls back to the native denoiser.
+            match s.denoiser {
+                _ if s.battle => "raw",
+                Denoiser::Rr if g.rr_active => "RR",
+                Denoiser::Rr => "RR (native)",
+                Denoiser::Native => "native",
+                Denoiser::Off => "raw",
+            },
+        );
+        fold(ui, "Reconstruction", preview, true, |ui| {
+            grid("reconstruction").show(ui, |ui| {
             row(
                 ui,
                 "Denoiser",
@@ -115,7 +83,7 @@ impl App {
                     ui.add_enabled_ui(!s.battle, |ui| {
                         let r = egui::ComboBox::from_id_salt("denoiser")
                             .selected_text(s.denoiser.label())
-                            .width(220.)
+                            .width(220_f32.min(ui.available_width()))
                             .show_ui(ui, |ui| {
                                 for d in Denoiser::ALL {
                                     let backend = caps.denoiser(d);
@@ -188,7 +156,7 @@ impl App {
                 |ui| {
                     egui::ComboBox::from_id_salt("quality mode")
                         .selected_text(quality_label(s))
-                        .width(175.)
+                        .width(175_f32.min(ui.available_width()))
                         .show_ui(ui, |ui| {
                             for (scale, aa, label) in quality_modes(s) {
                                 let current = (s.scale - scale).abs() < 0.005 && (scale < 1. || s.native_aa == aa);
@@ -209,107 +177,25 @@ impl App {
                     );
                 });
             }
-            row(ui, "Upscaler", "Used below 100%, and as DLAA / Native AA at 100%. Ray Reconstruction does its own upscaling.", |ui| {
-                let idle = upscaler_idle(s.rr(), s.battle);
-                ui.add_enabled_ui(idle.is_none(), |ui| {
-                    let r = egui::ComboBox::from_id_salt("upscaler")
-                        .selected_text(s.upscaler.label())
-                        .width(175.)
-                        .show_ui(ui, |ui| {
-                            for u in Upscaler::ALL {
-                                let backend = caps.upscaler(u);
-                                ui.add_enabled_ui(backend.is_none_or(|b| b.available) || s.upscaler == u, |ui| {
-                                    ui.selectable_value(&mut s.upscaler, u, u.label())
-                                        .on_disabled_hover_text(format!("Unavailable: {}", backend.map_or("", |b| b.reason.as_str())));
-                                });
-                            }
-                        })
-                        .response;
-                    why_disabled(r, idle.unwrap_or_default());
-                });
-            });
-            if !s.rr() && s.upscaler == Upscaler::Dlss {
-                row(
-                    ui,
-                    "DLSS preset",
-                    "Default lets NVIDIA pick: K for DLAA, Quality and Balanced; M for Performance; L for Ultra Performance.",
-                    |ui| {
-                        let label = DLSS_PRESETS.iter().find(|(id, _)| *id == s.dlss_preset).map_or("NVIDIA default", |(_, l)| *l);
-                        let idle = if s.battle {
-                            Some(BATTLE_RAW)
-                        } else {
-                            at_native.then_some("Not used at full resolution: pick a lower Quality mode or an AA mode")
-                        };
-                        ui.add_enabled_ui(idle.is_none(), |ui| {
-                            let r = egui::ComboBox::from_id_salt("dlss preset")
-                                .selected_text(label)
-                                .show_ui(ui, |ui| {
-                                    for (id, label) in DLSS_PRESETS {
-                                        ui.selectable_value(&mut s.dlss_preset, id, label);
-                                    }
-                                })
-                                .response;
-                            why_disabled(r, idle.unwrap_or_default());
-                        });
-                    },
-                );
-            }
-            row(
-                ui,
-                "Pixel filter",
-                "How the progressive path spreads each pixel's samples. Box is the old sharp, slightly jagged look; Blackman-Harris and Gaussian give smoother edges. Ray Reconstruction and the temporal upscalers use their own jitter instead.",
-                |ui| {
-                    ui.add_enabled_ui(!s.rr(), |ui| {
-                        let r = egui::ComboBox::from_id_salt("pixel_filter")
-                            .selected_text(
-                                *scene::PIXEL_FILTERS
-                                    .get(s.pixel_filter as usize)
-                                    .unwrap_or(&"?"),
-                            )
-                            .show_ui(ui, |ui| {
-                                for (i, name) in scene::PIXEL_FILTERS.iter().enumerate() {
-                                    ui.selectable_value(&mut s.pixel_filter, i as u32, *name);
-                                }
-                            })
-                            .response;
-                        why_disabled(r, RR_RECONSTRUCTS);
-                    });
-                },
-            );
-            if advanced || (s.filter_width - 1.5).abs() > 1e-3 {
-                row(
-                    ui,
-                    "Filter width",
-                    "Full width of the pixel filter: wider is softer and hides more aliasing. 1.5 pixels matches Cycles.",
-                    |ui| {
-                        ui.add_enabled_ui(!s.rr(), |ui| {
-                            why_disabled(
-                                ui.add(crate::slider(&mut s.filter_width, 0.5..=4.).suffix(" px")),
-                                RR_RECONSTRUCTS,
-                            );
-                        });
-                    },
-                );
-            }
         });
-        note(
-            ui,
-            &format!(
-                "Render {} × {} · output {} × {}",
-                g.rw, g.rh, g.width, g.height
-            ),
-        );
-        if !s.rr() && !g.upscale_status.is_empty() {
-            note(ui, &g.upscale_status);
-        } else if !s.rr() && !s.battle && at_native {
             note(
                 ui,
-                "The upscaler is not running at Native; it sets the AA entry in Quality mode.",
+                &format!(
+                    "Render {} × {} · output {} × {}",
+                    g.rw, g.rh, g.width, g.height
+                ),
             );
-        }
-        section(ui, "Sampling");
-        let bdpt_over = s.bounces > 24;
-        grid("sampling").show(ui, |ui| {
+        });
+        // BDPT stops at 24 bounces, as its slider says.
+        let bounces = if s.integrator == 1 && !s.battle {
+            s.bounces.min(24)
+        } else {
+            s.bounces
+        };
+        let preview = format!("{} spp · {} bounces", s.spp, bounces);
+        fold(ui, "Sampling", preview, true, |ui| {
+            let bdpt_over = s.bounces > 24;
+            grid("sampling").show(ui, |ui| {
             row(
                 ui,
                 "Stop after",
@@ -393,8 +279,194 @@ impl App {
                 },
             );
         });
-        more(ui, "render more", advanced, |ui| {
-            section(ui, "Advanced");
+        });
+        let filter = scene::PIXEL_FILTERS
+            .get(s.pixel_filter as usize)
+            .unwrap_or(&"?");
+        // As the rows grey out: battle mode runs no upscaler, and Ray Reconstruction replaces
+        // both the upscaler and the pixel filter.
+        let preview = if s.battle {
+            format!("off · {filter}")
+        } else if s.rr() {
+            "RR".to_string()
+        } else if at_native {
+            format!("native · {filter}")
+        } else {
+            format!("{} · {filter}", upscaler_short(s.upscaler))
+        };
+        fold(ui, "Upscaling and filter", preview, false, |ui| {
+            grid("upscaling").show(ui, |ui| {
+            row(ui, "Upscaler", "Used below 100%, and as DLAA / Native AA at 100%. Ray Reconstruction does its own upscaling.", |ui| {
+                let idle = upscaler_idle(s.rr(), s.battle);
+                ui.add_enabled_ui(idle.is_none(), |ui| {
+                    let r = egui::ComboBox::from_id_salt("upscaler")
+                        .selected_text(s.upscaler.label())
+                        .width(175_f32.min(ui.available_width()))
+                        .show_ui(ui, |ui| {
+                            for u in Upscaler::ALL {
+                                let backend = caps.upscaler(u);
+                                ui.add_enabled_ui(backend.is_none_or(|b| b.available) || s.upscaler == u, |ui| {
+                                    ui.selectable_value(&mut s.upscaler, u, u.label())
+                                        .on_disabled_hover_text(format!("Unavailable: {}", backend.map_or("", |b| b.reason.as_str())));
+                                });
+                            }
+                        })
+                        .response;
+                    why_disabled(r, idle.unwrap_or_default());
+                });
+            });
+            if !s.rr() && s.upscaler == Upscaler::Dlss {
+                row(
+                    ui,
+                    "DLSS preset",
+                    "Default lets NVIDIA pick: K for DLAA, Quality and Balanced; M for Performance; L for Ultra Performance.",
+                    |ui| {
+                        let label = DLSS_PRESETS.iter().find(|(id, _)| *id == s.dlss_preset).map_or("NVIDIA default", |(_, l)| *l);
+                        let idle = if s.battle {
+                            Some(BATTLE_RAW)
+                        } else {
+                            at_native.then_some("Not used at full resolution: pick a lower Quality mode or an AA mode")
+                        };
+                        ui.add_enabled_ui(idle.is_none(), |ui| {
+                            let r = egui::ComboBox::from_id_salt("dlss preset")
+                                .selected_text(label)
+                                .show_ui(ui, |ui| {
+                                    for (id, label) in DLSS_PRESETS {
+                                        ui.selectable_value(&mut s.dlss_preset, id, label);
+                                    }
+                                })
+                                .response;
+                            why_disabled(r, idle.unwrap_or_default());
+                        });
+                    },
+                );
+            }
+            row(
+                ui,
+                "Pixel filter",
+                "How the progressive path spreads each pixel's samples. Box is the old sharp, slightly jagged look; Blackman-Harris and Gaussian give smoother edges. Ray Reconstruction and the temporal upscalers use their own jitter instead.",
+                |ui| {
+                    ui.add_enabled_ui(!s.rr(), |ui| {
+                        let r = egui::ComboBox::from_id_salt("pixel_filter")
+                            .selected_text(
+                                *scene::PIXEL_FILTERS
+                                    .get(s.pixel_filter as usize)
+                                    .unwrap_or(&"?"),
+                            )
+                            .show_ui(ui, |ui| {
+                                for (i, name) in scene::PIXEL_FILTERS.iter().enumerate() {
+                                    ui.selectable_value(&mut s.pixel_filter, i as u32, *name);
+                                }
+                            })
+                            .response;
+                        why_disabled(r, RR_RECONSTRUCTS);
+                    });
+                },
+            );
+            if advanced || (s.filter_width - 1.5).abs() > 1e-3 {
+                row(
+                    ui,
+                    "Filter width",
+                    "Full width of the pixel filter: wider is softer and hides more aliasing. 1.5 pixels matches Cycles.",
+                    |ui| {
+                        ui.add_enabled_ui(!s.rr(), |ui| {
+                            why_disabled(
+                                ui.add(crate::slider(&mut s.filter_width, 0.5..=4.).suffix(" px")),
+                                RR_RECONSTRUCTS,
+                            );
+                        });
+                    },
+                );
+            }
+        });
+            if !s.rr() && !g.upscale_status.is_empty() {
+                note(ui, &g.upscale_status);
+            } else if !s.rr() && !s.battle && at_native {
+                note(
+                    ui,
+                    "The upscaler is not running at Native; it sets the AA entry in Quality mode.",
+                );
+            }
+        });
+        let preview = match self.cpu_reference.as_ref().filter(|l| l.view) {
+            Some(live) => format!("{} threads", live.state().threads),
+            None => "off".to_string(),
+        };
+        fold(ui, "CPU renderer", preview, self.cpu_view, |ui| {
+            if !self.cpu_view {
+                note(
+                    ui,
+                    "Off. CPU in the top bar shows the software path tracer: every ray on the CPU, through the same exposure, tone map and look.",
+                );
+            }
+            if self.cpu_view {
+                if let Some(live) = self.cpu_reference.as_ref().filter(|l| l.view) {
+                    let st = live.state();
+                    note(
+                        ui,
+                        &format!(
+                            "{} threads at low priority. {} / {} spp, {:.1} s.",
+                            st.threads, st.samples, st.cap, st.seconds
+                        ),
+                    );
+                    let text = chrome::cpu_view_text(&st);
+                    if !text.is_empty() {
+                        ui.label(egui::RichText::new(text).small().color(WARN));
+                    }
+                }
+                ui.checkbox(&mut self.cpu_denoise, "Denoise the CPU view")
+                .on_hover_text("The native denoiser's spatial passes on the CPU's mean, for looking at only: saved EXRs keep the plain mean. Turning it on starts the render over.");
+                if self.cpu_denoise {
+                    ui.add(crate::slider(&mut s.denoise_strength, 0. ..=1.))
+                        .on_hover_text("How strongly the denoiser smooths.");
+                }
+                note(
+                    ui,
+                    "It always shows the plain image, whatever the view keys pick. The GPU settings below wait for the GPU view.",
+                );
+                if advanced {
+                    ui.collapsing("CPU truth", |ui| {
+                    note(
+                        ui,
+                        "Exact versions of the shortcuts the CPU copies from the GPU, for measuring them. All off is the GPU's model. Changing one starts the render over.",
+                    );
+                    let mut t = s.truth;
+                    let mut flags = [
+                        ("Russian roulette off", &mut t.roulette),
+                        ("Firefly clamp off", &mut t.firefly),
+                        ("No pdf floors", &mut t.floors),
+                        ("Uncapped fog collisions", &mut t.collisions),
+                        ("No fog early out", &mut t.fog_cutoff),
+                        ("No absorption colour floor", &mut t.absorption_floor),
+                        ("Exact SDF marching", &mut t.sdf_march),
+                        ("Rough glass BTDF", &mut t.glass_btdf),
+                        ("Internal re-reflection (pending)", &mut t.internal_reflection),
+                        ("Multiple scattering (pending)", &mut t.multiscatter),
+                        ("Conductor Fresnel (pending)", &mut t.fresnel),
+                        ("Float-error ray offsets (pending)", &mut t.offsets),
+                        ("Shadow terminator (pending)", &mut t.shadow_terminator),
+                    ];
+                    for (label, on) in &mut flags {
+                        ui.checkbox(on, *label);
+                    }
+                    if t != s.truth {
+                        s.truth = t;
+                    }
+                });
+                }
+            }
+        });
+        let preview = format!(
+            "{}{}",
+            if s.restir { "ReSTIR · " } else { "" },
+            // Random also where the Sample pattern row is greyed out.
+            if s.sobol && !pattern_is_random(g.rr_active, s.integrator, s.battle) {
+                "Sobol"
+            } else {
+                "Random"
+            }
+        );
+        fold(ui, "Advanced", preview, advanced, |ui| {
             grid("render advanced").show(ui, |ui| {
                 row(ui, "Sample pattern", "Low-discrepancy (Owen-scrambled Sobol) converges faster. Ray Reconstruction always uses random samples.", |ui| {
                     let random = pattern_is_random(g.rr_active, s.integrator, s.battle);
@@ -509,5 +581,27 @@ mod tests {
         assert!(pattern_is_random(false, 2, false));
         // Battle mode's path-traced quadrants read the pattern, whatever the integrator says.
         assert!(!pattern_is_random(false, 2, true));
+    }
+    #[test]
+    fn the_reconstruction_header_fits_beside_its_title() {
+        let p = reconstruction_preview;
+        assert_eq!(p("Quality (67%)", 2. / 3., "RR"), "Quality (67%) · RR");
+        assert_eq!(
+            p("DLAA (100%)", 1., "RR (native)"),
+            "DLAA (100%) · RR (native)"
+        );
+        assert_eq!(
+            p("FSR Native AA (100%)", 1., "native"),
+            "FSR Native AA · native"
+        );
+        assert_eq!(
+            p("Ultra performance (33%)", 1. / 3., "RR (native)"),
+            "33% · RR (native)"
+        );
+        for (scale, label) in RESOLUTIONS {
+            for runs in ["RR", "RR (native)", "native", "raw"] {
+                assert!(p(label, scale, runs).chars().count() <= 26);
+            }
+        }
     }
 }

@@ -1,7 +1,7 @@
 //! The video export dialog and its progress window (item 6). The options live in
 //! `UiState::video`; `redraw` starts the `video::Job` and renders it a pass at a time.
 use crate::App;
-use crate::ui::{grid, note, row, section};
+use crate::ui::{ACCENT, BAR, grid, note, row, section};
 use crate::video::{Easing, Format, PRORES_PROFILES};
 
 const SIZES: [(&str, u32, u32); 8] = [
@@ -64,7 +64,7 @@ impl App {
                                     let usable = (!f.video() || ffmpeg) && (f != Format::Hdr10 || hdr);
                                     let r = ui.add_enabled(usable, egui::Button::selectable(o.format == f, f.label()));
                                     let r = if f == Format::Hdr10 && !hdr {
-                                        r.on_disabled_hover_text("Needs HDR output (Render tab, Display).")
+                                        r.on_disabled_hover_text("Needs HDR output (Look > Display).")
                                     } else if f.video() && !ffmpeg {
                                         r.on_disabled_hover_text("ffmpeg was not found next to the exe or on PATH (tools/setup.ps1 fetches it).")
                                     } else {
@@ -249,56 +249,78 @@ impl App {
             self.ui.show_video = false;
         }
     }
-    /// Drawn instead of the whole UI while an export runs.
-    pub fn export_window(&mut self, ctx: &egui::Context) {
+    pub(crate) fn exporting(&self) -> bool {
+        self.export.is_some() || self.cpu_export.is_some()
+    }
+    /// The running export in numbers, for the top bar's chip, the status bar and the card.
+    pub(crate) fn export_info(&self) -> Option<ExportInfo> {
         if let Some(job) = &self.cpu_export {
-            let o = &job.options;
-            let [w, h] = o.size();
             let progress = job.progress();
-            let mut cancel = false;
-            egui::Window::new(if o.still {
-                "Rendering image (CPU)"
-            } else {
-                "Exporting video (CPU)"
-            })
-            .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
-            .resizable(false)
-            .collapsible(false)
-            .show(ctx, |ui| {
-                ui.set_width(380.);
-                ui.add(egui::ProgressBar::new(progress).show_percentage());
-                let elapsed = job.started.elapsed().as_secs();
-                let left = if progress > 0.01 {
-                    format!(
-                        "about {} left",
-                        clock((elapsed as f32 * (1. - progress) / progress) as u64)
-                    )
+            let elapsed = job.started.elapsed().as_secs_f32();
+            return Some(ExportInfo {
+                title: if job.options.still {
+                    "Rendering image (CPU)"
                 } else {
-                    "estimating".into()
-                };
-                note(
-                    ui,
-                    &format!(
-                        "{} · {w}×{h} · {} spp · {} elapsed, {left}",
-                        o.format.label(),
-                        o.spp,
-                        clock(elapsed)
-                    ),
-                );
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
+                    "Exporting video (CPU)"
+                },
+                progress,
+                left: (progress > 0.01).then(|| (elapsed * (1. - progress) / progress) as u64),
+                frame: None,
             });
-            ctx.request_repaint_after(std::time::Duration::from_millis(250));
-            if cancel {
-                self.actions.cancel_export = true;
-            }
-            return;
         }
-        let Some(job) = &mut self.export else {
+        let job = self.export.as_ref()?;
+        let samples = self.gpu.as_ref().map_or(0, |g| g.samples);
+        let o = &job.options;
+        let progress = job.progress(samples);
+        // A video knows after its first frame; a still goes by its samples.
+        let left = job.remaining().map(|d| d.as_secs()).or_else(|| {
+            (progress > 0.02)
+                .then(|| (job.started.elapsed().as_secs_f32() * (1. - progress) / progress) as u64)
+        });
+        Some(ExportInfo {
+            title: if o.still {
+                "Rendering image"
+            } else {
+                "Exporting video"
+            },
+            progress,
+            left,
+            frame: Some(((job.frame + 1).min(o.frames), o.frames)),
+        })
+    }
+    /// The top bar's middle while an export runs: what it is, how far, how long still.
+    pub(crate) fn export_chip(&mut self, ui: &mut egui::Ui) {
+        let Some(info) = self.export_info() else {
             return;
         };
-        if let Some(image) = job.preview.take() {
+        ui.add_space(((ui.available_width() - 330.) / 2.).max(0.));
+        egui::Frame::new()
+            .fill(egui::Color32::from_rgb(38, 42, 43))
+            .stroke(egui::Stroke::new(
+                1_f32,
+                egui::Color32::from_rgb(53, 71, 75),
+            ))
+            .corner_radius(4)
+            .inner_margin(egui::Margin::symmetric(9, 2))
+            .show(ui, |ui| {
+                ui.label(format!("{} {:.0} %", info.title, info.progress * 100.));
+                ui.add(
+                    egui::ProgressBar::new(info.progress)
+                        .desired_width(70.)
+                        .desired_height(6.),
+                );
+                ui.monospace(info.left_text());
+            })
+            .response
+            .on_hover_text(
+                "The scene is locked until the export ends. Cancel is in the Export tab.",
+            );
+    }
+    /// The job's newest preview, as the texture the viewport and the card draw.
+    fn take_export_preview(&mut self, ctx: &egui::Context) {
+        if let Some(job) = &mut self.export
+            && let Some(image) = job.preview.take()
+        {
             match &mut self.ui.video_preview {
                 Some(t) => t.set(image, egui::TextureOptions::LINEAR),
                 None => {
@@ -307,64 +329,226 @@ impl App {
                 }
             }
         }
-        let samples = self.gpu.as_ref().map_or(0, |g| g.samples);
-        let o = &job.options;
-        let [w, h] = o.size();
-        let progress = job.progress(samples);
-        let mut cancel = false;
-        egui::Window::new(if o.still {
-            "Rendering image"
-        } else {
-            "Exporting video"
-        })
-        .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
-        .resizable(false)
-        .collapsible(false)
-        .show(ctx, |ui| {
-            ui.set_width(380.);
+    }
+    /// Over the viewport while an export runs.
+    pub(crate) fn export_lock_note(&mut self, ctx: &egui::Context) {
+        let rect = crate::ui::central_rect(ctx);
+        // A GPU export renders at its own size, which the window can't show as it is (D3D12
+        // clears to a near-black, Vulkan stretches it under the panels): the viewport shows the
+        // export's last finished frame instead, fitted, and before the first one the view it
+        // started from. A CPU export leaves the output alone, so the view stays as it was.
+        if self.export.is_some() && rect.width() > 1. && rect.height() > 1. {
+            self.take_export_preview(ctx);
+            let painter = ctx
+                .layer_painter(egui::LayerId::new(
+                    egui::Order::Background,
+                    egui::Id::unique("export view"),
+                ))
+                .with_clip_rect(rect);
+            painter.rect_filled(rect, 0, egui::Color32::from_gray(16));
             if let Some(t) = &self.ui.video_preview {
                 let size = t.size_vec2();
-                ui.image((t.id(), size * (380. / size.x)));
-            } else {
-                ui.add_sized([380., 380. * h as f32 / w as f32], egui::Spinner::new());
-            }
-            ui.add(egui::ProgressBar::new(progress).show_percentage());
-            if self
-                .ui
-                .close_armed
-                .is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(6))
-            {
-                ui.colored_label(
-                    crate::ui::WARN,
-                    "Closing cancels this export and deletes the unfinished file. Close again to do that.",
+                let scale = (rect.width() / size.x).min(rect.height() / size.y);
+                painter.image(
+                    t.id(),
+                    egui::Rect::from_center_size(rect.center(), size * scale),
+                    egui::Rect::from_min_max(egui::pos2(0., 0.), egui::pos2(1., 1.)),
+                    egui::Color32::WHITE,
                 );
             }
-            ui.label(format!(
-                "Frame {} of {} · {} / {} spp",
-                (job.frame + 1).min(o.frames),
-                o.frames,
-                samples.min(job.settings().max_samples),
-                job.settings().max_samples
-            ));
-            let elapsed = job.started.elapsed().as_secs();
-            let left = job.remaining().map_or("estimating".into(), |d| {
-                format!("about {} left", clock(d.as_secs()))
+        }
+        egui::Area::new(egui::Id::unique("export lock note"))
+            .order(egui::Order::Middle)
+            .interactable(false)
+            .pivot(egui::Align2::CENTER_TOP)
+            .fixed_pos(rect.center_top() + egui::vec2(0., 10.))
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.label(egui::RichText::new("Locked while exporting").small());
+                });
             });
-            note(
-                ui,
-                &format!(
-                    "{} · {w}×{h} · {} elapsed, {left}",
-                    o.format.label(),
-                    clock(elapsed)
-                ),
-            );
-            if ui.button("Cancel").clicked() {
-                cancel = true;
+    }
+    /// The Export tab's progress card. False when no export runs.
+    pub(crate) fn export_card(&mut self, ui: &mut egui::Ui) -> bool {
+        let Some(info) = self.export_info() else {
+            return false;
+        };
+        let ctx = ui.ctx().clone();
+        self.take_export_preview(&ctx);
+        let (options, started, spp) = match (&self.cpu_export, &self.export) {
+            (Some(job), _) => (job.options.clone(), job.started, None),
+            (None, Some(job)) => {
+                let samples = self.gpu.as_ref().map_or(0, |g| g.samples);
+                let cap = job.settings().max_samples;
+                (
+                    job.options.clone(),
+                    job.started,
+                    Some(format!("{} / {cap} spp", samples.min(cap))),
+                )
             }
-        });
+            (None, None) => return false,
+        };
+        let gpu_job = self.export.is_some();
+        let [w, h] = options.size();
+        let armed = self
+            .ui
+            .close_armed
+            .is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(6));
+        let mut cancel = false;
+        let mut pref_changed = false;
+        egui::Frame::new()
+            .fill(BAR)
+            .stroke(egui::Stroke::new(1_f32, ACCENT.gamma_multiply(0.5)))
+            .corner_radius(6)
+            .inner_margin(10)
+            .show(ui, |ui| {
+                let width = ui.available_width();
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(info.title).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.monospace(format!("{:.0} %", info.progress * 100.));
+                    });
+                });
+                if gpu_job {
+                    match &self.ui.video_preview {
+                        Some(t) => {
+                            let size = t.size_vec2();
+                            let scale = (width / size.x).min(170. / size.y);
+                            ui.image((t.id(), size * scale));
+                        }
+                        None => {
+                            let height = (width * h as f32 / w as f32).min(170.);
+                            ui.add_sized([width, height], egui::Spinner::new());
+                        }
+                    }
+                }
+                if armed {
+                    ui.colored_label(
+                        crate::ui::WARN,
+                        "Closing cancels this export and deletes the unfinished file. Close again to do that.",
+                    );
+                }
+                ui.label(match (info.frame, &spp) {
+                    (Some((n, m)), Some(spp)) if m > 1 => format!("Frame {n} of {m} · {spp}"),
+                    (_, Some(spp)) => spp.clone(),
+                    _ => format!("{} spp", options.spp),
+                });
+                note(
+                    ui,
+                    &format!(
+                        "{} elapsed · {}",
+                        clock(started.elapsed().as_secs()),
+                        info.left_text()
+                    ),
+                );
+                ui.add(
+                    egui::ProgressBar::new(info.progress)
+                        .desired_width(width)
+                        .desired_height(8.),
+                );
+                if let Some((n, m)) = info.frame
+                    && m > 1
+                {
+                    frame_strip(ui, n, m);
+                }
+                let format = if options.still {
+                    options.image_format().label()
+                } else {
+                    options.format.label()
+                };
+                note(ui, &format!("{format} · {w}×{h}"));
+                ui.horizontal(|ui| {
+                    cancel = ui.button("Cancel").clicked();
+                    pref_changed = ui
+                        .checkbox(&mut self.ui.prefs.open_folder_done, "Open folder when done")
+                        .changed();
+                });
+            });
+        if pref_changed {
+            self.ui.save_prefs();
+        }
         if cancel {
             self.actions.cancel_export = true;
         }
+        // A CPU export does not drive the frame loop.
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        true
+    }
+}
+/// What the chip, the status bar and the card say about the running export.
+pub(crate) struct ExportInfo {
+    pub title: &'static str,
+    pub progress: f32,
+    /// Seconds left, once that can be estimated.
+    pub left: Option<u64>,
+    /// The frame being rendered (from 1) and how many there are. A CPU export reports only
+    /// its progress.
+    pub frame: Option<(u32, u32)>,
+}
+impl ExportInfo {
+    pub fn left_text(&self) -> String {
+        self.left.map_or("estimating".into(), about)
+    }
+    /// The status bar's state.
+    pub fn status(&self) -> String {
+        match self.frame {
+            Some((n, m)) if m > 1 => format!("Exporting frame {n} / {m} · {}", self.left_text()),
+            _ => format!(
+                "{} {:.0} % · {}",
+                self.title,
+                self.progress * 100.,
+                self.left_text()
+            ),
+        }
+    }
+}
+/// "~40 s", "~14 min", "~2 h 5 min".
+fn about(s: u64) -> String {
+    if s < 90 {
+        format!("~{s} s")
+    } else if s < 5400 {
+        format!("~{} min", (s + 30) / 60)
+    } else {
+        format!("~{} h {} min", s / 3600, s / 60 % 60)
+    }
+}
+/// One cell per frame: done, the current one, still to do. Too many to tell apart become
+/// three spans.
+fn frame_strip(ui: &mut egui::Ui, current: u32, frames: u32) {
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 10.), egui::Sense::hover());
+    let cell = rect.width() / frames as f32;
+    let (done, now, left) = (
+        ACCENT.gamma_multiply(0.5),
+        ACCENT,
+        egui::Color32::from_gray(58),
+    );
+    let span = |from: u32, to: u32| {
+        egui::Rect::from_min_max(
+            egui::pos2(rect.left() + from as f32 * cell, rect.top()),
+            egui::pos2(rect.left() + to as f32 * cell, rect.bottom()),
+        )
+    };
+    let painter = ui.painter();
+    if cell < 4. {
+        painter.rect_filled(span(0, current - 1), 0., done);
+        painter.rect_filled(
+            span(current - 1, current).expand2(egui::vec2(0.5, 0.)),
+            0.,
+            now,
+        );
+        painter.rect_filled(span(current, frames), 0., left);
+        return;
+    }
+    for i in 0..frames {
+        let color = match (i + 1).cmp(&current) {
+            std::cmp::Ordering::Less => done,
+            std::cmp::Ordering::Equal => now,
+            std::cmp::Ordering::Greater => left,
+        };
+        let mut r = span(i, i + 1);
+        r.max.x -= 1.;
+        painter.rect_filled(r, 1., color);
     }
 }
 fn clock(s: u64) -> String {

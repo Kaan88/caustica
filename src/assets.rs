@@ -540,7 +540,12 @@ fn pin(rel: &str, pinned: Pinned) -> Result<()> {
 /// Downloads an asset at a resolution (blocking) and returns its `use_path`.
 pub fn install(a: &Asset, res: &str, progress: &Progress) -> Result<String> {
     let root = crate::dirs::user_scenes().context("No scenes folder")?;
-    for (url, rel, zip) in plan(a, res)? {
+    // The file `installed` looks for comes last, so a set broken off by Cancel or an error
+    // is not taken for an installed one, and Download stays offered to fetch the rest.
+    let used = use_path(a, res);
+    let mut files = plan(a, res)?;
+    files.sort_by_key(|(_, rel, _)| *rel == used);
+    for (url, rel, zip) in files {
         let dest = root.join(&rel);
         if !zip && dest.is_file() {
             continue;
@@ -557,11 +562,13 @@ pub fn install(a: &Asset, res: &str, progress: &Progress) -> Result<String> {
             return Err(e);
         }
         if zip {
-            extract_maps(&dest, dest.parent().unwrap())?;
+            if let Err(e) = extract_maps(&dest, dest.parent().unwrap()) {
+                let _ = std::fs::remove_file(root.join(&used));
+                return Err(e);
+            }
             std::fs::remove_file(&dest)?;
         }
     }
-    let used = use_path(a, res);
     ensure!(
         root.join(&used).is_file(),
         "{used} is missing after the download"

@@ -34,6 +34,19 @@ fn enter_card(visible: &[usize], selected: Option<usize>) -> Option<usize> {
         .filter(|s| visible.contains(s))
         .or(visible.first().copied())
 }
+/// The scene cards' widths in points: small, medium and large (`Prefs::scene_cards`). Three small
+/// cards fit the narrowest browser (about 340 pt between the sidebar and the details).
+const CARD_WIDTHS: [f32; 3] = [104., 160., 232.];
+/// True for the user's own scenes, as opposed to the shipped ones: those in the `user` pack
+/// (Save current scene, a saved generator seed, Save as… into it) and, when installed, any pack
+/// in the per-user scenes folder (`user_root`; in the other modes that is the shipped folder).
+fn own_scene(e: &crate::scenes::Entry, user_root: Option<&std::path::Path>) -> bool {
+    e.path
+        .parent()
+        .and_then(|p| p.file_name())
+        .is_some_and(|n| n == "user")
+        || user_root.is_some_and(|root| e.path.starts_with(root))
+}
 /// The tags the Scenes window shows as chips, in this order (the ones that exist).
 const TOP_TAGS: [&str; 10] = [
     "material",
@@ -159,6 +172,9 @@ impl App {
         }
         let opened = !self.ui.palette.was_open;
         self.ui.palette.was_open = true;
+        // A right-click on a command or window pins it to the top bar, or unpins it.
+        let mut pins = self.ui.prefs.pins();
+        let mut pin_toggle: Option<crate::prefs::Pin> = None;
         // Before the box: it would take Up and Down for the ends of its text.
         let (down, enter, esc, toggle) = ctx.input_mut(|i| {
             let mut k = |m, key| i.consume_key(m, key);
@@ -223,6 +239,24 @@ impl App {
                                 if r.clicked() {
                                     run = Some(e.act);
                                 }
+                                let pin = match e.act {
+                                    palette::Act::Do(d) => Some(crate::prefs::Pin::Do(d)),
+                                    palette::Act::Window(w) => Some(crate::prefs::Pin::Window(w)),
+                                    palette::Act::Go(..) => None,
+                                };
+                                if let Some(pin) = pin {
+                                    r.context_menu(|ui| {
+                                        let label = if pins.contains(&pin) {
+                                            "Unpin from top bar"
+                                        } else {
+                                            "Pin to top bar"
+                                        };
+                                        if ui.button(label).clicked() {
+                                            pin_toggle = Some(pin);
+                                            ui.close();
+                                        }
+                                    });
+                                }
                             }
                         });
                     if enter && let Some(&i) = hits.get(st.at) {
@@ -230,6 +264,15 @@ impl App {
                     }
                 });
             });
+        if let Some(pin) = pin_toggle {
+            if pins.contains(&pin) {
+                pins.retain(|p| *p != pin);
+            } else {
+                pins.push(pin);
+            }
+            self.ui.prefs.set_pins(&pins);
+            self.ui.save_prefs();
+        }
         if run.is_some() {
             close = true;
         }
@@ -274,15 +317,11 @@ impl App {
                     self.ui.select(sel);
                     self.ui.scroll_to_inspector = true;
                 }
+                // The outliner is folded above Render, Look and Export.
+                self.ui.outliner_open |= section == "Outliner";
                 self.ui.panel_hidden = false;
                 self.show_ui = true;
-                let tab = match tab {
-                    Tab::Scene => "Scene",
-                    Tab::Render => "Render",
-                    Tab::Look => "Look",
-                    Tab::Export => "Export",
-                };
-                self.ui.toast(format!("{section}: {tab} tab"));
+                self.ui.toast(format!("{section}: {} tab", tab.label()));
             }
             Act::Window(w) => match w {
                 Win::Remote => self.ui.show_remote = true,
@@ -295,6 +334,8 @@ impl App {
                 Win::Scopes => self.ui.show_scopes = true,
                 Win::Graph => self.ui.show_graph = true,
                 Win::Paths => self.ui.paths.open = true,
+                Win::Describe => self.ui.show_describe = true,
+                Win::Puzzle => self.ui.show_puzzle = true,
             },
             Act::Do(d) => match d {
                 Do::OpenScene => self.open_scene_dialog(),
@@ -318,7 +359,7 @@ impl App {
                 Do::FreezeReference => {
                     self.actions.reference = true;
                     self.ui
-                        .toast("Reference frozen: turn on Show split in the Look tab");
+                        .toast("Reference frozen: Compare in the top bar or Look > Compare shows the split");
                 }
                 Do::Restart => {
                     self.actions.reset = true;
@@ -334,7 +375,99 @@ impl App {
                     self.ui.prefs.update_check = !self.ui.prefs.update_check;
                     self.ui.save_prefs();
                 }
+                Do::Compare => self.toggle_compare(),
+                Do::Randomize => {
+                    let seed = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .subsec_nanos()
+                        | 1;
+                    self.switch_scene("Random scene", |s| s.randomize(seed));
+                }
+                Do::Today => {
+                    self.switch_scene("Seed of the day", |s| s.randomize(seed_of_the_day()));
+                }
+                Do::HighRes => {
+                    self.ui.tab = Tab::Export;
+                    self.ui.panel_hidden = false;
+                    self.show_ui = true;
+                }
             },
+        }
+    }
+    /// The top bar's Compare: the A/B split on or off. With no reference yet it freezes the
+    /// current image first, so the split has something to show.
+    pub fn toggle_compare(&mut self) {
+        if self.cpu_view {
+            self.ui
+                .toast("The viewport shows the CPU's render: nothing to compare against");
+            return;
+        }
+        if self.settings.compare {
+            self.settings.compare = false;
+            return;
+        }
+        if !self.gpu.as_ref().is_some_and(|g| g.reference_valid) {
+            self.actions.reference = true;
+            self.ui
+                .toast("Reference frozen: change something to see the difference");
+        }
+        self.settings.compare = true;
+    }
+    /// Whether a pinned command reads as pressed (toggles and window openers).
+    pub(crate) fn pin_active(&self, pin: crate::prefs::Pin) -> bool {
+        use crate::prefs::Pin;
+        use palette::{Do, Win};
+        match pin {
+            Pin::Window(w) => match w {
+                Win::Remote => self.ui.show_remote,
+                Win::Console => self.ui.console.open,
+                Win::Stats => self.ui.show_stats,
+                Win::Shortcuts => self.ui.show_shortcuts,
+                Win::Scenes => self.ui.show_scenes,
+                Win::Assets => self.ui.assets.open,
+                Win::Video => self.ui.show_video,
+                Win::Scopes => self.ui.show_scopes,
+                Win::Graph => self.ui.show_graph,
+                Win::Paths => self.ui.paths.open,
+                Win::Describe => self.ui.show_describe,
+                Win::Puzzle => self.ui.show_puzzle,
+            },
+            Pin::Do(d) => match d {
+                Do::Advanced => self.ui.advanced,
+                Do::CpuView => self.cpu_view,
+                Do::Orbit => self.settings.rotate,
+                Do::Walk => self.walking.is_some(),
+                Do::Flashlight => self.settings.flashlight,
+                Do::Compare => self.settings.compare,
+                Do::UpdateCheck => self.ui.prefs.update_check,
+                _ => false,
+            },
+            Pin::Widget(_) => false,
+        }
+    }
+    /// A pinned button's click: windows toggle, commands run.
+    pub(crate) fn run_pin(&mut self, pin: crate::prefs::Pin) {
+        use crate::prefs::Pin;
+        use palette::{Act, Win};
+        match pin {
+            Pin::Window(w) if self.pin_active(pin) => match w {
+                Win::Remote => self.ui.show_remote = false,
+                Win::Console => self.ui.console.open = false,
+                Win::Stats => self.ui.show_stats = false,
+                Win::Shortcuts => self.ui.show_shortcuts = false,
+                Win::Scenes => self.ui.show_scenes = false,
+                Win::Assets => self.ui.assets.open = false,
+                Win::Video => self.ui.show_video = false,
+                Win::Scopes => self.ui.show_scopes = false,
+                Win::Graph => self.ui.show_graph = false,
+                Win::Paths => self.ui.paths.open = false,
+                Win::Describe => self.ui.show_describe = false,
+                Win::Puzzle => self.ui.show_puzzle = false,
+            },
+            Pin::Window(w) => self.run_palette(Act::Window(w)),
+            Pin::Do(d) => self.run_palette(Act::Do(d)),
+            Pin::Widget(_) => {}
         }
     }
     /// The loaded scene file's entry, if the current scene came from one.
@@ -443,173 +576,124 @@ impl App {
             self.request_thumbnails(false);
         }
         self.update_thumbnails(ctx);
-        let mut open = self.ui.show_scenes;
+        let open = self.ui.show_scenes;
         let mut load = None;
         let mut rerender = false;
         let mut close = false;
+        // Over the viewport, not a floating window: a sidebar (library, tags, create), the cards
+        // and the selected scene's details. The image keeps rendering behind it.
+        let rect = central_rect(ctx);
         egui::Window::new("Scenes")
-            .open(&mut open)
-            .default_size([760., 640.])
-            .default_pos([120., 50.])
-            .collapsible(false)
-            .constrain(true)
+            .title_bar(false)
+            .resizable(false)
+            .fixed_rect(rect)
+            .frame(egui::Frame::new().fill(egui::Color32::from_gray(24)))
             .show(ctx, |ui| {
+                ui.set_min_size(rect.size());
                 let state = &mut self.ui;
                 let search_id = ui.make_persistent_id("scene search");
                 let in_search = ui.memory(|m| m.has_focus(search_id));
                 // Before the box: it would take Up and Down for the start and end of its text.
-                let step = scene_step(ui, keys_free, in_search);
+                // Opening shows the cards, whatever page was left open.
+                if opened {
+                    state.scene_page = 0;
+                    state.scene_dates.clear();
+                }
+                let user_root = (crate::dirs::mode() == crate::dirs::Mode::Installed)
+                    .then(crate::dirs::user_scenes)
+                    .flatten();
+                let own: Vec<bool> = state.scenes.iter().map(|e| own_scene(e, user_root.as_deref())).collect();
+                let step = if state.scene_page == 0 {
+                    scene_step(ui, keys_free, in_search)
+                } else {
+                    0
+                };
+                let searched = state.scene_search.clone();
                 let mut enter = false;
-                ui.horizontal(|ui| {
-                    let r = ui.add(egui::TextEdit::singleline(&mut state.scene_search).id(search_id).hint_text(field_hint("Search scenes…")).desired_width(220.));
-                    if opened {
-                        r.request_focus();
-                    }
-                    // A single line gives the focus up on Enter and Esc.
-                    if r.lost_focus() {
-                        enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
-                        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                            if state.scene_search.is_empty() {
-                                close = true;
-                            } else {
-                                state.scene_search.clear();
-                                r.request_focus();
-                            }
-                        }
-                    }
-                    if ui.button("Refresh").on_hover_text("Read the scenes folder again").clicked() {
-                        state.scenes = crate::scenes::list();
-                        state.scene_selected = None;
-                    }
-                    match &state.thumbnail_jobs {
-                        Some((_, total, done)) => {
-                            ui.add(egui::Spinner::new());
-                            note(ui, &format!("Rendering thumbnails {done} / {total}"));
-                        }
-                        None => {
-                            if ui.button("Re-render thumbnails").on_hover_text("Render every thumbnail again in the background").clicked() {
-                                rerender = true;
-                            }
-                        }
-                    }
-                });
                 let (top, more) = split_tags(state.scenes.iter().flat_map(|e| e.tags.iter().map(String::as_str)));
-                ui.horizontal(|ui| {
-                    for (i, name) in ["All", "Favorites", "Recent"].iter().enumerate() {
-                        if ui.selectable_label(state.scene_list == i as u8, *name).clicked() {
-                            state.scene_list = i as u8;
-                        }
-                    }
-                    ui.separator();
-                    if ui
-                        .selectable_label(state.scene_tag.is_none(), "Any tag")
-                        .on_hover_text("Do not filter by tag (click the active tag again to clear it too)")
-                        .clicked()
-                    {
-                        state.scene_tag = None;
-                    }
-                    for t in &top {
-                        let on = state.scene_tag.as_deref() == Some(*t);
-                        if ui.selectable_label(on, *t).clicked() {
-                            state.scene_tag = if on { None } else { Some(t.to_string()) };
-                        }
-                    }
-                    // A tag chosen from the popup stays visible as a chip while it is active.
-                    let hidden = state.scene_tag.clone().filter(|t| more.iter().any(|(m, _)| m == t));
-                    if let Some(t) = hidden
-                        && ui.selectable_label(true, &t).on_hover_text("Click to clear").clicked()
-                    {
-                        state.scene_tag = None;
-                    }
-                    ui.menu_button(format!("More tags ({})", more.len()), |ui| {
-                        egui::ScrollArea::vertical().max_height(320.).show(ui, |ui| {
-                            for (t, n) in &more {
-                                let on = state.scene_tag.as_deref() == Some(t.as_str());
-                                if ui.selectable_label(on, format!("{t}  ({n})")).clicked() {
-                                    state.scene_tag = if on { None } else { Some(t.clone()) };
-                                    ui.close();
-                                }
-                            }
-                        });
-                    })
-                    .response
-                    .on_hover_text("Every other tag, with how many scenes have it. Search matches all tags too.");
-                });
-                ui.separator();
-                let search = state.scene_search.to_lowercase();
-                let mut visible: Vec<usize> = (0..state.scenes.len())
-                    .filter(|i| {
-                        let e = &state.scenes[*i];
-                        (e.title.to_lowercase().contains(&search)
-                            || e.description.to_lowercase().contains(&search)
-                            || e.tags.iter().any(|t| t.contains(&search)))
-                            && state.scene_tag.as_ref().is_none_or(|t| e.tags.contains(t))
-                            && match state.scene_list {
-                                1 => state.prefs.is_favorite(&e.path),
-                                2 => state.prefs.recency(&e.path).is_some(),
-                                _ => true,
-                            }
-                    })
-                    .collect();
-                if state.scene_list == 2 {
-                    visible.sort_by_key(|i| state.prefs.recency(&state.scenes[*i].path));
-                }
-                // The picker, the details and the Generate and Save rows below it need about 330
-                // px: on a small screen the grid gives way, not the window.
-                let grid_height = (ctx.content_rect().height() - 330.).clamp(120., 360.);
-                let move_card = step != 0;
-                if move_card {
-                    state.scene_selected = step_card(&visible, state.scene_selected, step).or(state.scene_selected);
-                }
-                if enter {
-                    load = enter_card(&visible, state.scene_selected);
-                } else if keys_free && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    load = state.scene_selected.filter(|i| visible.contains(i));
-                }
-                if visible.is_empty() && state.scene_list > 0 {
-                    note(ui, if state.scene_list == 1 { "No favourites yet: tick Favorite on a scene." } else { "No scenes opened yet." });
-                }
-                egui::ScrollArea::vertical().id_salt("scene grid").max_height(grid_height).auto_shrink([false, true]).show(ui, |ui| {
-                    let mut start = 0;
-                    while start < visible.len() {
-                        let pack = state.scenes[visible[start]].pack.clone();
-                        let end = visible[start..].iter().position(|i| state.scenes[*i].pack != pack).map_or(visible.len(), |n| start + n);
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(&pack).color(ACCENT));
-                            license_badge(ui, &state.scenes[visible[start]].license);
-                        });
-                        ui.horizontal_wrapped(|ui| {
-                            for &i in &visible[start..end] {
-                                let e = &state.scenes[i];
-                                let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
-                                let r = card(ui, e, texture, state.scene_selected == Some(i));
-                                if r.clicked() {
-                                    state.scene_selected = Some(i);
-                                }
-                                if move_card && state.scene_selected == Some(i) {
-                                    r.scroll_to_me(None);
-                                }
-                                if r.double_clicked() {
-                                    load = Some(i);
-                                }
-                            }
-                        });
-                        start = end;
-                    }
-                });
-                ui.separator();
-                if let Some(e) = state.scene_selected.and_then(|i| state.scenes.get(i).cloned()) {
-                    ui.horizontal(|ui| {
-                        let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
-                        match texture {
-                            Some(t) => {
-                                ui.add(egui::Image::new((t.id(), egui::vec2(256., 160.))).corner_radius(4.));
-                            }
-                            None => {
-                                placeholder(ui, &e.title, egui::vec2(256., 160.));
+                let header = |ui: &mut egui::Ui, text: &str| {
+                    ui.add_space(8.);
+                    ui.label(egui::RichText::new(text).small().color(egui::Color32::from_gray(143)));
+                };
+                egui::Panel::left("scenes side")
+                    .exact_size(200.)
+                    .resizable(false)
+                    .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(6, 4)))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical().id_salt("scenes side").show(ui, |ui| {
+                        header(ui, "LIBRARY");
+                        let counts = [
+                            state.scenes.len(),
+                            state.scenes.iter().filter(|e| state.prefs.is_favorite(&e.path)).count(),
+                            state.scenes.iter().filter(|e| state.prefs.recency(&e.path).is_some()).count(),
+                            own.iter().filter(|o| **o).count(),
+                        ];
+                        for (i, name) in ["All scenes", "Favorites", "Recent", "My scenes"].iter().enumerate() {
+                            let on = state.scene_page == 0 && state.scene_list == i as u8;
+                            if tree_row(ui, 0., on, name, &counts[i].to_string()).clicked() {
+                                state.scene_list = i as u8;
+                                state.scene_page = 0;
                             }
                         }
-                        ui.vertical(|ui| {
+                        header(ui, "TAGS");
+                        for t in &top {
+                            let on = state.scene_tag.as_deref() == Some(*t);
+                            let n = state.scenes.iter().filter(|e| e.tags.iter().any(|x| x == t)).count();
+                            if tree_row(ui, 0., on, t, &n.to_string())
+                                .on_hover_text("Only scenes with this tag; click again to clear")
+                                .clicked()
+                            {
+                                state.scene_tag = if on { None } else { Some(t.to_string()) };
+                                state.scene_page = 0;
+                            }
+                        }
+                        // A tag chosen from the popup stays visible as a row while it is active.
+                        let hidden = state.scene_tag.clone().filter(|t| more.iter().any(|(m, _)| m == t));
+                        if let Some(t) = hidden
+                            && tree_row(ui, 0., true, &t, "clear").clicked()
+                        {
+                            state.scene_tag = None;
+                        }
+                        ui.menu_button(format!("More tags ({})", more.len()), |ui| {
+                            egui::ScrollArea::vertical().max_height(320.).show(ui, |ui| {
+                                for (t, n) in &more {
+                                    let on = state.scene_tag.as_deref() == Some(t.as_str());
+                                    if ui.selectable_label(on, format!("{t}  ({n})")).clicked() {
+                                        state.scene_tag = if on { None } else { Some(t.clone()) };
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        })
+                        .response
+                        .on_hover_text("Every other tag, with how many scenes have it. Search matches all tags too.");
+                        header(ui, "CREATE");
+                        let families = format!("{} families", crate::generators::FAMILIES.len());
+                        if tree_row(ui, 0., state.scene_page == 1, "Generate…", &families).clicked() {
+                            state.scene_page = 1;
+                        }
+                        if tree_row(ui, 0., state.scene_page == 2, "Save current scene…", "").clicked() {
+                            state.scene_page = 2;
+                        }
+                        });
+                    });
+                egui::Panel::right("scenes details")
+                    .exact_size(300.)
+                    .resizable(false)
+                    .frame(egui::Frame::new().inner_margin(14))
+                    .show(ui, |ui| {
+                        if let Some(e) = state.scene_selected.and_then(|i| state.scenes.get(i).cloned()) {
+                            let width = ui.available_width();
+                            let size = egui::vec2(width, width * 0.625);
+                            match e.thumbnail().and_then(|p| state.thumbnails.get(&p)) {
+                                Some(t) => {
+                                    ui.add(egui::Image::new((t.id(), size)).corner_radius(6.));
+                                }
+                                None => {
+                                    placeholder(ui, &e.title, size);
+                                }
+                            }
+                            ui.add_space(4.);
                             ui.label(egui::RichText::new(&e.title).heading());
                             ui.label(&e.description);
                             ui.horizontal_wrapped(|ui| {
@@ -628,8 +712,9 @@ impl App {
                                 ui.hyperlink_to(egui::RichText::new(&e.license.source).small(), &e.license.source);
                             }
                             note(ui, &e.path.display().to_string());
+                            ui.add_space(4.);
                             ui.horizontal(|ui| {
-                                if ui.button("Load (or double-click)").clicked() {
+                                if ui.button("Load").clicked() {
                                     load = state.scene_selected;
                                 }
                                 let mut favorite = state.prefs.is_favorite(&e.path);
@@ -638,12 +723,70 @@ impl App {
                                     state.save_prefs();
                                 }
                             });
+                        } else {
+                            note(ui, "Pick a scene. Your render settings (resolution, RR, upscaler, HDR) stay as they are.");
+                        }
+                        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                            note(ui, "Double-click a card to load. Enter loads the selection. Esc returns to the image.");
                         });
                     });
-                } else {
-                    note(ui, "Pick a scene; double-click loads it. Your render settings (resolution, RR, upscaler, HDR) stay as they are.");
+                egui::Frame::new().inner_margin(12).show(ui, |ui| {
+                let mut refresh = false;
+                ui.horizontal(|ui| {
+                    // The search takes what More and Close leave, down to the narrowest browser.
+                    let width = (ui.available_width() - 130.).clamp(80., 280.);
+                    let r = ui.add(egui::TextEdit::singleline(&mut state.scene_search).id(search_id).hint_text(field_hint("Search scenes…")).desired_width(width));
+                    if opened {
+                        r.request_focus();
+                    }
+                    // A single line gives the focus up on Enter and Esc.
+                    if r.lost_focus() {
+                        enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                            if state.scene_search.is_empty() {
+                                close = true;
+                            } else {
+                                state.scene_search.clear();
+                                r.request_focus();
+                            }
+                        }
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("Close").on_hover_text("Back to the image (Esc)").clicked() {
+                            close = true;
+                        }
+                        // Refresh and the thumbnail render sit in a menu: the middle is too
+                        // narrow for their buttons beside the search.
+                        ui.menu_button("More", |ui| {
+                            if ui.button("Refresh").on_hover_text("Read the scenes folder again").clicked() {
+                                refresh = true;
+                                ui.close();
+                            }
+                            match &state.thumbnail_jobs {
+                                Some((_, total, done)) => {
+                                    ui.add_enabled(false, egui::Button::new(format!("Rendering thumbnails {done} / {total}")));
+                                }
+                                None => {
+                                    if ui.button("Re-render thumbnails").on_hover_text("Render every thumbnail again in the background").clicked() {
+                                        rerender = true;
+                                        ui.close();
+                                    }
+                                }
+                            }
+                        });
+                    });
+                });
+                if refresh {
+                    state.scenes = crate::scenes::list();
+                    state.scene_selected = None;
+                    state.scene_dates.clear();
                 }
-                ui.separator();
+                ui.add_space(6.);
+                // Typing in the search box goes back to the cards it filters.
+                if state.scene_search != searched {
+                    state.scene_page = 0;
+                }
+                if state.scene_page == 1 {
                 ui.label(egui::RichText::new("Generate").strong());
                 let mut generate = false;
                 ui.horizontal(|ui| {
@@ -693,12 +836,13 @@ impl App {
                     match crate::scenes::save_generated(family, state.gen_seed, &title) {
                         Ok(path) => {
                             state.scenes = crate::scenes::list();
+                            state.scene_dates.clear();
                             state.toast(format!("Saved {}", path.display()));
                         }
                         Err(e) => state.error(format!("{e:#}")),
                     }
                 }
-                ui.separator();
+                } else if state.scene_page == 2 {
                 ui.label(egui::RichText::new("Save the current scene").strong());
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut state.save_title).hint_text(field_hint("Title")).desired_width(180.));
@@ -707,6 +851,7 @@ impl App {
                         match crate::scenes::save_user(&self.settings, &state.save_title, &state.save_description) {
                             Ok(path) => {
                                 state.scenes = crate::scenes::list();
+                                state.scene_dates.clear();
                                 state.thumbnails_requested = false;
                                 self.settings.scene_name = state.save_title.trim().to_string();
                                 state.toast(format!("Saved {}", path.display()));
@@ -714,6 +859,144 @@ impl App {
                             Err(e) => state.error(format!("{e:#}")),
                         }
                     }
+                });
+                } else {
+                use crate::prefs::SceneSort;
+                // Sort and card size, then the thumbnail renders' progress: within 340 pt.
+                ui.horizontal(|ui| {
+                    let mut changed = false;
+                    egui::ComboBox::from_id_salt("scene sort")
+                        .selected_text(format!("Sort: {}", state.prefs.scene_sort.name()))
+                        .width(150.)
+                        .show_ui(ui, |ui| {
+                            for (sort, name) in SceneSort::ALL {
+                                let about = match sort {
+                                    SceneSort::Pack => "As listed, under a heading per pack",
+                                    SceneSort::Name => "By title",
+                                    SceneSort::Recent => "The scenes opened last come first (the Recent list), then the rest",
+                                    SceneSort::Favorites => "Favorites, then the rest",
+                                    SceneSort::Modified => "By the scene file's date, newest first",
+                                };
+                                changed |= ui.selectable_value(&mut state.prefs.scene_sort, sort, name).on_hover_text(about).changed();
+                            }
+                        });
+                    for (i, name) in ["S", "M", "L"].iter().enumerate() {
+                        if ui.selectable_label(state.prefs.scene_cards == i as u8, *name).on_hover_text("Card size: small, medium or large").clicked() {
+                            state.prefs.scene_cards = i as u8;
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        state.save_prefs();
+                    }
+                    if let Some((_, total, done)) = &state.thumbnail_jobs {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            note(ui, &format!("{done} / {total}"));
+                            ui.add(egui::Spinner::new()).on_hover_text("Rendering thumbnails");
+                        });
+                    }
+                });
+                ui.add_space(4.);
+                let sort = state.prefs.scene_sort;
+                let card_width = CARD_WIDTHS[(state.prefs.scene_cards as usize).min(2)];
+                let search = state.scene_search.to_lowercase();
+                let mut visible: Vec<usize> = (0..state.scenes.len())
+                    .filter(|i| {
+                        let e = &state.scenes[*i];
+                        (e.title.to_lowercase().contains(&search)
+                            || e.description.to_lowercase().contains(&search)
+                            || e.tags.iter().any(|t| t.contains(&search)))
+                            && state.scene_tag.as_ref().is_none_or(|t| e.tags.contains(t))
+                            && match state.scene_list {
+                                1 => state.prefs.is_favorite(&e.path),
+                                2 => state.prefs.recency(&e.path).is_some(),
+                                3 => own_scene(e, user_root.as_deref()),
+                                _ => true,
+                            }
+                    })
+                    .collect();
+                // Stable sorts: ties keep the pack order. The Recent list is most recent first
+                // until another order is chosen.
+                match sort {
+                    SceneSort::Pack if state.scene_list != 2 => {}
+                    SceneSort::Pack | SceneSort::Recent => {
+                        visible.sort_by_key(|i| state.prefs.recency(&state.scenes[*i].path).unwrap_or(usize::MAX));
+                    }
+                    SceneSort::Name => visible.sort_by_cached_key(|i| state.scenes[*i].title.to_lowercase()),
+                    SceneSort::Favorites => visible.sort_by_key(|i| !state.prefs.is_favorite(&state.scenes[*i].path)),
+                    SceneSort::Modified => {
+                        for e in &state.scenes {
+                            if !state.scene_dates.contains_key(&e.path) {
+                                let date = std::fs::metadata(&e.path).and_then(|m| m.modified()).ok();
+                                state.scene_dates.insert(e.path.clone(), date);
+                            }
+                        }
+                        // Files without a date last.
+                        visible.sort_by_key(|i| std::cmp::Reverse(state.scene_dates.get(&state.scenes[*i].path).copied().flatten()));
+                    }
+                }
+                // Pack headings only over the pack order: any other makes a run per card.
+                let grouped = sort == SceneSort::Pack && state.scene_list != 2;
+                let move_card = step != 0;
+                if move_card {
+                    state.scene_selected = step_card(&visible, state.scene_selected, step).or(state.scene_selected);
+                }
+                if enter {
+                    load = enter_card(&visible, state.scene_selected);
+                } else if keys_free && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    load = state.scene_selected.filter(|i| visible.contains(i));
+                }
+                if visible.is_empty() {
+                    // The list itself is empty, or the search and tag leave nothing of it.
+                    let listed = match state.scene_list {
+                        0 => state.scenes.len(),
+                        1 => state.scenes.iter().filter(|e| state.prefs.is_favorite(&e.path)).count(),
+                        2 => state.scenes.iter().filter(|e| state.prefs.recency(&e.path).is_some()).count(),
+                        _ => state.scenes.iter().filter(|e| own_scene(e, user_root.as_deref())).count(),
+                    };
+                    note(ui, match state.scene_list {
+                        _ if listed > 0 => "No scene here matches the search and the tag.",
+                        0 => "No scenes found: the scenes folder is missing or empty.",
+                        1 => "No favourites yet: tick Favorite on a scene.",
+                        2 => "No scenes opened yet.",
+                        _ => "No scenes of your own yet: save the current scene or a generator seed under Create.",
+                    });
+                }
+                egui::ScrollArea::vertical().id_salt("scene grid").auto_shrink([false; 2]).show(ui, |ui| {
+                    let mut start = 0;
+                    while start < visible.len() {
+                        let pack = state.scenes[visible[start]].pack.clone();
+                        let end = if grouped {
+                            visible[start..].iter().position(|i| state.scenes[*i].pack != pack).map_or(visible.len(), |n| start + n)
+                        } else {
+                            visible.len()
+                        };
+                        if grouped {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(&pack).color(ACCENT));
+                                license_badge(ui, &state.scenes[visible[start]].license);
+                            });
+                        }
+                        ui.horizontal_wrapped(|ui| {
+                            for &i in &visible[start..end] {
+                                let e = &state.scenes[i];
+                                let texture = e.thumbnail().and_then(|p| state.thumbnails.get(&p));
+                                let r = card(ui, e, texture, state.scene_selected == Some(i), card_width);
+                                if r.clicked() {
+                                    state.scene_selected = Some(i);
+                                }
+                                if move_card && state.scene_selected == Some(i) {
+                                    r.scroll_to_me(None);
+                                }
+                                if r.double_clicked() {
+                                    load = Some(i);
+                                }
+                            }
+                        });
+                        start = end;
+                    }
+                });
+                }
                 });
             });
         self.ui.show_scenes = open && !close;
@@ -1187,7 +1470,6 @@ impl App {
         let yes = self.updater.yes;
         let target = self.updater.target.clone();
         let mut install = false;
-        let mut check = self.ui.prefs.update_check;
         let window = egui::Window::new("Update")
             .default_pos([300., 140.])
             .default_width(420.)
@@ -1237,7 +1519,6 @@ impl App {
                             action = Do::Close;
                         }
                     });
-                    ui.checkbox(&mut check, "Check for updates at startup");
                 });
             }
             Phase::Downloading {
@@ -1307,10 +1588,6 @@ impl App {
                     });
                 });
             }
-        }
-        if check != self.ui.prefs.update_check {
-            self.ui.prefs.update_check = check;
-            self.ui.save_prefs();
         }
         self.ui.install_update |= install;
         match action {

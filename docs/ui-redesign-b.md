@@ -2,6 +2,8 @@
 
 Owner's choice, 2026-11-10. Mockups: the design canvas at https://claude.ai/artifact/9qAa5yvJStbGphdetrRNL5 (private to the owner). The "Option B in detail" row holds B-TopBar, B-Scenes, B-Assets, B-Render, B-Look, B-Lights, B-Export and B-Timeline.
 
+**Status:** built 2026-11-12 (engine-notes "UI layout B"); the open tails are in the roadmap.
+
 **Order:** do the egui upgrade first (`docs/egui-upgrade-plan.md`, 0.31 → 0.37), then this. B uses 0.32+ features: menus that close on click, Atoms for icon-plus-text buttons, `Panel`, and `content_rect`.
 
 This spec merges four control maps (Chrome, Render/Look/Export, Scene, Windows/overlays) and a completeness critic, all generated from the code in `caustica-parity` on 2026-11-10. Where the maps disagreed, the decision below is final, and the critic's findings are folded in.
@@ -135,6 +137,9 @@ Today a centred 380 px window covers the image (video_ui.rs:253–350). In B:
 - Tooltips: Move, Rotate and Scale say that G/R/S need the pointer over the viewport and a selection. Hide panel says whether the rail and the outliner hide too (main.rs:3397).
 
 ## 9. Open questions for the owner
+
+Built with these defaults on 2026-11-12, all changeable: 2 Display stays in Look; 3 Lens stays in Object > Camera; 4 Battle mode in Render > Sampling; 5 Tools stays a Look section; 6 both; 7 not yet.
+
 
 1. (Settled: B3, pin your own.)
 2. Should Display (output, swapchain, peak and paper white) go to a Menu submenu, or stay in Look?

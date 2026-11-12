@@ -1,7 +1,7 @@
 # Caustica roadmap
 
 The current plan, rewritten 2026-11-04. The long history (what was built, measured and decided, item by item) lives in `docs/engine-notes.md` (`grep -n '^## '`) and in git; this file keeps only what is done at a glance, what comes next, and a triaged list of open tails.
-Order: **correctness against the CPU reference, then code health, then the tails marked [keep], then the Vulkan backend.** Tails marked [drop] are closed and will not be worked unless the owner asks.
+Order: **the "Plan" section below (2026-11-12).** It replaces the 2026-11-04 order (correctness, code health, tails, Vulkan); the sections under "Now" keep the detail of each open item. Tails marked [drop] are closed and will not be worked unless the owner asks.
 Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-research.md) (scenes).
 
 ## Ground rules from the owner
@@ -9,6 +9,63 @@ Research documents: [ui-plan.md](ui-plan.md) (UI), [scene-research.md](scene-res
 - **Public since 2026-11-06, under MIT for the code.** Models, textures, HDRIs and SDKs keep their own terms; `THIRD-PARTY-NOTICES.md` lists them, and anything new that ships goes in it.
 - **Licence risks the owner has accepted (2026-11-06), and will act on if raised:** Sponza stays bundled, though the CRYENGINE agreement covers games built with CRYENGINE; the GPLv3 FFmpeg stays bundled without published sources; releases up to v0.10.1 stay up without notices; the About box shows the NVIDIA logo, plus on Windows the AMD FSR and Intel logos, though the DLSS licence only grants word marks and Intel's bars promotional use of its name. Research-only and NC assets such as the Stanford scans are fine only while the app stays free. If it is ever sold: those assets go, and NVIDIA must be notified first (DLSS licence, exhibit section 4).
 - **Performance work never lowers quality** (owner rule, 2026-11-02). The defaults stay as they are (spp, bounces, sample cap, DLAA render scale, RR preset), and no "performance mode" or lower-quality option is added. Speed has to come from doing the same work more efficiently. A change that alters the image has to be justified as unbiased, or as equal under the convergence measurement. Exception (owner, 2026-11-10): the Realtime Mode (1 spp, separate specular bounces, ReSTIR, RR at an upscaling scale), kept apart from the quality bundles and restoring the scene's own sampling when left.
+
+- **Who it is for (owner, 2026-11-12):** the owner alone, for fun. No work for an outside audience (README for strangers, shareable benchmark scores, slim updates, signing). Only the owner's NVIDIA RTX card matters: no AMD or Intel testing, and FSR and XeSS are not reasons to keep anything. BDPT and photon mapping have scenes of their own: keep and improve them. The release rhythm and size don't matter.
+- **Ask before removing anything** (owner, 2026-11-12): features, files and docs alike. Approved so far: the four toys in Plan step 2.
+
+## Plan (2026-11-12)
+
+From the project review of 2026-11-12 and the owner's answers. Each step ends with verify, review and a snapshot; commit when the owner asks.
+
+1. **Land UI layout B.** Finish the open parts under "UI and editor", draw it on Vulkan (Windows and Linux), commit.
+2. **Cut four toys (owner approved):** the achievements (the lifetime statistics stay, see below), the phone remote (`src/remote.rs`, the `qrcode` crate), audio-reactive lights (`src/audio.rs`, `cpal`, `rustfft`, the Lights tab's Audio section) and the laser puzzle (`src/laser.rs`, `Settings::puzzle`, the Puzzle window, the `scenes/puzzles` pack of 5 scenes). Also their palette entries, self-test frames, README and engine-notes text, and a Won't do line. Old scene files that carry `puzzle` or `audio` must still load. After step 1, because it edits the same UI files. To confirm with the owner when it starts: that the 5 puzzle scenes go too. The optics bench and the beam-splitter material stay.
+   - **Statistics stay and grow (owner, 2026-11-12):** `src/stats.rs` loses the achievements (groups, tiers, progress bars, toasts) and keeps the lifetime totals in a plain Statistics window. Redundant fields go (owner: "remove redundant statistics"): the ones that only fed achievements or the cut toys (`marks`, `achievements`, `puzzles_solved`, `puzzles_par`, `audio_seconds`), and, proposed for the owner to confirm, `dark_seconds` (flashlight time) and `hot_reloads` (a developer counter). Kept: `paths`, `gpu_seconds`, `images_saved`, `videos_exported`, `max_samples`, `presets_seen`, `scenes_seen`, `walked`, `physics_seconds`. To add, the owner picks: per-session figures beside the lifetime ones, time per integrator and per denoiser, rays per second now and best, samples and time per scene, most-used scenes, exports by format, and a reset. An old `stats.json` with achievement fields must still load.
+3. **Guard rails** (2-3 days):
+   - a test that reads `cbuffer Frame` from `shaders/common.hlsli` and compares names and offsets with `Constants`;
+   - one generated shader entry list used by both build.rs and `hotreload::ENTRIES`;
+   - a Settings-field test (every field is bounded by `validate()` and classed in `transport_key`);
+   - a three-scene, low-spp oracle run in `tools/verify.ps1`.
+4. **D3D12 phase-out, proof first** (below). D3D12 stays the default until both gates pass.
+5. **Oracle green on the remaining backend**, path tracer first: texture mip bias, emissive maps, Sponza alpha, the roughness-0 metal gap, the ReSTIR excess (Now a and e).
+6. **BDPT and photon mapping, improved:** portals, stars, the specular bounce budget, the −ng walk rule (B7 leftovers), then the open discrepancies (sunset-tank, optics-bench, the sdf-gallery cone, spectral photon +8% on street-bokeh, the white-furnace gather bias). This reopens the two "[drop] BDPT / photon" lines under "Rendering and integrators" where they overlap.
+7. **Code health:** split `App::redraw`, `App::new` and `window_event` (`src/main.rs`) as pure moves; split `docs/engine-notes.md` into one file per section (asked first: see "Docs" below).
+8. **Fun features, the owner picks one at a time:** stop at a noise target with a render queue; volumetric clouds; the hash-grid radiance cache for the Realtime preset; explain this pixel on the CPU; planets and the observatory scene. The parked list in `docs/plan-big-features.md` stays parked.
+
+### D3D12 phase-out
+
+Why: every GPU feature is written twice (`src/gpu/` 5.7k lines, `src/vulkan/` 6.2k) and development happens on Linux, where D3D12 can't run. Vulkan already runs the whole renderer on Windows with DLSS RR, DLSS SR and XeSS.
+
+**Phase 0, make the comparison possible (2-3 days).** A `--backend d3d12|vulkan` pass-through in `perf_history.py`, `perf_baseline.ps1`, `oracle.py`, `upscale_quality.py`, `rr_stability.py`, `motion_error.py` and `verify.ps1` (none has one today); `tools/backend_compare.py`, which runs both backends from one exe over a fixed scene list and writes one table of image difference and timings; the Vulkan validation layer installed on the Windows machine. Scene list: perf-history presets 0, 13, 17 and 21, Sponza, stylised-forest, glass-of-water, fairy-lights, one BDPT, one photon, one spectral and one HDRI scene.
+
+**Phase 1, feature gate (1-2 weeks).** Every row passes on Windows before the default changes:
+
+| Area | Gap today | Proof |
+|---|---|---|
+| Self-test | passes on Vulkan with no validation layer installed | 484 frames clean with the layer on |
+| Image parity | compared at port phases 3-6 only | raw EXR per scene within noise of D3D12; the oracle's default list passes on Vulkan |
+| HDR on Windows | the surface offered no HDR format, checks skipped | scRGB or HDR10 output, and the pixel-by-pixel HDR self-check passes. **Check first: it may be a driver limit, and it can block the plan.** |
+| Opacity micromaps | none on Vulkan; alpha uses the any-hit loop | `VK_EXT_opacity_micromap` ported, or the loop shown to cost nothing measurable on the alpha scenes |
+| RR and upscalers | ported; pre-exposure unproven on Vulkan | `rr_stability.py` and `upscale_quality.py` within D3D12's numbers; the night-scene pre-exposure check |
+| UI | layout B never drawn on Vulkan | hand pass; `--capture-ui` captures match D3D12 |
+| Exports | not compared | every image format, the high-res still and video match |
+| Windowing | not compared | resize, minimise, monitor change, HDR toggle, Alt-Tab, two DPI scales |
+| Startup | 0.5 s warm with the pipeline cache | cold and warm start beside D3D12's |
+
+FSR has no Vulkan path and is given up (owner: AMD doesn't matter).
+
+**Phase 2, performance gate (3-5 days).** Same exe and scenes, 1440×900 and 2560×1440, at least 200 frames, `--no-vsync`, three runs, medians. Measured: `gpu_ms_mean`, `trace_ms_mean`, `reconstruct_ms_mean`, `frame_ms_mean`, the rebuild under `--drag-test`, startup and peak VRAM. The D3D12 side runs as shipped, SER tracers and micromaps on. Pass: no scene more than 3% slower in `gpu_ms_mean` (owner to confirm the number). If the SER tracers' 7-14% shows as a loss, try raygen tracers on Vulkan (a `VK_KHR_ray_tracing_pipeline` raygen shader that still traces with ray queries, as the D3D12 `*_ser` libraries do; the D3D12 gain came from the raygen form, reordering itself measured slower) and measure again. Unproven on Vulkan: size it before starting. No quality setting changes to pass the gate.
+
+**Phase 3, Vulkan as the default on Windows.** `Prefs::vulkan` defaults to true; `--d3d12` and the Renderer menu stay. Baselines (self-test, perf history, the Sobol rule's reference) move to Vulkan. One release in this state, used by the owner for a while.
+
+**Phase 4, removal, only after the owner says so.** `src/gpu/`, the D3D12 half of `renderer.rs`, the DXIL half of build.rs and hot reload, the SER libraries, `bridge/ngx.cpp`, `fsr.cpp` and `xess.cpp` (D3D12 parts), the Agility SDK and its notices line, `tools/check_dxil.py`, `check_windows.sh`, `docs/claude/d3d12-on-linux.md` and `windows-handoff.md`. `display.rs` (DXGI monitor query, JPEG XR) stays: Vulkan on Windows uses it. Tag before the removal so the last D3D12 build stays reachable.
+
+### Docs, waiting for the owner's yes
+
+Fixed on 2026-11-12 without removing anything: stale counts and contradictions in the README, the project line in `CLAUDE.md`, a note in `windows-handoff.md`. Proposed, not done:
+- Split `docs/engine-notes.md` (486 KB) into `docs/notes/<section>.md` with an index.
+- Move finished plans to `docs/archive/`: `ui-plan.md`, `ui-review.md`, `egui-upgrade-plan.md`, `scene-research.md`, and `plan-big-features.md` once its backlog is folded in here.
+- Cut the README to what the app is, how to build and run it and its limits, moving the feature tour to `docs/features.md`.
+- Trim this file's finished "[done]" lines under "Now" and "Open tails" (their detail is in engine-notes).
 
 ## Done
 
@@ -192,6 +249,16 @@ Verdicts: [keep] = correctness bug, owner request or report, blocks Vulkan or a 
 - [drop] True subsurface (skin-tuned), native denoiser leaving haze noisy (RR is fine), fog inside glass and through glass shadows, medium-aware guides.
 
 ### UI and editor
+- **Redesign B (spec `docs/ui-redesign-b.md`, engine-notes "UI layout B"). Built 2026-11-12:** tab split (Lights, Object, Material), tool rail, one-row top bar with pins and live controls, the new Menu, outliner tree over the tab strip, collapsible sections with previews, viewport strip, the export card and the viewport's export preview, the timeline toolbar, track rows and key marks on property rows, the Scenes browser (Sort, card size, My scenes) and the Assets browser (category segment, Downloaded, download strip), icons and "Icon only" for every pin. **Open tails:**
+  - Key marks: a value the scene JSON leaves out at its default can't be keyed until it is changed (the Key button and `Animation::apply` skip such fields too); the flashlight's rows have no marks (the timeline can't key it either).
+  - Export: a high-resolution still shows the starting view in the viewport until it ends (no progressive preview); on very fast exports the viewport's preview trails the frame counter by a few frames.
+  - Assets: local files without a cached catalogue entry are not listed under Downloaded.
+  - Pins: no icons in the `+` menu and the palette list; Undo, Redo and About are not pinnable commands; a pin inside `»` has no right-click menu.
+  - Scenes: no switch or self-test frame for a sort order, card size or My scenes; in development and portable runs only the `user` pack counts as My scenes.
+  - `ui::fold` cuts an over-long preview at the left with no ellipsis, so each preview builder keeps to a character budget; eliding in `fold` would be sturdier.
+  - Not looked at in the live app by the owner yet: the click paths (key marks, sort, downloads, Icon only) were checked by captures and code reading.
+  - Owner to confirm the section 9 defaults (engine-notes lists them).
+  - Vulkan on Windows: the self-test passes and `--capture-ui` captures of every tab, both browsers and a running export were looked at (2026-11-12). Linux has not drawn the new layout yet, and no hand pass on Vulkan in the live app.
 - [done 2026-11-05, verified by hand] Owner, 2026-11-05: silhouette outlines should appear only for the clicked selection, not on hover while the mouse moves. The hover probe and its outline are removed (`ui.hovered` is set only by the self-test now). In Sponza an object is under the pointer almost everywhere, so the hover outline never goes away, and moving the pointer out of the viewport doesn't clear it. Drop the hover outline (`ui.hovered` from the GPU probe, gui.hlsl), or put it behind an option that is off by default.
 - [done 2026-11-04] The status bar shows a failed or unavailable upscaler as "Bicubic (X unavailable)" in amber, like RR's fallback.
 - [done 2026-11-05, verified by hand] Gizmo with physics: a mouse grab active when G starts stays pending; the first transform after enabling physics adds an extra undo step. G / R / S drop a pending grab; the simulation start inside a transform checkpoints the transform's original, so undo is one step.

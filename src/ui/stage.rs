@@ -1,5 +1,6 @@
 //! Scene-tab panels as free functions: settings dialog, fog, physical sky, stage, camera, lens, main light.
 use super::*;
+use crate::timeline_ui::{key_mark, key_scope};
 
 /// Picks a settings JSON to save (`save`) or load, starting in the output folder where the
 /// quick buttons keep settings.json (`dirs::output_dir`).
@@ -16,6 +17,7 @@ pub(super) fn settings_dialog(save: bool) -> Option<std::path::PathBuf> {
 /// Global fog rows of the Stage grid (track 12).
 pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     let f = &mut s.fog;
+    key_mark("fog/density");
     row(
         ui,
         "Fog",
@@ -31,6 +33,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
     if f.density <= 0. {
         return;
     }
+    key_mark("fog/color");
     row(
         ui,
         "Fog colour",
@@ -39,6 +42,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.color_edit_button_rgb(&mut f.color);
         },
     );
+    key_mark("fog/extinction");
     row(
         ui,
         "Fog extinction",
@@ -51,6 +55,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
             }
         },
     );
+    key_mark("fog/phase");
     row(
         ui,
         "Fog scatter direction",
@@ -59,6 +64,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut f.phase, -0.95..=0.95));
         },
     );
+    key_mark("fog/height");
     row(
         ui,
         "Fog height",
@@ -67,6 +73,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut f.height, -1. ..=50.));
         },
     );
+    key_mark("fog/extent");
     row(
         ui,
         "Fog extent",
@@ -75,6 +82,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut f.extent, 0.1..=100.).logarithmic(true));
         },
     );
+    key_mark("fog/noise");
     row(
         ui,
         "Fog noise",
@@ -84,6 +92,7 @@ pub(super) fn fog_ui(ui: &mut egui::Ui, s: &mut Settings) {
         },
     );
     if f.noise > 0. {
+        key_mark("fog/noise_size");
         row(
             ui,
             "Noise size",
@@ -124,6 +133,7 @@ pub(super) fn night_camera(s: &mut Settings) {
     s.ev_bias = NIGHT_CAMERA_EV_BIAS;
 }
 pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
+    key_mark("physical_sky/on");
     check_row(
         ui,
         "Physical sky",
@@ -134,6 +144,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         return;
     }
     let p = &mut s.physical_sky;
+    key_mark("physical_sky/time");
     row(
         ui,
         "Time of day",
@@ -147,6 +158,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    key_mark("physical_sky/clock");
     check_row(
         ui,
         "Clock time",
@@ -154,9 +166,11 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         &mut p.clock,
     );
     if p.clock {
+        key_mark("physical_sky/longitude");
         row(ui, "Longitude", "Degrees east (negative: west).", |ui| {
             ui.add(crate::slider(&mut p.longitude, -180. ..=180.).suffix("°"));
         });
+        key_mark("physical_sky/utc_offset");
         row(
             ui,
             "Time zone",
@@ -166,6 +180,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             },
         );
     }
+    key_mark("physical_sky/day");
     row(
         ui,
         "Date",
@@ -176,6 +191,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    key_mark("physical_sky/year");
     row(
         ui,
         "Year",
@@ -184,9 +200,11 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.year, 1900..=2100));
         },
     );
+    key_mark("physical_sky/latitude");
     row(ui, "Latitude", "Degrees north (negative: south).", |ui| {
         ui.add(crate::slider(&mut p.latitude, -90. ..=90.).suffix("°"));
     });
+    key_mark("physical_sky/north");
     row(
         ui,
         "North",
@@ -195,6 +213,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.north, -180. ..=180.).suffix("°"));
         },
     );
+    key_mark("physical_sky/turbidity");
     row(
         ui,
         "Turbidity",
@@ -203,6 +222,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.turbidity, 1. ..=10.));
         },
     );
+    key_mark("physical_sky/intensity");
     row(
         ui,
         "Sun intensity",
@@ -215,6 +235,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    key_mark("physical_sky/sun_size");
     row(
         ui,
         "Sun size",
@@ -227,6 +248,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    key_mark("physical_sky/ground");
     row(
         ui,
         "Ground",
@@ -235,6 +257,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.ground, 0. ..=1.));
         },
     );
+    key_mark("physical_sky/altitude");
     row(
         ui,
         "Altitude",
@@ -247,6 +270,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    key_mark("physical_sky/visible");
     check_row(
         ui,
         "Visible to camera",
@@ -273,6 +297,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
         },
     );
     let p = &mut s.physical_sky;
+    key_mark("physical_sky/stars");
     row(
         ui,
         "Star brightness",
@@ -281,6 +306,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.stars, 0. ..=1000.).logarithmic(true));
         },
     );
+    key_mark("physical_sky/limiting_magnitude");
     row(
         ui,
         "Limiting magnitude",
@@ -289,6 +315,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.limiting_magnitude, -2. ..=16.));
         },
     );
+    key_mark("physical_sky/star_size");
     row(
         ui,
         "Star size",
@@ -301,6 +328,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             );
         },
     );
+    key_mark("physical_sky/milky_way");
     row(
         ui,
         "Milky Way",
@@ -309,6 +337,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.milky_way, 0. ..=10.));
         },
     );
+    key_mark("physical_sky/airglow");
     row(
         ui,
         "Airglow",
@@ -317,6 +346,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.airglow, 0. ..=10.));
         },
     );
+    key_mark("physical_sky/airglow_warmth");
     row(
         ui,
         "Airglow tint",
@@ -325,6 +355,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.airglow_warmth, 0. ..=1.).fixed_decimals(2));
         },
     );
+    key_mark("physical_sky/light_pollution");
     row(
         ui,
         "Light pollution",
@@ -333,6 +364,7 @@ pub(super) fn physical_sky_ui(ui: &mut egui::Ui, s: &mut Settings) {
             ui.add(crate::slider(&mut p.light_pollution, 0. ..=10.));
         },
     );
+    key_mark("physical_sky/moon");
     check_row(
         ui,
         "Moon",
@@ -432,27 +464,26 @@ pub(super) fn overrides(s: &Settings, hdri_error: bool) -> Overrides {
         hdri: s.physical_sky.on.then_some("The physical sky replaces it"),
     }
 }
-/// The Stage inspector in three blocks (Room, Sky and light, Fog), each its own grid with the
-/// same label column so the controls line up. Rows that something else overrides stay visible
-/// but greyed, with the reason (`overrides`).
-pub(super) fn stage_ui(
-    ui: &mut egui::Ui,
-    s: &mut Settings,
-    advanced: bool,
-    hdri_error: Option<&str>,
-) {
-    let o = overrides(s, hdri_error.is_some());
+/// Object > Room (the Stage is selected). Its grid has the same label column as the Lights
+/// tab's blocks. Rows that something else overrides stay visible but greyed, with the reason
+/// (`overrides`).
+pub(super) fn room_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: bool) {
+    let o = overrides(s, hdri_error);
     section(ui, "Room");
     grid("stage room").min_col_width(LABEL_WIDTH).show(ui, |ui| {
+        key_mark("cornell_room");
         check_row(ui, "Cornell box", "The closed box with coloured side walls.", &mut s.cornell_room);
         // Shown while on even without the box, so the switch that greys the colours can be reached.
         if s.cornell_room || s.measured_room {
+            key_mark("measured_room");
             check_row(ui, "Measured walls", "The original Cornell box's measured spectra on the walls and the light (red left, green right; exact with Spectral on in the Render tab). The wall colours and the light's colour and temperature are then ignored.", &mut s.measured_room);
         }
         if s.cornell_room {
+            key_mark("left");
             row_if(ui, "Left wall", "Colour of the left wall (the picker edits linear RGB, not screen colour).", o.walls, |ui| {
                 ui.color_edit_button_rgb(&mut s.left);
             });
+            key_mark("right");
             row_if(ui, "Right wall", "Colour of the right wall (the picker edits linear RGB, not screen colour).", o.walls, |ui| {
                 ui.color_edit_button_rgb(&mut s.right);
             });
@@ -462,9 +493,11 @@ pub(super) fn stage_ui(
         } else {
             "Floor colour"
         };
+        key_mark("base");
         row_if(ui, base, "Colour of the other walls and the floor (the picker edits linear RGB, not screen colour).", o.base, |ui| {
             ui.color_edit_button_rgb(&mut s.base);
         });
+        key_mark("floor_extent");
         row(
             ui,
             "Floor size",
@@ -477,30 +510,68 @@ pub(super) fn stage_ui(
                 );
             },
         );
+        key_mark("shadow_catcher");
         check_row(ui, "Shadow catcher", "The floor shows the background behind it, darkened only where objects shadow it: for compositing objects onto an HDRI (with Ground height) or a background colour.", &mut s.shadow_catcher);
     });
-    more(ui, "stage more", advanced, |ui| {
-        if s.cornell_room {
-            ui.collapsing("Wall material", |ui| {
-                editor::material_ui(ui, "walls", &mut s.walls, advanced)
-            });
-        }
-        ui.collapsing("Floor material", |ui| {
-            editor::material_ui(ui, "floor", &mut s.floor, advanced)
+}
+/// Material, with the Stage selected: the walls (with the box) and the floor.
+pub(super) fn room_materials_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
+    if s.cornell_room {
+        section(ui, "Walls");
+        key_scope(&s.animation, "walls");
+        editor::material_ui(ui, "walls", &mut s.walls, advanced);
+        ui.separator();
+    }
+    section(ui, "Floor");
+    key_scope(&s.animation, "floor");
+    editor::material_ui(ui, "floor", &mut s.floor, advanced);
+}
+/// The top of the Lights tab, whatever is selected: Sky and sun, HDRI, Background and Fog, each
+/// its own grid with the same label column so the controls line up.
+pub(super) fn sky_ui(ui: &mut egui::Ui, s: &mut Settings, hdri_error: Option<&str>) {
+    let o = overrides(s, hdri_error.is_some());
+    let preview = if s.physical_sky.on {
+        "physical".to_string()
+    } else if o.sky_light.is_some() {
+        // The HDRI lights the scene instead of the sky light.
+        "HDRI".to_string()
+    } else if s.sky > 0. {
+        format!("sky light {}×", short_number(s.sky as f64))
+    } else {
+        "off".to_string()
+    };
+    fold(ui, "Sky and sun", preview, true, |ui| {
+        grid("stage sky").min_col_width(LABEL_WIDTH).show(ui, |ui| {
+            key_mark("sky");
+            row_if(
+                ui,
+                "Sky light",
+                "Light from the surroundings. 0 is a black void.",
+                o.sky_light,
+                |ui| {
+                    ui.add(crate::slider(&mut s.sky, 0. ..=4.).suffix("×"));
+                },
+            );
+            physical_sky_ui(ui, s);
         });
     });
-    section(ui, "Sky and light");
-    grid("stage sky").min_col_width(LABEL_WIDTH).show(ui, |ui| {
-        row_if(
-            ui,
-            "Sky light",
-            "Light from the surroundings. 0 is a black void.",
-            o.sky_light,
-            |ui| {
-                ui.add(crate::slider(&mut s.sky, 0. ..=4.).suffix("×"));
-            },
-        );
-        physical_sky_ui(ui, s);
+    // A map that lights nothing says why instead of its name.
+    let preview = match std::path::Path::new(&s.hdri).file_stem() {
+        None => "none".to_string(),
+        Some(_) if o.hdri.is_some() => "unused".to_string(),
+        Some(_) if hdri_error.is_some() => "can't load".to_string(),
+        Some(n) => {
+            // A long name keeps its start: the header would cut it off at the left.
+            let name = n.to_string_lossy();
+            if name.chars().count() > 24 {
+                format!("{}…", name.chars().take(23).collect::<String>())
+            } else {
+                name.to_string()
+            }
+        }
+    };
+    fold(ui, "Sky map (HDRI)", preview, !s.hdri.is_empty(), |ui| {
+        grid("stage hdri").min_col_width(LABEL_WIDTH).show(ui, |ui| {
         row_if(
             ui,
             "HDRI",
@@ -538,6 +609,7 @@ pub(super) fn stage_ui(
             },
         );
         if !s.hdri.is_empty() && !s.physical_sky.on {
+            key_mark("hdri_strength");
             row(ui, "HDRI strength", "Multiplier on the HDRI's light.", |ui| {
                 ui.add(
                     crate::slider(&mut s.hdri_strength, 0. ..=1000.)
@@ -545,11 +617,15 @@ pub(super) fn stage_ui(
                         .suffix("×"),
                 );
             });
+            key_mark("hdri_rotation");
             row(ui, "HDRI rotation", "Turns the HDRI about the vertical axis.", |ui| {
                 ui.add(crate::slider(&mut s.hdri_rotation, -180. ..=180.).suffix("°"));
             });
+            key_mark("hdri_visible");
             check_row(ui, "Visible to camera", "Off: the camera sees the background colour while the HDRI still lights the scene.", &mut s.hdri_visible);
+            key_mark("hdri_sun");
             check_row(ui, "Split sun", "Takes a compact sun out of the HDRI as a separate disc light of the same power and colour, so light sampling always finds it: much less noise with low-resolution sunlit HDRIs (about the same at 8k). Nothing changes for maps without one.", &mut s.hdri_sun);
+            key_mark("hdri_ground");
             row(
                 ui,
                 "Ground height",
@@ -559,19 +635,38 @@ pub(super) fn stage_ui(
                 },
             );
         }
-        row_if(
-            ui,
-            "Background",
-            "The colour seen where rays escape the scene.",
-            o.background,
-            |ui| {
-                ui.color_edit_button_rgb(&mut s.background);
-            },
-        );
     });
-    section(ui, "Fog");
-    grid("stage fog").min_col_width(LABEL_WIDTH).show(ui, |ui| {
-        fog_ui(ui, s);
+    });
+    let preview = match o.background {
+        Some(_) if s.physical_sky.on => "sky",
+        Some(_) => "HDRI",
+        None => "colour",
+    };
+    fold(ui, "Background", preview, false, |ui| {
+        grid("stage background")
+            .min_col_width(LABEL_WIDTH)
+            .show(ui, |ui| {
+                key_mark("background");
+                row_if(
+                    ui,
+                    "Background",
+                    "The colour seen where rays escape the scene.",
+                    o.background,
+                    |ui| {
+                        ui.color_edit_button_rgb(&mut s.background);
+                    },
+                );
+            });
+    });
+    let preview = if s.fog.density > 0. {
+        format!("density {}", short_number(s.fog.density as f64))
+    } else {
+        "off".to_string()
+    };
+    fold(ui, "Fog", preview, s.fog.density > 0., |ui| {
+        grid("stage fog").min_col_width(LABEL_WIDTH).show(ui, |ui| {
+            fog_ui(ui, s);
+        });
     });
 }
 /// Returns true when "Reset camera" was pressed.
@@ -603,9 +698,11 @@ pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
                 ui.add(crate::slider(&mut s.rotate_speed, -60. ..=60.).suffix("°/s"));
             },
         );
+        key_mark("fov");
         row(ui, "Field of view", "Vertical angle of view.", |ui| {
             ui.add(crate::slider(&mut s.fov, 10. ..=100.).suffix("°"));
         });
+        key_mark("distance");
         row(
             ui,
             "Distance",
@@ -626,6 +723,7 @@ pub(super) fn camera_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
 pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
     section(ui, "Lens");
     grid("lens").show(ui, |ui| {
+        key_mark("projection");
         row(ui, "Camera model", "Orthographic, panorama and little planet use the native denoiser: RR, the temporal upscalers and the gizmo need a perspective camera.", |ui| {
             egui::ComboBox::from_id_salt("projection").selected_text(PROJECTIONS[s.projection as usize]).show_ui(ui, |ui| {
                 for (i, n) in PROJECTIONS.iter().enumerate() {
@@ -634,12 +732,14 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
             });
         });
         if s.projection == 4 {
+            key_mark("tilt");
             row(ui, "Focal-plane tilt", "Tilts the plane of sharp focus about the horizontal axis: the miniature look. Needs an aperture.", |ui| {
                 ui.add(crate::slider(&mut s.tilt, -60. ..=60.).suffix("°"));
             });
         }
         if s.projection == 0 {
             let name = |i: u32| if i == 0 { "Thin lens".to_string() } else { let l = &crate::lens::LENSES[i as usize - 1]; let n = crate::lens::INFO[i as usize - 1]; format!("{} f/{:.1}", l.name, n.f_number) };
+            key_mark("lens_system");
             row(ui, "Lens", "Thin lens: an ideal lens with the aperture below. The others trace each ray through a real lens prescription (track 16): distortion, vignetting, chromatic aberration and bokeh come from the glass. Real lenses use the native denoiser.", |ui| {
                 egui::ComboBox::from_id_salt("lens_system").selected_text(name(s.lens_system)).show_ui(ui, |ui| {
                     for i in 0..=crate::lens::LENSES.len() as u32 {
@@ -650,21 +750,26 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
         }
         if s.real_lens() {
             let open = crate::lens::INFO[s.lens_system as usize - 1].f_number;
+            key_mark("f_number");
             row(ui, "f-number", "Stops the lens down: higher is a smaller aperture, deeper focus and less aberration. The image keeps its brightness.", |ui| {
                 let mut n = if s.f_number == 0. { open } else { s.f_number.max(open) };
                 if ui.add(crate::slider(&mut n, open..=32.).logarithmic(true).custom_formatter(|v, _| format!("f/{v:.1}"))).changed() {
                     s.f_number = if n <= open + 1e-3 { 0. } else { n };
                 }
             });
+            key_mark("focus_distance");
             row(ui, "Focus distance", "Distance of the sharp plane from the front of the lens. Ctrl+click in the viewport focuses there.", |ui| {
                 ui.add(crate::slider(&mut s.focus_distance, 0.05..=500.).logarithmic(true).suffix(" units"));
             });
+            key_mark("lens_scale");
             row(ui, "Scene scale", "Metres per scene unit. The lens is real size, so a small scale (a miniature) gets shallow focus.", |ui| {
                 ui.add(crate::slider(&mut s.lens_scale, 0.001..=1000.).logarithmic(true).suffix(" m"));
             });
+            key_mark("dispersion");
             row(ui, "Dispersion", "Chromatic aberration from the glass: 1 is real glass, 0 none, higher exaggerates it. Each sample traces one colour, so it adds some colour noise.", |ui| {
                 ui.add(crate::slider(&mut s.dispersion, 0. ..=20.));
             });
+            key_mark("aperture_blades");
             row(ui, "Aperture blades", "Shape of the aperture stop: round, or a polygon with this many blades.", |ui| {
                 egui::ComboBox::from_id_salt("lens_blades")
                     .selected_text(if s.aperture_blades == 0 { "Round".to_string() } else { format!("{} blades", s.aperture_blades) })
@@ -676,18 +781,22 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
                     });
             });
             if s.aperture_blades > 0 {
+                key_mark("blade_rotation");
                 row(ui, "Blade rotation", "Turns the polygonal aperture.", |ui| {
                     ui.add(crate::slider(&mut s.blade_rotation, -180. ..=180.).suffix("°"));
                 });
             }
         }
         if s.perspective() {
+            key_mark("aperture");
             row(ui, "Aperture", "Lens radius in scene units. 0 is a pinhole: everything sharp.", |ui| {
                 ui.add(crate::slider(&mut s.aperture, 0. ..=2.).logarithmic(true).smallest_positive(0.001).suffix(" units"));
             });
+            key_mark("focus_distance");
             row(ui, "Focus distance", "Distance of the sharp plane along the view axis. Ctrl+click in the viewport focuses there.", |ui| {
                 ui.add(crate::slider(&mut s.focus_distance, 0.05..=500.).logarithmic(true).suffix(" units"));
             });
+            key_mark("aperture_blades");
             row(ui, "Aperture blades", "Shape of the bokeh: round, or a polygon with this many blades.", |ui| {
                 egui::ComboBox::from_id_salt("blades")
                     .selected_text(if s.aperture_blades == 0 { "Round".to_string() } else { format!("{} blades", s.aperture_blades) })
@@ -699,10 +808,12 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
                     });
             });
             if s.aperture_blades > 0 {
+                key_mark("blade_rotation");
                 row(ui, "Blade rotation", "Turns the polygonal aperture.", |ui| {
                     ui.add(crate::slider(&mut s.blade_rotation, -180. ..=180.).suffix("°"));
                 });
             }
+            key_mark("cat_eye");
             row(ui, "Cat-eye", "Optical vignetting: the lens barrel clips the aperture toward the frame edges, so bokeh turns cat-eye shaped and corners darken.", |ui| {
                 ui.add(crate::slider(&mut s.cat_eye, 0. ..=1.));
             });
@@ -723,8 +834,10 @@ pub(super) fn lens_ui(ui: &mut egui::Ui, s: &mut Settings) {
 pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool) {
     section(ui, "Main light");
     grid("main light").show(ui, |ui| {
+        key_mark("light_on");
         check_row(ui, "On", "The ceiling light of the Cornell box, or the studio key light.", &mut s.light_on);
         check_row(ui, "Show outline", "Draw the light's rectangle over the viewport, to see and grab it. The selected light always shows it.", &mut s.light_outline);
+        key_mark("light_intensity");
         row(ui, "Intensity", "Brightness multiplier.", |ui| {
             ui.add(
                 crate::slider(&mut s.light_intensity, 0. ..=2000.)
@@ -732,6 +845,7 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
                     .suffix("×"),
             );
         });
+        key_mark("light_temperature");
         row(
             ui,
             "Colour temperature",
@@ -740,9 +854,11 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
                 ui.add(crate::slider(&mut s.light_temperature, 1000. ..=12000.).suffix(" K"));
             },
         );
+        key_mark("light_tint");
         row(ui, "Colour filter", "Tints the light, like a gel.", |ui| {
             ui.color_edit_button_rgb(&mut s.light_tint);
         });
+        key_mark("light_size");
         row(ui, "Size", "Bigger lights give softer shadows.", |ui| {
             ui.add(
                 crate::slider(&mut s.light_size, 0.05..=40.)
@@ -750,6 +866,7 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
                     .suffix(" units"),
             );
         });
+        key_mark("light_position");
         row(ui, "Position", "In scene units.", |ui| {
             for (p, axis) in s.light_position.iter_mut().zip(["x ", "y ", "z "]) {
                 ui.add(
@@ -764,12 +881,14 @@ pub(super) fn main_light_ui(ui: &mut egui::Ui, s: &mut Settings, advanced: bool)
     });
     more(ui, "main light more", advanced, |ui| {
         grid("main light advanced").show(ui, |ui| {
+            key_mark("light_visible");
             check_row(
                 ui,
                 "Visible to camera",
                 "Show the light's panel in the image.",
                 &mut s.light_visible,
             );
+            key_mark("light_aspect");
             row(ui, "Aspect", "Width relative to depth.", |ui| {
                 ui.add(
                     crate::slider(&mut s.light_aspect, 0.1..=10.)

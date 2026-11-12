@@ -77,9 +77,13 @@ impl App {
             return;
         }
         let prefixes = anim::prefixes(self.ui.selection);
-        egui::Panel::bottom("timeline").show(root, |ui| {
+        let frame = egui::Frame::new()
+            .fill(root.visuals().panel_fill.to_opaque())
+            .inner_margin(egui::Margin::symmetric(8, 2));
+        egui::Panel::bottom("timeline").frame(frame).show(root, |ui| {
             ui.add_space(2.);
             ui.horizontal(|ui| {
+                let room = ui.available_width();
                 let a = &self.settings.animation;
                 let keys = a.times(&prefixes);
                 let t = self.timeline.time;
@@ -130,6 +134,7 @@ impl App {
                     self.timeline.time = time;
                     self.timeline.playing = false;
                 }
+                if room >= 900. {
                 ui.label(
                     egui::RichText::new(format!(
                         "frame {}",
@@ -137,20 +142,8 @@ impl App {
                     ))
                     .weak(),
                 );
-                ui.checkbox(&mut self.timeline.looping, "Loop");
-                let mut path = self.settings.animation.camera_path;
-                if ui
-                    .checkbox(&mut path, "Camera path")
-                    .on_hover_text("Between the camera's keys, the eye and its target move along smooth curves through their keyed positions (drawn in the viewport), instead of yaw, pitch, distance and target each moving alone, which swings the eye around the target")
-                    .changed()
-                {
-                    self.ui.checkpoint(&self.settings);
-                    self.settings.animation.camera_path = path;
-                    self.timeline.applied = None;
+                    self.timeline_toggles(ui);
                 }
-                ui.checkbox(&mut self.timeline.curves, "Curves").on_hover_text(
-                    "The curve editor: the selection's animated values over time, each scaled to its own range. Drag a key to move it in time (frames, Shift for free) and value.",
-                );
                 ui.separator();
                 ui.checkbox(&mut self.timeline.auto_key, "Auto-key").on_hover_text(
                     "Every edit you finish at a still playhead is keyed there (as Shift+I)",
@@ -199,6 +192,24 @@ impl App {
                     .on_hover_text("Move, stretch or copy the selection's keys")
                     .on_disabled_hover_text("Select something with keyframes");
                 });
+                // A narrow strip keeps the transport and the keying; the rest is under More.
+                if room < 1240. {
+                ui.menu_button("More", |ui| {
+                    if room < 900. {
+                        self.timeline_toggles(ui);
+                        ui.separator();
+                    }
+                    for (label, which) in [("Length", 0), ("Frame rate", 1), ("Shutter", 2)] {
+                        ui.horizontal(|ui| {
+                            ui.label(label);
+                            self.timeline_setting(ui, which);
+                        });
+                    }
+                    self.timeline_setting(ui, 3);
+                })
+                .response
+                .on_hover_text("Length, frame rate, shutter and Clear");
+                }
                 if let Some((scale, offset)) = retime {
                     self.ui.checkpoint(&self.settings);
                     self.settings.animation.retime(&prefixes, t, scale, offset);
@@ -241,42 +252,14 @@ impl App {
                     }
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add_enabled(
-                            !self.settings.animation.is_empty(),
-                            egui::Button::new("Clear"),
-                        )
-                        .on_hover_text("Remove every key in the scene")
-                        .clicked()
-                    {
-                        self.ui.checkpoint(&self.settings);
-                        self.settings.animation.tracks.clear();
-                        self.timeline.playing = false;
+                    if room >= 1240. {
+                        self.timeline_setting(ui, 3);
+                        self.timeline_setting(ui, 2);
+                        ui.label("Shutter");
+                        self.timeline_setting(ui, 1);
+                        self.timeline_setting(ui, 0);
+                        ui.label("Length");
                     }
-                    let a = &mut self.settings.animation;
-                    ui.add(
-                        egui::DragValue::new(&mut a.shutter)
-                            .range(0. ..=1.)
-                            .speed(0.01)
-                            .custom_formatter(|v, _| format!("{:.0}°", v * 360.))
-                            .custom_parser(|t| {
-                                t.trim_end_matches('°').trim().parse::<f64>().ok().map(|v| v / 360.)
-                            }),
-                    )
-                    .on_hover_text(
-                        "Motion blur in timeline video exports: how long the shutter stays open, as a shutter angle (180° = half a frame; 0 = off)",
-                    );
-                    ui.label("Shutter");
-                    ui.add(egui::DragValue::new(&mut a.fps).range(1..=240).suffix(" fps"));
-                    ui.add(
-                        egui::DragValue::new(&mut a.length)
-                            .range(0.1..=3600.)
-                            .speed(0.05)
-                            .fixed_decimals(2)
-                            .suffix(" s"),
-                    )
-                    .on_hover_text("Length of the animation");
-                    ui.label("Length");
                 });
             });
             self.track_strip(ui, &prefixes);
@@ -287,13 +270,83 @@ impl App {
             ui.add_space(2.);
         });
     }
+    /// Loop, Camera path and Curves: in the toolbar, or under More in a narrow strip.
+    fn timeline_toggles(&mut self, ui: &mut egui::Ui) {
+        ui.checkbox(&mut self.timeline.looping, "Loop");
+        let mut path = self.settings.animation.camera_path;
+        if ui
+            .checkbox(&mut path, "Camera path")
+            .on_hover_text("Between the camera's keys, the eye and its target move along smooth curves through their keyed positions (drawn in the viewport), instead of yaw, pitch, distance and target each moving alone, which swings the eye around the target")
+            .changed()
+        {
+            self.ui.checkpoint(&self.settings);
+            self.settings.animation.camera_path = path;
+            self.timeline.applied = None;
+        }
+        ui.checkbox(&mut self.timeline.curves, "Curves").on_hover_text(
+            "The curve editor: the selection's animated values over time, each scaled to its own range. Drag a key to move it in time (frames, Shift for free) and value.",
+        );
+    }
+    /// One of the animation's settings: 0 length, 1 frame rate, 2 shutter, 3 Clear.
+    fn timeline_setting(&mut self, ui: &mut egui::Ui, which: u8) {
+        let a = &mut self.settings.animation;
+        match which {
+            0 => {
+                ui.add(
+                    egui::DragValue::new(&mut a.length)
+                        .range(0.1..=3600.)
+                        .speed(0.05)
+                        .fixed_decimals(2)
+                        .suffix(" s"),
+                )
+                .on_hover_text("Length of the animation");
+            }
+            1 => {
+                ui.add(
+                    egui::DragValue::new(&mut a.fps)
+                        .range(1..=240)
+                        .suffix(" fps"),
+                );
+            }
+            2 => {
+                ui.add(
+                    egui::DragValue::new(&mut a.shutter)
+                        .range(0. ..=1.)
+                        .speed(0.01)
+                        .custom_formatter(|v, _| format!("{:.0}°", v * 360.))
+                        .custom_parser(|t| {
+                            t.trim_end_matches('°').trim().parse::<f64>().ok().map(|v| v / 360.)
+                        }),
+                )
+                .on_hover_text(
+                    "Motion blur in timeline video exports: how long the shutter stays open, as a shutter angle (180° = half a frame; 0 = off)",
+                );
+            }
+            _ => {
+                if ui
+                    .add_enabled(!a.is_empty(), egui::Button::new("Clear"))
+                    .on_hover_text("Remove every key in the scene")
+                    .clicked()
+                {
+                    self.ui.checkpoint(&self.settings);
+                    self.settings.animation.tracks.clear();
+                    self.timeline.playing = false;
+                }
+            }
+        }
+    }
     /// The scrubbing strip: seconds, every key (faint), the selection's keys and the playhead.
     fn track_strip(&mut self, ui: &mut egui::Ui, prefixes: &[String]) {
+        // One row under the strip for everything that holds keys; their names take a column
+        // at the left, and the strip starts where the rows' lanes do.
+        let owners = track_owners(&self.settings, self.ui.selection);
+        let names = if owners.is_empty() { 0. } else { TRACK_NAMES };
         let a = &self.settings.animation;
-        let (rect, response) = ui.allocate_exact_size(
+        let (full, response) = ui.allocate_exact_size(
             egui::vec2(ui.available_width(), 30.),
             egui::Sense::click_and_drag(),
         );
+        let rect = egui::Rect::from_min_max(egui::pos2(full.left() + names, full.top()), full.max);
         let length = a.length.max(1e-3);
         let x_of = |t: f32| rect.left() + 8. + (rect.width() - 16.) * (t / length);
         let painter = ui.painter_at(rect);
@@ -365,7 +418,157 @@ impl App {
             self.timeline.time = if shift { t } else { Timeline::snap(a, t) };
             self.timeline.playing = false;
         }
+        if owners.is_empty() {
+            return;
+        }
+        let playhead = self.timeline.time.min(length);
+        let shift = ui.input(|i| i.modifiers.shift);
+        let (mut pick, mut scrub) = (None, None);
+        egui::ScrollArea::vertical()
+            .id_salt("timeline tracks")
+            .max_height(6. * 18.)
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 1.;
+                for (i, (sel, name, times)) in owners.iter().enumerate() {
+                    let (row, _) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), 17.),
+                        egui::Sense::hover(),
+                    );
+                    let label = egui::Rect::from_min_max(
+                        row.min,
+                        egui::pos2(row.left() + TRACK_NAMES - 4., row.bottom()),
+                    );
+                    let lane = egui::Rect::from_min_max(
+                        egui::pos2(row.left() + TRACK_NAMES, row.top()),
+                        row.max,
+                    );
+                    let x_of = |t: f32| lane.left() + 8. + (lane.width() - 16.) * (t / length);
+                    let name_click = ui.interact(
+                        label,
+                        ui.scope_id().with(("track", i)),
+                        egui::Sense::click(),
+                    );
+                    let lane_drag = ui.interact(
+                        lane,
+                        ui.scope_id().with(("lane", i)),
+                        egui::Sense::click_and_drag(),
+                    );
+                    if !ui.is_rect_visible(row) {
+                        continue;
+                    }
+                    let on = self.ui.is_selected(*sel);
+                    let painter = ui.painter_at(row);
+                    if on {
+                        painter.rect_filled(label, 3., crate::ui::SELECT);
+                    } else if name_click.hovered() {
+                        painter.rect_filled(label, 3., egui::Color32::from_gray(44));
+                    }
+                    painter
+                        .with_clip_rect(label.intersect(ui.clip_rect()))
+                        .text(
+                            egui::pos2(label.left() + 6., label.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            name,
+                            egui::FontId::proportional(12.),
+                            if on {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_gray(200)
+                            },
+                        );
+                    painter.rect_filled(lane, 2., ui.visuals().extreme_bg_color);
+                    for t in times {
+                        let c = egui::pos2(x_of(*t), lane.center().y);
+                        let r = 4.;
+                        painter.add(egui::Shape::convex_polygon(
+                            vec![
+                                c + egui::vec2(0., -r),
+                                c + egui::vec2(r, 0.),
+                                c + egui::vec2(0., r),
+                                c + egui::vec2(-r, 0.),
+                            ],
+                            if on {
+                                ACCENT
+                            } else {
+                                egui::Color32::from_gray(190)
+                            },
+                            egui::Stroke::NONE,
+                        ));
+                    }
+                    painter.vline(
+                        x_of(playhead),
+                        lane.y_range(),
+                        egui::Stroke::new(1.5_f32, egui::Color32::from_rgb(255, 120, 80)),
+                    );
+                    // "Other values" has nothing to select.
+                    if *sel != Selection::None
+                        && name_click
+                            .on_hover_text("Select it: the strip and the curves then show its keys")
+                            .clicked()
+                    {
+                        pick = Some(*sel);
+                    }
+                    if let Some(p) = lane_drag.interact_pointer_pos()
+                        && (lane_drag.dragged() || lane_drag.clicked())
+                    {
+                        scrub = Some(
+                            ((p.x - lane.left() - 8.) / (lane.width() - 16.)).clamp(0., 1.)
+                                * length,
+                        );
+                    }
+                }
+            });
+        if let Some(t) = scrub {
+            let a = &self.settings.animation;
+            self.timeline.time = if shift { t } else { Timeline::snap(a, t) };
+            self.timeline.playing = false;
+        }
+        if let Some(sel) = pick {
+            self.ui.select(sel);
+            self.ui.tab = self.ui.tab.after_pick(sel, false);
+        }
     }
+}
+/// The width of the track rows' name column.
+const TRACK_NAMES: f32 = 150.;
+/// Everything that holds keys, the selection first: what to select, its name and its key times.
+fn track_owners(
+    s: &crate::scene::Settings,
+    selection: Selection,
+) -> Vec<(Selection, String, Vec<f32>)> {
+    let camera = anim::entity(Selection::Camera).1;
+    let main = anim::entity(Selection::MainLight).1;
+    let mut out: Vec<(Selection, String, Vec<f32>)> = Vec::new();
+    for track in s.animation.tracks.iter().filter(|t| !t.keys.is_empty()) {
+        let mut parts = track.path.split('/');
+        let list = parts.next();
+        let index = parts.next().and_then(|i| i.parse::<usize>().ok());
+        let under = |fields: &[&str]| fields.iter().any(|f| anim::under(&track.path, f));
+        let (sel, name) = match (list, index) {
+            (Some("objects"), Some(i)) => (
+                Selection::Object(i),
+                s.objects.get(i).map_or("Object".into(), |o| o.name.clone()),
+            ),
+            (Some("lights"), Some(i)) => (
+                Selection::Light(i),
+                s.lights.get(i).map_or("Light".into(), |l| l.name.clone()),
+            ),
+            _ if under(main) => (Selection::MainLight, "Main light".into()),
+            _ if under(camera) => (Selection::Camera, "Camera".into()),
+            _ => (Selection::None, "Other values".into()),
+        };
+        let times = track.keys.iter().map(|k| k.time);
+        match out.iter_mut().find(|o| o.0 == sel) {
+            Some(o) => o.2.extend(times),
+            None => out.push((sel, name, times.collect())),
+        }
+    }
+    for o in &mut out {
+        o.2.sort_by(f32::total_cmp);
+        o.2.dedup_by(|a, b| (*a - *b).abs() < 1e-4);
+    }
+    out.sort_by_key(|o| o.0 != selection);
+    out
 }
 impl App {
     /// The curve editor: the selection's float tracks as curves (each scaled to its own range),
@@ -534,6 +737,197 @@ impl App {
         {
             self.timeline.time = Timeline::snap(&self.settings.animation, t_of(p.x));
             self.timeline.playing = false;
+        }
+    }
+}
+/// The width of a row's key mark, in points.
+const KEY_SLOT: f32 = 10.;
+/// Key marks: the diamonds on the rows of the Lights, Object and Material tabs. While one of
+/// those tabs is drawn (`App::key_marks_begin` to `key_marks_end`), every `ui::row` keeps a slot
+/// before its controls, so the controls line up whether a row can be keyed or not. A row named
+/// by `key_mark` just before it shows a diamond there: an outline under the pointer when the
+/// value has no keys, an accent outline when it has keys elsewhere, filled when one is at the
+/// playhead. A click sets a key at the playhead, or removes the one there.
+struct KeyMarks {
+    /// The playhead.
+    time: f32,
+    /// The JSON path the rows' own paths are under ("objects/3"; empty for the scene's own).
+    prefix: String,
+    /// The tracks under `prefix`, and whether each has a key at the playhead.
+    tracks: Vec<(String, bool)>,
+    /// The path of the row about to be drawn.
+    next: Option<String>,
+    /// The mark clicked this frame: its path, and whether the click removes its key.
+    clicked: Option<(String, bool)>,
+}
+thread_local! {
+    static KEY_MARKS: std::cell::RefCell<Option<KeyMarks>> = const { std::cell::RefCell::new(None) };
+}
+/// The rows from here on belong to `prefix` ("lights/2", "objects/0/material", "walls"; empty:
+/// the scene's own fields). Does nothing outside a tab that shows key marks.
+pub(crate) fn key_scope(a: &anim::Animation, prefix: &str) {
+    KEY_MARKS.with_borrow_mut(|m| {
+        let Some(m) = m else { return };
+        let time = m.time;
+        m.prefix = prefix.into();
+        m.next = None;
+        // The scene's own rows never show an object's or a light's fields, which is where a
+        // recorded simulation's thousands of tracks are.
+        m.tracks = a
+            .tracks
+            .iter()
+            .filter(|t| {
+                if prefix.is_empty() {
+                    !t.path.starts_with("objects/") && !t.path.starts_with("lights/")
+                } else {
+                    anim::under(&t.path, prefix)
+                }
+            })
+            .map(|t| {
+                let here = t.keys.iter().any(|k| (k.time - time).abs() < 1e-4);
+                (t.path.clone(), here)
+            })
+            .collect();
+    });
+}
+/// The next `ui::row` edits the value at `path` (under the scope's prefix; an array's path
+/// covers its components), so it gets a key mark. Call it right before the row.
+pub(crate) fn key_mark(path: &str) {
+    KEY_MARKS.with_borrow_mut(|m| {
+        if let Some(m) = m {
+            m.next = Some(if m.prefix.is_empty() {
+                path.into()
+            } else {
+                format!("{}/{path}", m.prefix)
+            });
+        }
+    });
+}
+/// A row's key mark, first in its controls (`ui::row_controls`). Outside the tabs that show
+/// key marks it takes no room.
+pub(crate) fn key_slot(ui: &mut egui::Ui) {
+    let Some((path, time)) =
+        KEY_MARKS.with_borrow_mut(|m| m.as_mut().map(|m| (m.next.take(), m.time)))
+    else {
+        return;
+    };
+    let size = egui::vec2(KEY_SLOT, ui.spacing().interact_size.y);
+    let sense = if path.is_some() {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let (rect, r) = ui.allocate_exact_size(size, sense);
+    // Half an item gap to the control: the mark belongs to it.
+    ui.add_space(-4.);
+    let Some(path) = path else { return };
+    // Whether the value has keys, and whether one is at the playhead.
+    let (animated, here) = KEY_MARKS.with_borrow(|m| {
+        let mine = m
+            .iter()
+            .flat_map(|m| &m.tracks)
+            .filter(|t| anim::under(&t.0, &path));
+        mine.fold((false, false), |state, t| (true, state.1 || t.1))
+    });
+    if ui.is_rect_visible(rect) {
+        // A value without keys shows its mark only with the pointer on its row.
+        let row = egui::Rect::from_x_y_ranges(ui.clip_rect().x_range(), rect.y_range());
+        let color = if r.hovered() {
+            ui.visuals().strong_text_color()
+        } else if animated {
+            ACCENT
+        } else {
+            ui.visuals().weak_text_color()
+        };
+        let (c, radius) = (rect.center(), 4.);
+        let points = vec![
+            c + egui::vec2(0., -radius),
+            c + egui::vec2(radius, 0.),
+            c + egui::vec2(0., radius),
+            c + egui::vec2(-radius, 0.),
+        ];
+        if here {
+            ui.painter().add(egui::Shape::convex_polygon(
+                points,
+                color,
+                egui::Stroke::NONE,
+            ));
+        } else if animated || (ui.is_enabled() && ui.rect_contains_pointer(row)) {
+            ui.painter().add(egui::Shape::closed_line(
+                points,
+                egui::Stroke::new(1.2_f32, color),
+            ));
+        }
+    }
+    crate::ui::row_tip_yields(&r);
+    let tip = if here {
+        format!("Keyed at the playhead ({time:.2} s). Click to remove this key.")
+    } else if animated {
+        format!("Animated. Click to key it at the playhead ({time:.2} s).")
+    } else {
+        format!("Click to key it at the playhead ({time:.2} s).")
+    };
+    if r.on_hover_cursor(egui::CursorIcon::PointingHand)
+        .on_hover_text(tip)
+        .clicked()
+    {
+        KEY_MARKS.with_borrow_mut(|m| {
+            if let Some(m) = m {
+                m.clicked = Some((path, here));
+            }
+        });
+    }
+}
+impl App {
+    /// Rows drawn from here to `key_marks_end` show key marks; they start as the scene's own.
+    pub(crate) fn key_marks_begin(&self) {
+        KEY_MARKS.set(Some(KeyMarks {
+            time: self.timeline.time,
+            prefix: String::new(),
+            tracks: Vec::new(),
+            next: None,
+            clicked: None,
+        }));
+        key_scope(&self.settings.animation, "");
+    }
+    /// Ends the key marks and acts on a clicked one, as the timeline's Key and Delete key do
+    /// for the selection: an undo step, then the key set from the value as it stands (and the
+    /// timeline settled on it) or the key at the playhead removed. The timeline may be closed.
+    pub(crate) fn key_marks_end(&mut self) {
+        let Some(KeyMarks {
+            time,
+            clicked: Some((path, remove)),
+            ..
+        }) = KEY_MARKS.take()
+        else {
+            return;
+        };
+        let plural = |n: usize| if n == 1 { "" } else { "s" };
+        if remove {
+            self.ui.checkpoint(&self.settings);
+            let n = self.settings.animation.remove_keys(&[path], time);
+            // Without this the changed tracks are applied next frame, which would throw away
+            // edits not keyed yet on other animated values.
+            self.timeline.settle(&self.settings);
+            self.ui
+                .toast(format!("Removed {n} key{} at {time:.2} s", plural(n)));
+            return;
+        }
+        // The undo step is pushed only when a key was set: a click that keys nothing must
+        // not cost an undo press or the redo list.
+        let before = self.settings.clone();
+        match anim::key_path(&mut self.settings, time, &path) {
+            // Scene files leave out some values at their defaults, and keys find values there.
+            0 => self
+                .ui
+                .toast("Not keyed: the value is at its default. Change it first, then key it."),
+            n => {
+                self.ui.checkpoint(&before);
+                // The new keys hold the current values, so applying them changes nothing.
+                self.timeline.settle(&self.settings);
+                self.ui
+                    .toast(format!("Keyed {n} value{} at {time:.2} s", plural(n)));
+            }
         }
     }
 }

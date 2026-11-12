@@ -100,7 +100,9 @@ impl App {
                 if mode == AiMode::Critique {
                     // A critique's scene waits for Apply, next to the notes.
                     self.ui.critique_scene = Some(outcome.settings);
-                    self.ui.toast("The critique is in the Scene tab");
+                    self.ui.show_describe = true;
+                    self.ui
+                        .toast("The critique is in the Describe a scene window");
                 } else {
                     if let Some(st) = &mut self.stats {
                         st.mark("wordsmith");
@@ -352,10 +354,17 @@ impl App {
             self.ui.save_prefs();
         }
     }
-    pub(super) fn describe_ui(&mut self, ui: &mut egui::Ui) {
-        egui::CollapsingHeader::new("Describe a scene (AI)")
-            .id_salt("describe")
-            .show(ui, |ui| {
+    /// Menu > Window > Describe a scene (AI).
+    pub(super) fn describe_window(&mut self, ctx: &egui::Context) {
+        if !self.ui.show_describe {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("Describe a scene (AI)")
+            .open(&mut open)
+            .default_width(380.)
+            .default_pos(central_rect(ctx).left_top() + egui::vec2(12., 48.))
+            .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     let m = &mut self.ui.describe_mode;
                     ui.selectable_value(m, AiMode::New, "New scene")
@@ -408,7 +417,7 @@ impl App {
                     if ui
                         .add_enabled(missing.is_none() && text_ok, egui::Button::new(label))
                         .on_hover_text(format!(
-                            "Sends it to {}. The result is undoable (Ctrl+Z). Change the backend in Menu > Text-to-scene model",
+                            "Sends it to {}. The result is undoable (Ctrl+Z). Change the backend in Menu > Settings > Text-to-scene model",
                             self.ui.prefs.ai.provider.label()
                         ))
                         .on_disabled_hover_text(missing.as_deref().unwrap_or("Describe what you want first"))
@@ -450,5 +459,6 @@ impl App {
                     });
                 }
             });
+        self.ui.show_describe &= open;
     }
 }

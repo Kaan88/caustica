@@ -116,15 +116,13 @@ impl App {
         let metered = g.metered;
         let s = &mut self.settings;
         let advanced = self.ui.advanced;
-        section(ui, "Image");
-        grid("look").show(ui, |ui| {
-            row(
-                ui,
-                "Look",
-                "A starting point: sets the tone map, the film fields (halation, grain, vignette) and lift / gamma / gain together. Exposure, glare, the LUT and everything else stay as they are. Tweak any field after and this reads Custom.",
-                |ui| {
+        // The look preset sits on the tab's title.
+        ui.horizontal(|ui| {
+            tab_title(ui, "Look");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let current = Look::of(s);
-                    egui::ComboBox::from_id_salt("look bundle")
+                    let r = egui::ComboBox::from_id_salt("look bundle")
+                        .width(140.)
                         .selected_text(current.map_or("Custom", |l| l.name))
                         .show_ui(ui, |ui| {
                             for l in LOOKS {
@@ -136,18 +134,24 @@ impl App {
                                     l.apply(s);
                                 }
                             }
-                        });
-                },
-            );
-            row(ui, "View", "What the viewport shows (keys 1–8).", |ui| {
-                egui::ComboBox::from_id_salt("view")
-                    .selected_text(VIEWS[s.view as usize])
-                    .show_ui(ui, |ui| {
-                        for (i, n) in VIEWS.iter().enumerate() {
-                            ui.selectable_value(&mut s.view, i as u32, format!("{n}  ({})", i + 1));
-                        }
-                    });
+                        })
+                        .response;
+                    r.on_hover_text("A starting point: sets the tone map, the film fields (halation, grain, vignette) and lift / gamma / gain together. Exposure, glare, the LUT and everything else stay as they are. Tweak any field after and this reads Custom.");
             });
+        });
+        let preview = if s.auto_exposure {
+            format!("Auto · {:+.1} EV", s.ev_bias)
+        } else {
+            // As the Exposure slider shows it.
+            let ev = if s.exposure > 0. {
+                s.exposure.log2().clamp(EXPOSURE_EV_MIN, EXPOSURE_EV_MAX)
+            } else {
+                EXPOSURE_EV_MIN
+            };
+            format!("Manual · {ev:+.1} EV")
+        };
+        fold(ui, "Exposure", preview, true, |ui| {
+            grid("look").show(ui, |ui| {
             row(
                 ui,
                 "Auto exposure",
@@ -246,6 +250,10 @@ impl App {
                     ui.add(crate::slider(&mut s.eyes_strength, 0. ..=1.).fixed_decimals(2));
                 });
             }
+        });
+        });
+        fold(ui, "Tone", TONE_MAPS[s.tonemap as usize], true, |ui| {
+            grid("tone").show(ui, |ui| {
             row(
                 ui,
                 "Tone map",
@@ -261,8 +269,8 @@ impl App {
                 },
             );
         });
-        more(ui, "look more", advanced, |ui| {
-            grid("look advanced").show(ui, |ui| {
+            more(ui, "look more", advanced, |ui| {
+                grid("look advanced").show(ui, |ui| {
                 row(ui, "Display gamma", "Display gamma for the SDR image.", |ui| {
                     ui.add(crate::slider(&mut s.gamma, 0.1..=4.));
                 });
@@ -273,9 +281,65 @@ impl App {
                     ui.add(crate::slider(&mut s.indirect, 0. ..=4.).suffix("×"));
                 });
             });
+            });
         });
-        section(ui, "Film");
-        grid("film").show(ui, |ui| {
+        let preview = grade_preview(s, self.ui.lut_error.is_some());
+        fold(ui, "Grade", preview, true, |ui| {
+            ui.horizontal(|ui| {
+                crate::look::color_wheel(ui, "Lift", &mut s.lift, 0., 0.15);
+                crate::look::color_wheel(ui, "Gamma", &mut s.grade_gamma, 1., 0.5);
+                crate::look::color_wheel(ui, "Gain", &mut s.gain, 1., 0.5);
+            });
+            note(
+                ui,
+                "Drag a wheel to tint, the slider for the level; double-click either to reset.",
+            );
+            // A 3D LUT is an expert tool: hidden until Show advanced, or while one is loaded.
+            grid("lut").show(ui, |ui| {
+                if advanced || !s.lut_path.is_empty() {
+                    row(
+                        ui,
+                        "LUT",
+                        "A .cube 3D LUT applied after the grade, on the display-encoded image.",
+                        |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut s.lut_path)
+                                    .hint_text(field_hint("path to .cube"))
+                                    .desired_width(170.),
+                            );
+                            if ui.small_button("Browse…").clicked()
+                                && let Some(p) = rfd::FileDialog::new()
+                                    .add_filter("3D LUT", &["cube"])
+                                    .pick_file()
+                            {
+                                s.lut_path = crate::mesh::store(&p);
+                            }
+                            if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
+                                s.lut_path.clear();
+                            }
+                        },
+                    );
+                }
+                // A row of its own: this one already fills the panel.
+                if !s.lut_path.is_empty()
+                    && let Some(e) = &self.ui.lut_error
+                {
+                    row(ui, "", "", |ui| cant_load(ui, e));
+                }
+                if !s.lut_path.is_empty() {
+                    row(
+                        ui,
+                        "LUT strength",
+                        "Blend between the graded image and the LUT result.",
+                        |ui| {
+                            ui.add(crate::slider(&mut s.lut_strength, 0. ..=1.));
+                        },
+                    );
+                }
+            });
+        });
+        fold(ui, "Film", film_preview(s), false, |ui| {
+            grid("film").show(ui, |ui| {
             row(
                 ui,
                 "Halation",
@@ -311,7 +375,7 @@ impl App {
                         .map_or("Custom", |(n, ..)| *n);
                     egui::ComboBox::from_id_salt("film stock")
                         .selected_text(current)
-                        .width(170.)
+                        .width(170_f32.min(ui.available_width()))
                         .show_ui(ui, |ui| {
                             for (name, grain, size, halation) in FILM_STOCKS {
                                 if ui.selectable_label(current == *name, *name).clicked() {
@@ -347,61 +411,128 @@ impl App {
                 ui.add(crate::slider(&mut s.vignette, 0. ..=1.));
             });
         });
-        section(ui, "Grade");
-        ui.horizontal(|ui| {
-            crate::look::color_wheel(ui, "Lift", &mut s.lift, 0., 0.15);
-            crate::look::color_wheel(ui, "Gamma", &mut s.grade_gamma, 1., 0.5);
-            crate::look::color_wheel(ui, "Gain", &mut s.gain, 1., 0.5);
         });
-        note(
-            ui,
-            "Drag a wheel to tint, the slider for the level; double-click either to reset.",
-        );
-        // A 3D LUT is an expert tool: hidden until Show advanced, or while one is loaded.
-        grid("lut").show(ui, |ui| {
-            if advanced || !s.lut_path.is_empty() {
-                row(
-                    ui,
-                    "LUT",
-                    "A .cube 3D LUT applied after the grade, on the display-encoded image.",
-                    |ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut s.lut_path)
-                                .hint_text(field_hint("path to .cube"))
-                                .desired_width(170.),
-                        );
-                        if ui.small_button("Browse…").clicked()
-                            && let Some(p) = rfd::FileDialog::new()
-                                .add_filter("3D LUT", &["cube"])
-                                .pick_file()
-                        {
-                            s.lut_path = crate::mesh::store(&p);
-                        }
-                        if !s.lut_path.is_empty() && ui.small_button("Clear").clicked() {
-                            s.lut_path.clear();
-                        }
-                    },
-                );
-            }
-            // A row of its own: this one already fills the panel.
-            if !s.lut_path.is_empty()
-                && let Some(e) = &self.ui.lut_error
+        // The split shows only with a reference to show, and not over the CPU view.
+        let preview = if s.compare && g.reference_valid && !self.cpu_view {
+            format!("split {:.0}%", s.split * 100.)
+        } else {
+            "off".to_string()
+        };
+        fold(ui, "Compare", preview, true, |ui| {
+            let cpu = self
+                .cpu_reference
+                .as_ref()
+                .filter(|l| !l.view)
+                .map(|l| l.state());
+            ui.horizontal_wrapped(|ui| {
+            if ui
+                .button("Freeze reference (C)")
+                .on_hover_text("Keep the current image to compare against")
+                .clicked()
             {
-                row(ui, "", "", |ui| cant_load(ui, e));
+                self.actions.reference = true;
             }
-            if !s.lut_path.is_empty() {
-                row(
-                    ui,
-                    "LUT strength",
-                    "Blend between the graded image and the LUT result.",
-                    |ui| {
-                        ui.add(crate::slider(&mut s.lut_strength, 0. ..=1.));
-                    },
-                );
+            let label = if cpu.is_some() {
+                "Stop CPU reference"
+            } else {
+                "Render reference on CPU"
+            };
+            if ui
+                .add_enabled(!self.cpu_view, egui::Button::new(label))
+                .on_hover_text(
+                    "Path-trace the scene on the CPU (an independent renderer of the same model) and show it left of the split, refining as it goes. Edits and camera moves start it over.",
+                )
+                .on_disabled_hover_text("The viewport is already showing the CPU's render")
+                .clicked()
+            {
+                self.actions.cpu_reference = Some(cpu.is_none());
+            }
+            ui.add_enabled(
+                g.reference_valid && !self.cpu_view,
+                egui::Checkbox::new(&mut s.compare, "Show split"),
+            )
+            .on_disabled_hover_text("Freeze a reference (C) or render one on CPU first");
+        });
+            if let Some(st) = &cpu {
+                match &st.error {
+                    Some(e) => note(ui, e),
+                    None if st.samples == 0 => note(ui, "CPU reference: first pass…"),
+                    None => note(
+                        ui,
+                        &format!(
+                            "CPU reference: {} / {} spp, {:.0} s{}",
+                            st.samples,
+                            st.cap,
+                            st.seconds,
+                            if st.samples >= st.cap { ", done" } else { "" }
+                        ),
+                    ),
+                }
+            }
+            if s.compare && !self.cpu_view {
+                let what = if cpu.is_some() {
+                    "Left of the line shows the CPU reference."
+                } else {
+                    "Left of the line shows the frozen reference."
+                };
+                grid("compare").show(ui, |ui| {
+                    row(ui, "Split", what, |ui| {
+                        ui.add(
+                            crate::slider(&mut s.split, 0. ..=1.)
+                                .custom_formatter(|v, _| format!("{:.0}%", v * 100.)),
+                        );
+                    });
+                });
             }
         });
-        section(ui, "Display");
-        grid("display").show(ui, |ui| {
+        let on = [
+            (self.ui.zebras, "zebras"),
+            (self.ui.show_scopes, "scopes"),
+            (self.ui.meter, "meter"),
+            (self.ui.show_graph, "graph"),
+            (self.ui.paths.open, "paths"),
+        ]
+        .iter()
+        .filter(|(on, _)| *on)
+        .map(|(_, name)| *name)
+        .collect::<Vec<_>>();
+        // "off" as Compare says it, so the closed header is not blank; all five names are
+        // wider than the header has room for, so then it counts them.
+        let preview = match on.len() {
+            0 => "off".to_string(),
+            1..=4 => on.join(" · "),
+            n => format!("{n} on"),
+        };
+        fold(ui, "Tools", preview, false, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.checkbox(&mut self.ui.zebras, "Zebras")
+                    .on_hover_text("Stripes where the displayed image clips");
+                ui.checkbox(&mut self.ui.show_scopes, "Scopes")
+                    .on_hover_text("Histogram, luma waveform and vectorscope");
+                ui.checkbox(&mut self.ui.meter, "Light meter")
+                    .on_hover_text("Luminance and illuminance under the cursor");
+                ui.checkbox(&mut self.ui.show_graph, "Convergence graph")
+                    .on_hover_text("Error against a reference image as samples grow");
+                ui.checkbox(&mut self.ui.paths.open, "Path visualizer (P)")
+                    .on_hover_text("Click a pixel to see its light paths in 3D");
+            });
+        });
+        // An expression in use shows in the header, so it is never hidden unnoticed.
+        let lpe_used = s.view == 12 || s.lpe.iter().any(|e| !e.is_empty());
+        fold(
+            ui,
+            "Light path expressions",
+            if lpe_used { "on" } else { "off" },
+            lpe_used,
+            |ui| lpe_section(ui, s, &mut self.ui.lpe_edit),
+        );
+        let preview = if g.hdr_active {
+            format!("HDR {:.0} nits", g.hdr_levels[1])
+        } else {
+            "SDR".to_string()
+        };
+        fold(ui, "Display", preview, false, |ui| {
+            grid("display").show(ui, |ui| {
             row(ui, "Output", if cfg!(windows) { "Auto shows real HDR when Windows HDR is on for this monitor, using Windows' calibration and SDR content brightness." } else { "Auto shows real HDR when the desktop has HDR on for this monitor (Wayland colour management), using its brightness settings." }, |ui| {
                 let outputs = [if cfg!(windows) { "Auto (follow Windows)" } else { "Auto (follow the desktop)" }, "SDR", "HDR (forced)"];
                 egui::ComboBox::from_id_salt("output").selected_text(outputs[s.hdr_mode as usize]).show_ui(ui, |ui| {
@@ -437,107 +568,26 @@ impl App {
                 });
             }
         });
-        note(ui, &hdr_text);
-        if g.hdr_active {
-            note(
-                ui,
-                "In HDR, midtones look as in SDR and the tone map's highlights expand up to the panel peak. Linear shows true scene brightness with a roll-off near the peak.",
-            );
-        }
-        section(ui, "Compare");
-        let cpu = self
-            .cpu_reference
-            .as_ref()
-            .filter(|l| !l.view)
-            .map(|l| l.state());
-        ui.horizontal_wrapped(|ui| {
-            if ui
-                .button("Freeze reference (C)")
-                .on_hover_text("Keep the current image to compare against")
-                .clicked()
-            {
-                self.actions.reference = true;
-            }
-            let label = if cpu.is_some() {
-                "Stop CPU reference"
-            } else {
-                "Render reference on CPU"
-            };
-            if ui
-                .add_enabled(!self.cpu_view, egui::Button::new(label))
-                .on_hover_text(
-                    "Path-trace the scene on the CPU (an independent renderer of the same model) and show it left of the split, refining as it goes. Edits and camera moves start it over.",
-                )
-                .on_disabled_hover_text("The viewport is already showing the CPU's render")
-                .clicked()
-            {
-                self.actions.cpu_reference = Some(cpu.is_none());
-            }
-            ui.add_enabled(
-                g.reference_valid && !self.cpu_view,
-                egui::Checkbox::new(&mut s.compare, "Show split"),
-            )
-            .on_disabled_hover_text("Freeze a reference (C) or render one on CPU first");
-        });
-        if let Some(st) = &cpu {
-            match &st.error {
-                Some(e) => note(ui, e),
-                None if st.samples == 0 => note(ui, "CPU reference: first pass…"),
-                None => note(
+            note(ui, &hdr_text);
+            if g.hdr_active {
+                note(
                     ui,
-                    &format!(
-                        "CPU reference: {} / {} spp, {:.0} s{}",
-                        st.samples,
-                        st.cap,
-                        st.seconds,
-                        if st.samples >= st.cap { ", done" } else { "" }
-                    ),
-                ),
+                    "In HDR, midtones look as in SDR and the tone map's highlights expand up to the panel peak. Linear shows true scene brightness with a roll-off near the peak.",
+                );
             }
-        }
-        if s.compare && !self.cpu_view {
-            let what = if cpu.is_some() {
-                "Left of the line shows the CPU reference."
-            } else {
-                "Left of the line shows the frozen reference."
-            };
-            grid("compare").show(ui, |ui| {
-                row(ui, "Split", what, |ui| {
-                    ui.add(
-                        crate::slider(&mut s.split, 0. ..=1.)
-                            .custom_formatter(|v, _| format!("{:.0}%", v * 100.)),
-                    );
-                });
-            });
-        }
-        section(ui, "Tools");
-        ui.horizontal_wrapped(|ui| {
-            ui.checkbox(&mut self.ui.zebras, "Zebras")
-                .on_hover_text("Stripes where the displayed image clips");
-            ui.checkbox(&mut self.ui.show_scopes, "Scopes")
-                .on_hover_text("Histogram, luma waveform and vectorscope");
-            ui.checkbox(&mut self.ui.meter, "Light meter")
-                .on_hover_text("Luminance and illuminance under the cursor");
-            ui.checkbox(&mut self.ui.show_graph, "Convergence graph")
-                .on_hover_text("Error against a reference image as samples grow");
-            ui.checkbox(&mut self.ui.paths.open, "Path visualizer (P)")
-                .on_hover_text("Click a pixel to see its light paths in 3D");
         });
-        // Closed unless one is in use, so an active expression is never hidden.
-        let lpe_used = s.view == 12 || s.lpe.iter().any(|e| !e.is_empty());
-        egui::CollapsingHeader::new(
-            egui::RichText::new("Light path expressions")
-                .strong()
-                .color(ACCENT),
-        )
-        .open(lpe_used.then_some(true))
-        .show(ui, |ui| lpe_section(ui, s, &mut self.ui.lpe_edit));
     }
     pub(super) fn export_tab(&mut self, ui: &mut egui::Ui) {
-        let g = self.gpu.as_ref().unwrap();
         use crate::video::ImageFormat;
-        section(ui, "Save the current image");
-        grid("export_name").show(ui, |ui| {
+        tab_title(ui, "Export");
+        // A running export: its card on top, and the rest waits.
+        if self.export_card(ui) {
+            ui.add_space(6.);
+            ui.disable();
+        }
+        let g = self.gpu.as_ref().unwrap();
+        fold(ui, "Save the current image", "F12", true, |ui| {
+            grid("export_name").show(ui, |ui| {
             row(
                 ui,
                 "File name",
@@ -545,7 +595,7 @@ impl App {
                 |ui| {
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut self.ui.prefs.name_template)
-                            .desired_width(220.),
+                            .desired_width(220_f32.min(ui.available_width())),
                     );
                     if r.lost_focus() {
                         self.ui.prefs.save();
@@ -553,99 +603,101 @@ impl App {
                 },
             );
         });
-        // The software view saves the CPU's image; stills and videos below render on the GPU.
-        let samples = self
-            .cpu_reference
-            .as_ref()
-            .filter(|l| l.view)
-            .map_or(g.samples, |l| l.state().samples);
-        let stem = self
-            .ui
-            .export_stem(&self.settings, samples, g.width, g.height);
-        note(
-            ui,
-            &format!(
-                "Saves the view as it is now: {} samples, {} × {}",
-                samples, g.width, g.height
-            ),
-        );
-        if self.cpu_view {
+            // The software view saves the CPU's image; stills and videos below render on the GPU.
+            let samples = self
+                .cpu_reference
+                .as_ref()
+                .filter(|l| l.view)
+                .map_or(g.samples, |l| l.state().samples);
+            let stem = self
+                .ui
+                .export_stem(&self.settings, samples, g.width, g.height);
             note(
                 ui,
-                "These save the CPU's image. High-resolution stills and videos still render on the GPU.",
+                &format!(
+                    "Saves the view as it is now: {} samples, {} × {}",
+                    samples, g.width, g.height
+                ),
             );
-        }
-        let (state, refining) = save_state(
-            samples,
-            self.settings.max_samples,
-            self.paused,
-            self.ui.sample_rate.2,
-        );
-        let state = egui::RichText::new(state).small();
-        ui.label(if refining { state.color(WARN) } else { state });
-        ui.horizontal_wrapped(|ui| {
-            for format in ImageFormat::ALL {
-                if format.needs_hdr() && !g.hdr_active {
-                    continue;
-                }
-                let label = if format == ImageFormat::Png {
-                    "PNG (F12)".to_string()
-                } else {
-                    format.label().to_string()
-                };
-                let file = format.file(&stem);
-                if ui
-                    .button(label)
-                    .on_hover_text(format!("{}: {}", file.display(), format.description()))
-                    .clicked()
-                {
-                    self.actions.save_image = Some(format);
-                }
+            if self.cpu_view {
+                note(
+                    ui,
+                    "These save the CPU's image. High-resolution stills and videos still render on the GPU.",
+                );
             }
-        });
-        grid("export_quality").show(ui, |ui| {
-            row(
-                ui,
-                "JPEG quality",
-                "Used by every JPEG save: 100 is the largest file and the fewest artefacts.",
-                |ui| {
-                    ui.add(crate::slider(&mut self.ui.jpeg_quality, 50..=100));
-                },
+            let (state, refining) = save_state(
+                samples,
+                self.settings.max_samples,
+                self.paused,
+                self.ui.sample_rate.2,
             );
-        });
-        // The folder as a real path: the output folder is empty in development and portable runs.
-        let dir = crate::dirs::output_dir();
-        let folder = if dir.as_os_str().is_empty() {
-            std::env::current_dir().unwrap_or_default()
-        } else {
-            std::path::absolute(&dir).unwrap_or(dir)
-        };
-        ui.label(
-            egui::RichText::new(format!("Saves as {stem}.png in {}", folder.display())).small(),
-        );
-        if ui
-            .button("Open folder")
-            .on_hover_text("Show the folder images are saved to")
-            .clicked()
-        {
-            let _ = std::fs::create_dir_all(&folder);
-            show_in_folder(&folder);
-        }
-        if crate::video::name_repeats(&self.ui.prefs.name_template) {
+            let state = egui::RichText::new(state).small();
+            ui.label(if refining { state.color(WARN) } else { state });
+            ui.horizontal_wrapped(|ui| {
+                for format in ImageFormat::ALL {
+                    if format.needs_hdr() && !g.hdr_active {
+                        continue;
+                    }
+                    let label = if format == ImageFormat::Png {
+                        "PNG (F12)".to_string()
+                    } else {
+                        format.label().to_string()
+                    };
+                    let file = format.file(&stem);
+                    if ui
+                        .button(label)
+                        .on_hover_text(format!("{}: {}", file.display(), format.description()))
+                        .clicked()
+                    {
+                        self.actions.save_image = Some(format);
+                    }
+                }
+            });
+            grid("export_quality").show(ui, |ui| {
+                row(
+                    ui,
+                    "JPEG quality",
+                    "Used by every JPEG save: 100 is the largest file and the fewest artefacts.",
+                    |ui| {
+                        ui.add(crate::slider(&mut self.ui.jpeg_quality, 50..=100));
+                    },
+                );
+            });
+            // The folder as a real path: the output folder is empty in development and portable runs.
+            let dir = crate::dirs::output_dir();
+            let folder = if dir.as_os_str().is_empty() {
+                std::env::current_dir().unwrap_or_default()
+            } else {
+                std::path::absolute(&dir).unwrap_or(dir)
+            };
             ui.label(
+                egui::RichText::new(format!("Saves as {stem}.png in {}", folder.display())).small(),
+            );
+            if ui
+                .button("Open folder")
+                .on_hover_text("Show the folder images are saved to")
+                .clicked()
+            {
+                let _ = std::fs::create_dir_all(&folder);
+                show_in_folder(&folder);
+            }
+            if crate::video::name_repeats(&self.ui.prefs.name_template) {
+                ui.label(
                 egui::RichText::new(
                     "Saving again overwrites the last file: add {time} to the name to keep both.",
                 )
                 .small()
                 .color(WARN),
             );
-        }
-        section(ui, "High-resolution render");
-        note(
-            ui,
-            "Renders the same camera again from scratch, at the size and samples set here; the view keeps its own progress.",
-        );
-        grid("export").show(ui, |ui| {
+            }
+        });
+        let preview = format!("{}× · {} spp", self.ui.export_scale, self.ui.export_samples);
+        fold(ui, "High-resolution still", preview, true, |ui| {
+            note(
+                ui,
+                "Renders the same camera again from scratch, at the size and samples set here; the view keeps its own progress.",
+            );
+            grid("export").show(ui, |ui| {
             row(
                 ui,
                 "Size",
@@ -694,68 +746,115 @@ impl App {
                 );
             }
         });
-        // HDR output may have been turned off since the format was picked.
-        if self.ui.export_format.needs_hdr() && !g.hdr_active {
-            self.ui.export_format = ImageFormat::Png;
-        }
-        let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
-        let name = {
-            let (w, h) = (
-                (g.width as f32 * factor).round() as u32,
-                (g.height as f32 * factor).round() as u32,
+            // HDR output may have been turned off since the format was picked.
+            if self.ui.export_format.needs_hdr() && !g.hdr_active {
+                self.ui.export_format = ImageFormat::Png;
+            }
+            let factor = (self.ui.export_scale as f32).min(8192. / g.width.max(g.height) as f32);
+            let name = {
+                let (w, h) = (
+                    (g.width as f32 * factor).round() as u32,
+                    (g.height as f32 * factor).round() as u32,
+                );
+                let stem = self
+                    .ui
+                    .export_stem(&self.settings, self.ui.export_samples, w, h);
+                self.ui.export_format.file(&format!("{stem}-high-res"))
+            };
+            if ui.button("Render high-resolution image").clicked() {
+                self.actions.high_res = true;
+            }
+            note(
+                ui,
+                &format!(
+                    "{} ({}), {} × {}, traced fresh at 100% resolution. The window stays responsive, with progress and Cancel.",
+                    name.display(),
+                    self.ui.export_format.description().trim_end_matches('.'),
+                    (g.width as f32 * factor).round(),
+                    (g.height as f32 * factor).round()
+                ),
             );
-            let stem = self
-                .ui
-                .export_stem(&self.settings, self.ui.export_samples, w, h);
-            self.ui.export_format.file(&format!("{stem}-high-res"))
+        });
+        let mut open_dialog = false;
+        // What the export would play (as the note inside decides) and its frame size.
+        let preview = {
+            let o = &self.ui.video;
+            let [w, h] = o.size();
+            let plays = if o.timeline && !self.settings.animation.is_empty() {
+                "timeline"
+            } else if o.timeline && self.settings.physics.enabled {
+                "simulation"
+            } else {
+                "orbit"
+            };
+            format!("{plays} · {w}×{h}")
         };
-        if ui.button("Render high-resolution image").clicked() {
-            self.actions.high_res = true;
-        }
-        note(
-            ui,
-            &format!(
-                "{} ({}), {} × {}, traced fresh at 100% resolution. The window stays responsive, with progress and Cancel.",
-                name.display(),
-                self.ui.export_format.description().trim_end_matches('.'),
-                (g.width as f32 * factor).round(),
-                (g.height as f32 * factor).round()
-            ),
-        );
-        section(ui, "Video");
-        let o = &self.ui.video;
-        let [w, h] = o.size();
-        let animation = &self.settings.animation;
-        // As the export dialog decides: keys set the rate and the length.
-        let text = if o.timeline && !animation.is_empty() {
-            format!(
-                "Plays the timeline: {} at {w}×{h}, {:.2} s at {} fps, {} spp each.",
-                o.format.label(),
-                animation.length,
-                animation.fps,
-                o.spp
-            )
-        } else if o.timeline && self.settings.physics.enabled {
-            format!(
-                "Runs the simulation: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
-                o.format.label(),
-                o.frames,
-                o.fps,
-                o.spp
-            )
-        } else {
-            format!(
-                "An orbit around the target: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
-                o.format.label(),
-                o.frames,
-                o.fps,
-                o.spp
-            )
-        };
-        note(ui, &text);
-        if ui.button("Export video…").clicked() {
+        fold(ui, "Video", preview, true, |ui| {
+            let o = &self.ui.video;
+            let [w, h] = o.size();
+            let animation = &self.settings.animation;
+            // As the export dialog decides: keys set the rate and the length.
+            let text = if o.timeline && !animation.is_empty() {
+                format!(
+                    "Plays the timeline: {} at {w}×{h}, {:.2} s at {} fps, {} spp each.",
+                    o.format.label(),
+                    animation.length,
+                    animation.fps,
+                    o.spp
+                )
+            } else if o.timeline && self.settings.physics.enabled {
+                format!(
+                    "Runs the simulation: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
+                    o.format.label(),
+                    o.frames,
+                    o.fps,
+                    o.spp
+                )
+            } else {
+                format!(
+                    "An orbit around the target: {} at {w}×{h}, {} frames at {} fps, {} spp each.",
+                    o.format.label(),
+                    o.frames,
+                    o.fps,
+                    o.spp
+                )
+            };
+            note(ui, &text);
+            open_dialog = ui.button("Export video…").clicked();
+        });
+        if open_dialog {
             self.open_video_dialog();
         }
+        let recent = self.ui.prefs.recent_exports.clone();
+        fold(
+            ui,
+            "Recent exports",
+            recent.len().to_string(),
+            false,
+            |ui| {
+                if recent.is_empty() {
+                    note(ui, "Nothing exported yet.");
+                }
+                for e in &recent {
+                    let path = std::path::Path::new(&e.file);
+                    let name = path
+                        .file_name()
+                        .map_or_else(|| e.file.clone(), |n| n.to_string_lossy().into());
+                    ui.horizontal(|ui| {
+                        if ui
+                            .link(name)
+                            .on_hover_text(format!("{}\nClick to show it in its folder.", e.file))
+                            .clicked()
+                        {
+                            show_in_folder(path);
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(&e.state).small().weak());
+                        });
+                    });
+                }
+            },
+        );
     }
 }
 /// The state of the image a quick save would write, as the status bar judges it, and whether
@@ -768,6 +867,87 @@ fn meter_readout(m: &crate::reference::display::Adaptation) -> String {
     } else {
         format!("{:+.1} → {:+.1} EV", m.current, m.target)
     }
+}
+/// A section header's preview from the controls that are off their defaults: each with its
+/// value while that stays short, otherwise the names alone, and `none` when there are none.
+/// Beside a short title a 330-point column has room for about 34 of the header's monospace
+/// characters; `fold` cuts off what is longer.
+fn brief(parts: &[(&str, String)], none: &str) -> String {
+    if parts.is_empty() {
+        return none.into();
+    }
+    let join = |values: bool| {
+        parts
+            .iter()
+            .map(|(name, value)| {
+                if values && !value.is_empty() {
+                    format!("{name} {value}")
+                } else {
+                    name.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" · ")
+    };
+    let full = join(true);
+    if full.chars().count() <= 32 {
+        full
+    } else {
+        join(false)
+    }
+}
+/// The Grade section's header: "Neutral", or the wheels that are off neutral (their level as
+/// the wheel's slider shows it, "tint" for a moved dot) and the LUT with its strength.
+fn grade_preview(s: &Settings, lut_failed: bool) -> String {
+    let mut parts = Vec::new();
+    for (name, v, center) in [
+        ("Lift", s.lift, 0.),
+        ("Gamma", s.grade_gamma, 1.),
+        ("Gain", s.gain, 1.),
+    ] {
+        let mean = (v[0] + v[1] + v[2]) / 3.;
+        let tinted = v.iter().any(|c| (c - mean).abs() >= 1e-3);
+        let level = mean - center;
+        if !tinted && level.abs() < 1e-3 {
+            continue;
+        }
+        let text = match (level.abs() >= 0.005, tinted) {
+            (true, true) => format!("{level:+.2} tint"),
+            (true, false) => format!("{level:+.2}"),
+            (false, true) => "tint".to_string(),
+            (false, false) => String::new(),
+        };
+        parts.push((name, text));
+    }
+    if !s.lut_path.is_empty() {
+        // A LUT that did not load is said even when the values are dropped.
+        if lut_failed {
+            parts.push(("LUT error", String::new()));
+        } else if s.lut_strength < 0.995 {
+            parts.push(("LUT", format!("{:.0}%", s.lut_strength * 100.)));
+        } else {
+            parts.push(("LUT", String::new()));
+        }
+    }
+    brief(&parts, "Neutral")
+}
+/// The Film section's header: "Off", the effects that are on, or their count when all are.
+fn film_preview(s: &Settings) -> String {
+    let parts: Vec<_> = [
+        ("Halation", s.halation),
+        ("Glare", s.glare),
+        ("Grain", s.grain),
+        ("Vignette", s.vignette),
+    ]
+    .into_iter()
+    .filter(|(_, v)| *v > 0.)
+    .map(|(name, v)| (name, format!("{v:.2}")))
+    .collect();
+    // All four names are a character too wide for the header.
+    if parts.len() == 4 {
+        return "4 effects".into();
+    }
+    brief(&parts, "Off")
 }
 fn save_state(samples: u32, cap: u32, paused: bool, rate: f32) -> (String, bool) {
     if samples >= cap {
@@ -786,8 +966,39 @@ fn save_state(samples: u32, cap: u32, paused: bool, rate: f32) -> (String, bool)
 }
 #[cfg(test)]
 mod tests {
-    use super::{LOOKS, Look, save_state};
+    use super::{LOOKS, Look, film_preview, grade_preview, save_state};
     use crate::scene::Settings;
+    #[test]
+    fn closed_grade_and_film_headers_tell_their_state() {
+        let mut s = Settings::default();
+        assert_eq!(grade_preview(&s, false), "Neutral");
+        assert_eq!(film_preview(&s), "Off");
+        s.gamma = 2.0; // Tone's display gamma is not the grade's.
+        s.gain = [1.1; 3];
+        assert_eq!(grade_preview(&s, false), "Gain +0.10");
+        s.lift = [0.02, 0., -0.02];
+        assert_eq!(grade_preview(&s, false), "Lift tint · Gain +0.10");
+        s.lut_path = "a.cube".into();
+        s.lut_strength = 0.5;
+        assert_eq!(grade_preview(&s, false), "Lift tint · Gain +0.10 · LUT 50%");
+        // Too long with values: the names alone, and a failed LUT still says so.
+        s.grade_gamma = [0.9, 0.95, 0.9];
+        assert_eq!(grade_preview(&s, false), "Lift · Gamma · Gain · LUT");
+        assert_eq!(grade_preview(&s, true), "Lift · Gamma · Gain · LUT error");
+        s.grain = 0.2;
+        s.vignette = 0.15;
+        assert_eq!(film_preview(&s), "Grain 0.20 · Vignette 0.15");
+        s.halation = 0.1;
+        assert_eq!(film_preview(&s), "Halation · Grain · Vignette");
+        s.glare = 1.;
+        assert_eq!(film_preview(&s), "4 effects");
+        // Every preview fits beside its title in the 330-point column.
+        for l in LOOKS {
+            l.apply(&mut s);
+            assert!(grade_preview(&s, true).chars().count() <= 34);
+            assert!(film_preview(&s).chars().count() <= 34);
+        }
+    }
     #[test]
     fn looks_write_only_their_fields_and_are_recognised() {
         // Neutral is the default state, so a fresh start reads Neutral.

@@ -82,7 +82,7 @@ At most three lanes at a time, chosen so their files don't overlap (review advic
 ### Between waves 1 and 2: egui 0.31 → 0.37
 After the exposure and accuracy lanes merge and before any UI redesign: three steps, about three days, sites and risks in `docs/egui-upgrade-plan.md` (written 2026-11-10 by a side session; not started). Extra egui step (owner, 2026-11-10), after every lane that adds UI has merged on top of the 0.37 port (exposure E6, accuracy Accurate bundle, bounces `specular_bounces` and the Realtime bundle, OIDN still denoiser, and any other new control): (1) port those additions to the 0.37 APIs and the menu/popup behaviour; (2) list every control the lanes added, where it sits now, and a proposed place in today's layout and in redesign B, with screenshots at 1280/1920/2560; (3) show the owner only the placements that are a real choice, as mockups, and apply the answers. Sonnet for the port and inventory; the owner decides placement.
 
-Then the UI redesign: layout B (tool rail plus inspector), the side session reports the owner chose it, spec in `docs/ui-redesign-b.md` (open questions in its section 9; not started).
+Then the UI redesign: layout B (tool rail plus inspector), spec in `docs/ui-redesign-b.md`. Phase 1 built 2026-11-12 (engine-notes "UI layout B"); the open parts are in the roadmap under "UI and editor".
 
 ### Wave 2
 - **B1 specular bounces** DONE 2026-11-10 (engine-notes "Specular bounce budget"): `Settings::specular_bounces`, default 0 = legacy; GPU and CPU path tracers. Open: owner decides whether to raise the default (changes baselines); D3D12 build and self-test on Windows.
