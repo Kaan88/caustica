@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Skin B, Instrument</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.skin{--bg:#131314;--panel:#222225;--band:#2b2b2f;--edge:#0c0c0d;--line:#151516;--field:#141416;--tx:#e5e5e7;--dim:#a8a8af;--faint:#8e8e96;--hi:inset 0 1px 0 rgba(255,255,255,.08);width:1280px;min-height:1500px;background:var(--bg);color:var(--tx);font:12.5px/1.3 "IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.skin *{box-sizing:border-box}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.b{appearance:none;border:1px solid var(--edge);background:linear-gradient(#3b3c41,#2f3034);color:inherit;font:inherit;height:24px;padding:0 9px;border-radius:4px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;box-shadow:var(--hi),0 1px 1px rgba(0,0,0,.3);transition:background .1s,box-shadow .1s,transform .06s,color .1s,border-color .1s,filter .1s}
+.b:hover,.b.h{background:linear-gradient(#46474d,#38393e)}
+.b:active,.b.p{background:linear-gradient(#27282b,#2d2e32);box-shadow:inset 0 1px 3px rgba(0,0,0,.6);transform:translateY(.5px)}
+.b:focus-visible,.b.f{outline:0;box-shadow:var(--hi),0 0 0 1.5px var(--acc)}
+.b:disabled,.b.d{opacity:.42;pointer-events:none}
+.b.pri{background:linear-gradient(color-mix(in srgb,var(--acc) 86%,#fff),var(--acc));color:#06272c;font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 1px 1px rgba(0,0,0,.3)}
+.b.pri:hover,.b.pri.h{filter:brightness(1.08)}
+.b.pri:active,.b.pri.p{filter:brightness(.88);box-shadow:inset 0 1px 3px rgba(0,0,0,.4)}
+.b.pri:focus-visible,.b.pri.f{box-shadow:0 0 0 2px var(--panel),0 0 0 3.5px var(--acc)}
+.b.on{background:linear-gradient(#1b1c1e,#222326);box-shadow:inset 0 1px 3px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.05);color:var(--acc)}
+.b.fl{background:transparent;border-color:transparent;box-shadow:none}
+.b.fl:hover,.b.fl.h{background:linear-gradient(#3b3c41,#2f3034);border-color:var(--edge);box-shadow:var(--hi)}
+.b.fl:active,.b.fl.p{background:linear-gradient(#27282b,#2d2e32);border-color:var(--edge);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.b.fl.on{background:linear-gradient(#1b1c1e,#222326);border-color:var(--edge);box-shadow:inset 0 1px 3px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.05);color:var(--acc)}
+.b.ic{width:26px;padding:0;justify-content:center}
+.b .cv{color:var(--faint);margin-left:2px}
+.fd{height:24px;border-radius:4px;background:var(--field);border:1px solid var(--edge);color:var(--tx);font:inherit;padding:0 7px;min-width:0;box-shadow:inset 0 1px 2px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.05);transition:box-shadow .1s,border-color .1s,background .1s}
+.fd:hover,.fd.h{background:#19191c}
+.fd:focus,.fd.f,.fd.p{outline:0;border-color:var(--acc);box-shadow:inset 0 1px 2px rgba(0,0,0,.6),0 0 0 1px var(--acc)}
+.fd:disabled,.fd.d{opacity:.42}
+.fd.num{width:58px;text-align:right;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px}
+.sl{position:relative;height:24px;flex:1;min-width:60px;display:flex;align-items:center;cursor:pointer}
+.sl .t{height:6px;width:100%;background:#121214;border-radius:3px;box-shadow:inset 0 1px 2px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.06)}
+.sl .fl{position:absolute;left:1px;height:4px;width:calc(var(--v) - 1px);background:color-mix(in srgb,var(--acc) 78%,#000);border-radius:2px}
+.sl .th{position:absolute;left:calc(var(--v) - 5px);width:10px;height:16px;border-radius:3px;background:linear-gradient(#e2e2e6,#a6a6ad);border:1px solid var(--edge);box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 1px 2px rgba(0,0,0,.5);transition:filter .1s,box-shadow .1s}
+.sl:hover .th,.sl.h .th{filter:brightness(1.12)}
+.sl:active .th,.sl.p .th{background:linear-gradient(#a6a6ad,#c9c9ce)}
+.sl.f .th{box-shadow:0 0 0 1.5px var(--acc)}
+.sl.d{opacity:.42;pointer-events:none}
+.ck{display:inline-flex;align-items:center;gap:8px;height:24px;cursor:pointer;position:relative}
+.ck input{position:absolute;opacity:0;width:1px;height:1px}
+.ck .bx{width:15px;height:15px;border-radius:3px;background:var(--field);border:1px solid var(--edge);box-shadow:inset 0 1px 2px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.07);display:grid;place-items:center;transition:background .1s,filter .1s}
+.ck .bx svg{width:11px;height:11px;fill:none;stroke:#06272c;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .1s}
+.ck input:checked+.bx{background:linear-gradient(color-mix(in srgb,var(--acc) 86%,#fff),var(--acc));box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.ck input:checked+.bx svg{opacity:1}
+.ck:hover .bx,.ck.h .bx{background:#1d1d20}
+.ck:hover input:checked+.bx,.ck.h input:checked+.bx{background:linear-gradient(color-mix(in srgb,var(--acc) 86%,#fff),var(--acc));filter:brightness(1.1)}
+.ck:active .bx,.ck.p .bx{filter:brightness(.85)}
+.ck input:focus-visible+.bx,.ck.f .bx{outline:1.5px solid var(--acc);outline-offset:1.5px}
+.ck.d{opacity:.42;pointer-events:none}
+.sw .tr{width:30px;height:16px;border-radius:8px;background:#121214;border:1px solid var(--edge);box-shadow:inset 0 1px 2px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.06);position:relative;transition:background .14s}
+.sw .tr::after{content:"";position:absolute;left:1px;top:1px;width:12px;height:12px;border-radius:50%;background:linear-gradient(#e2e2e6,#a6a6ad);box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 1px 2px rgba(0,0,0,.5);transition:transform .14s cubic-bezier(.3,.7,.3,1)}
+.sw input:checked+.tr{background:color-mix(in srgb,var(--acc) 70%,#000)}
+.sw input:checked+.tr::after{transform:translateX(14px)}
+.sw:hover .tr::after,.sw.h .tr::after{filter:brightness(1.12)}
+.sw:active .tr::after,.sw.p .tr::after{background:linear-gradient(#a6a6ad,#c9c9ce)}
+.sw input:focus-visible+.tr,.sw.f .tr{outline:1.5px solid var(--acc);outline-offset:1.5px}
+.sec summary{list-style:none;display:flex;align-items:center;gap:6px;height:26px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:0 12px;margin:0 -12px;background:var(--band);border-top:1px solid #38383d;border-bottom:1px solid var(--edge);transition:background .1s}
+.sec summary::-webkit-details-marker{display:none}
+.sec summary .cv{color:var(--faint);transition:transform .14s}
+.sec[open]>summary .cv{transform:rotate(90deg)}
+.sec summary .pv{margin-left:auto;font:400 11px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:0;text-transform:none;color:var(--dim)}
+.sec summary:hover,.sec summary.h{background:#34343a}
+.sec summary:active,.sec summary.p{background:#252528}
+.sec summary:focus-visible,.sec summary.f{outline:0;box-shadow:inset 0 0 0 1.5px var(--acc)}
+.sec summary.d{opacity:.42}
+.sb{padding:7px 0 9px}
+.row{display:grid;grid-template-columns:128px minmax(0,1fr);align-items:center;min-height:28px}
+.row>.lb{color:var(--dim)}
+.row>.ct{display:flex;align-items:center;gap:8px;min-width:0}
+.seg{display:inline-flex;border-radius:4px;box-shadow:0 1px 1px rgba(0,0,0,.3)}
+.seg .b{border-radius:0;margin-left:-1px;box-shadow:var(--hi)}
+.seg .b:first-child{border-radius:4px 0 0 4px;margin-left:0}
+.seg .b:last-child{border-radius:0 4px 4px 0}
+.seg .b.on{box-shadow:inset 0 1px 3px rgba(0,0,0,.7)}
+.pop{background:#2a2a2e;border:1px solid var(--edge);border-radius:5px;padding:3px;box-shadow:var(--hi),0 14px 36px rgba(0,0,0,.7)}
+.pop .b{width:100%;height:24px;border-radius:3px;background:transparent;border-color:transparent;box-shadow:none}
+.pop .b:hover,.pop .b.h{background:var(--acc);color:#06272c}
+.pop .b:hover .k,.pop .b.h .k{color:#06272c}
+.pop .k{margin-left:auto;color:var(--faint)}
+.pop hr{border:0;border-top:1px solid var(--edge);border-bottom:1px solid #38383d;margin:3px 0}
+.tip{background:#0f0f10;border:1px solid #3a3a3f;padding:4px 8px;border-radius:3px;font-size:11.5px;box-shadow:0 6px 16px rgba(0,0,0,.6)}
+.app{width:1280px;height:720px;display:flex;flex-direction:column;background:var(--bg)}
+.top{height:36px;flex:none;display:flex;align-items:center;gap:4px;padding:0 6px;background:linear-gradient(#2c2c30,#242427);border-bottom:1px solid var(--edge);box-shadow:var(--hi)}
+.vr{width:2px;height:18px;margin:0 4px;border-left:1px solid var(--edge);border-right:1px solid #38383d}
+.sp{flex:1}
+.mid{flex:1;display:flex;min-height:0}
+.rail{width:44px;flex:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;background:var(--panel);border-right:1px solid var(--edge)}
+.rail .b{width:30px;height:30px;padding:0;justify-content:center}
+.view{flex:1;position:relative;background:#09090a;overflow:hidden}
+.view>svg{position:absolute;inset:0;width:100%;height:100%}
+.strip{position:absolute;left:10px;top:10px;display:flex;gap:3px;padding:3px;border-radius:5px;background:rgba(34,34,37,.94);border:1px solid var(--edge);box-shadow:var(--hi),0 8px 22px rgba(0,0,0,.6)}
+.col{width:360px;flex:none;display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--edge)}
+.outl{height:30px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--band);border-bottom:1px solid var(--edge);box-shadow:var(--hi)}
+.insp{flex:1;display:flex;min-height:0}
+.tabs{width:38px;flex:none;display:flex;flex-direction:column;background:#1a1a1c;border-right:1px solid var(--edge)}
+.tabs .b{width:100%;height:34px;padding:0;justify-content:center;color:var(--faint);border-radius:0;border-width:0 0 1px;border-color:transparent}
+.tabs .b.fl:hover{color:var(--tx);background:#242427;border-color:transparent;box-shadow:none}
+.tabs .b.fl.on{color:var(--acc);background:var(--panel);border-color:var(--edge);box-shadow:inset 2px 0 0 var(--acc);margin-right:-1px}
+.props{flex:1;min-width:0;padding:8px 12px}
+.props h2{margin:0 0 8px;font-size:14px;font-weight:600;height:24px;display:flex;align-items:center}
+.status{height:24px;flex:none;display:flex;align-items:center;gap:14px;padding:0 10px;background:#1a1a1c;border-top:1px solid var(--edge);color:var(--dim);font-size:11.5px}
+.dot{width:7px;height:7px;border-radius:50%;background:#63c174;box-shadow:0 0 5px #63c174;display:inline-block;margin-right:6px}
+.sheet{padding:36px 40px 44px;background:var(--panel);border-top:1px solid var(--edge);display:flex;flex-direction:column;gap:26px}
+.sheet h3{margin:0;font-size:14px;font-weight:600}
+.grid{display:grid;grid-template-columns:140px repeat(5,minmax(0,1fr));column-gap:16px;row-gap:10px;align-items:center}
+.grid .hd{color:var(--faint);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.grid .nm{color:var(--dim)}
+.cell{display:flex;align-items:center;gap:6px;min-width:0}
+.cell .sec summary{margin:0}
+.more{display:flex;gap:40px;align-items:flex-start}
+.more h4{margin:0 0 10px;font-size:11px;font-weight:500;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+</style>
+</helmet>
+<div class="skin" style="--acc: {{accent}}">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<symbol id="b-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+<symbol id="b-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="b-layers" viewBox="0 0 24 24"><path d="M12 4l9 5-9 5-9-5zM3 14l9 5 9-5"/></symbol>
+<symbol id="b-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+<symbol id="b-restart" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v5h5"/></symbol>
+<symbol id="b-compare" viewBox="0 0 24 24"><path d="M12 3v18M5 6h4v12H5zM15 6h4v12h-4z"/></symbol>
+<symbol id="b-save" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+<symbol id="b-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="b-cursor" viewBox="0 0 24 24"><path d="M6 4l12 7-5 1.5L11 18z"/></symbol>
+<symbol id="b-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></symbol>
+<symbol id="b-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></symbol>
+<symbol id="b-scale" viewBox="0 0 24 24"><path d="M5 19L19 5M13 5h6v6M5 13v6h6"/></symbol>
+<symbol id="b-walk" viewBox="0 0 24 24"><path d="M12 4.5a1.5 1.5 0 1 0 .01 0M12 9l-3 4 3 2v5M12 9l4 3M9 13l-2 6"/></symbol>
+<symbol id="b-frame" viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4M12 10a2 2 0 1 0 .01 0"/></symbol>
+<symbol id="b-timeline" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16M8 6v4M15 14v4"/></symbol>
+<symbol id="b-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-2h6l2 2h3v11H4zM12 10.5a3 3 0 1 0 .01 0"/></symbol>
+<symbol id="b-image" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4"/></symbol>
+<symbol id="b-sun" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 .01 0M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+<symbol id="b-cube" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
+<symbol id="b-sphere" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 .01 0M4 12h16"/></symbol>
+<symbol id="b-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="b-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+</svg>
+
+<div class="app">
+<div class="top">
+<button class="b fl ic" aria-label="Menu"><svg class="i" aria-hidden="true"><use href="#b-menu"/></svg></button>
+<button class="b" style="width: 178px; justify-content: space-between">Classic Cornell box<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button>
+<span class="seg"><button class="b ic" aria-label="Previous scene" style="width: 22px">‹</button><button class="b ic" aria-label="Next scene" style="width: 22px">›</button></span>
+<span class="vr"></span>
+<button class="b fl"><svg class="i" aria-hidden="true"><use href="#b-folder"/></svg>Scenes</button>
+<button class="b fl"><svg class="i" aria-hidden="true"><use href="#b-layers"/></svg>Assets</button>
+<span class="sp"></span>
+<span class="seg"><button class="b ic" aria-label="Pause"><svg class="i" aria-hidden="true"><use href="#b-pause"/></svg></button><button class="b ic" aria-label="Restart"><svg class="i" aria-hidden="true"><use href="#b-restart"/></svg></button></span>
+<span class="fd mono" style="display: inline-flex; align-items: center; color: var(--dim)">28 / 4096 spp</span>
+<span class="sp"></span>
+<button class="b fl on"><svg class="i" aria-hidden="true"><use href="#b-compare"/></svg>Compare</button>
+<button class="b fl"><svg class="i" aria-hidden="true"><use href="#b-save"/></svg>Save image</button>
+<button class="b fl ic" aria-label="Pin a command"><svg class="i" aria-hidden="true"><use href="#b-plus"/></svg></button>
+<span class="vr"></span>
+<button class="b">Best 100%<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button>
+<button class="b">Beauty<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button>
+<span class="seg"><button class="b on">GPU</button><button class="b">CPU</button></span>
+</div>
+
+<div class="mid">
+<div class="rail">
+<button class="b fl" aria-label="Select"><svg class="i" aria-hidden="true"><use href="#b-cursor"/></svg></button>
+<button class="b fl on" aria-label="Move"><svg class="i" aria-hidden="true"><use href="#b-move"/></svg></button>
+<button class="b fl" aria-label="Rotate"><svg class="i" aria-hidden="true"><use href="#b-rotate"/></svg></button>
+<button class="b fl" aria-label="Scale"><svg class="i" aria-hidden="true"><use href="#b-scale"/></svg></button>
+<span class="vr" style="width: 20px; height: 2px; margin: 6px 0; border: 0; border-top: 1px solid var(--edge); border-bottom: 1px solid #38383d"></span>
+<button class="b fl" aria-label="Walk"><svg class="i" aria-hidden="true"><use href="#b-walk"/></svg></button>
+<button class="b fl" aria-label="Frame selection"><svg class="i" aria-hidden="true"><use href="#b-frame"/></svg></button>
+<button class="b fl" aria-label="Add"><svg class="i" aria-hidden="true"><use href="#b-plus"/></svg></button>
+<span class="sp"></span>
+<button class="b fl" aria-label="Timeline"><svg class="i" aria-hidden="true"><use href="#b-timeline"/></svg></button>
+</div>
+
+<div class="view">
+<svg viewBox="0 0 876 658" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+<rect width="876" height="658" fill="#09090a"/>
+<polygon points="140,40 736,40 600,150 300,150" fill="#d9d2c4"/>
+<polygon points="140,620 736,620 600,470 300,470" fill="#bdb5a6"/>
+<polygon points="300,150 600,150 600,470 300,470" fill="#cfc7b8"/>
+<polygon points="140,40 300,150 300,470 140,620" fill="#a8322a"/>
+<polygon points="736,40 600,150 600,470 736,620" fill="#3e8f3a"/>
+<polygon points="380,75 496,75 480,118 396,118" fill="#ffffff"/>
+<polygon points="350,330 430,345 430,548 350,524" fill="#b9b1a3"/>
+<polygon points="430,345 472,325 472,508 430,548" fill="#8e877b"/>
+<polygon points="350,330 392,312 472,325 430,345" fill="#d5cec0"/>
+<polygon points="500,478 566,470 566,566 500,580" fill="#c2baab"/>
+<polygon points="566,470 596,484 596,546 566,566" fill="#958e82"/>
+<polygon points="500,478 530,466 596,484 566,470" fill="#d5cec0"/>
+</svg>
+<div class="strip">
+<button class="b">Global<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button>
+<button class="b">Median point<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button>
+<button class="b">Snap: Increment<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button>
+</div>
+</div>
+
+<div class="col">
+<div class="outl">
+<svg class="i" style="color: var(--faint)" aria-hidden="true"><use href="#b-chev"/></svg>
+<span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase">Outliner</span>
+<span class="sp"></span>
+<span style="color: var(--dim); font-size: 11.5px">Tall block selected</span>
+</div>
+<div class="insp">
+<div class="tabs">
+<button class="b fl on" aria-label="Render"><svg class="i" aria-hidden="true"><use href="#b-camera"/></svg></button>
+<button class="b fl" aria-label="Look"><svg class="i" aria-hidden="true"><use href="#b-image"/></svg></button>
+<button class="b fl" aria-label="Lights"><svg class="i" aria-hidden="true"><use href="#b-sun"/></svg></button>
+<button class="b fl" aria-label="Object"><svg class="i" aria-hidden="true"><use href="#b-cube"/></svg></button>
+<button class="b fl" aria-label="Material"><svg class="i" aria-hidden="true"><use href="#b-sphere"/></svg></button>
+<button class="b fl" aria-label="Export"><svg class="i" aria-hidden="true"><use href="#b-save"/></svg></button>
+</div>
+<div class="props">
+<h2>Render</h2>
+<details class="sec" open>
+<summary><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Reconstruction<span class="pv">RR · DLAA</span></summary>
+<div class="sb">
+<div class="row"><span class="lb">Denoiser</span><span class="ct"><button class="b" style="flex: 1; justify-content: space-between">DLSS Ray Reconstruction<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span></div>
+<div class="row"><span class="lb">RR model</span><span class="ct"><button class="b" style="flex: 1; justify-content: space-between">Preset F<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span></div>
+<div class="row"><span class="lb">Quality mode</span><span class="ct"><button class="b" style="flex: 1; justify-content: space-between">DLAA (100%)<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span></div>
+<div class="row"><span class="lb">Reuse history</span><span class="ct"><label class="ck sw"><input type="checkbox" checked><span class="tr"></span></label></span></div>
+</div>
+</details>
+<details class="sec" open>
+<summary><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Sampling<span class="pv">4 spp · 8 bounces</span></summary>
+<div class="sb">
+<div class="row"><span class="lb">Samples per frame</span><span class="ct"><span class="sl" style="--v: 25%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="4" aria-label="Samples per frame"></span></div>
+<div class="row"><span class="lb">Bounces</span><span class="ct"><span class="sl" style="--v: 50%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="8" aria-label="Bounces"></span></div>
+<div class="row"><span class="lb">Sample cap</span><span class="ct"><span class="sl" style="--v: 62%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="4096" aria-label="Sample cap"></span></div>
+<div class="row"><span class="lb">Battle mode</span><span class="ct"><label class="ck"><input type="checkbox"><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span></label></span></div>
+</div>
+</details>
+<details class="sec">
+<summary><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Upscaling and filter<span class="pv">DLSS · Blackman-Harris</span></summary>
+<div class="sb">
+<div class="row"><span class="lb">Upscaler</span><span class="ct"><button class="b" style="flex: 1; justify-content: space-between">NVIDIA DLSS Super Resolution<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span></div>
+<div class="row"><span class="lb">Pixel filter</span><span class="ct"><button class="b" style="flex: 1; justify-content: space-between">Blackman-Harris<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span></div>
+</div>
+</details>
+<details class="sec">
+<summary><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>CPU renderer<span class="pv">off</span></summary>
+<div class="sb">
+<div class="row"><span class="lb">Reference on CPU</span><span class="ct"><label class="ck sw"><input type="checkbox"><span class="tr"></span></label></span></div>
+</div>
+</details>
+<details class="sec">
+<summary><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Advanced<span class="pv">ReSTIR</span></summary>
+<div class="sb">
+<div class="row"><span class="lb">ReSTIR DI</span><span class="ct"><label class="ck"><input type="checkbox" checked><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span></label></span></div>
+</div>
+</details>
+</div>
+</div>
+</div>
+</div>
+
+<div class="status">
+<span><span class="dot"></span>Rendering</span>
+<span class="mono">28 / 4096 spp</span>
+<span>~10 min</span>
+<span class="mono">1280 × 720</span>
+<span style="color: var(--acc)">HDR 530 nits</span>
+<span>DLSS Ray Reconstruction (RR2 / F)</span>
+<span class="mono">3.36 ms GPU</span>
+</div>
+</div>
+
+<div class="sheet">
+<h3>Controls and states</h3>
+<div class="grid">
+<span></span><span class="hd">Rest</span><span class="hd">Hover</span><span class="hd">Pressed</span><span class="hd">Focused</span><span class="hd">Disabled</span>
+
+<span class="nm">Button</span>
+<span class="cell"><button class="b">Duplicate</button></span>
+<span class="cell"><button class="b h">Duplicate</button></span>
+<span class="cell"><button class="b p">Duplicate</button></span>
+<span class="cell"><button class="b f">Duplicate</button></span>
+<span class="cell"><button class="b" disabled>Duplicate</button></span>
+
+<span class="nm">Flat button</span>
+<span class="cell"><button class="b fl"><svg class="i" aria-hidden="true"><use href="#b-save"/></svg>Save image</button></span>
+<span class="cell"><button class="b fl h"><svg class="i" aria-hidden="true"><use href="#b-save"/></svg>Save image</button></span>
+<span class="cell"><button class="b fl p"><svg class="i" aria-hidden="true"><use href="#b-save"/></svg>Save image</button></span>
+<span class="cell"><button class="b fl f"><svg class="i" aria-hidden="true"><use href="#b-save"/></svg>Save image</button></span>
+<span class="cell"><button class="b fl" disabled><svg class="i" aria-hidden="true"><use href="#b-save"/></svg>Save image</button></span>
+
+<span class="nm">Primary button</span>
+<span class="cell"><button class="b pri">Export video</button></span>
+<span class="cell"><button class="b pri h">Export video</button></span>
+<span class="cell"><button class="b pri p">Export video</button></span>
+<span class="cell"><button class="b pri f">Export video</button></span>
+<span class="cell"><button class="b pri" disabled>Export video</button></span>
+
+<span class="nm">Toggle, on</span>
+<span class="cell"><button class="b on"><svg class="i" aria-hidden="true"><use href="#b-compare"/></svg>Compare</button></span>
+<span class="cell"><button class="b on" style="filter: brightness(1.2)"><svg class="i" aria-hidden="true"><use href="#b-compare"/></svg>Compare</button></span>
+<span class="cell"><button class="b on" style="transform: translateY(.5px); filter: brightness(.85)"><svg class="i" aria-hidden="true"><use href="#b-compare"/></svg>Compare</button></span>
+<span class="cell"><button class="b on" style="box-shadow: inset 0 1px 3px rgba(0,0,0,.7), 0 0 0 1.5px var(--acc)"><svg class="i" aria-hidden="true"><use href="#b-compare"/></svg>Compare</button></span>
+<span class="cell"><button class="b on" disabled><svg class="i" aria-hidden="true"><use href="#b-compare"/></svg>Compare</button></span>
+
+<span class="nm">Combo</span>
+<span class="cell"><button class="b">Blackman-Harris<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span>
+<span class="cell"><button class="b h">Blackman-Harris<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span>
+<span class="cell"><button class="b p">Blackman-Harris<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span>
+<span class="cell"><button class="b f">Blackman-Harris<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span>
+<span class="cell"><button class="b" disabled>Blackman-Harris<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span>
+
+<span class="nm">Checkbox</span>
+<span class="cell"><label class="ck"><input type="checkbox" checked><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Casts shadows</label></span>
+<span class="cell"><label class="ck h"><input type="checkbox"><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Casts shadows</label></span>
+<span class="cell"><label class="ck p"><input type="checkbox" checked><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Casts shadows</label></span>
+<span class="cell"><label class="ck f"><input type="checkbox" checked><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Casts shadows</label></span>
+<span class="cell"><label class="ck d"><input type="checkbox" checked disabled><span class="bx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Casts shadows</label></span>
+
+<span class="nm">Switch</span>
+<span class="cell"><label class="ck sw"><input type="checkbox" checked><span class="tr"></span>Reuse history</label></span>
+<span class="cell"><label class="ck sw h"><input type="checkbox"><span class="tr"></span>Reuse history</label></span>
+<span class="cell"><label class="ck sw p"><input type="checkbox" checked><span class="tr"></span>Reuse history</label></span>
+<span class="cell"><label class="ck sw f"><input type="checkbox" checked><span class="tr"></span>Reuse history</label></span>
+<span class="cell"><label class="ck sw d"><input type="checkbox" checked disabled><span class="tr"></span>Reuse history</label></span>
+
+<span class="nm">Slider and value</span>
+<span class="cell"><span class="sl" style="--v: 40%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="0.40" aria-label="Value, rest"></span>
+<span class="cell"><span class="sl h" style="--v: 40%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num h" value="0.40" aria-label="Value, hover"></span>
+<span class="cell"><span class="sl p" style="--v: 55%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="0.55" aria-label="Value, pressed"></span>
+<span class="cell"><span class="sl f" style="--v: 40%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num f" value="0.40" aria-label="Value, focused"></span>
+<span class="cell"><span class="sl d" style="--v: 40%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="0.40" disabled aria-label="Value, disabled"></span>
+
+<span class="nm">Text field</span>
+<span class="cell"><input class="fd" style="width: 100%" value="Tall block" aria-label="Name, rest"></span>
+<span class="cell"><input class="fd h" style="width: 100%" value="Tall block" aria-label="Name, hover"></span>
+<span class="cell"><input class="fd p" style="width: 100%" value="Tall bl" aria-label="Name, typing"></span>
+<span class="cell"><input class="fd f" style="width: 100%" value="Tall block" aria-label="Name, focused"></span>
+<span class="cell"><input class="fd" style="width: 100%" value="Tall block" disabled aria-label="Name, disabled"></span>
+
+<span class="nm">Section header</span>
+<span class="cell"><details class="sec" style="width: 100%"><summary><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Film<span class="pv">Grain 0.20</span></summary></details></span>
+<span class="cell"><details class="sec" style="width: 100%"><summary class="h"><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Film<span class="pv">Grain 0.20</span></summary></details></span>
+<span class="cell"><details class="sec" style="width: 100%"><summary class="p"><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Film<span class="pv">Grain 0.20</span></summary></details></span>
+<span class="cell"><details class="sec" style="width: 100%"><summary class="f"><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Film<span class="pv">Grain 0.20</span></summary></details></span>
+<span class="cell"><details class="sec" style="width: 100%"><summary class="d"><svg class="i cv" aria-hidden="true"><use href="#b-chev"/></svg>Film<span class="pv">Off</span></summary></details></span>
+</div>
+
+<div class="more">
+<div>
+<h4>Menu, with a tooltip</h4>
+<div style="display: flex; gap: 10px; align-items: flex-start">
+<div class="pop" style="width: 232px">
+<button class="b">Open scene…<span class="k mono">Ctrl+O</span></button>
+<button class="b h">Save scene<span class="k mono">Ctrl+S</span></button>
+<button class="b">Save scene as…</button>
+<hr>
+<button class="b" disabled>Restore last session</button>
+<button class="b">Generate scene…</button>
+</div>
+<span class="tip" style="margin-top: 30px">Right-click to pin to the top bar</span>
+</div>
+</div>
+<div>
+<h4>Segment</h4>
+<span class="seg"><button class="b on">All</button><button class="b">Outdoor</button><button class="b">Indoor</button><button class="b">Studio</button></span>
+<h4 style="margin-top: 22px">Tab strip</h4>
+<div class="tabs" style="flex-direction: row; width: 152px; border: 1px solid var(--edge)">
+<button class="b fl on" aria-label="Render tab" style="box-shadow: inset 0 2px 0 var(--acc); margin: 0"><svg class="i" aria-hidden="true"><use href="#b-camera"/></svg></button>
+<button class="b fl" aria-label="Look tab" style="color: var(--tx); background: #242427"><svg class="i" aria-hidden="true"><use href="#b-image"/></svg></button>
+<button class="b fl" aria-label="Lights tab"><svg class="i" aria-hidden="true"><use href="#b-sun"/></svg></button>
+<button class="b fl" aria-label="Object tab"><svg class="i" aria-hidden="true"><use href="#b-cube"/></svg></button>
+</div>
+</div>
+<div>
+<h4>Type</h4>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 14px; font-weight: 600">Title 14 semibold</span>
+<span>Body 12.5 regular, labels in <span style="color: var(--dim)">dim</span></span>
+<span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase">Section 11 caps</span>
+<span class="mono">Numbers 11.5 mono 0123456789</span>
+</div>
+</div>
+<div>
+<h4>Row rhythm</h4>
+<div style="width: 300px">
+<div class="row"><span class="lb">Exposure bias</span><span class="ct"><span class="sl" style="--v: 50%" aria-hidden="true"><span class="t"></span><span class="fl"></span><span class="th"></span></span><input class="fd num" value="0.0 EV" aria-label="Exposure bias"></span></div>
+<div class="row"><span class="lb">Tone map</span><span class="ct"><button class="b" style="flex: 1; justify-content: space-between">ACES filmic<svg class="i cv" aria-hidden="true"><use href="#b-down"/></svg></button></span></div>
+<div class="row"><span class="lb">Auto exposure</span><span class="ct"><label class="ck sw"><input type="checkbox" checked><span class="tr"></span></label></span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#60CAD8","options":["#60CAD8","#E8B048","#7AA2F7"]},"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+return { accent: this.props.accent ?? '#60CAD8' };
+}
+}
+</script>
+</body>
+</html>
