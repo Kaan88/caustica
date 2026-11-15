@@ -1202,14 +1202,15 @@ pub fn render_cpu(
 ) -> Result<String> {
     let started = Instant::now();
     let mut note = String::new();
-    if options.format.video() && !ffmpeg_available() {
-        options.format = Format::Png;
-        note = " · ffmpeg not found: PNG frames".into();
-    }
+    // Before the ffmpeg fallback, which would turn HDR10 into SDR PNG frames.
     anyhow::ensure!(
         options.format != Format::Hdr10,
         "HDR10 video needs the HDR display transform, which the CPU renderer has not yet"
     );
+    if options.format.video() && !ffmpeg_available() {
+        options.format = Format::Png;
+        note = " · ffmpeg not found: PNG frames".into();
+    }
     if options.timeline {
         anyhow::ensure!(
             !s.animation.is_empty() || s.physics.enabled,
