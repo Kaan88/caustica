@@ -1,0 +1,88 @@
+# Builds the Linux AppImage for an existing release that shipped without one (v0.13.0 was built on
+# Windows only) and adds it to that release, with its line appended to the release's SHA256SUMS
+# (the app's self-update needs both). Manual only: Actions → Backfill AppImage → Run workflow.
+# The release's source is built as tagged; tools/appimage.sh and the asset fetch come from the
+# branch the workflow runs on (the tagged scripts can't skip thumbnails, and older tags have no
+# fetch_assets.sh).
+name: Backfill AppImage
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. v0.13.0)
+        required: true
+concurrency:
+  group: backfill-appimage-${{ inputs.tag }}
+permissions:
+  contents: write
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tools-src
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          path: src
+          fetch-depth: 0
+      - name: Check the release
+        working-directory: src
+        run: |
+          version=${TAG#v}
+          base=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          if [ "$version" != "$base" ]; then
+            echo "::error::$TAG's Cargo.toml says $base"; exit 1
+          fi
+          assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          echo "$assets"
+          if echo "$assets" | grep -qx "Caustica-$version-x86_64.AppImage"; then
+            echo "::error::$TAG already has an AppImage"; exit 1
+          fi
+          echo "$assets" | grep -qx SHA256SUMS || { echo "::error::$TAG has no SHA256SUMS"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "CAUSTICA_VERSION=$version" >> "$GITHUB_ENV"
+      - name: Newer build scripts
+        run: |
+          cp tools-src/tools/appimage.sh tools-src/tools/fetch_assets.sh tools-src/tools/fetch_assets.ps1 \
+            tools-src/tools/sponza.sha256 src/tools/
+      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src
+      - name: Build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libssl-dev libudev-dev \
+            libxkbcommon-dev libwayland-dev libx11-dev unzip
+      - name: Fetch SDKs
+        working-directory: src
+        run: sh tools/setup.sh
+      - uses: actions/cache@v4
+        with:
+          path: |
+            src/scenes/models
+            src/scenes/hdri
+            src/scenes/textures
+          key: assets-${{ runner.os }}-${{ hashFiles('src/tools/fetch_assets.ps1', 'src/tools/fetch_assets.sh', 'src/tools/sponza.sha256') }}
+      - name: Fetch assets
+        working-directory: src
+        run: sh tools/fetch_assets.sh
+      - name: AppImage
+        working-directory: src
+        run: CAUSTICA_NO_THUMBNAILS=1 sh tools/appimage.sh
+      - name: Add it to the release
+        working-directory: src
+        run: |
+          image=dist/Caustica-$VERSION-x86_64.AppImage
+          test -f "$image"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP/sums"
+          sums=$RUNNER_TEMP/sums/SHA256SUMS
+          (cd dist && sha256sum "$(basename "$image")") >> "$sums"
+          cat "$sums"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "$image"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "$sums" --clobber
