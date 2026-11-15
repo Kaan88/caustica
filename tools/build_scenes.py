@@ -1,5 +1,5 @@
 """Writes scenes/builtin/*.json: the 42 scenes buildable without engine changes
-(docs/scene-research.md section 2). Each file is a scene wrapper around a sparse Settings
+(docs/archive/scene-research.md section 2). Each file is a scene wrapper around a sparse Settings
 object: fields left out take Settings::default(), so only what a scene changes is written.
 
 Run:  python tools/build_scenes.py [--overwrite]

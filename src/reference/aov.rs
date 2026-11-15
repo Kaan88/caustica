@@ -333,8 +333,10 @@ impl Scene<'_> {
 mod tests {
     use super::*;
     fn lpe(exprs: &[&str]) -> Lpe {
-        let mut s = Settings::default();
-        s.lpe = exprs.iter().map(|e| e.to_string()).collect();
+        let s = Settings {
+            lpe: exprs.iter().map(|e| e.to_string()).collect(),
+            ..Default::default()
+        };
         Lpe::new(&s).unwrap()
     }
     #[test]
@@ -403,8 +405,10 @@ mod tests {
     }
     #[test]
     fn labels_pick_out_their_material() {
-        let mut s = Settings::default();
-        s.lpe = vec!["C D'left wall' L".into()];
+        let s = Settings {
+            lpe: vec!["C D'left wall' L".into()],
+            ..Default::default()
+        };
         let l = Lpe::new(&s).unwrap();
         let mut r = Record::new(true, Some(&l), u32::MAX);
         r.at(1);

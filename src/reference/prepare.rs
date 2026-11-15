@@ -37,19 +37,11 @@ pub fn at_time(s: &Settings, t: f32) -> Settings {
     now
 }
 /// The copy of the scene a frame renders on the CLI: `at_time`, then what the app adds to each
-/// frame's copy (the flashlight, the laser puzzle's beam as rods). The viewport's frame copy
+/// frame's copy (the flashlight). The viewport's frame copy
 /// already holds them.
 pub fn prepare(s: &Settings, t: f32) -> Settings {
     let mut frame = at_time(s, t);
-    // Traced before the flashlight joins, as the app traces its settings, not the frame's copy.
-    let rods = if frame.puzzle.enabled && frame.puzzle.beam {
-        let (segments, _) = crate::laser::trace(&frame);
-        crate::laser::beam_objects(&frame, &segments)
-    } else {
-        vec![]
-    };
     frame.add_flashlight();
-    frame.objects.extend(rods);
     frame
 }
 /// Moments a motion-blurred frame averages: the shutter, `shutter` frames of the timeline long,

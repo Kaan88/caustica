@@ -52,7 +52,7 @@ and `cargo-xwin` are not. No Windows SDK or xwin cache.
 **Dependencies.** `cargo metadata --offline --filter-platform x86_64-pc-windows-msvc` succeeds: all 233
 crates for that target are already in `~/.cargo/registry` (`windows` 0.62.2, `windows-core`, `windows_x86_64_msvc`
 and so on), so no fetch. 37 of them have a build script, and they all run on the host: they print cfg flags or
-link-search lines (`windows_x86_64_msvc`, `winit`, `rfd`, `gilrs`, `cpal`, `native-tls` and so on). The only
+link-search lines (`windows_x86_64_msvc`, `winit`, `rfd`, `gilrs`, `native-tls` and so on). The only
 crates in `Cargo.lock` that depend on `cc` are `caustica` itself, `openssl-sys` and `wayland-backend`, and the
 last two are not in the Windows graph (native-tls uses Schannel there). So no crate needs a Windows SDK or
 `cl.exe` at check time.

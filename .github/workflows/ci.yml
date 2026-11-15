@@ -1,26 +1,34 @@
-# Roadmap 17b: build and check every push to main and every PR on a Windows runner. Only a
-# pushed tag v<X.Y.Z> makes a release: that version, an installer, a zip of the app and the
-# commits since the previous tag. Tag when a feature is complete or a fix warrants it:
-#   git tag v0.2.0 && git push origin v0.2.0
-# Keep Cargo.toml's version in step with the latest tag (untagged builds say <it>-ci.<sha>).
-# A manual run (workflow_dispatch) on any branch builds the installer without releasing.
+# Every push to main and every pull request runs the checks (cargo fmt --check, clippy
+# -D warnings, cargo test --locked) on Windows and Linux. Pushing a tag v<X.Y.Z> also builds
+# every package and publishes the GitHub release: Windows setup.exe and zip, Linux AppImage,
+# tar.gz, .deb, .pkg.tar.zst and .rpm, one SHA256SUMS over all of them (the app's self-update
+# reads it, src/update.rs) and the commits since the previous tag as notes:
+#   git tag v0.14.0 && git push origin v0.14.0
+# The tag must equal Cargo.toml's version (the jobs fail otherwise). A manual run
+# (workflow_dispatch) on any branch builds all packages as workflow artifacts, no release.
+# tools/release.ps1 stays as the local fallback. Standard GitHub-hosted runners only.
 name: CI
-# Paused 2026-11-04 (owner: out of runner minutes): manual runs only. Releases are built and
-# uploaded locally since 2026-11-05 (tools/release.ps1). To restore, put back
-#   push: {branches: [main], tags: ['v*']} and pull_request: above workflow_dispatch.
 on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
   workflow_dispatch:
 permissions:
-  contents: write
-# A newer push to the same branch cancels the older run; tag runs always finish.
+  contents: read
+# A newer push to the same ref cancels the older run; tag runs always finish.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
+env:
+  # Packages (and their asset downloads) only for a release tag or a manual run.
+  PACKAGE: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_type == 'tag') }}
+  RELEASE: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+  NFPM_VERSION: 2.49.0
+  NFPM_SHA256: 2afaa5ffb5e3493402e31e7c67a5a1fb42133e3f66fc315ca0051934125561c7
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
-    env:
-      RELEASE: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,13 +45,16 @@ jobs:
       - name: Fetch SDKs
         shell: pwsh
         run: ./tools/setup.ps1 -SkipBuild
+      # CAUSTICA_VERSION: the tag on a release (checked against Cargo.toml), else Cargo.toml's
+      # version with -ci.<sha> (what the build reports and the packages are named by).
       - name: Version
         shell: pwsh
         run: |
+          $base = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
           if ($env:RELEASE -eq 'true') {
             $version = $env:GITHUB_REF_NAME.TrimStart('v')
+            if ($version -ne $base) { throw "Tag $env:GITHUB_REF_NAME does not match Cargo.toml's version $base" }
           } else {
-            $base = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
             $version = "$base-ci.$($env:GITHUB_SHA.Substring(0, 7))"
           }
           "CAUSTICA_VERSION=$version" >> $env:GITHUB_ENV
@@ -56,25 +67,27 @@ jobs:
       - name: Test
         run: cargo test --locked
       - name: Release build
+        if: env.PACKAGE == 'true'
         run: cargo build --release --locked
       # The shipped scenes' models, HDRIs and textures (~870 MB, gitignored, pinned by SHA-256 in
-      # the script) go into the release zip and installer; plain pushes and PRs package without
-      # them. Cached by the script's hash, so a release only downloads what changed.
+      # the script) go into the release zip and installer. Cached by the script's hash, so a
+      # release only downloads what changed.
       - uses: actions/cache@v4
-        if: env.RELEASE == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.PACKAGE == 'true'
         with:
           path: |
             scenes/models
             scenes/hdri
             scenes/textures
-          key: assets-${{ hashFiles('tools/fetch_assets.ps1', 'tools/sponza.sha256') }}
+          key: assets-${{ runner.os }}-${{ hashFiles('tools/fetch_assets.ps1', 'tools/sponza.sha256') }}
       - name: Fetch assets
-        if: env.RELEASE == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.PACKAGE == 'true'
         shell: pwsh
         run: ./tools/fetch_assets.ps1
-      # The exe with the DLLs and ffmpeg build.rs copied next to it, the scene packs (with the
-      # assets above on releases) and the README.
+      # The exe with the DLLs and ffmpeg build.rs copied next to it, the scene packs with the
+      # assets above, and the README.
       - name: Package
+        if: env.PACKAGE == 'true'
         shell: pwsh
         run: |
           $name = "caustica-v$env:CAUSTICA_VERSION"
@@ -102,9 +115,9 @@ jobs:
           Compress-Archive -Path $dist -DestinationPath "dist/$name.zip"
           "ZIP=dist/$name.zip" >> $env:GITHUB_ENV
           "DIST=$((Resolve-Path $dist).Path)" >> $env:GITHUB_ENV
-      # The installer (Inno Setup, per-user) for releases and manual runs; not for PRs.
+      # The installer (Inno Setup, per-user).
       - name: Installer
-        if: env.RELEASE == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.PACKAGE == 'true'
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -114,52 +127,137 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "SETUP=dist/caustica-v$env:CAUSTICA_VERSION-setup.exe" >> $env:GITHUB_ENV
       - uses: actions/upload-artifact@v4
+        if: env.PACKAGE == 'true'
         with:
-          name: caustica-v${{ env.CAUSTICA_VERSION }}
+          name: windows
           path: |
             ${{ env.ZIP }}
             ${{ env.SETUP }}
-      # Notes: every commit subject since the previous release tag.
-      - name: Release notes
-        if: env.RELEASE == 'true'
-        shell: pwsh
-        run: |
-          # The tag before this one (HEAD itself carries the new tag).
-          $previous = git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>$null
-          $range = if ($previous) { "$previous..HEAD" } else { 'HEAD' }
-          $log = git log $range --no-merges --format='- %s (%h)'
-          $header = if ($previous) { "Changes since $previous`n" } else { "First release`n" }
-          Set-Content -Encoding utf8 dist/notes.md ($header + "`n" + ($log -join "`n"))
-      - name: GitHub release
-        if: env.RELEASE == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.CAUSTICA_VERSION }}
-          target_commitish: ${{ github.sha }}
-          name: Caustica v${{ env.CAUSTICA_VERSION }}
-          body_path: dist/notes.md
-          files: |
-            ${{ env.SETUP }}
-            ${{ env.ZIP }}
-  # Vulkan phase 6: the Linux build (Vulkan only) with its unit tests. The runner has no GPU
-  # (the VM's lavapipe covers rendering); DXC for SPIR-V comes from tools/setup.sh.
+          if-no-files-found: error
+
+  # Built on ubuntu-22.04 (glibc 2.35) so the AppImage and tar.gz run on newer distros. No GPU
+  # on the runner: the tests are CPU-only, and the AppImage ships without prebuilt thumbnails
+  # (a fresh install renders them on first open).
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libssl-dev libudev-dev \
+            libxkbcommon-dev libwayland-dev libx11-dev unzip
+      # DXC (SPIR-V), OIDN, the DLSS and XeSS headers and the Vulkan headers.
       - uses: actions/cache@v4
         with:
-          path: vendor/dxc-linux
-          key: dxc-linux-${{ hashFiles('tools/setup.sh') }}
-      - name: Fetch DXC
+          path: vendor
+          key: vendor-linux-${{ hashFiles('tools/setup.sh') }}
+      - name: Fetch SDKs
         run: sh tools/setup.sh
+      - name: Version
+        run: |
+          base=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          if [ "$RELEASE" = true ]; then
+            version=${GITHUB_REF_NAME#v}
+            if [ "$version" != "$base" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml's version $base"
+              exit 1
+            fi
+          else
+            version=$base
+          fi
+          echo "PKG_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CAUSTICA_VERSION=$([ "$RELEASE" = true ] && echo "$version" || echo "$version-ci.${GITHUB_SHA::7}")" >> "$GITHUB_ENV"
+          echo "Version $version"
+      - name: Format
+        run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --locked -- -D warnings
       - name: Test
         run: cargo test --locked
-      - name: Build
-        run: cargo build --release --locked
+      - uses: actions/cache@v4
+        if: env.PACKAGE == 'true'
+        with:
+          path: |
+            scenes/models
+            scenes/hdri
+            scenes/textures
+          key: assets-${{ runner.os }}-${{ hashFiles('tools/fetch_assets.ps1', 'tools/fetch_assets.sh', 'tools/sponza.sha256') }}
+      - name: Fetch assets
+        if: env.PACKAGE == 'true'
+        run: sh tools/fetch_assets.sh
+      # nfpm (the .deb, .pkg.tar.zst and .rpm), pinned by version and checksum.
+      - name: Install nfpm
+        if: env.PACKAGE == 'true'
+        run: |
+          file=nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz
+          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION/$file"
+          echo "$NFPM_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir "$RUNNER_TEMP/nfpm"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/nfpm" nfpm
+          echo "$RUNNER_TEMP/nfpm" >> "$GITHUB_PATH"
+      # Release build and AppImage (tools/appimage.sh), leaving its packed tree in dist/stage,
+      # which the tar.gz and the distro packages are made from.
+      - name: AppImage
+        if: env.PACKAGE == 'true'
+        run: CAUSTICA_NO_THUMBNAILS=1 STAGE_OUT=dist/stage sh tools/appimage.sh
+      - name: tar.gz and distro packages
+        if: env.PACKAGE == 'true'
+        run: sh tools/package_linux.sh dist/stage "$PKG_VERSION" dist
+      - uses: actions/upload-artifact@v4
+        if: env.PACKAGE == 'true'
+        with:
+          name: linux
+          path: |
+            dist/Caustica-*-x86_64.AppImage
+            dist/caustica-*-x86_64.tar.gz
+            dist/caustica_*_amd64.deb
+            dist/caustica-*-x86_64.pkg.tar.zst
+            dist/caustica-*.x86_64.rpm
+          if-no-files-found: error
+
+  # A release tag: every asset into one release with a single SHA256SUMS, which the app's
+  # self-update checks (sha256sum format, src/update.rs).
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Checksums and notes
+        run: |
+          cd assets
+          ls -l
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+          cd ..
+          # Notes: every commit subject since the previous release tag (HEAD carries this one).
+          previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            { echo "Changes since $previous"; echo; git log "$previous..HEAD" --no-merges --format='- %s (%h)'; } > notes.md
+          else
+            { echo "First release"; echo; git log HEAD --no-merges --format='- %s (%h)'; } > notes.md
+          fi
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Caustica ${{ github.ref_name }}
+          body_path: notes.md
+          files: assets/*
+          fail_on_unmatched_files: true

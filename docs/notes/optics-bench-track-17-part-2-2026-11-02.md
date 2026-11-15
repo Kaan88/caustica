@@ -1,0 +1,7 @@
+## Optics bench (track 17 part 2, 2026-11-02)
+
+- Shapes `convex_lens`, `concave_lens` (spherical faces of radius R = (1 + 0.25²)/(2·0.25) on a unit disc, axis local z, half thickness 0.3 / 0.05 at centre / rim, reversed for concave; standing on the rim) and `prism` (equilateral triangle in xy, apex up, extruded along z). Shading normals are outward, which is what `h.front` uses.
+- Material `splitter` (flag bit 12, 4096): a thin partial mirror. A ray reflects with probability `reflectivity`, else passes straight on, both tinted by `color`; a delta event (no light sampling, no BSDF). Path tracing: before the emission step (pass-through doesn't count as a bounce; LPE sees the reflection as a specular reflection event). BDPT / photon mapping: `make_vertex` marks splitter vertices `V_DELTA` (never connected) and `sample_vertex` does the same choice.
+- Spot lights in light subpaths (BDPT, photon mapping) now sample their cone uniformly in solid angle (`emit_dir`, `light_dir_pdf` agrees for MIS) instead of the cosine hemisphere: a 4° spot got about 0.1% of the photons before.
+- Scene `optics-bench`: a 3° spot grazing the floor through a convex lens, a 50/50 splitter, a concave lens on the reflected arm and a prism on the transmitted one, with two white screens; photon mapping, since the light on the floor and screens after glass is a caustic that path tracing cannot find from a small light. Haze was tried first: a beam in fog seen through glass is S·D·S and stays black in every integrator (none of the bidirectional ones supports media).
+

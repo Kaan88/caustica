@@ -105,9 +105,6 @@ impl App {
                     self.ui
                         .toast("The critique is in the Describe a scene window");
                 } else {
-                    if let Some(st) = &mut self.stats {
-                        st.mark("wordsmith");
-                    }
                     let who = self.ui.prefs.ai.who();
                     let title = self.apply_ai_scene(outcome.settings, mode == AiMode::New);
                     let verb = if mode == AiMode::New {
@@ -126,7 +123,6 @@ impl App {
     /// match); an edit keeps them. Returns the title.
     pub(super) fn apply_ai_scene(&mut self, mut loaded: Settings, fresh: bool) -> String {
         self.ui.checkpoint_scene(&self.settings);
-        self.laser = crate::laser::Laser::default();
         self.physics = None;
         self.ui.selection = Selection::Stage;
         if fresh {

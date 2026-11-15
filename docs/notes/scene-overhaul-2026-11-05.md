@@ -1,0 +1,48 @@
+## Scene overhaul (2026-11-05)
+
+Every scene file was reviewed with a feature-coverage audit (which `Settings` fields each scene sets) and contact sheets of the thumbnails; the gaps were features no scene showed, scenes too dark to read, near-duplicates, and bland stages. `tools/build_scenes.py` holds the changes in its "scene overhaul" section; `--overwrite=a,b` now rewrites only the named files, so hand-edited ones (measured-cornell, newtons-cradle, underwater) stay as they are.
+- **Removed (redundant):**
+  - pool-table: pool-break-1984 is the same table, keyframed.
+  - veach-ajar-bdpt: veach-ajar now opens in BDPT.
+  - cornell-caustic-photons: cornell-caustic's description points at the integrator.
+  - lens-fairy-lights: replaced by street-bokeh.
+  - stage-smoke: merged into stage-beams.
+  - duck-and-lantern: texture-duck-on-wood shows the duck.
+  - 56 generated seeds: each family keeps its 1 to 3 most distinct seeds (45 files, physics all 5).
+- **New, one per feature no scene used:**
+  - street-bokeh: lens system 1 at f/1.4, dispersion, glare.
+  - tilt-shift-village: projection 4.
+  - little-planet: projection 3.
+  - panorama-gallery: projection 2.
+  - isometric-workshop: projection 1, a sphere light.
+  - sun-greenhouse: sun light.
+  - bulb-workshop: sphere lights at blackbody temperatures.
+  - flashlight-crypt: flashlight.
+  - lighthouse-fog: noise fog with extinction, a spot turned by a light rotation track.
+  - blackbody-forge: `Material::temperature`, spectral.
+  - diamond-fire: dispersion 55 at IOR 2.42, spectral.
+  - neon-diner: halation, grain, vignette, lift/gain and a LUT.
+  - festival-banners: cloth with an edge pin, wind and gusts.
+  - swinging-lantern: an 8-link ball-joint chain.
+  - Environment scenes for unused HDRIs: fireside glassware, loft ceramics, chrome in the city, glass at sunrise.
+  - materials: loft corner.
+- **Reworked:**
+  - abacus: desk, DOF, six blades, cat eye.
+  - bowling-lane: kickbacks, neon, a keyframed strike with a 180° shutter.
+  - desert-monolith: dunes under the physical sky.
+  - disco-floor: dark glass floor, four spots in equiangular haze.
+  - jewellery-box: velvet sheen, a lacquered box, DOF.
+  - zen-garden: physical sky, stone lantern, veranda.
+  - mirror-maze and glossy-floor-tiles: brighter, coloured orbs.
+  - scattering-materials: backlit, opal glass with extinction.
+  - night-skyline: beacons, moon, glare.
+  - torii-corridor: a camera-path walk.
+  - orrery: a Rhai script orbiting the planets at Kepler's rate.
+  - bunny-museum: IES disk spots.
+  - sdf-gallery: the exact cylinder and cone.
+  - stage-beams: noise smoke.
+  - veach-ajar: BDPT.
+  - By script: dark-side (denser haze, a card for the rainbow), optics-bench (haze shows the beam), birthday-cake (gingham, gift, champagne, DOF), wrecking-ball (physical sky, concrete, spun steel), sponza-cloth (its own view in late sun), and the laser puzzles (a locked housing behind each beam origin, appended so target indices hold).
+- **`lut_path`** resolves relative to the scene folders first (`mesh::resolve`, then the working directory), and *Browse…* stores it relative when inside one, so shipped scenes can use `luts/…`. `tools/make_luts.py` writes `scenes/luts/warm-film.cube` (33³, in the gamma-2.2 display space where post.hlsl applies LUTs).
+- Equiangular fog sampling is off while fog noise is on, so the noisy scenes (stage-beams, lighthouse-fog) don't set it.
+

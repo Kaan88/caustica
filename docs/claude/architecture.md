@@ -1,6 +1,6 @@
 # Architecture: source map, frame pipeline, rendering
 
-Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to the repo root. Where this file says "see X", X is a section of `docs/engine-notes.md`.
+Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to the repo root. Where this file says "see X", X is a section listed in the index `docs/engine-notes.md` (one file per section in `docs/notes/`).
 
 ## Source map
 
@@ -25,11 +25,9 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `src/lens.rs` | Track 16 real lenses: `LENSES` (prescriptions), `INFO` (focal length, wide-open f-number), `pack` (focus, film size, exit-pupil bands for the shader). Glare is in post.hlsl `glare_pass` + `Gpu::run_glare`. See engine-notes "Real lenses and glare". |
 | `src/physics.rs` | Track 17 physics sandbox: `Sim` (rapier3d bodies from `Settings::objects`, written back each step), grab / explode tools and `App::step_physics`. See engine-notes "Physics sandbox". |
 | `src/textscene.rs` | Track 19 text-to-scene: Messages API request (`http`, swappable `Transport`), `generate` with validate-and-repair. See engine-notes "Text-to-scene". |
-| `src/audio.rs` | Track 19 audio-reactive lights: loopback capture (`Audio`), FFT bands (`bands`), `apply` scales the frame copy's lights. See engine-notes "Audio-reactive lights". |
 | `src/script.rs` | Track 19 Rhai scripting: `--script` runs on its own thread; each call is a `Request` the app answers between frames (`App::poll_script`). `set` applies a JSON-pointer edit through `validate()`. See engine-notes "Scripting". |
-| `src/laser.rs` | Track 17 laser puzzle: CPU beam trace (`trace`), `Laser` state (segments, solved, moves) and its overlay. See engine-notes "Laser puzzle". |
 | `src/look.rs` | Roadmap 5c: `read_cube` (.cube 3D LUT) and `color_wheel` (lift/gamma/gain widget: chroma from a dragged dot in an orthonormal RGB chroma plane, level from a slider, double-click resets). |
-| `src/walk.rs`, `video.rs`, `remote.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"), phone remote (see "Toys"). |
+| `src/walk.rs`, `video.rs` | Roadmap 5d toys: walk mode, video export (see "Video export"). |
 | `src/sky.rs` | Track 9 physical sky: `PhysicalSky` (`Settings::physical_sky`), solar position, atmosphere bake, the sun light, `environment_key` / `upload_environment`. See "Physical sky". |
 | `src/anim.rs`, `timeline_ui.rs` | Track 8 keyframes and the timeline strip; see "Animation and timeline". |
 | `src/video_ui.rs` | The video export dialog and the progress window shown during an export. |
@@ -48,7 +46,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 | `bridge/ngx.cpp` | NGX C ABI: `caustica_ngx_caps` (bit 0 RR, bit 1 DLSS SR), RR create/eval (DLSSD), SR create/eval (DLSS) with its own parameter block. Initializes with the app's own project GUID, as the DLSS guide says to without an NVIDIA application ID. |
 | `bridge/fsr.cpp` | FSR through the FidelityFX API; `LoadLibrary` of the loader DLL next to the exe. Context = upscale desc → DX12 backend desc → version desc (pNext chain). |
 | `bridge/xess.cpp` | XeSS through `GetProcAddress` on `libxess.dll`; `xessD3D12Init` again on size change. |
-| `docs/ui-plan.md`, `docs/scene-research.md` | Plans written by subagents on 2026-10-29: UI redesign in 5 phases; scene sources, licenses, 42 buildable presets, generators, and an engine-feature roadmap. |
+| `docs/archive/ui-plan.md`, `docs/archive/scene-research.md` | Plans written by subagents on 2026-10-29: UI redesign in 5 phases; scene sources, licenses, 42 buildable presets, generators, and an engine-feature roadmap. |
 | `tools/upscale_quality.py` | Upscaler comparison, still and orbit, against full-resolution references. |
 
 ## Frame pipeline (`Gpu::render`)

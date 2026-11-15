@@ -278,11 +278,9 @@ impl App {
             ("Scopes", "", Win::Scopes),
             ("Convergence graph", "", Win::Graph),
             ("Path visualizer", "P", Win::Paths),
-            ("Statistics and achievements", "", Win::Stats),
-            ("Phone remote", "", Win::Remote),
+            ("Statistics", "", Win::Statistics),
             ("Script console", "", Win::Console),
             ("Describe a scene (AI)", "", Win::Describe),
-            ("Laser puzzle", "", Win::Puzzle),
         ] {
             let pin = Pin::Window(win);
             let mut on = self.pin_active(pin);
@@ -1602,9 +1600,8 @@ fn pin_entry(pin: Pin) -> Option<&'static palette::Entry> {
 fn pin_short(pin: Pin) -> (&'static str, Option<Icon>) {
     let (short, icon) = match pin {
         Pin::Window(w) => match w {
-            Win::Remote => ("", Icon::Remote),
             Win::Console => ("Console", Icon::Console),
-            Win::Stats => ("Statistics", Icon::Stats),
+            Win::Statistics => ("Statistics", Icon::Stats),
             Win::Shortcuts => ("Keys", Icon::Keys),
             Win::Scenes => ("Scenes", Icon::Scenes),
             Win::Assets => ("Assets", Icon::Assets),
@@ -1613,7 +1610,6 @@ fn pin_short(pin: Pin) -> (&'static str, Option<Icon>) {
             Win::Graph => ("Convergence", Icon::Graph),
             Win::Paths => ("Paths", Icon::Paths),
             Win::Describe => ("Describe", Icon::Describe),
-            Win::Puzzle => ("", Icon::Puzzle),
         },
         Pin::Do(d) => match d {
             Do::OpenScene => ("", Icon::Open),
@@ -1720,20 +1716,6 @@ fn promo(
     r
 }
 
-#[cfg(test)]
-mod tests {
-    /// The About box unwraps these, so a bad file must fail here and not in the menu.
-    #[test]
-    fn logos_decode() {
-        for (bytes, ..) in super::LOGOS {
-            let logo = image::load_from_memory(bytes).unwrap();
-            assert!(logo.width() > 0 && logo.height() > 0);
-        }
-        assert!(super::logo_shown(false));
-        assert_eq!(super::logo_shown(true), cfg!(windows));
-    }
-}
-
 /// The status bar's exposure: the displayed EV and, in auto, the adapted luminance in cd/m2
 /// (the metered scene luminance, `Adaptation::scene_log2`, in physical units).
 fn exposure_readout(s: &Settings, m: Option<crate::reference::display::Adaptation>) -> String {
@@ -1753,5 +1735,19 @@ fn cd_text(cd: f32) -> String {
         format!("{cd:.1}")
     } else {
         format!("{cd:.2e}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The About box unwraps these, so a bad file must fail here and not in the menu.
+    #[test]
+    fn logos_decode() {
+        for (bytes, ..) in super::LOGOS {
+            let logo = image::load_from_memory(bytes).unwrap();
+            assert!(logo.width() > 0 && logo.height() > 0);
+        }
+        assert!(super::logo_shown(false));
+        assert_eq!(super::logo_shown(true), cfg!(windows));
     }
 }

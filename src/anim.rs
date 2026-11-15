@@ -626,7 +626,7 @@ fn choice(s: &str) -> bool {
 /// Every keyable field under `prefix`: floats, booleans, integers and choices.
 pub fn keyable(v: &Value, prefix: &str) -> Vec<(String, Leaf)> {
     fn walk(v: &Value, path: String, out: &mut Vec<(String, Leaf)>) {
-        // Any segment: `puzzle/targets/0` is a reference too.
+        // Any segment: `tether/object` is a reference too.
         let free = path.split('/').any(|seg| NOT_KEYED.contains(&seg)) || !animatable(&path);
         match v {
             Value::Number(n) if n.is_f64() => {
@@ -799,7 +799,7 @@ impl Timeline {
         n
     }
     /// Auto-key: takes `s` as the reference without keying (after the app's own changes:
-    /// physics, walking, the remote).
+    /// physics, walking).
     pub fn absorb(&mut self, s: &Settings, last: &mut Option<Settings>) {
         if !self.auto_key || self.playing {
             return;

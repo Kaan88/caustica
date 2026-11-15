@@ -292,9 +292,6 @@ pub struct UiState {
     pub outliner_closed: [bool; 2],
     /// Windows that were sections of the old Scene tab.
     pub show_describe: bool,
-    pub show_puzzle: bool,
-    /// The scene's puzzle was on last frame: turning on opens its window once.
-    pub(crate) puzzle_was_on: bool,
     /// Menu > Settings > Reset everything asks first.
     pub confirm_reset: bool,
     pub search: String,
@@ -324,13 +321,12 @@ pub struct UiState {
     /// The light path expression fields as typed (`Settings::lpe` takes them once they compile).
     pub lpe_edit: Vec<String>,
     pub show_graph: bool,
-    pub show_stats: bool,
-    pub show_remote: bool,
+    pub show_statistics: bool,
+    pub statistics_confirm: bool,
     pub console: crate::console::Console,
     /// Quick saves and stills use "caustica" in the self-test and headless runs, whatever the
     /// saved template (their checks look for those files).
     pub fixed_names: bool,
-    remote_qr: Option<egui::TextureHandle>,
     scope_images: Option<(egui::TextureHandle, egui::TextureHandle)>,
     /// Convergence graph: reference image (width, height, RGBA), points (samples, RMSE x1000).
     pub reference: Option<(u32, u32, Vec<f32>)>,
@@ -412,7 +408,7 @@ pub struct UiState {
     pub timeline_had_keys: bool,
     /// Track 17: physics poses are being keyed into the timeline, and the simulated time so far.
     pub physics_record: bool,
-    /// A scene file to open after this frame's UI (the puzzle level menu).
+    /// A scene file to open after this frame's UI (the scene browser).
     pub open_pending: Option<std::path::PathBuf>,
     pub physics_record_time: f32,
     /// Objects the running recording keys (cleared first, thinned out when it stops).
@@ -505,8 +501,6 @@ impl Default for UiState {
             outliner_resized: false,
             outliner_closed: [false; 2],
             show_describe: false,
-            show_puzzle: false,
-            puzzle_was_on: false,
             confirm_reset: false,
             search: String::new(),
             export_scale: 2,
@@ -536,11 +530,10 @@ impl Default for UiState {
             paths: Default::default(),
             lpe_edit: vec![],
             show_graph: false,
-            show_stats: false,
-            show_remote: false,
+            show_statistics: false,
+            statistics_confirm: false,
             console: Default::default(),
             fixed_names: false,
-            remote_qr: None,
             scope_images: None,
             reference: None,
             reference_path: crate::dirs::captures()
@@ -1164,25 +1157,12 @@ impl UiState {
         }
         hidden
     }
-    /// Removes object `i`, fixing the indices that point at objects (animation tracks, the
-    /// laser target, tethers).
+    /// Removes object `i`, fixing the indices that point at objects (animation tracks,
+    /// tethers).
     fn remove_object(s: &mut Settings, i: usize) -> String {
         let name = s.objects.remove(i).name;
         s.animation.removed("objects", i);
-        // The laser puzzle's target and the strings' objects are indices (track 17).
-        let t = &mut s.puzzle.target;
-        if *t == i as i32 {
-            *t = -1;
-        } else if *t > i as i32 {
-            *t -= 1;
-        }
-        let i32_i = i as i32;
-        s.puzzle.targets.retain(|&t| t != i32_i);
-        for t in &mut s.puzzle.targets {
-            if *t > i32_i {
-                *t -= 1;
-            }
-        }
+        // The strings' objects are indices (track 17).
         for o in &mut s.objects {
             if let Some(t) = &mut o.tether {
                 if t.object as usize == i {
@@ -1977,12 +1957,10 @@ impl App {
             || self.script.is_some()
             || self.walking.is_some()
     }
-    /// Replaces the scene from a UI control (scene picker, ◀ ▶, Randomize, Today, gamepad,
-    /// phone remote): undoable, with the old selection gone. Not for the
+    /// Replaces the scene from a UI control (scene picker, ◀ ▶, Randomize, Today, gamepad): undoable, with the old selection gone. Not for the
     /// self-test or headless runs, which call `Settings::preset` directly.
     pub fn switch_scene(&mut self, label: &str, change: impl FnOnce(&mut Settings)) {
         self.ui.checkpoint_scene(&self.settings);
-        self.laser = crate::laser::Laser::default();
         change(&mut self.settings);
         self.ui.select(Selection::Stage);
         self.ui.mark_clean(&self.settings);
@@ -1996,7 +1974,6 @@ impl App {
             return;
         };
         self.ui.checkpoint_scene(&self.settings);
-        self.laser = crate::laser::Laser::default();
         self.physics = None;
         self.settings = session.settings;
         // Its values stay as they were saved; the keys apply once the playhead moves.
@@ -2042,7 +2019,6 @@ impl App {
         self.cpu_view_message(ctx);
         self.transform_strip(ctx);
         self.describe_window(ctx);
-        self.puzzle_window(ctx);
         self.reset_dialog(ctx);
         // Both browsers fill the viewport: the one opened last replaces the other.
         if self.ui.show_scenes && self.ui.assets.open {
@@ -2101,7 +2077,6 @@ impl App {
             Some(i) => self.load_scene_file(i),
             None => {
                 self.ui.checkpoint_scene(&self.settings);
-                self.laser = crate::laser::Laser::default();
                 match crate::scenes::load_into(&mut self.settings, path) {
                     Ok(()) => {
                         self.ui.mesh_imports.clear();
@@ -2816,11 +2791,12 @@ mod tests {
     use super::*;
     /// A live state with no session file, so tests touch nothing on disk.
     fn live(s: &Settings) -> UiState {
-        let mut ui = UiState::default();
-        ui.edits_live = true;
-        ui.edit_base = s.clone();
-        ui.clean_base = s.clone();
-        ui
+        UiState {
+            edits_live: true,
+            edit_base: s.clone(),
+            clean_base: s.clone(),
+            ..Default::default()
+        }
     }
     /// A frame with a release or key: nothing held, nothing else writing.
     fn released(ui: &mut UiState, s: &Settings) {
@@ -3089,8 +3065,10 @@ mod tests {
     fn a_nameless_scene_gets_no_leading_dash() {
         let mut ui = UiState::default();
         ui.prefs.name_template = "{scene}-x".into();
-        let mut s = Settings::default();
-        s.scene_name = " ".into();
+        let s = Settings {
+            scene_name: " ".into(),
+            ..Default::default()
+        };
         assert_eq!(ui.export_stem(&s, 1, 1, 1), "caustica-x");
     }
 

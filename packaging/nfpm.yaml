@@ -1,0 +1,74 @@
+# One config for the .deb, the Arch .pkg.tar.zst and the .rpm (nfpm, pinned in ci.yml):
+# tools/package_linux.sh runs it with VERSION set and ${STAGE} replaced by the stage path. STAGE is the folder the AppImage is
+# made from (its usr/bin: the exe, NGX and OIDN libraries, scenes, licences). It goes to
+# /opt/caustica, which the app treats as an installed (read-only) copy: settings, user scenes and
+# captures go to the user's XDG folders. /usr/bin/caustica is a symlink to the exe there (the exe
+# finds its scenes through current_exe, which resolves the link).
+name: caustica
+arch: amd64
+platform: linux
+version: ${VERSION}
+release: "1"
+section: graphics
+priority: optional
+maintainer: Kaan <Kaan88@users.noreply.github.com>
+description: |
+  Caustica, a path tracer (Vulkan ray queries, DLSS Ray Reconstruction).
+  Needs a Vulkan 1.3 GPU with ray query support and its driver.
+homepage: https://github.com/Kaan88/caustica
+license: MIT
+contents:
+  - src: ${STAGE}/
+    dst: /opt/caustica
+    type: tree
+  - src: /opt/caustica/caustica
+    dst: /usr/bin/caustica
+    type: symlink
+  - src: packaging/caustica.desktop
+    dst: /usr/share/applications/caustica.desktop
+  - src: assets/caustica.png
+    dst: /usr/share/icons/hicolor/256x256/apps/caustica.png
+# What the exe links or loads at run time (ldd of the release build, plus the libraries winit,
+# ash and gilrs open with dlopen). The GPU driver supplies the Vulkan ICD. ffmpeg (video capture)
+# is looked up on PATH and is optional.
+overrides:
+  deb:
+    depends:
+      - libvulkan1
+      - libc6
+      - libstdc++6
+      - libgcc-s1
+      - libssl3 | libssl3t64
+      - libudev1
+      - libxkbcommon0
+      - libwayland-client0
+      - libx11-6
+    recommends:
+      - ffmpeg
+  rpm:
+    depends:
+      - vulkan-loader
+      - libstdc++
+      - openssl-libs
+      - systemd-libs
+      - libxkbcommon
+      - libwayland-client
+      - libX11
+    recommends:
+      - ffmpeg-free
+  archlinux:
+    depends:
+      - vulkan-icd-loader
+      - gcc-libs
+      - glibc
+      - openssl
+      - systemd-libs
+      - libxkbcommon
+      - wayland
+      - libx11
+    recommends:
+      - ffmpeg
+deb:
+  compression: zstd
+rpm:
+  compression: zstd

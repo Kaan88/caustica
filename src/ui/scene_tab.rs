@@ -1,8 +1,7 @@
 //! The outliner and the Lights, Object and Material tabs (together, the old Scene tab), and the
-//! windows that were its sections (the laser puzzle).
+//! windows that were its sections.
 use super::*;
 use crate::timeline_ui::{key_mark, key_scope};
-use crate::ui::skin::ShowSkin as _;
 use egui::collapsing_header::CollapsingState;
 
 /// How far the outliner's children sit in from their group.
@@ -329,7 +328,7 @@ impl App {
         };
     }
     /// Lights: the sky, HDRI, background and fog on top whatever is selected, the selected
-    /// light under them, and the audio feature last.
+    /// light under them.
     pub(super) fn lights_tab(&mut self, ui: &mut egui::Ui) {
         let advanced = self.ui.advanced;
         self.key_marks_begin();
@@ -376,9 +375,8 @@ impl App {
                 if let Selection::Light(i) = state.selection
                     && i < s.lights.len()
                 {
-                    let audio = s.audio.enabled;
                     key_scope(&s.animation, &format!("lights/{i}"));
-                    editor::light_ui(ui, &mut s.lights[i], advanced, audio);
+                    editor::light_ui(ui, &mut s.lights[i], advanced);
                     key_scope(&s.animation, "");
                 }
             }
@@ -387,44 +385,6 @@ impl App {
                 "Pick a light in the outliner or the viewport for its settings. + in the outliner adds one.",
             ),
         }
-        crate::ui::skin::separator(ui);
-        // Track 19 audio-reactive lights (see audio.rs).
-        feature(
-            ui,
-            "Audio: lights follow the music",
-            "Lights pulse with whatever sound the PC is playing (not the microphone). Each light follows bass, mid or treble (choose per light under Follows); the main light defaults to bass. The lighting changes every frame, so the picture never settles on its own: set Render → Reconstruction → Denoiser to Ray Reconstruction. The scene's own light settings are not changed.",
-            &mut s.audio.enabled,
-        )
-        .body(|ui| {
-            let a = &mut s.audio;
-        if a.enabled {
-            grid("audio").show(ui, |ui| {
-                key_mark("audio/gain");
-                row(ui, "Gain", "Added intensity at full level (×)", |ui| {
-                    ui.add(crate::slider(&mut a.gain, 0. ..=8.));
-                });
-                key_mark("audio/floor");
-                row(ui, "Floor", "Intensity at silence (×)", |ui| {
-                    ui.add(crate::slider(&mut a.floor, 0. ..=1.));
-                });
-                key_mark("audio/smoothing");
-                row(ui, "Smoothing", "Higher is calmer", |ui| {
-                    ui.add(crate::slider(&mut a.smoothing, 0. ..=0.99));
-                });
-                key_mark("audio/color_shift");
-                row(
-                    ui,
-                    "Colour shift",
-                    "How far each light's colour moves toward its band's at full level: bass red, mid green, treble blue, beats white. Each light's band is in its own settings.",
-                    |ui| {
-                        ui.add(crate::slider(&mut a.color_shift, 0. ..=1.));
-                    },
-                );
-            });
-        } else {
-            note(ui, "Off: tick the box to turn it on.");
-        }
-        });
         self.key_marks_end();
     }
     /// Object: the selected object's name, shape, placement and physics; the Room for the
@@ -678,160 +638,6 @@ impl App {
             }
         }
         self.key_marks_end();
-    }
-    /// The laser puzzle's window (Menu > Window): it opens by itself when a scene turns the
-    /// puzzle on, and can then be closed.
-    pub(super) fn puzzle_window(&mut self, ctx: &egui::Context) {
-        let on = self.settings.puzzle.enabled;
-        if on && !self.ui.puzzle_was_on {
-            self.ui.show_puzzle = true;
-        }
-        self.ui.puzzle_was_on = on;
-        if !self.ui.show_puzzle {
-            return;
-        }
-        let (moves, solved) = (self.laser.moves, self.laser.solved);
-        let s = &mut self.settings;
-        let state = &mut self.ui;
-        let mut open = true;
-        crate::ui::skin::window("Laser puzzle")
-            .open(&mut open)
-            .default_width(340.)
-            .default_pos(central_rect(ctx).left_top() + egui::vec2(12., 48.))
-            .show_skin(ctx, |ui| {
-        // Track 17 laser puzzle (see laser.rs).
-        feature(
-            ui,
-            "Laser puzzle",
-            "A laser beam traced through the objects: mirrors (metallic, smooth) reflect it, beam splitters fork it, glass bends it. Route it to the target; each finished move counts.",
-            &mut s.puzzle.enabled,
-        )
-        .body(|ui| {
-            let p = &mut s.puzzle;
-        if p.enabled {
-            grid("puzzle").show(ui, |ui| {
-                row(ui, "Origin", "Where the beam starts (x, y, z)", |ui| {
-                    crate::ui::drag_group(ui, &mut p.origin, &[], "", 0.01, -40. ..=40.);
-                });
-                row(
-                    ui,
-                    "Direction",
-                    "The beam's direction (x, y, z), any length",
-                    |ui| {
-                        crate::ui::drag_group(ui, &mut p.direction, &[], "", 0.01, -1. ..=1.);
-                    },
-                );
-                row(ui, "Target", "The object the beam must reach", |ui| {
-                    let name = |i: i32| {
-                        usize::try_from(i)
-                            .ok()
-                            .and_then(|i| s.objects.get(i))
-                            .map_or("None".to_string(), |o| o.name.clone())
-                    };
-                    crate::ui::skin::ComboBox::from_id_salt("puzzle target")
-                        .selected_text(name(p.target))
-                        .show_ui(ui, |ui| {
-                            for i in -1..s.objects.len() as i32 {
-                                crate::ui::skin::selectable_value(ui, &mut p.target, i, name(i));
-                            }
-                        });
-                });
-                row(
-                    ui,
-                    "More targets",
-                    "Objects the beam must also reach (every one, to solve)",
-                    |ui| {
-                        let name = |i: i32| {
-                            usize::try_from(i)
-                                .ok()
-                                .and_then(|i| s.objects.get(i))
-                                .map_or("None".to_string(), |o| o.name.clone())
-                        };
-                        ui.vertical(|ui| {
-                            let mut remove = None;
-                            for (k, t) in p.targets.iter().enumerate() {
-                                ui.horizontal(|ui| {
-                                    ui.label(name(*t));
-                                    if crate::ui::skin::small_button(ui, "×").clicked() {
-                                        remove = Some(k);
-                                    }
-                                });
-                            }
-                            if let Some(k) = remove {
-                                p.targets.remove(k);
-                            }
-                            if p.targets.len() < 16 {
-                                crate::ui::skin::menu_button_raised(ui, "+ Target", |ui| {
-                                    for i in 0..s.objects.len() as i32 {
-                                        if i != p.target
-                                            && !p.targets.contains(&i)
-                                            && crate::ui::skin::button(ui, name(i)).clicked()
-                                        {
-                                            p.targets.push(i);
-                                            ui.close();
-                                        }
-                                    }
-                                });
-                            }
-                        });
-                    },
-                );
-                row(ui, "Par", "Moves a good solution needs", |ui| {
-                    crate::ui::skin::drag_value(ui, egui::DragValue::new(&mut p.par).range(0..=99));
-                });
-                check_row(ui, "Beam in image", "Also renders the beam as thin glowing rods, so it lights what it passes and shows in captures and videos", &mut p.beam);
-                row(
-                    ui,
-                    "Colour",
-                    "The laser's colour: its red, green and blue are filtered by coloured glass and split apart by glass with dispersion",
-                    |ui| {
-                        crate::ui::skin::color_rgb(ui, &mut p.color);
-                    },
-                );
-                check_row(ui, "Match colours", "Targets count only when the beam arriving has exactly their colour's channels", &mut p.colors);
-            });
-            let status = if solved {
-                "Solved"
-            } else if p.target < 0 {
-                "No target"
-            } else {
-                "Not solved"
-            };
-            let best = state
-                .prefs
-                .puzzle_best
-                .get(&s.scene_name)
-                .map_or(String::new(), |b| format!(" · best {b}"));
-            note(ui, &format!("{status} · {moves} moves · par {}{best}", p.par));
-            // Level select: the puzzle pack's scenes with their best scores.
-            let levels: Vec<(std::path::PathBuf, String)> = state
-                .scenes
-                .iter()
-                .filter(|e| e.path.components().any(|c| c.as_os_str() == "puzzles"))
-                .map(|e| (e.path.clone(), e.title.clone()))
-                .collect();
-            if !levels.is_empty() {
-                crate::ui::sticky_menu(ui, "Levels", |ui| {
-                    for (path, title) in levels {
-                        let best = state
-                            .prefs
-                            .puzzle_best
-                            .iter()
-                            .find(|(k, _)| **k == title)
-                            .map_or("not solved".to_string(), |(_, b)| format!("best {b}"));
-                        if crate::ui::skin::button(ui, format!("{title} · {best}")).clicked() {
-                            state.open_pending = Some(path);
-                            ui.close();
-                        }
-                    }
-                });
-            }
-        } else {
-            note(ui, "Off: tick the box to turn it on.");
-        }
-        });
-            });
-        self.ui.show_puzzle = open;
     }
 }
 /// One row of the outliner's tree. The Stage's children (Camera, Sky, Main light, Flashlight)

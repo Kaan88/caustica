@@ -1,4 +1,4 @@
-//! Context menu, shortcut sheet, Scenes window and the tool windows (scopes, convergence graph, remote, stats).
+//! Context menu, shortcut sheet, Scenes window and the tool windows (scopes, convergence graph, stats).
 use super::*;
 use crate::palette;
 use crate::ui::skin::ShowSkin as _;
@@ -384,9 +384,8 @@ impl App {
                 self.ui.toast(format!("{section}: {} tab", tab.label()));
             }
             Act::Window(w) => match w {
-                Win::Remote => self.ui.show_remote = true,
                 Win::Console => self.ui.console.open = true,
-                Win::Stats => self.ui.show_stats = true,
+                Win::Statistics => self.ui.show_statistics = true,
                 Win::Shortcuts => self.ui.show_shortcuts = true,
                 Win::Scenes => self.ui.show_scenes = true,
                 Win::Assets => self.ui.assets.open = true,
@@ -395,7 +394,6 @@ impl App {
                 Win::Graph => self.ui.show_graph = true,
                 Win::Paths => self.ui.paths.open = true,
                 Win::Describe => self.ui.show_describe = true,
-                Win::Puzzle => self.ui.show_puzzle = true,
             },
             Act::Do(d) => match d {
                 Do::OpenScene => self.open_scene_dialog(),
@@ -480,9 +478,8 @@ impl App {
         use palette::{Do, Win};
         match pin {
             Pin::Window(w) => match w {
-                Win::Remote => self.ui.show_remote,
                 Win::Console => self.ui.console.open,
-                Win::Stats => self.ui.show_stats,
+                Win::Statistics => self.ui.show_statistics,
                 Win::Shortcuts => self.ui.show_shortcuts,
                 Win::Scenes => self.ui.show_scenes,
                 Win::Assets => self.ui.assets.open,
@@ -491,7 +488,6 @@ impl App {
                 Win::Graph => self.ui.show_graph,
                 Win::Paths => self.ui.paths.open,
                 Win::Describe => self.ui.show_describe,
-                Win::Puzzle => self.ui.show_puzzle,
             },
             Pin::Do(d) => match d {
                 Do::Advanced => self.ui.advanced,
@@ -512,9 +508,8 @@ impl App {
         use palette::{Act, Win};
         match pin {
             Pin::Window(w) if self.pin_active(pin) => match w {
-                Win::Remote => self.ui.show_remote = false,
                 Win::Console => self.ui.console.open = false,
-                Win::Stats => self.ui.show_stats = false,
+                Win::Statistics => self.ui.show_statistics = false,
                 Win::Shortcuts => self.ui.show_shortcuts = false,
                 Win::Scenes => self.ui.show_scenes = false,
                 Win::Assets => self.ui.assets.open = false,
@@ -523,7 +518,6 @@ impl App {
                 Win::Graph => self.ui.show_graph = false,
                 Win::Paths => self.ui.paths.open = false,
                 Win::Describe => self.ui.show_describe = false,
-                Win::Puzzle => self.ui.show_puzzle = false,
             },
             Pin::Window(w) => self.run_palette(Act::Window(w)),
             Pin::Do(d) => self.run_palette(Act::Do(d)),
@@ -542,7 +536,6 @@ impl App {
             return;
         };
         self.ui.checkpoint_scene(&self.settings);
-        self.laser = crate::laser::Laser::default();
         match crate::scenes::load_into(&mut self.settings, &e.path) {
             Ok(()) => {
                 // Imports still parsing were meant for the old scene.
@@ -1102,11 +1095,8 @@ impl App {
         if self.ui.show_graph {
             self.graph_window(ctx);
         }
-        if self.ui.show_stats {
-            self.stats_window(ctx);
-        }
-        if self.ui.show_remote {
-            self.remote_window(ctx);
+        if self.ui.show_statistics {
+            self.statistics_window(ctx);
         }
         if self.ui.console.open {
             self.console_window(ctx);
@@ -1359,91 +1349,8 @@ impl App {
             }
         }
     }
-    pub(super) fn remote_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.ui.show_remote;
-        let mut toggle = None;
-        crate::ui::skin::window("Phone remote").open(&mut open).default_pos([240., 120.]).resizable(false).show_skin(ctx, |ui| {
-            let mut on = self.remote.is_some();
-            if crate::ui::skin::checkbox_label(ui, &mut on, "Serve the remote on the local network").changed() {
-                toggle = Some(on);
-            }
-            match &self.remote {
-                Some(r) => {
-                    note(ui, "Open this on a phone on the same network (Windows may ask to allow the app through the firewall):");
-                    ui.hyperlink_to(&r.url, &r.url);
-                    if self.ui.remote_qr.is_none()
-                        && let Some(image) = crate::remote::qr_image(&r.url)
-                    {
-                        self.ui.remote_qr = Some(ctx.load_texture("remote qr", image, egui::TextureOptions::NEAREST));
-                    }
-                    if let Some(qr) = &self.ui.remote_qr {
-                        let size = qr.size_vec2().min(egui::vec2(220., 220.));
-                        ui.add(egui::Image::new((qr.id(), size)));
-                    }
-                    note(ui, &format!("Token {}: a new one every time the remote starts.", r.token));
-                }
-                None => note(ui, "Off. When on, a phone browser gets sliders for exposure, light, orbit, zoom and aperture, and buttons to switch scenes."),
-            }
-        });
-        self.ui.show_remote = open;
-        match toggle {
-            Some(true) => match crate::remote::start(true) {
-                Ok(r) => {
-                    self.ui.remote_qr = None;
-                    self.remote = Some(r);
-                }
-                Err(e) => self.ui.error(format!("Remote: {e}")),
-            },
-            Some(false) => {
-                self.remote = None;
-                self.ui.remote_qr = None;
-            }
-            None => {}
-        }
-    }
-    /// Applies phone-remote edits and gamepad input for this frame.
-    pub fn remote_and_gamepad(&mut self, dt: f32) {
-        let edits: Vec<_> = self
-            .remote
-            .as_ref()
-            .map(|r| r.edits.try_iter().collect())
-            .unwrap_or_default();
-        for (key, value) in edits {
-            match key.as_str() {
-                "preset" => {
-                    let n = PRESETS.len() as i64;
-                    self.preset =
-                        ((self.preset as i64 + value.as_i64().unwrap_or(1)).rem_euclid(n)) as usize;
-                    let preset = self.preset;
-                    self.switch_scene("Scene", |s| s.preset(preset));
-                }
-                "restart" => self.actions.reset = true,
-                _ => {
-                    let mut j = serde_json::to_value(&self.settings).unwrap_or_default();
-                    j[key.as_str()] = value;
-                    match serde_json::from_value::<Settings>(j)
-                        .map_err(anyhow::Error::from)
-                        .and_then(|mut s| s.validate().map(|_| s))
-                    {
-                        Ok(s) => self.settings = s,
-                        Err(e) => self.ui.error(format!("Remote edit {key} rejected: {e:#}")),
-                    }
-                }
-            }
-        }
-        if let Some(r) = &self.remote
-            && self.remote_synced.elapsed() > Duration::from_millis(500)
-        {
-            self.remote_synced = Instant::now();
-            let j = serde_json::to_value(&self.settings).unwrap_or_default();
-            let state: serde_json::Map<_, _> = crate::remote::KEYS
-                .iter()
-                .map(|k| (k.to_string(), j[*k].clone()))
-                .collect();
-            if let Ok(mut s) = r.state.lock() {
-                *s = serde_json::Value::Object(state);
-            }
-        }
+    /// Applies gamepad input for this frame.
+    pub fn apply_gamepad(&mut self, dt: f32) {
         let Some(pad) = &mut self.gamepad else { return };
         use gilrs::{Axis, Button, EventType};
         let mut switch = false;
@@ -1669,88 +1576,180 @@ impl App {
             }
         }
     }
-    pub(super) fn stats_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.ui.show_stats;
+    /// Lifetime totals beside the figures of this session, time per integrator and denoiser,
+    /// per-scene use, exports by format, and a Reset for the saved figures.
+    pub(super) fn statistics_window(&mut self, ctx: &egui::Context) {
+        use crate::ui::skin::ShowSkin as _;
+        let mut open = self.ui.show_statistics;
+        let mut reset = false;
+        let mut confirm = self.ui.statistics_confirm;
         crate::ui::skin::window("Statistics")
             .open(&mut open)
-            .default_pos([200., 120.])
-            .default_width(380.)
+            .default_pos([240., 140.])
+            .default_width(460.)
             .show_skin(ctx, |ui| {
                 let Some(s) = &self.stats else {
                     note(ui, "Statistics are kept for interactive runs only.");
                     return;
                 };
-                grid("stats").show(ui, |ui| {
-                    for (label, value) in [
-                        ("Camera paths traced", format!("{:.3e}", s.paths)),
-                        ("GPU time", format!("{:.2} hours", s.gpu_seconds / 3600.)),
-                        ("Images saved", s.images_saved.to_string()),
-                        ("Highest sample count", s.max_samples.to_string()),
-                        (
-                            "Presets visited",
-                            format!("{} / {}", s.presets_seen.len(), PRESETS.len()),
-                        ),
-                        ("Scene files opened", s.scenes_seen.len().to_string()),
-                        ("Shader hot reloads", s.hot_reloads.to_string()),
-                        ("Videos exported", s.videos_exported.to_string()),
-                        ("Laser levels solved", s.puzzles_solved.len().to_string()),
-                        ("Distance walked", format!("{:.0} units", s.walked)),
-                    ] {
-                        ui.label(label);
-                        ui.monospace(value);
-                        ui.end_row();
+                let ses = &s.session;
+                let seconds = |t: f64| {
+                    if t >= 3600. {
+                        format!("{:.2} h", t / 3600.)
+                    } else if t >= 60. {
+                        format!("{:.1} min", t / 60.)
+                    } else {
+                        format!("{t:.0} s")
                     }
-                });
-                let done = crate::stats::ACHIEVEMENTS
-                    .iter()
-                    .filter(|a| s.achievements.contains_key(a.id))
-                    .count();
-                section(
-                    ui,
-                    &format!(
-                        "Achievements ({done} / {})",
-                        crate::stats::ACHIEVEMENTS.len()
-                    ),
-                );
+                };
+                let count = |n: f64| {
+                    if n >= 1e6 {
+                        format!("{n:.3e}")
+                    } else {
+                        format!("{n:.0}")
+                    }
+                };
+                let rate = |n: f64| format!("{:.1} M paths/s", n / 1e6);
                 egui::ScrollArea::vertical()
-                    .max_height(420.)
+                    .max_height(560.)
                     .show(ui, |ui| {
-                        for group in crate::stats::GROUPS {
-                            crate::ui::skin::heading(ui, group);
-                            for a in crate::stats::ACHIEVEMENTS
-                                .iter()
-                                .filter(|a| a.group == group)
-                            {
-                                match s.achievements.get(a.id) {
-                                    Some(date) => {
-                                        ui.label(
-                                            egui::RichText::new(a.title)
-                                                .font(crate::ui::skin::semibold(12.5))
-                                                .color(ACCENT),
-                                        );
-                                        note(ui, &format!("{} · {date}", a.how));
-                                    }
-                                    None => {
-                                        ui.label(a.title);
-                                        note(ui, a.how);
-                                        let (now, goal) = s.progress(a.goal);
-                                        if goal > 1. {
-                                            crate::ui::skin::bar(
-                                                ui,
-                                                (now / goal).min(1.) as f32,
-                                                ui.available_width(),
-                                                6.,
-                                                "",
-                                            );
-                                        }
-                                    }
+                        grid("statistics").show(ui, |ui| {
+                            ui.label("");
+                            ui.label("Lifetime");
+                            ui.label("This session");
+                            ui.end_row();
+                            for (label, life, now) in [
+                                ("Camera paths traced", count(s.paths), count(ses.paths)),
+                                ("GPU time", seconds(s.gpu_seconds), seconds(ses.gpu_seconds)),
+                                (
+                                    "Images saved",
+                                    s.images_saved.to_string(),
+                                    ses.images.to_string(),
+                                ),
+                                (
+                                    "Videos exported",
+                                    s.videos_exported.to_string(),
+                                    ses.videos.to_string(),
+                                ),
+                                (
+                                    "Highest sample count",
+                                    s.max_samples.to_string(),
+                                    ses.max_samples.to_string(),
+                                ),
+                                (
+                                    "Open in this session",
+                                    String::new(),
+                                    seconds(ses.started.elapsed().as_secs_f64()),
+                                ),
+                            ] {
+                                ui.label(label);
+                                ui.monospace(life);
+                                ui.monospace(now);
+                                ui.end_row();
+                            }
+                        });
+                        section(ui, "Camera paths per second (per GPU second)");
+                        grid("statistics_rate").show(ui, |ui| {
+                            ui.label("Now (about 1 s)");
+                            ui.monospace(rate(s.paths_per_s));
+                            ui.end_row();
+                            ui.label("Best ever");
+                            ui.monospace(rate(s.best_paths_per_s));
+                            ui.end_row();
+                        });
+                        section(ui, "Other totals");
+                        grid("statistics_other").show(ui, |ui| {
+                            for (label, value) in [
+                                (
+                                    "Presets visited",
+                                    format!("{} / {}", s.presets_seen.len(), PRESETS.len()),
+                                ),
+                                ("Scene files opened", s.scenes_seen.len().to_string()),
+                                ("Distance walked", format!("{:.0} units", s.walked)),
+                                ("Physics running", seconds(s.physics_seconds)),
+                            ] {
+                                ui.label(label);
+                                ui.monospace(value);
+                                ui.end_row();
+                            }
+                        });
+                        for (title, life, now) in [
+                            (
+                                "Time per integrator",
+                                &s.integrator_seconds,
+                                &ses.integrator_seconds,
+                            ),
+                            (
+                                "Time per denoiser",
+                                &s.denoiser_seconds,
+                                &ses.denoiser_seconds,
+                            ),
+                        ] {
+                            section(ui, title);
+                            grid(title).show(ui, |ui| {
+                                let mut keys: Vec<&String> = life.keys().collect();
+                                keys.sort_by(|a, b| life[*b].total_cmp(&life[*a]));
+                                for k in keys {
+                                    ui.label(k);
+                                    ui.monospace(seconds(life[k]));
+                                    ui.monospace(seconds(now.get(k).copied().unwrap_or(0.)));
+                                    ui.end_row();
+                                }
+                            });
+                        }
+                        section(ui, "Most used scenes");
+                        let top = s.top_scenes(5);
+                        if top.is_empty() {
+                            note(ui, "None yet.");
+                        }
+                        grid("statistics_scenes").show(ui, |ui| {
+                            for (name, u) in top {
+                                ui.label(name);
+                                ui.monospace(seconds(u.seconds));
+                                ui.monospace(format!("{} samples", count(u.samples)));
+                                ui.end_row();
+                            }
+                        });
+                        section(ui, "Exports by format");
+                        if s.exports.is_empty() {
+                            note(ui, "None yet.");
+                        }
+                        grid("statistics_exports").show(ui, |ui| {
+                            for (k, n) in &s.exports {
+                                ui.label(k);
+                                ui.monospace(n.to_string());
+                                ui.monospace(ses.exports.get(k).copied().unwrap_or(0).to_string());
+                                ui.end_row();
+                            }
+                        });
+                        ui.add_space(8.);
+                        let asking = confirm;
+                        ui.horizontal(|ui| {
+                            if !asking {
+                                if crate::ui::skin::button(ui, "Reset statistics…").clicked() {
+                                    confirm = true;
+                                }
+                            } else {
+                                ui.label("Clear the saved figures?");
+                                if crate::ui::skin::button(ui, "Reset").clicked() {
+                                    reset = true;
+                                    confirm = false;
+                                }
+                                if crate::ui::skin::button(ui, "Cancel").clicked() {
+                                    confirm = false;
                                 }
                             }
-                            ui.add_space(6.);
-                        }
+                        });
+                        note(ui, "The figures above start again.");
                     });
             });
-        self.ui.show_stats = open;
+        if reset && let Some(s) = &mut self.stats {
+            s.reset();
+            s.save();
+            self.ui.toast("Statistics reset");
+        }
+        self.ui.statistics_confirm = confirm && open;
+        self.ui.show_statistics = open;
     }
 }
 

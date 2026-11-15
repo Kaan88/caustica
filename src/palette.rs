@@ -24,9 +24,10 @@ pub enum Focus {
 /// Windows the palette opens. Serialized by name in the prefs (pinned top-bar buttons).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Win {
-    Remote,
     Console,
-    Stats,
+    // Pinned as "Stats" before 2026-11-15, when that was the achievements window.
+    #[serde(alias = "Stats")]
+    Statistics,
     Shortcuts,
     Scenes,
     Assets,
@@ -35,7 +36,6 @@ pub enum Win {
     Graph,
     Paths,
     Describe,
-    Puzzle,
 }
 
 /// Things the palette does. Serialized by name in the prefs (pinned top-bar buttons).
@@ -393,13 +393,6 @@ pub const ENTRIES: &[Entry] = &[
         "Area light",
     ),
     go(
-        "Audio: lights follow the music",
-        "sound reactive bass beat",
-        Lights,
-        Keep,
-        "Audio",
-    ),
-    go(
         "Object material",
         "glass metal roughness coating clear coat",
         Material,
@@ -423,9 +416,13 @@ pub const ENTRIES: &[Entry] = &[
     // Export tab
     go("Export", "output files", Export, Keep, "Export"),
     // Windows
-    win("Phone remote", "qr web", "", Win::Remote),
     win("Script console", "rhai repl script", "", Win::Console),
-    win("Statistics and achievements", "stats", "", Win::Stats),
+    win(
+        "Statistics",
+        "totals paths rays time session scenes exports",
+        "",
+        Win::Statistics,
+    ),
     win("Keyboard shortcuts", "keys help", "F1", Win::Shortcuts),
     win(
         "All scenes",
@@ -449,7 +446,6 @@ pub const ENTRIES: &[Entry] = &[
         "",
         Win::Describe,
     ),
-    win("Laser puzzle", "game mirrors beam levels", "", Win::Puzzle),
     // Commands
     act("Open scene", "load file", "Ctrl+O", Do::OpenScene),
     act("Save scene", "write", "Ctrl+S", Do::SaveScene),
@@ -577,7 +573,6 @@ mod tests {
     fn finds_by_name_words_and_typos() {
         assert_eq!(first("denoiser"), Some("Denoiser"));
         assert_eq!(first("script"), Some("Script console"));
-        assert_eq!(first("qr"), Some("Phone remote"));
         assert_eq!(first("dnoiser"), Some("Denoiser"));
         assert_eq!(first("bokeh"), Some("Lens"));
         assert!(matches("zzzzqq").is_empty());

@@ -1,6 +1,6 @@
 # Data layouts shared by Rust and HLSL
 
-Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to the repo root. Where this file says "see X", X is a section of `docs/engine-notes.md`.
+Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to the repo root. Where this file says "see X", X is a section listed in the index `docs/engine-notes.md` (one file per section in `docs/notes/`).
 
 ## Data layouts (keep in sync on both sides)
 

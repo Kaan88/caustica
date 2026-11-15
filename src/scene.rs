@@ -498,10 +498,6 @@ pub struct AreaLight {
     /// (a studio rim light that shouldn't shadow the sun); bounce rays still see it.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub shadows: bool,
-    /// Track 19 audio: what this light follows (0 automatic: band i mod 3; 1 bass, 2 mid,
-    /// 3 treble, 4 beats, 5 nothing).
-    #[serde(default, skip_serializing_if = "is_zero")]
-    pub audio_band: u32,
     /// Colour as a blackbody at this many kelvin (0 = `color`); exact in the spectral tracer.
     #[serde(default, skip_serializing_if = "is_zero_f32")]
     pub temperature: f32,
@@ -573,7 +569,6 @@ impl Default for AreaLight {
             blend: 0.25,
             angle: 0.53,
             shadows: true,
-            audio_band: 0,
             temperature: 0.,
             ies: String::new(),
         }
@@ -619,7 +614,7 @@ pub struct Object {
     /// Track 17: density multiplier of the body (1: water-like default).
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub mass: f32,
-    /// Track 17 laser puzzle: the gizmo can't move it (walls, the target, fixed parts).
+    /// The gizmo can't move it (walk mode's avatar, fixed parts).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub locked: bool,
     /// Track 17 physics: this object is a string (a cylinder) from the fixed point `from` to
@@ -757,39 +752,6 @@ impl Physics {
         *self == Self::default()
     }
 }
-/// Track 19 audio-reactive lights: what the PC plays scales the lights and emitters of each
-/// rendered frame (see audio.rs). The scene's own intensities are never changed.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub struct AudioReact {
-    pub enabled: bool,
-    /// Added intensity at full level (×, on top of `floor`).
-    pub gain: f32,
-    /// Intensity at silence (×).
-    pub floor: f32,
-    /// How much of the last level each frame keeps (at 60 fps), 0 = none.
-    pub smoothing: f32,
-    /// How far each light's colour moves toward its band's colour at full level (bass red,
-    /// mid green, treble blue, beats white), 0–1.
-    #[serde(default)]
-    pub color_shift: f32,
-}
-impl Default for AudioReact {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            gain: 1.5,
-            floor: 0.3,
-            smoothing: 0.6,
-            color_shift: 0.,
-        }
-    }
-}
-impl AudioReact {
-    pub fn is_off(&self) -> bool {
-        *self == Self::default()
-    }
-}
 /// How the flashlight is built and carried (Scene tab: its outliner row opens these).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -824,48 +786,6 @@ impl Default for Flashlight {
             down: 0.4,
             aim: 8.,
         }
-    }
-}
-/// Track 17 laser puzzle: a laser from `origin` along `direction`, routed by mirrors, splitters
-/// and glass to the object `target` (−1 = none) in at most `par` moves. A zero direction is
-/// treated as +x.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub struct Puzzle {
-    pub enabled: bool,
-    pub origin: [f32; 3],
-    pub direction: [f32; 3],
-    pub target: i32,
-    pub par: u32,
-    pub color: [f32; 3],
-    /// More objects the beam must reach as well (all of them, and `target`, to solve).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub targets: Vec<i32>,
-    /// The beam also renders as thin glowing rods in the image (not only the overlay).
-    pub beam: bool,
-    /// Targets count only when the beam's channels match their colour (red, green, blue each
-    /// above 0.5 wanted, below not allowed); filters and prisms make the colours.
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    pub colors: bool,
-}
-impl Default for Puzzle {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            origin: [-2., -0.6, 0.],
-            direction: [1., 0., 0.],
-            target: -1,
-            par: 3,
-            color: [1., 0.1, 0.1],
-            targets: vec![],
-            beam: false,
-            colors: false,
-        }
-    }
-}
-impl Puzzle {
-    pub fn is_off(&self) -> bool {
-        *self == Self::default()
     }
 }
 /// Procedural surfaces (track 13), intersected in the shader inside the unit cube [−1, 1]³.
@@ -1311,12 +1231,6 @@ pub struct Settings {
     /// Track 17 physics sandbox: rigid-body simulation of the objects (see physics.rs).
     #[serde(skip_serializing_if = "Physics::is_off")]
     pub physics: Physics,
-    /// Track 17 laser puzzle (see laser.rs).
-    #[serde(skip_serializing_if = "Puzzle::is_off")]
-    pub puzzle: Puzzle,
-    /// Track 19 audio-reactive lights (see audio.rs).
-    #[serde(skip_serializing_if = "AudioReact::is_off")]
-    pub audio: AudioReact,
     /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
     /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
     pub lpe: Vec<String>,
@@ -1488,8 +1402,6 @@ impl Default for Settings {
             battle: false,
             walk_avatar: true,
             physics: Physics::default(),
-            puzzle: Puzzle::default(),
-            audio: AudioReact::default(),
             lpe: vec![],
             lpe_slot: 0,
             hdri: String::new(),
@@ -1947,27 +1859,6 @@ impl Settings {
                 && (0. ..=1.).contains(&self.physics.gusts),
             "Invalid physics"
         );
-        anyhow::ensure!(
-            (0. ..=8.).contains(&self.audio.gain)
-                && (0. ..=1.).contains(&self.audio.floor)
-                && (0. ..=0.99).contains(&self.audio.smoothing)
-                && (0. ..=1.).contains(&self.audio.color_shift)
-                && self.lights.iter().all(|l| l.audio_band <= 5),
-            "Invalid audio settings"
-        );
-        let p = &self.puzzle;
-        anyhow::ensure!(
-            p.origin.iter().all(|v| v.abs() <= 40.)
-                && p.direction.iter().all(|v| v.is_finite() && v.abs() <= 1e3)
-                && (-1..self.objects.len() as i32).contains(&p.target)
-                && p.par <= 99
-                && p.targets.len() <= 16
-                && p.targets
-                    .iter()
-                    .all(|t| (0..self.objects.len() as i32).contains(t))
-                && p.color.iter().all(|v| (0. ..=1.).contains(v)),
-            "Invalid laser puzzle"
-        );
         for c in [
             &self.left,
             &self.right,
@@ -2158,8 +2049,6 @@ impl Settings {
             spread: 40.,
             blend: 0.6,
             shadows: false,
-            // Audio-reactive lights leave it alone.
-            audio_band: 5,
             ..AreaLight::default()
         }
     }
@@ -2217,6 +2106,20 @@ mod tests {
         let mut s: Settings = serde_json::from_str(json).unwrap();
         s.validate().unwrap();
         s
+    }
+    #[test]
+    fn removed_puzzle_and_audio_keys_are_ignored() {
+        // Scene files from before the laser puzzle and the audio-reactive lights were cut.
+        let s = loaded(
+            r#"{"exposure": 2.5,
+                "puzzle": {"enabled": true, "origin": [-2, 0, 0], "target": 0, "par": 3, "targets": [1]},
+                "audio": {"enabled": true, "gain": 1.5, "floor": 0.3},
+                "lights": [{"audio_band": 4}]}"#,
+        );
+        assert_eq!(s.exposure, 2.5);
+        assert_eq!(s.lights.len(), 1);
+        let out = serde_json::to_string(&s).unwrap();
+        assert!(!out.contains("puzzle") && !out.contains("audio"));
     }
     #[test]
     fn old_scene_json_loads_manual_with_the_same_exposure() {
@@ -2417,8 +2320,10 @@ mod tests {
     }
     #[test]
     fn camera_carries_over_only_inside_the_cornell_box() {
-        let mut s = Settings::default();
-        s.distance = 3.;
+        let mut s = Settings {
+            distance: 3.,
+            ..Default::default()
+        };
         s.preset(4);
         assert_eq!(s.distance, 3.);
         s.preset(12);
@@ -2428,8 +2333,10 @@ mod tests {
     }
     #[test]
     fn reject_bad_resources() {
-        let mut s = Settings::default();
-        s.scale = 0.;
+        let mut s = Settings {
+            scale: 0.,
+            ..Default::default()
+        };
         assert!(s.validate().is_err());
         s = Settings::default();
         s.spp = 0;

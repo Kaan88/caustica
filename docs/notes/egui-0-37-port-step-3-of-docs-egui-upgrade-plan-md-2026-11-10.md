@@ -1,0 +1,12 @@
+## egui 0.37 port (step 3 of docs/egui-upgrade-plan.md, 2026-11-10)
+
+egui, egui-winit and the epaint family 0.34.3 -> 0.37.0.
+- **Features:** `egui = { features = ["default_fonts", "monochrome_emoji_fonts"] }`. `default_fonts` is no longer default (no fonts = every glyph a box); the emoji fonts moved behind `monochrome_emoji_fonts`, and without them the arrows, play, pause and record glyphs (U+25B6, 25C0, 23F8, 23FA) were missing. Same bundled fonts as before, so the licence list is unchanged.
+- **Arrows:** the proportional family never had U+2192 (only Hack has it), so every "->" arrow in tooltips, hints and the Stage menu text was a box already; `ui::theme` now appends Hack to the Proportional fallback chain. Changeable.
+- **Glyph test** (`tests::ui_strings_have_glyphs`): `fonts_mut(|f| f.has_glyph)` still exists and still checks real coverage. It now calls `ui::theme`, asserts that 'A' is covered and an unassigned code point is not (so it can fail), lists every missing character at once, and covers `browser.rs`, `console.rs` and all `ui/*.rs` (they were not in the list before; that is how the arrow boxes were found).
+- **TexturesDelta:** `set` is now `HashMap<TextureId, SmallVec<[ImageDelta; 1]>>` (several deltas per id, in order). Both uploaders loop over the deltas of each id (`vulkan/gui.rs`, `gpu/frame.rs`). The delta also asserts on drop (debug only) unless empty: the frame loop moves it into `ui::Textures`, which clears it when the frame ends, and headless/test passes use `ui::discard(output)`.
+- **Ids:** `Id::new` -> `Id::unique` (22 sites). A panel's id is now its salt under the parent Ui's scope id, so the side panel's resize-drag check uses `root.scope_id().with("side panel").with("__resize")`.
+- **Smaller:** `Panel::show_inside` -> `show`, `CentralPanel::show_inside` -> `show`, `Context::style_mut` -> `global_style_mut`, `Slider::suffix` takes a String. `Modifiers` left `RawInput` already in the 0.36 move; the headless builders only set `Event::Key` / pointer modifiers, which remain.
+- Checked: 366 tests, clippy -D warnings, 483-frame self-test, captures at 1280/1920/2560 (render, look, scene tabs; read: text and arrows drawn, layout and top-bar wraps as in 0.34).
+- **Windows check (D3D12 not compiled here):** `gpu/frame.rs::update_gui_textures` is now a nested loop (per id, per delta; same body); confirm it builds, that the atlas growing recreates the texture, and the HDR/PQ text look.
+

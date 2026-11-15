@@ -1,4 +1,6 @@
 #!/bin/sh
+# Env: STAGE_OUT=<dir> also copies the packed tree (usr/bin) there; CAUSTICA_NO_THUMBNAILS=1
+# skips rendering thumbnails (CI has no GPU). CI (.github/workflows/ci.yml) runs this on tags.
 # Builds dist/Caustica-<version>-x86_64.AppImage on Linux: the release exe (Vulkan), the shipped
 # scenes, their prebuilt thumbnails and the README, packed by a pinned appimagetool. Releases are built and uploaded from
 # here, not CI: `gh release upload v<version> dist/Caustica-<version>-x86_64.AppImage`.
@@ -53,7 +55,7 @@ cp -rL scenes "$app/usr/bin/scenes"
 # AppImage ships without and a fresh install renders them on first open.
 if [ -d thumbnails ]; then
     cp -r thumbnails "$app/usr/bin/thumbnails"
-elif "$app/usr/bin/caustica" --make-thumbnails --thumbnails-out "$app/usr/bin/thumbnails"; then
+elif [ -z "${CAUSTICA_NO_THUMBNAILS:-}" ] && "$app/usr/bin/caustica" --make-thumbnails --thumbnails-out "$app/usr/bin/thumbnails"; then
     :
 else
     echo "WARNING: no prebuilt thumbnails; this AppImage renders them on first open" >&2
@@ -88,6 +90,13 @@ EOF
 chmod +x "$app/AppRun"
 
 mkdir -p dist
+# CI: keep usr/bin (what the AppImage holds) for tools/package_linux.sh, the tar.gz and the
+# distro packages.
+if [ -n "${STAGE_OUT:-}" ]; then
+    rm -rf "$STAGE_OUT"
+    mkdir -p "$STAGE_OUT"
+    cp -a "$app/usr/bin/." "$STAGE_OUT/"
+fi
 out="$root/dist/Caustica-$version-x86_64.AppImage"
 # Extract-and-run: no FUSE needed on the build machine. appimagetool fetches its runtime.
 ARCH=x86_64 "$tool" --appimage-extract-and-run --no-appstream "$app" "$out"

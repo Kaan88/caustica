@@ -721,7 +721,7 @@ pub fn object_ui(ui: &mut egui::Ui, o: &mut Object, advanced: bool, physics: boo
                 check_row(
                     ui,
                     "Locked",
-                    "The gizmo can't move it (laser puzzle walls and targets)",
+                    "The gizmo can't move it (fixed parts)",
                     &mut o.locked,
                 );
                 key_mark("stretch");
@@ -788,7 +788,7 @@ fn kelvin_ui(ui: &mut egui::Ui, t: &mut f32) {
         );
     }
 }
-pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: bool) {
+pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool) {
     crate::ui::skin::text_edit(
         ui,
         f32::INFINITY,
@@ -945,24 +945,6 @@ pub fn light_ui(ui: &mut egui::Ui, l: &mut AreaLight, advanced: bool, audio: boo
             .show(ui, |ui| {
                 key_mark("visible");
                 check_row(ui, "Visible to camera", "Show the light's panel in the image.", &mut l.visible);
-                if audio {
-                    row(
-                        ui,
-                        "Follows",
-                        "What this light follows while lights follow the music (Lights > Audio)",
-                        |ui| {
-                            const BANDS: [&str; 6] =
-                                ["Automatic", "Bass", "Mid", "Treble", "Beats", "Nothing"];
-                            crate::ui::skin::ComboBox::from_id_salt("audio band")
-                                .selected_text(BANDS[l.audio_band.min(5) as usize])
-                                .show_ui(ui, |ui| {
-                                    for (i, b) in BANDS.iter().enumerate() {
-                                        crate::ui::skin::selectable_value(ui, &mut l.audio_band, i as u32, *b);
-                                    }
-                                });
-                        },
-                    );
-                }
                 key_mark("shadows");
                 check_row(ui, "Casts shadows", "The light's own panel blocks other lights. Off: they shine through it, while reflections still see it.", &mut l.shadows);
                 // A sphere looks the same turned any way, so it has no rotation to set.

@@ -4,7 +4,7 @@ Owner's choice, 2026-11-10. Mockups: the design canvas at https://claude.ai/arti
 
 **Status:** built 2026-11-12 (engine-notes "UI layout B"); the open tails are in the roadmap.
 
-**Order:** do the egui upgrade first (`docs/egui-upgrade-plan.md`, 0.31 → 0.37), then this. B uses 0.32+ features: menus that close on click, Atoms for icon-plus-text buttons, `Panel`, and `content_rect`.
+**Order:** do the egui upgrade first (`docs/archive/egui-upgrade-plan.md`, 0.31 → 0.37), then this. B uses 0.32+ features: menus that close on click, Atoms for icon-plus-text buttons, `Panel`, and `content_rect`.
 
 This spec merges four control maps (Chrome, Render/Look/Export, Scene, Windows/overlays) and a completeness critic, all generated from the code in `caustica-parity` on 2026-11-10. Where the maps disagreed, the decision below is final, and the critic's findings are folded in.
 

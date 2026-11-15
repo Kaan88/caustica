@@ -236,8 +236,10 @@ fn the_bvh_finds_the_nearest_triangle() {
 /// numbers in its light's record don't read as materials.
 #[test]
 fn nothing_is_refused() {
-    let mut battle = Settings::default();
-    battle.battle = true;
+    let battle = Settings {
+        battle: true,
+        ..Default::default()
+    };
     assert!(unsupported(&battle).is_empty());
     let ies = light_with_ies(crate::ies::beam_spec(5., 0.1, 0.006));
     assert!(unsupported(&ies).is_empty(), "{:?}", unsupported(&ies));
@@ -274,8 +276,8 @@ fn colour_and_roughness_sets_bind_as_the_gpus() {
         assert_eq!(m.maps[0], 1);
         assert!(m.lobes[3] as u32 & 16 != 0 && m.lobes[3] as u32 & 8 == 0);
         let average = textures.maps[0].average;
-        for k in 0..3 {
-            assert!((m.base_scale[k] * average[k] - m.color_rough[k]).abs() < 1e-5);
+        for ((scale, avg), colour) in m.base_scale.iter().zip(average).zip(m.color_rough).take(3) {
+            assert!((scale * avg - colour).abs() < 1e-5);
         }
     }
     // A roughness map renders too, scaled by value / average (G = 128).
@@ -297,8 +299,10 @@ fn a_meshs_cutout_renders() {
     let path = dir.join("quad.gltf");
     crate::mesh::write_test_gltf(&path).unwrap();
     let mut quad = crate::mesh::import_objects(&path).unwrap().remove(0);
-    let mut s = Settings::default();
-    s.objects = vec![quad.clone()];
+    let mut s = Settings {
+        objects: vec![quad.clone()],
+        ..Default::default()
+    };
     assert!(crate::mesh::maps(&quad).is_some());
     assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
     // Its UVs reach the triangles and give a tangent frame, as the GPU's instance vertices.
@@ -402,20 +406,6 @@ fn prepare_applies_the_time_the_flashlight_and_the_beam() {
         serde_json::to_value(s.flashlight_light()).unwrap(),
     );
     s.flashlight = false;
-
-    s.puzzle.enabled = true;
-    s.puzzle.origin = [-2., -0.5, 0.];
-    s.puzzle.direction = [1., 0., 0.];
-    s.puzzle.beam = true;
-    let frame = prepare(&s, 0.);
-    let added = frame.objects.len() - s.objects.len();
-    assert!(added > 0, "no rods");
-    let materials = crate::lighting::materials(&frame);
-    let rod = frame.objects.iter().position(|o| o.name == "Laser beam");
-    assert!(materials[5 + rod.unwrap()].optical[1] > 0., "a rod glows");
-    // The beam is off: no rods.
-    s.puzzle.beam = false;
-    assert_eq!(prepare(&s, 0.).objects.len(), s.objects.len());
 }
 /// A body falls for its time, in fixed steps, whichever renderer takes the result.
 #[test]
@@ -441,9 +431,11 @@ fn at_time_runs_the_simulation_and_freezes_it() {
 /// ReSTIR renders everywhere; its share of samples follows the GPU's reservoir layers.
 #[test]
 fn restir_renders_with_the_gpus_share_of_samples() {
-    let mut s = Settings::default();
-    s.restir = true;
-    s.bounces = 1;
+    let s = Settings {
+        restir: true,
+        bounces: 1,
+        ..Default::default()
+    };
     assert!(unsupported(&s).is_empty());
     use super::lights::restir_share;
     assert_eq!(restir_share(1, 320 * 240), 1.);
@@ -455,10 +447,12 @@ fn restir_renders_with_the_gpus_share_of_samples() {
 /// The app turns the camera each frame while `rotate` is on: frozen, it turns no further.
 #[test]
 fn at_time_turns_the_camera_and_freezes_it() {
-    let mut s = Settings::default();
-    s.rotate = true;
-    s.rotate_speed = 6.;
-    s.yaw = 10.;
+    let s = Settings {
+        rotate: true,
+        rotate_speed: 6.,
+        yaw: 10.,
+        ..Default::default()
+    };
     let a = at_time(&s, 2.);
     assert_eq!(a.yaw, 22.);
     assert!(!a.rotate);
@@ -500,8 +494,10 @@ fn a_grazing_shadow_ray_stops_short_of_its_own_emitter() {
 /// (at the bounce limit MIS's last light sample has no BSDF partner, so it isn't a fair test).
 #[test]
 fn the_sampling_strategies_agree() {
-    let mut s = Settings::default();
-    s.bounces = 8;
+    let s = Settings {
+        bounces: 8,
+        ..Default::default()
+    };
     let mean = |mis_mode| {
         let mut s = s.clone();
         s.mis_mode = mis_mode;
@@ -523,9 +519,11 @@ fn the_sampling_strategies_agree() {
 /// BSDF sampling alone 0.08% dark against light sampling alone). Both leave from over it now.
 #[test]
 fn both_strategies_see_the_face_under_a_tilted_normal() {
-    let mut s = Settings::default();
-    s.cornell_room = false;
-    s.light_on = false;
+    let mut s = Settings {
+        cornell_room: false,
+        light_on: false,
+        ..Default::default()
+    };
     s.objects.clear();
     s.floor_extent = 3.;
     s.floor.roughness = 1.;
@@ -594,8 +592,10 @@ fn the_truth_switch_parses_and_defaults_off() {
     // A scene file that predates the field, and a partial one.
     let s: Settings = serde_json::from_str(r#"{"truth":{"firefly":true}}"#).unwrap();
     assert_eq!(s.truth.on(), ["firefly"]);
-    let mut s = Settings::default();
-    s.truth = all;
+    let s = Settings {
+        truth: all,
+        ..Default::default()
+    };
     let back: Settings = serde_json::from_value(serde_json::to_value(&s).unwrap()).unwrap();
     assert_eq!(back.truth, all);
     // Pending rows are listed by the reference's own report.
@@ -605,8 +605,10 @@ fn the_truth_switch_parses_and_defaults_off() {
 /// truth switch only removes its variance and its path-length bound.
 #[test]
 fn the_truth_without_roulette_keeps_the_mean() {
-    let mut s = Settings::default();
-    s.bounces = 8;
+    let s = Settings {
+        bounces: 8,
+        ..Default::default()
+    };
     let mean = |truth: bool| {
         let mut s = s.clone();
         s.truth.roulette = truth;
@@ -637,8 +639,10 @@ fn the_truth_without_roulette_keeps_the_mean() {
 /// Accuracy B1: the Accurate bundle's gentler roulette (start 8, floor 0.2) is unbiased too.
 #[test]
 fn gentle_roulette_keeps_the_mean() {
-    let mut s = Settings::default();
-    s.bounces = 12;
+    let s = Settings {
+        bounces: 12,
+        ..Default::default()
+    };
     let mean = |gentle: bool| {
         let mut s = s.clone();
         s.gentle_roulette = gentle;
@@ -788,19 +792,29 @@ fn normals_interpolate_in_object_space() {
 /// The default Cornell box renders, finite and lit.
 #[test]
 fn the_cornell_box_renders() {
-    let mut s = Settings::default();
-    s.bounces = 4;
+    let s = Settings {
+        bounces: 4,
+        ..Default::default()
+    };
     assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
     let img = render(&s, [32, 24], 4, &|_| {}).unwrap();
     assert!(img.iter().all(|v| v.is_finite()));
-    let mean: f32 = img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>() / (32. * 24.);
+    let mean: f32 = img
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| p[0] + p[1] + p[2])
+        .sum::<f32>()
+        / (32. * 24.);
     assert!(mean > 0.01, "{mean}");
 }
 /// Passes of any size give the same bits as one pass.
 #[test]
 fn passes_match_one_render() {
-    let mut s = Settings::default();
-    s.bounces = 3;
+    let s = Settings {
+        bounces: 3,
+        ..Default::default()
+    };
     let one = render(&s, [16, 12], 5, &|_| {}).unwrap();
     let mut p = Progressive::new(&s, [16, 12]).unwrap();
     let stop = AtomicBool::new(false);
@@ -813,8 +827,10 @@ fn passes_match_one_render() {
 /// A moved camera renders the same bits as a fresh render from there, at any size.
 #[test]
 fn a_moved_camera_matches_a_fresh_render() {
-    let mut s = Settings::default();
-    s.bounces = 3;
+    let s = Settings {
+        bounces: 3,
+        ..Default::default()
+    };
     let mut moved = s.clone();
     moved.yaw += 0.4;
     moved.distance *= 0.8;
@@ -828,8 +844,10 @@ fn a_moved_camera_matches_a_fresh_render() {
 }
 #[test]
 fn a_preview_spreads_one_sample_over_each_block() {
-    let mut s = Settings::default();
-    s.bounces = 3;
+    let s = Settings {
+        bounces: 3,
+        ..Default::default()
+    };
     let p = Progressive::new(&s, [17, 10]).unwrap();
     let image = p.preview(4, 2, &AtomicBool::new(false)).unwrap();
     assert_eq!(image.len(), 17 * 10 * 4);
@@ -872,9 +890,11 @@ fn finish(live: &Live) -> LiveState {
 }
 #[test]
 fn the_view_follows_the_camera_and_the_scene() {
-    let mut s = Settings::default();
-    s.bounces = 3;
-    s.max_samples = 3;
+    let s = Settings {
+        bounces: 3,
+        max_samples: 3,
+        ..Default::default()
+    };
     let size = [16, 12];
     let mut live = Live::start(s.clone(), size, "a".into(), true);
     let st = finish(&live);
@@ -908,10 +928,12 @@ fn the_view_follows_the_camera_and_the_scene() {
 /// Battle mode renders in the reference and the view alike, with nothing listed as missing.
 #[test]
 fn battle_mode_renders_in_the_reference_and_the_view() {
-    let mut s = Settings::default();
-    s.max_samples = 2;
-    s.battle = true;
-    s.photons = 2048;
+    let s = Settings {
+        max_samples: 2,
+        battle: true,
+        photons: 2048,
+        ..Default::default()
+    };
     let size = [8, 6];
     for lenient in [false, true] {
         let live = Live::start(s.clone(), size, String::new(), lenient);
@@ -926,8 +948,10 @@ fn battle_mode_renders_in_the_reference_and_the_view() {
 #[test]
 fn battle_quadrants_map_corners_to_their_integrators() {
     use super::progressive::quadrants;
-    let mut s = Settings::default();
-    s.integrator = 1;
+    let mut s = Settings {
+        integrator: 1,
+        ..Default::default()
+    };
     assert_eq!(quadrants(&s, [9, 7]), [(1, [0, 0, 9, 7])]);
     s.battle = true;
     let q = quadrants(&s, [9, 7]);
@@ -945,9 +969,11 @@ fn battle_quadrants_map_corners_to_their_integrators() {
 /// statistically (light tracing and photons stay inside their quadrant).
 #[test]
 fn battle_quadrants_are_their_integrators_renders() {
-    let mut s = Settings::default();
-    s.photons = 20_000;
-    s.spp = 4;
+    let s = Settings {
+        photons: 20_000,
+        spp: 4,
+        ..Default::default()
+    };
     let size = [16, 12];
     let spp = 64;
     let mut b = s.clone();
@@ -983,9 +1009,11 @@ fn battle_quadrants_are_their_integrators_renders() {
 }
 #[test]
 fn a_paused_view_holds_after_its_pass_and_goes_on() {
-    let mut s = Settings::default();
-    s.max_samples = 1 << 30;
-    s.bounces = 2;
+    let s = Settings {
+        max_samples: 1 << 30,
+        bounces: 2,
+        ..Default::default()
+    };
     let live = Live::start(s, [4, 3], String::new(), true);
     live.set_paused(true);
     let start = std::time::Instant::now();
@@ -1149,8 +1177,10 @@ fn a_spots_cosine_is_the_same_hit_or_sampled() {
 /// MIS agree, as with the triangle lights.
 #[test]
 fn a_sphere_lights_strategies_agree() {
-    let mut s = Settings::default();
-    s.bounces = 8;
+    let mut s = Settings {
+        bounces: 8,
+        ..Default::default()
+    };
     s.lights.push(crate::scene::AreaLight {
         kind: crate::scene::LightKind::Sphere,
         position: [0.3, 0.2, 0.],
@@ -1238,9 +1268,11 @@ fn a_camera_inside_a_sphere_light_stays_finite() {
 fn a_sun_lights_as_defined() {
     let rgb = super::spectral::Waves::rgb();
     use super::scene::Light;
-    let mut s = Settings::default();
-    s.cornell_room = false;
-    s.bounces = 4;
+    let mut s = Settings {
+        cornell_room: false,
+        bounces: 4,
+        ..Default::default()
+    };
     s.lights.clear();
     s.lights.push(crate::scene::AreaLight {
         kind: crate::scene::LightKind::Sun,
@@ -1358,8 +1390,10 @@ fn the_bladed_stop_holds_the_aperture_samples() {
 fn a_portal_maps_its_centre_to_its_pairs_and_turns_the_ray_around() {
     use crate::reference::integrators::path::portal_map;
     use crate::scene::Object;
-    let mut s = Settings::default();
-    s.objects = vec![Object::default(), Object::default()];
+    let mut s = Settings {
+        objects: vec![Object::default(), Object::default()],
+        ..Default::default()
+    };
     s.objects[0].position = [-0.5, 0.];
     s.objects[1].position = [0.5, -0.8];
     s.objects[0].portal = 1;
@@ -1381,12 +1415,14 @@ fn a_portal_maps_its_centre_to_its_pairs_and_turns_the_ray_around() {
 fn a_beam_splitter_mixes_a_clear_sheet_and_a_mirror() {
     let size = [24, 18];
     let mean = |reflectivity: Option<f32>| {
-        let mut s = Settings::default();
-        s.bounces = 4;
         // BSDF sampling only: shadow rays see a splitter as opaque (as on the GPU), so with
         // light sampling the last bounce's light beyond a clear sheet is lost, and it isn't
         // the same image as no sheet.
-        s.mis_mode = 2;
+        let mut s = Settings {
+            bounces: 4,
+            mis_mode: 2,
+            ..Default::default()
+        };
         let m = &mut s.objects[0].material;
         m.color = [1.; 3];
         match reflectivity {
@@ -1399,7 +1435,12 @@ fn a_beam_splitter_mixes_a_clear_sheet_and_a_mirror() {
         assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
         let img = render(&s, size, 64, &|_| {}).unwrap();
         assert!(img.iter().all(|v| v.is_finite()));
-        img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>() / (size[0] * size[1]) as f32
+        img.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| p[0] + p[1] + p[2])
+            .sum::<f32>()
+            / (size[0] * size[1]) as f32
     };
     let (gone, clear, mirror, half) = (mean(None), mean(Some(0.)), mean(Some(1.)), mean(Some(0.5)));
     assert!((clear / gone - 1.).abs() < 0.03, "{clear} {gone}");
@@ -1419,8 +1460,10 @@ fn samples_reach(live: &Live, n: u32) -> u32 {
 #[test]
 fn an_open_shutter_blurs_the_frame_over_its_moments() {
     use crate::anim::{Interp, Key, Track};
-    let mut s = Settings::default();
-    s.bounces = 2;
+    let mut s = Settings {
+        bounces: 2,
+        ..Default::default()
+    };
     assert!(!s.objects.is_empty());
     let key = |time: f32, value: f64| Key {
         time,
@@ -1471,8 +1514,10 @@ fn an_emissive_map_emits_its_texel_over_its_mean() {
     }
     let mut lantern = crate::mesh::import_objects(&path).unwrap().remove(0);
     lantern.material.emission = 4.;
-    let mut s = Settings::default();
-    s.objects = vec![lantern];
+    let s = Settings {
+        objects: vec![lantern],
+        ..Default::default()
+    };
     assert!(unsupported(&s).is_empty(), "{:?}", unsupported(&s));
     let scene = Scene::new(&s, [8, 8]);
     let raw = &scene.materials[5];
@@ -1535,8 +1580,10 @@ fn alpha_cutouts_and_stochastic_blend() {
     let path = dir.join("quad.gltf");
     crate::mesh::write_test_gltf(&path).unwrap();
     let quad = crate::mesh::import_objects(&path).unwrap().remove(0);
-    let mut s = Settings::default();
-    s.objects = vec![quad];
+    let s = Settings {
+        objects: vec![quad],
+        ..Default::default()
+    };
     let mut scene = super::scene::Scene::new(&s, [8, 8]);
     assert_ne!(super::bsdf::flags(&scene.materials[5]) & 8, 0);
     // The triangle and barycentrics at `uv`.
@@ -1796,8 +1843,10 @@ fn shadows_through_an_objects_medium() {
 #[test]
 fn a_scattering_object_renders() {
     let mean = |density: f32| {
-        let mut s = Settings::default();
-        s.bounces = 6;
+        let mut s = Settings {
+            bounces: 6,
+            ..Default::default()
+        };
         let m = &mut s.objects[0].material;
         m.transmission = 1.;
         m.ior = 1.;
@@ -1805,7 +1854,11 @@ fn a_scattering_object_renders() {
         m.scatter_color = [0.2, 0.2, 0.2];
         let img = render(&s, [32, 24], 8, &|_| {}).unwrap();
         assert!(img.iter().all(|v| v.is_finite()));
-        img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>()
+        img.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| p[0] + p[1] + p[2])
+            .sum::<f32>()
     };
     let (thin, dense) = (mean(0.01), mean(30.));
     assert!(dense < thin * 0.98, "{dense} {thin}");
@@ -1836,7 +1889,11 @@ fn the_camera_starts_in_the_medium_around_it() {
         assert_eq!(Scene::new(&s, [8, 6]).camera_media, vec![(0, 5)]);
         let img = render(&s, [32, 24], 8, &|_| {}).unwrap();
         assert!(img.iter().all(|v| v.is_finite()));
-        img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>()
+        img.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| p[0] + p[1] + p[2])
+            .sum::<f32>()
     };
     let clear = mean([1.; 3], 0.);
     let tinted = mean([0.2; 3], 0.);
@@ -2158,8 +2215,10 @@ fn sdf_emitter_light_sampling() {
 }
 #[test]
 fn the_denoisers_inputs_leave_the_sums_alone() {
-    let mut s = Settings::default();
-    s.bounces = 3;
+    let s = Settings {
+        bounces: 3,
+        ..Default::default()
+    };
     let stop = AtomicBool::new(false);
     let mut p = Progressive::new(&s, [24, 16]).unwrap();
     p.keep_guides();
@@ -2181,15 +2240,17 @@ fn the_denoisers_inputs_leave_the_sums_alone() {
 /// channel means: the wavelengths are an unbiased estimate of the same colours.
 #[test]
 fn spectral_matches_rgb_on_the_cornell_box() {
-    let mut s = Settings::default();
-    s.bounces = 4;
+    let s = Settings {
+        bounces: 4,
+        ..Default::default()
+    };
     assert!(unsupported(&s).is_empty() && !s.spectral);
     let means = |spectral| {
         let mut s = s.clone();
         s.spectral = spectral;
         let image = render(&s, [24, 18], 192, &|_| {}).unwrap();
         let mut m = [0f64; 3];
-        for p in image.chunks_exact(4) {
+        for p in image.as_chunks::<4>().0.iter() {
             for c in 0..3 {
                 m[c] += p[c] as f64;
             }
@@ -2208,9 +2269,11 @@ fn spectral_matches_rgb_on_the_cornell_box() {
 /// Recording the AOVs leaves the beauty's bits as they were.
 #[test]
 fn aovs_leave_the_beauty_alone() {
-    let mut s = Settings::default();
-    s.bounces = 4;
-    s.lpe = vec!["C D .* L".into()];
+    let s = Settings {
+        bounces: 4,
+        lpe: vec!["C D .* L".into()],
+        ..Default::default()
+    };
     let plain = render(&s, [12, 9], 4, &|_| {}).unwrap();
     let mut p = Progressive::new(&s, [12, 9]).unwrap();
     p.keep_aovs();
@@ -2229,10 +2292,12 @@ fn layer_mean(l: &crate::render::AovLayer) -> Vec3 {
 /// the layers come in the GPU's order with their sizes and channels.
 #[test]
 fn light_path_expressions_partition_the_beauty() {
-    let mut s = Settings::default();
-    s.lpe = ["C [LB]", "C D .* [LB]", "C [GS] .* [LB]", "C [TV] .* [LB]"]
-        .map(String::from)
-        .into();
+    let s = Settings {
+        lpe: ["C [LB]", "C D .* [LB]", "C [GS] .* [LB]", "C [TV] .* [LB]"]
+            .map(String::from)
+            .into(),
+        ..Default::default()
+    };
     let mut p = Progressive::new(&s, [24, 18]).unwrap();
     p.keep_aovs();
     assert!(p.pass(96, 4, &AtomicBool::new(false), &|_| {}));
@@ -2266,7 +2331,7 @@ fn light_path_expressions_partition_the_beauty() {
     assert!(rel.max_element() < 0.03, "{sum} vs {beauty} {parts:?}");
     // A hit has an id and a unit normal, a miss neither (and depth 1e4).
     let ids = &layers[9].data;
-    assert!(ids.iter().any(|&id| id >= 1.) && ids.iter().any(|&id| id == 0.));
+    assert!(ids.iter().any(|&id| id >= 1.) && ids.contains(&0.));
     for (i, &id) in ids.iter().enumerate() {
         let n = Vec3::from_slice(&layers[3].data[i * 3..]).length();
         let hit = id >= 1.;
@@ -2280,8 +2345,10 @@ fn light_path_expressions_partition_the_beauty() {
 /// With one bounce all light is direct.
 #[test]
 fn one_bounce_is_all_direct() {
-    let mut s = Settings::default();
-    s.bounces = 1;
+    let s = Settings {
+        bounces: 1,
+        ..Default::default()
+    };
     let mut p = Progressive::new(&s, [16, 12]).unwrap();
     p.keep_aovs();
     assert!(p.pass(8, 2, &AtomicBool::new(false), &|_| {}));
@@ -2297,9 +2364,11 @@ fn one_bounce_is_all_direct() {
 /// the threads.
 #[test]
 fn bdpt_passes_match_one_render() {
-    let mut s = Settings::default();
-    s.bounces = 3;
-    s.integrator = 1;
+    let s = Settings {
+        bounces: 3,
+        integrator: 1,
+        ..Default::default()
+    };
     let one = render(&s, [16, 12], 5, &|_| {}).unwrap();
     let mut p = Progressive::new(&s, [16, 12]).unwrap();
     let stop = AtomicBool::new(false);
@@ -2312,8 +2381,10 @@ fn bdpt_passes_match_one_render() {
 /// limit, by little at 6), with light tracing on and with the camera a delta vertex.
 #[test]
 fn bdpt_agrees_with_the_path_tracer() {
-    let mut s = Settings::default();
-    s.bounces = 6;
+    let mut s = Settings {
+        bounces: 6,
+        ..Default::default()
+    };
     let mean = |s: &Settings, spp| {
         let image = render(s, [24, 18], spp, &|_| {}).unwrap();
         let sum: f64 = image
@@ -2340,8 +2411,10 @@ fn bdpt_agrees_with_the_path_tracer() {
 /// BDPT's shadow rays and connections stop at clear glass even where glass casts no shadow.
 #[test]
 fn bdpt_sees_glass_as_solid() {
-    let mut s = Settings::default();
-    s.glass_shadow = false;
+    let mut s = Settings {
+        glass_shadow: false,
+        ..Default::default()
+    };
     for (integrator, blocks) in [(0, false), (1, true), (2, true)] {
         s.integrator = integrator;
         let mut scene = Scene::new(&s, [4, 4]);
@@ -2354,11 +2427,13 @@ fn bdpt_sees_glass_as_solid() {
 /// the passes cut its frames (a frame is `spp` samples with its own photon map).
 #[test]
 fn photon_passes_match_one_render() {
-    let mut s = Settings::default();
-    s.bounces = 3;
-    s.integrator = 2;
-    s.spp = 2;
-    s.photons = 1 << 12;
+    let s = Settings {
+        bounces: 3,
+        integrator: 2,
+        spp: 2,
+        photons: 1 << 12,
+        ..Default::default()
+    };
     let one = render(&s, [16, 12], 5, &|_| {}).unwrap();
     let mut p = Progressive::new(&s, [16, 12]).unwrap();
     let stop = AtomicBool::new(false);
@@ -2371,8 +2446,10 @@ fn photon_passes_match_one_render() {
 /// frames on the default box, at bounces where the walks' limits don't matter.
 #[test]
 fn photon_mapping_agrees_with_the_path_tracer() {
-    let mut s = Settings::default();
-    s.bounces = 8;
+    let mut s = Settings {
+        bounces: 8,
+        ..Default::default()
+    };
     let mean = |s: &Settings, spp| {
         let image = render(s, [24, 18], spp, &|_| {}).unwrap();
         let sum: f64 = image
@@ -2407,7 +2484,13 @@ fn specular_bounces_extend_only_specular_chains() {
     let mut split = s.clone();
     split.specular_bounces = 8;
     let more = render(&split, [24, 18], 2, &|_| {}).unwrap();
-    let sum = |img: &[f32]| img.chunks_exact(4).map(|p| p[0] + p[1] + p[2]).sum::<f32>();
+    let sum = |img: &[f32]| {
+        img.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| p[0] + p[1] + p[2])
+            .sum::<f32>()
+    };
     assert!(
         sum(&more) > sum(&legacy) * 1.05,
         "{} vs {}",
@@ -2415,8 +2498,10 @@ fn specular_bounces_extend_only_specular_chains() {
         sum(&legacy)
     );
     // A rough Cornell box has no specular vertex: the budget changes nothing.
-    let mut diffuse = Settings::default();
-    diffuse.bounces = 3;
+    let mut diffuse = Settings {
+        bounces: 3,
+        ..Default::default()
+    };
     for o in &mut diffuse.objects {
         o.material.roughness = 1.;
         o.material.metallic = 0.;

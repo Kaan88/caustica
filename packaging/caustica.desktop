@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Caustica
+Comment=Path tracer
+Exec=caustica
+Icon=caustica
+Categories=Graphics;3DGraphics;
+Terminal=false

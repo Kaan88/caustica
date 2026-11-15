@@ -1,6 +1,6 @@
 //! The walk avatar: a blocky body under the first-person camera (the owner's "I want to see my
 //! legs and my reflection"), ten boxes added to each frame's copy of the settings the way the
-//! flashlight and the laser's beam are, so it stays out of the scene file, undo, auto-key,
+//! flashlight is, so it stays out of the scene file, undo, auto-key,
 //! picking and physics. Our own design: a cube head, a box torso, box arms with hands, and legs
 //! with knees.
 //!

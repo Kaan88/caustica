@@ -1,4 +1,4 @@
-"""Vulkan groundwork: compiles every shader entry build.rs compiles (same files, entries and
+"""Vulkan groundwork: compiles every shader entry build.rs compiles (src/shader_entries.rs; same files, entries and
 defines) to SPIR-V with the DXC release build (vendor/dxc-spirv, fetched by tools/setup.ps1)
 and lists what fails, first error line per entry.
 
@@ -19,8 +19,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def entries():
-    src = open(os.path.join(ROOT, 'build.rs'), encoding='utf-8').read()
-    start = src.index("let entries: &[(&str, &str, &str, &str, &[&str])] = &[")
+    src = open(os.path.join(ROOT, 'src', 'shader_entries.rs'), encoding='utf-8').read()
+    start = src.index("pub const ENTRIES:")
     body = src[start:src.index("];", start)]
     out = []
     for m in re.finditer(r'\(\s*"([\w.]+)",\s*"(\w+)",\s*"(\w+)",\s*"(\w+)",\s*&\[(.*?)\]', body, re.S):

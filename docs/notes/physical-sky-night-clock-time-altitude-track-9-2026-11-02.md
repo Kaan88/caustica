@@ -1,0 +1,6 @@
+## Physical sky: night, clock time, altitude (track 9, 2026-11-02)
+
+- `PhysicalSky` gains `clock` / `longitude` / `utc_offset` (`solar_time()`: clock + longitude/15 − zone + the equation of time), `altitude` (km; `Atmosphere::observer`), `stars` and `moon`. `map_key` uses the solar time, so the cache sees equal skies as equal.
+- Night: after astronomical twilight (sun below −18°, `sun.y < −0.31`) the single- and multiple-scattering pass runs with the moon as its light at 2.5e-6 × the lit fraction of the sun (a hard switch; twilight is still much brighter than moonlight there). The moon trails the sun by its age (synodic month from the day of the year) on the sun's declination; its disc is at least a texel. Stars: a hash per texel (1 in 150 above the horizon), energy per star `7.5e-8 · u⁴ · stars · intensity`, tinted blue-white to orange, times the transmittance along the view. The constant night floor went from 2e-5 to 2e-7 × intensity (the old floor was brighter than a moonlit sky).
+- Baking: `sky::bake_cached` keeps the last 12 maps by key. Windowed runs bake uncached skies on a worker thread (one at a time; a result for an outdated key is cached and dropped) and keep the previous map until it lands, then restart accumulation. Headless runs, the self-test and video exports bake in place, so their output stays deterministic.
+

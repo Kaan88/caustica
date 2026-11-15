@@ -26,7 +26,6 @@ pub enum Icon {
     Play,
     Restart,
     // The top bar's pins (chrome.rs `pin_short`).
-    Remote,
     Console,
     Stats,
     Keys,
@@ -35,7 +34,6 @@ pub enum Icon {
     Graph,
     Paths,
     Describe,
-    Puzzle,
     Open,
     Save,
     SaveAs,
@@ -55,7 +53,7 @@ pub enum Icon {
     HighRes,
 }
 impl Icon {
-    const ALL: [Icon; 48] = [
+    const ALL: [Icon; 46] = [
         Icon::Menu,
         Icon::Select,
         Icon::Move,
@@ -77,7 +75,6 @@ impl Icon {
         Icon::Pause,
         Icon::Play,
         Icon::Restart,
-        Icon::Remote,
         Icon::Console,
         Icon::Stats,
         Icon::Keys,
@@ -86,7 +83,6 @@ impl Icon {
         Icon::Graph,
         Icon::Paths,
         Icon::Describe,
-        Icon::Puzzle,
         Icon::Open,
         Icon::Save,
         Icon::SaveAs,
@@ -132,7 +128,6 @@ impl Icon {
             Icon::Pause => "M8 5v14M16 5v14",
             Icon::Play => "M7 4l12 8-12 8z",
             Icon::Restart => "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
-            Icon::Remote => "M7 2h10v20H7zM11 18h2",
             Icon::Console => "M3 4h18v16H3zM7 9l3 3-3 3M12 15h5",
             Icon::Stats => "M3 20h18M6 20v-8M12 20V5M18 20v-11",
             Icon::Keys => "M2 6h20v12H2zM5 10h2M9 10h2M13 10h2M17 10h2M7 14h10",
@@ -141,7 +136,6 @@ impl Icon {
             Icon::Graph => "M3 3v18h18M6 6c2 7 6 10 13 11",
             Icon::Paths => "M3 20l6-12 6 8 3-6O19 7 2.5",
             Icon::Describe => "M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z",
-            Icon::Puzzle => "M3 12h9V3M7 17L17 7",
             Icon::Open => "M3 19V5h6l2 3h10v3M3 19l3-8h16l-3 8z",
             Icon::Save => "M4 4h13l3 3v13H4zM8 4v5h7V4M8 20v-7h8v7",
             Icon::SaveAs => "M4 4h13l3 3v13H4zM8 4v5h7V4M12 12v6M9 15h6",

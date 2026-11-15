@@ -12,7 +12,7 @@ Neither links, builds `bridge/*.cpp`, or runs anything. **Rule: no Windows insta
 
 ## First session on Windows, in order
 1. `git fetch origin`, check out `main` (v0.12.0). Run `tools/setup.ps1` (fetches the SDKs, now including OIDN; see the OIDN items). The fetched `scenes/{models,hdri,textures}` and `vendor/` are not in git.
-2. Build and check as `CLAUDE.md` says (`$env:CARGO_TARGET_DIR="target/validation"`; fmt, test, clippy, build), then `--self-test --debug` (it fails on any D3D12 warning). Expect 484 frames. (2026-11-11: passed, no D3D12 warnings.)
+2. Build and check as `CLAUDE.md` says (`$env:CARGO_TARGET_DIR="target/validation"`; fmt, test, clippy, build), then `--self-test --debug` (it fails on any D3D12 warning). Expect 479 frames. (2026-11-11: passed, no D3D12 warnings.)
 3. `tools/verify.ps1` (2026-11-11: PASS). Then `tools/rr_stability.py`, twice: as it stands (exposure pinned, P = 1), and once with the exposure at 2^20 (see "Exposure").
 4. `python tools/oracle.py --exe target\validation\release\caustica.exe` (default list). Linux/Vulkan gives every scene ok, gem-display the loosest at 1.0127. Then the extra runs in "Accuracy" and "Spectral".
 5. By hand, what hidden runs can't exercise: Tab and shortcuts, typing into sliders, undo of panel edits, the restore-last-session prompt, the flashlight row, the CPU view, the Renderer menu, auto exposure while walking from a bright room into a dark one, the Realtime and Accurate presets, and the Still denoiser row.
@@ -67,7 +67,7 @@ Each frame on D3D12 now gets a new compute pass, a readback, and in-place scalin
   - Thresholds: edge temporal std < 0.02, mean frame difference < 0.0015. The last run gave 0.0071 and 0.00017.
   - Add a run at exposure 2^20 (`--set exposure=1048576`, with the light and background scaled down by 2^20) for P ≠ 1.
 - [ ] **`--vulkan` on Windows with RR at night:** `pre_exposure` through `bridge/vk.cpp` (`ngxvk`).
-- [ ] **Remote page and gamepad:** the remote's exposure slider and auto switch, ev_bias at ±16, and the d-pad stepping ev_bias in auto mode.
+- [ ] **Gamepad:** ev_bias at ±16, and the d-pad stepping ev_bias in auto mode.
 
 ### Accuracy (exact rough glass, Accurate preset, ray origin)
 - [ ] **Six new DXIL entries** (37 in all):
@@ -180,7 +180,7 @@ Self-update refuses an update whose `SHA256SUMS` lacks its file.
 - redesign B (`docs/ui-redesign-b.md`), including where the new controls go
 - the hash-grid cache with the Realtime preset
 
-`docs/ui-review.md` has one row partly open: R does different things depending on whether something is selected.
+`docs/archive/ui-review.md` has one row partly open: R does different things depending on whether something is selected.
 
 **CPU parity:** stages 0-8 of `docs/claude/cpu-parity-audit.json` are done, and `reference::unsupported` refuses nothing. Stage 9's display transform and exports are done (engine-notes "Display transform and exports with no device"). Still to prove on Windows: the CPU view as the fallback on a machine with no ray-tracing GPU (roadmap).
 

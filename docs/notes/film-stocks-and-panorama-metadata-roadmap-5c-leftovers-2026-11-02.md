@@ -1,0 +1,5 @@
+## Film stocks and panorama metadata (roadmap 5c leftovers, 2026-11-02)
+
+- **Film stock** (`ui::FILM_STOCKS`): UI presets onto `grain`, `grain_size` and `halation` (no new setting); the combo shows the stock whose three values match, else Custom. Velvia 50, Ektar 100, Portra 400, Vision3 500T, CineStill 800T (strong halation: no anti-halation layer), Portra 800 pushed, Delta 3200 (grain only; there is no black-and-white conversion).
+- **GPano XMP:** `video::set_equirect` is set from `projection == 2` every frame. `write_image` (quick saves, high-res still, PNG / JPEG sequences) and `video::tag_capture` (`--capture`, script `capture`; not UI captures, which show more than the panorama) add Google's panorama XMP: an iTXt `XML:com.adobe.xmp` chunk after IHDR in PNG, an APP1 `http://ns.adobe.com/xap/1.0/` segment after SOI in JPEG, with the full-sphere size = image size. Unit test `equirect_images_carry_the_panorama_xmp` (decodes after tagging: chunk CRC and segment length); checked on a real 800×400 equirect render (Pillow reads the XMP; a perspective render gets none).
+

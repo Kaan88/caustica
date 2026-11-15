@@ -511,7 +511,9 @@ mod tests {
         let (w, h) = (64usize, 48usize);
         let (clean, dirty) = noisy(w, h, 0.4);
         let bytes = |v: &[f32]| -> Vec<u8> {
-            v.chunks_exact(3)
+            v.as_chunks::<3>()
+                .0
+                .iter()
                 .flat_map(|c| c.iter().map(|x| (x.clamp(0., 1.) * 255.) as u8))
                 .collect()
         };

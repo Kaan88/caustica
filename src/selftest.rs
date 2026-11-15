@@ -771,7 +771,6 @@ impl App {
                 self.settings.lights.push(scene::AreaLight {
                     visible: false,
                     shadows: false,
-                    audio_band: 4,
                     ..scene::AreaLight::default()
                 });
             }
@@ -800,43 +799,6 @@ impl App {
                     (1..=3).all(|i| folder.join(format!("{i:05}.png")).is_file())
                 };
                 anyhow::ensure!(made, "Turntable output missing: {text}");
-            }
-            // Phone remote on this machine only: an edit through HTTP reaches the settings.
-            254 => {
-                let r = remote::start(false)?;
-                let port: u16 = r
-                    .url
-                    .split(':')
-                    .nth(2)
-                    .and_then(|p| p.split('/').next())
-                    .context("remote port")?
-                    .parse()?;
-                let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))?;
-                use std::io::Write;
-                stream.write_all(
-                    format!(
-                        "POST /set?t={}&k=exposure HTTP/1.1\r\nContent-Length: 3\r\n\r\n2.5",
-                        r.token
-                    )
-                    .as_bytes(),
-                )?;
-                let mut reply = String::new();
-                use std::io::Read;
-                stream.read_to_string(&mut reply)?;
-                anyhow::ensure!(
-                    reply.starts_with("HTTP/1.1 204"),
-                    "Remote refused the edit: {reply}"
-                );
-                self.remote = Some(r);
-            }
-            256 => {
-                anyhow::ensure!(
-                    self.settings.exposure == 2.5,
-                    "Remote edit not applied ({})",
-                    self.settings.exposure
-                );
-                self.remote = None;
-                self.settings.exposure = 1.;
             }
             // GPU picking: a click on object 0's projected centre selects it next frame.
             257 => {

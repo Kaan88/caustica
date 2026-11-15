@@ -1,0 +1,6 @@
+## Command palette and keys (ui-batch-D, 2026-11-10)
+
+- **Palette:** Ctrl+K, `src/palette.rs` (`ENTRIES`, `matches`, `State`) and `App::palette_window` / `run_palette` in `ui/windows.rs`. Entries are `Act::Go(tab, focus, section)` for settings, `Act::Window(Win)` and `Act::Do(Do)`. A new Menu window or hard-to-find setting wants a row there; `palette::tests` checks labels are unique and the O / Alt+D keys it shows. It opens the tab and selects `Focus` (Stage, Camera, MainLight, Flashlight, the selected or first Object / AreaLight) but does not scroll to the row. The Ctrl+K key arm is in the viewport key match (not `global_key`: Ctrl crouches while walking).
+- **Review fixes (2026-11-10):** the Ctrl+K press that opens the palette is still in egui's input on the first frame, so `palette_window` ignores its own Ctrl+K toggle then (`opened`). Finished mesh imports wait while a video or timeline export runs (`land_mesh_imports` is not called), and loading or opening another scene drops imports still parsing. Both are defaults, changeable.
+- **Keys:** auto orbit is O and the denoiser cycle is Alt+D (`App::toggle_orbit`, `cycle_denoiser`); bare A and D only toast the new key. A viewport click keeps the Look and Render tabs (`pick_keeps_tab`).
+

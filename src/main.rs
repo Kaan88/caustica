@@ -6,7 +6,6 @@
 mod anim;
 mod assets;
 mod astro;
-mod audio;
 mod avatar;
 mod balls;
 mod browser;
@@ -20,9 +19,10 @@ mod geometry;
 mod gizmo;
 #[cfg(windows)]
 mod gpu;
+#[cfg(test)]
+mod guards;
 mod hotreload;
 mod ies;
-mod laser;
 mod lens;
 mod lighting;
 mod look;
@@ -40,7 +40,6 @@ mod prefs;
 mod presets;
 mod procedural;
 mod reference;
-mod remote;
 mod render;
 #[cfg(windows)]
 mod renderer;
@@ -48,6 +47,7 @@ mod scene;
 mod scenes;
 mod script;
 mod selftest;
+mod shader_entries;
 mod sky;
 mod snap;
 mod spectral_tables;
@@ -217,9 +217,6 @@ struct App {
     export: Option<video::Job>,
     /// The same on the CPU renderer, in the software view: a thread, with its own progress.
     cpu_export: Option<video::CpuExport>,
-    /// Phone remote (off by default) and when its page state was last refreshed.
-    remote: Option<remote::Remote>,
-    remote_synced: Instant,
     /// Gamepad input (interactive runs only).
     gamepad: Option<gilrs::Gilrs>,
     /// The animation's playhead (track 8).
@@ -228,12 +225,8 @@ struct App {
     physics: Option<physics::Sim>,
     /// Self-test frames 211–213: the scene to restore and the simulated time when edited.
     physics_test: Option<(Box<Settings>, f32)>,
-    /// Track 17 laser puzzle state (`Settings::puzzle`).
-    laser: laser::Laser,
     /// A running `--script` (track 19).
     script: Option<script::Script>,
-    /// Loopback capture while `settings.audio.enabled` (track 19), never headless.
-    audio: Option<audio::Audio>,
     /// The CPU renderer in the viewport: the full view (`cpu_view`) or Look → Compare's reference.
     cpu_reference: Option<reference::Live>,
     /// The software view: the viewport shows the CPU's render (`--cpu`, Menu, top bar, Render tab).
@@ -255,6 +248,53 @@ struct App {
 }
 /// Self-test: the first frame of the scene-file sweep (frames before it are scripted).
 const SCENES_FROM: u32 = 308;
+/// `Settings` fields left out of `transport_key`: display-only, or reaching the picture another
+/// way. Every field is either here or in the test list `guards::TRANSPORT_KEYED`.
+const TRANSPORT_EXCLUDED: &[&str] = &[
+    "physics",
+    "exposure",
+    // The meter and the Eyes look only change the display.
+    "auto_exposure",
+    "ev_bias",
+    "exposure_speed",
+    "meter_mode",
+    "eyes",
+    "eyes_strength",
+    "gamma",
+    "tonemap",
+    "view",
+    "lpe_slot",
+    "direct",
+    "indirect",
+    "denoise_strength",
+    "still_denoise",
+    "compare",
+    "split",
+    "vsync",
+    "hdr_mode",
+    "hdr_peak",
+    "hdr_white",
+    "hdr10",
+    "rotate",
+    "rotate_speed",
+    "halation",
+    "glare",
+    "glare_size",
+    "glare_threshold",
+    "grain",
+    "grain_size",
+    "vignette",
+    "lift",
+    "grade_gamma",
+    "gain",
+    "lut_path",
+    "lut_strength",
+    "temporal",
+    "scene_name",
+    "light_outline",
+    // Keys reach the picture through the fields they drive.
+    "animation",
+];
 fn transport_key(s: &Settings) -> String {
     // The JSON tree without objects and lights (hashed below); the caller compares fields.
     let mut j = {
@@ -272,55 +312,8 @@ fn transport_key(s: &Settings) -> String {
         top_map.insert("rr".into(), s.rr().into());
         top
     };
-    for k in [
-        "physics",
-        "puzzle",
-        // Its effect reaches the key through the scaled intensities of the frame copy.
-        "audio",
-        "exposure",
-        // The meter and the Eyes look only change the display.
-        "auto_exposure",
-        "ev_bias",
-        "exposure_speed",
-        "meter_mode",
-        "eyes",
-        "eyes_strength",
-        "gamma",
-        "tonemap",
-        "view",
-        "lpe_slot",
-        "direct",
-        "indirect",
-        "denoise_strength",
-        "still_denoise",
-        "compare",
-        "split",
-        "vsync",
-        "hdr_mode",
-        "hdr_peak",
-        "hdr_white",
-        "hdr10",
-        "rotate",
-        "rotate_speed",
-        "halation",
-        "glare",
-        "glare_size",
-        "glare_threshold",
-        "grain",
-        "grain_size",
-        "vignette",
-        "lift",
-        "grade_gamma",
-        "gain",
-        "lut_path",
-        "lut_strength",
-        "temporal",
-        "scene_name",
-        "light_outline",
-        // Keys reach the picture through the fields they drive.
-        "animation",
-    ] {
-        j.as_object_mut().unwrap().remove(k);
+    for k in TRANSPORT_EXCLUDED {
+        j.as_object_mut().unwrap().remove(*k);
     }
     // Objects and lights by a hash of their JSON, written straight to bytes: as a JSON tree
     // they cost a 1800-object forest 14 ms per edit. Names and outlines don't render.
@@ -974,15 +967,11 @@ impl App {
             turntable_cli,
             export: None,
             cpu_export: None,
-            remote: None,
-            remote_synced: Instant::now(),
             gamepad: None,
             timeline: anim::Timeline::default(),
             physics: None,
             physics_test: None,
-            laser: laser::Laser::default(),
             script,
-            audio: None,
             cpu_reference: None,
             cpu_view,
             meter_plan: Default::default(),
@@ -1016,11 +1005,6 @@ impl App {
                     console::log(&mut self.ui.console.log, line);
                 }
                 self.script = None;
-                if result.is_ok()
-                    && let Some(st) = &mut self.stats
-                {
-                    st.mark("scripter");
-                }
                 console::log(
                     &mut self.ui.console.log,
                     match &result {
@@ -1077,7 +1061,6 @@ impl App {
                 Request::Load(name) => {
                     self.ui.checkpoint_scene(&self.settings);
                     self.ui.selection = ui::Selection::Stage;
-                    self.laser = laser::Laser::default();
                     self.physics = None;
                     // A scene file, or a built-in preset by its slug (as --preset takes it).
                     match scenes::find(&name) {
@@ -1150,8 +1133,6 @@ impl App {
                     s.animation
                         .tracks
                         .retain(|t| !anim::under(&t.path, "objects"));
-                    s.puzzle.target = -1;
-                    s.puzzle.targets.clear();
                     done(Ok(()))
                 }
             };
@@ -1312,35 +1293,6 @@ impl App {
             // The self-test steps a fixed 1/60 s, so its physics checks don't depend on how
             // long a frame took.
             self.step_physics(if self.self_test { 1. / 60. } else { dt });
-            if self
-                .laser
-                .update(&self.settings, self.ui.transform.is_some())
-            {
-                let (n, par) = (self.laser.moves, self.settings.puzzle.par);
-                let best = self
-                    .ui
-                    .prefs
-                    .puzzle_best
-                    .entry(self.settings.scene_name.clone())
-                    .or_insert(n);
-                if n <= *best {
-                    *best = n;
-                    self.ui.save_prefs();
-                }
-                if let Some(st) = &mut self.stats {
-                    st.solved(&self.settings.scene_name, n <= par);
-                }
-                let moves = if n == 1 {
-                    "1 move".into()
-                } else {
-                    format!("{n} moves")
-                };
-                self.ui.toast(if n <= par {
-                    format!("Solved in {moves} (par {par})")
-                } else {
-                    format!("Solved in {moves}; par is {par}")
-                });
-            }
         }
         let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
         if let Some(path) = self.actions.save.take() {
@@ -1381,9 +1333,6 @@ impl App {
             {
                 Ok(()) => {
                     println!("SHADERS RELOADED");
-                    if let Some(st) = &mut self.stats {
-                        st.hot_reloads += 1;
-                    }
                     self.ui.toast(format!(
                         "Shaders reloaded ({} ms)",
                         started.elapsed().as_millis()
@@ -1414,15 +1363,14 @@ impl App {
                 self.ui.toast(note);
             }
         }
-        // The phone remote and gamepad edit the settings; they wait while a video renders.
+        // The gamepad edits the settings; it waits while a video renders.
         if self.export.is_none() {
-            self.remote_and_gamepad(dt);
+            self.apply_gamepad(dt);
         }
         if let Some(path) = self.ui.open_pending.take() {
             self.open_scene(&path);
         }
-        // Audio-reactive lights scale this frame's copy only (track 19).
-        // Auto-key: what walking, physics, the remote and the gamepad changed this frame is
+        // Auto-key: what walking, physics and the gamepad changed this frame is
         // not an edit; only the UI's changes before the next auto-key count.
         self.timeline
             .absorb(&self.settings, &mut self.auto_key_base);
@@ -1432,45 +1380,18 @@ impl App {
         if self.export.is_none() && self.cpu_export.is_none() {
             self.ui.land_mesh_imports(&mut self.settings);
         }
-        // Auto exposure switched off (the checkbox, AE-L, the remote, the console): the manual
+        // Auto exposure switched off (the checkbox, AE-L, the console): the manual
         // exposure starts where the meter was, so the image does not jump (E7b).
         let metered = self.gpu.as_ref().and_then(|g| g.metered);
         self.exposure_seen.seed(&mut self.settings, metered);
         let mut frame = self.settings.clone();
         frame.add_flashlight();
-        // Laser puzzle (track 17): the beam as glowing rods in this frame's copy.
-        if frame.puzzle.enabled && frame.puzzle.beam {
-            let rods = laser::beam_objects(&frame, &self.laser.segments);
-            frame.objects.extend(rods);
-        }
-        // Walk mode's body (avatar.rs), after the scene's own objects and the rods: indices of
+        // Walk mode's body (avatar.rs), after the scene's own objects: indices of
         // everything the user can select stay put, and exports render `self.settings` without it.
         if let Some(w) = &self.walking
             && self.export.is_none()
         {
             avatar::add(&mut frame, &w.stance(&self.settings));
-        }
-        if frame.audio.enabled && !self.hidden && self.export.is_none() {
-            if self.audio.is_none() {
-                match audio::Audio::start() {
-                    Ok(a) => self.audio = Some(a),
-                    Err(e) => {
-                        self.ui.error(format!("Audio capture: {e:#}"));
-                        self.settings.audio.enabled = false;
-                    }
-                }
-            }
-            if let Some(a) = &mut self.audio {
-                a.update(&frame.audio, dt);
-                audio::apply(&mut frame, a.levels, a.beat, true);
-            }
-            if let Some(Err(e)) = self.audio.as_mut().map(|a| a.recover()) {
-                self.audio = None;
-                self.settings.audio.enabled = false;
-                self.ui.error(format!("Audio capture stopped: {e:#}"));
-            }
-        } else {
-            self.audio = None;
         }
         let g = self.gpu.as_mut().unwrap();
         let s = &frame;
@@ -1610,6 +1531,8 @@ impl App {
                 }
                 let camera_moved = old != new;
                 g.reset(camera_moved);
+                // Statistics: the restarted frame's samples are new ones.
+                self.last_samples = 0;
                 self.last_key = key;
             }
             self.checked = Some(s.clone());
@@ -1617,6 +1540,7 @@ impl App {
         if self.actions.reset {
             g.reset(true);
             self.actions.reset = false;
+            self.last_samples = 0;
             // Restart means the CPU's render too, unless it is what the GPU is measured against.
             let keep_cpu = std::mem::take(&mut self.actions.keep_cpu);
             if let Some(live) = self.cpu_reference.as_mut().filter(|_| !keep_cpu) {
@@ -1819,8 +1743,8 @@ impl App {
             if step.is_err() || job_done {
                 let job = self.export.take().unwrap();
                 self.ui.video_preview = None;
-                let (out, still, width) =
-                    (job.options.output(), job.options.still, job.options.width);
+                let (out, still) = (job.options.output(), job.options.still);
+                let (job_image, job_format) = (job.options.image, job.options.format);
                 let result = unsafe { job.finish(g, s, step.is_err()) };
                 match step.and(result) {
                     Ok(text) => {
@@ -1830,12 +1754,9 @@ impl App {
                         self.ui.toast_file(text, out);
                         if let Some(st) = &mut self.stats {
                             if still {
-                                st.images_saved += 1;
-                                if width >= 7680 {
-                                    st.mark("billboard");
-                                }
+                                st.exported(job_image.label(), true);
                             } else {
-                                st.videos_exported += 1;
+                                st.exported(job_format.label(), false);
                             }
                         }
                     }
@@ -1892,14 +1813,8 @@ impl App {
         if let (Some(point), Some(p)) = (point, g.probe_result) {
             let pixel = [point[0] as f32, point[1] as f32];
             let menu = self.ui.context_menu.is_some();
-            // The puzzle's beam rods follow the objects in the GPU's ids: pick against the
-            // same list, and a rod picks nothing.
             let mut picked = self.settings.clone();
-            if picked.puzzle.enabled && picked.puzzle.beam {
-                let rods = laser::beam_objects(&picked, &self.laser.segments);
-                picked.objects.extend(rods);
-            }
-            // And the walk avatar's boxes, which the frame appends after the rods.
+            // The walk avatar's boxes, which the frame appends.
             if let Some(w) = &self.walking
                 && self.export.is_none()
             {
@@ -2047,52 +1962,42 @@ impl App {
                     .push((samples, (sum / n.max(1) as f64).sqrt() * 1000.));
             }
         }
-        // Lifetime statistics and achievements.
+        // Lifetime statistics.
         if let Some(st) = &mut self.stats {
-            if g.samples > self.last_samples {
-                st.paths += (g.samples - self.last_samples) as f64 * (g.rw * g.rh) as f64;
-            }
+            // A count below the last one means the accumulation restarted somewhere else.
+            let new_samples = if g.samples < self.last_samples {
+                g.samples
+            } else {
+                g.samples - self.last_samples
+            };
             self.last_samples = g.samples;
-            st.gpu_seconds += g.gpu_ms / 1000.;
-            st.max_samples = st.max_samples.max(g.samples);
             if PRESETS.contains(&s.scene_name.as_str()) {
                 st.presets_seen.insert(s.scene_name.clone());
             } else if self.ui.scenes.iter().any(|e| e.title == s.scene_name) {
                 st.scenes_seen.insert(s.scene_name.clone());
             }
-            let builtin: Vec<&String> = self
-                .ui
-                .scenes
-                .iter()
-                .filter(|e| {
-                    e.path
-                        .parent()
-                        .and_then(|d| d.file_name())
-                        .is_some_and(|n| n == "builtin")
-                })
-                .map(|e| &e.title)
-                .collect();
             let eye = s.camera(1.).2;
             st.observe(stats::Moment {
                 samples: g.samples,
                 seconds: dt,
+                new_samples,
+                pixels: u64::from(g.rw) * u64::from(g.rh),
+                gpu_seconds: g.gpu_ms / 1000.,
+                denoiser: if s.battle {
+                    stats::Denoise::Raw
+                } else if g.rr_active {
+                    stats::Denoise::Rr
+                } else if s.native_filter() {
+                    stats::Denoise::Native
+                } else {
+                    stats::Denoise::Raw
+                },
                 scene: &s.scene_name,
                 integrator: s.integrator,
                 battle: s.battle,
-                spectral: s.spectral,
-                real_lens: s.real_lens(),
-                hdr: g.hdr_active,
                 walking: self.walking.is_some().then_some(eye),
-                flashlight: s.flashlight,
                 physics: self.physics.is_some(),
-                audio: s.audio.enabled,
-                cpu_samples: self.cpu_reference.as_ref().map_or(0, |c| c.state().samples),
             });
-            let scenes_done =
-                !builtin.is_empty() && builtin.iter().all(|t| st.scenes_seen.contains(*t));
-            for title in st.unlock_reached(scenes_done) {
-                self.ui.toast(format!("Achievement unlocked: {title}"));
-            }
             if self.stats_saved.elapsed() > Duration::from_secs(30) {
                 st.save();
                 self.stats_saved = Instant::now();
@@ -2235,7 +2140,7 @@ impl App {
                         path,
                     );
                     if let Some(st) = &mut self.stats {
-                        st.images_saved += 1;
+                        st.exported(format.label(), true);
                     }
                 }
                 Err(e) => self.ui.error(format!("{e:#}")),
@@ -3979,8 +3884,10 @@ mod tests {
         s.integrator = 0;
         s.spp = 2;
         assert_ne!(ui::Bundle::of(&s), Some(ui::Bundle::Realtime));
-        let mut s = Settings::default();
-        s.scale = 0.8;
+        let s = Settings {
+            scale: 0.8,
+            ..Default::default()
+        };
         assert_eq!(ui::Bundle::of(&s), None);
         // Accurate writes the quality fields too, and one change by hand leaves it (for Reference, same output).
         let mut s = Settings::default();
@@ -4049,7 +3956,6 @@ mod tests {
             ("video_ui.rs", include_str!("video_ui.rs")),
             ("timeline_ui.rs", include_str!("timeline_ui.rs")),
             ("prefs.rs", include_str!("prefs.rs")),
-            ("remote.rs", include_str!("remote.rs")),
             ("presets.rs", include_str!("presets.rs")),
             ("scene.rs", include_str!("scene.rs")),
             ("browser.rs", include_str!("browser.rs")),

@@ -1,0 +1,6 @@
+## Headless runs skip acquire/present (2026-11-10)
+
+- `GpuState::headless` (set from `App::hidden`): Vulkan `present()` does not acquire or present; the blit, the GUI pass and the `keep_ui_frame` copy go to `Gpu::offscreen`, an image in the swap chain's format and size (COLOR_ATTACHMENT, TRANSFER_SRC, TRANSFER_DST; remade when either changes, freed after the previous frame's fence wait) and it is left in its last layout instead of PRESENT_SRC. Captures read the output textures or `ui_frame`, so they are the same bytes as through the swap chain. Why: on Wayland the compositor throttles presents of a hidden window to the monitor rate, flooring `frame_ms_mean` at 6.94 ms (144 Hz) even with `--no-vsync`; the lost time was in acquire/present, not the fence.
+- D3D12 (`src/gpu/frame.rs`): `Present` is skipped when `headless`; the backbuffer never leaves PRESENT, so each frame draws into the same buffer. `tools/check_windows.sh` type-checks it on Linux; running it still needs Windows (`--headless` capture identical, `--capture-ui`, self-test with no debug-layer messages). No offscreen target there, so no frame-time gain is measured.
+- Changeable default: headless is the hidden-window switch; windowed runs and the progress screen are unchanged.
+

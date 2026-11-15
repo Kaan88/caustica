@@ -1,0 +1,3 @@
+## Spot factor sign (BSDF hits)
+A spot's (or IES) emission factor is signed against the emitter's own unflipped face normal everywhere: light sampling, light tracing and emission-hit shading alike (cone out of the front face; a two-sided spot seen from behind has factor 0). BSDF-hit emission and BDPT `vertex_emission` used the viewer-facing `h.n` / `x.n`, which showed the cone from the back; they now use `h.front ? h.ng : -h.ng` (`x.n` sign-flipped by `V_FRONT`). Matches the CPU reference's `emission_cos`. In practice every light-built spot is one-sided (`lighting.rs` sets `optical.w=1` for non-sphere lights, and spot/IES exist only on flat lights), so shipped scenes are unchanged; this only matters for a future two-sided spot emitter.
+

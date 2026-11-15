@@ -25,8 +25,6 @@ pub struct Prefs {
     pub ai: crate::textscene::AiConfig,
     /// Saved text-to-scene backends, picked in the Describe a scene section (no keys).
     pub ai_profiles: Vec<crate::textscene::AiConfig>,
-    /// Laser puzzle (track 17): fewest moves per solved level, by scene name.
-    pub puzzle_best: std::collections::BTreeMap<String, u32>,
     /// File name of quick saves and high-resolution stills (`video::expand_name`).
     pub name_template: String,
     /// The old default template ("caustica", which overwrote every save) was replaced once.
@@ -123,7 +121,6 @@ impl Default for Prefs {
             hint_seen: false,
             ai: Default::default(),
             ai_profiles: Vec::new(),
-            puzzle_best: Default::default(),
             name_template: DEFAULT_NAME.into(),
             name_template_migrated: false,
             vulkan: false,
@@ -466,11 +463,24 @@ mod tests {
         assert!(!p.pin_icon_only(scenes) && p.top_pins == Prefs::default().top_pins);
     }
     #[test]
+    fn pins_of_cut_windows_are_dropped_and_the_rest_load() {
+        use crate::palette::Win;
+        // "Stats" (the old statistics and achievements window) now opens Statistics.
+        let p: Prefs = serde_json::from_str(
+            r#"{"top_pins":[{"Window":"Remote"},{"Window":"Puzzle"},{"Window":"Stats"},
+                {"pin":{"Window":"Remote"},"icon_only":true}]}"#,
+        )
+        .unwrap();
+        assert_eq!(p.pins(), [Pin::Window(Win::Statistics)]);
+    }
+    #[test]
     fn a_session_round_trips_and_a_bad_one_is_ignored() {
         let dir = std::env::temp_dir().join(format!("caustica-session-{}", std::process::id()));
         let path = dir.join("last-session.json");
-        let mut s = crate::scene::Settings::default();
-        s.exposure = 2.5;
+        let mut s = crate::scene::Settings {
+            exposure: 2.5,
+            ..Default::default()
+        };
         let file = Some((PathBuf::from("scenes/user/a.json"), "a".to_string()));
         write_session(&path, &s, &file).unwrap();
         let back = read_session(&path).unwrap();

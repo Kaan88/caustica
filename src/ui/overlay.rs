@@ -41,12 +41,6 @@ impl App {
             .with_clip_rect(super::central_rect(ctx));
         let targets = self.ui.targets();
         gizmo::draw_lights(&painter, ppp, &view, &self.settings, &targets);
-        // With "Beam in image" the rods show the beam in the render itself; the overlay line on
-        // top of them would hide what they light.
-        if self.settings.puzzle.enabled && !self.settings.puzzle.beam && self.settings.perspective()
-        {
-            self.laser.draw(&painter, ppp, &view);
-        }
         // The camera path (timeline *Camera path*), while it isn't the camera's own move.
         if self.settings.animation.camera_path
             && !self.timeline.playing
@@ -357,13 +351,6 @@ impl App {
             });
             if changed {
                 self.ui.checkpoint(&t.original);
-                // Laser puzzle (track 17): each finished transform of puzzle pieces (objects,
-                // not lights or the camera) is one move.
-                if self.settings.puzzle.enabled
-                    && t.targets.iter().all(|s| matches!(s, Selection::Object(_)))
-                {
-                    self.laser.moves += 1;
-                }
             }
             self.ui.header.clear();
         }

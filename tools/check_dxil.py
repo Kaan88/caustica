@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile every D3D12 shader entry build.rs compiles on Windows with the Linux DXC, validate with
-dxv, print a pass/fail table. The entry list and the DXC flags are parsed from build.rs (the
-`entries` array and `dxil_command`), so there is no second copy to drift.
+dxv, print a pass/fail table. The entry list is parsed from src/shader_entries.rs (the
+`ENTRIES` array build.rs includes) and the DXC flags from build.rs (`dxil_command`), so there is no second copy to drift.
 
   tools/check_dxil.py [--jobs N] [--out DIR] [--only NAME ...]
 
@@ -21,9 +21,9 @@ def strip_comments(s):
 
 
 def parse_entries(src):
-    m = re.search(r"let entries: &\[\(.*?\)\] = &\[", src, re.S)
+    m = re.search(r"pub const ENTRIES: \[\(.*?\); \d+\] = \[", src, re.S)
     if not m:
-        sys.exit("check_dxil: cannot find the entries array in build.rs")
+        sys.exit("check_dxil: cannot find ENTRIES in src/shader_entries.rs")
     body = strip_comments(src[m.end():])
     entries, depth, start = [], 0, None
     for i, ch in enumerate(body):
@@ -101,7 +101,8 @@ def main():
         if not os.path.exists(os.path.join(DXC_DIR, "bin", t)):
             sys.exit(f"check_dxil: vendor/dxc-linux/bin/{t} missing (sh tools/setup.sh)")
     src = open(os.path.join(ROOT, "build.rs")).read()
-    entries, flags = parse_entries(src), parse_flags(src)
+    table = open(os.path.join(ROOT, "src", "shader_entries.rs")).read()
+    entries, flags = parse_entries(table), parse_flags(src)
     if a.only:
         entries = [e for e in entries if e[3] in a.only]
     os.makedirs(a.out, exist_ok=True)

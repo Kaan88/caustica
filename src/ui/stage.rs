@@ -915,8 +915,10 @@ mod tests {
 
     #[test]
     fn measured_walls_grey_the_colours_and_the_physical_sky_the_sky_light() {
-        let mut s = Settings::default();
-        s.measured_room = true;
+        let mut s = Settings {
+            measured_room: true,
+            ..Default::default()
+        };
         let o = overrides(&s, false);
         assert!(o.walls.is_some() && o.base.is_some());
         assert!(o.sky_light.is_none());
@@ -932,8 +934,10 @@ mod tests {
 
     #[test]
     fn an_hdri_that_failed_to_load_overrides_nothing() {
-        let mut s = Settings::default();
-        s.hdri = "sky.hdr".into();
+        let mut s = Settings {
+            hdri: "sky.hdr".into(),
+            ..Default::default()
+        };
         assert!(overrides(&s, false).sky_light.is_some());
         assert_eq!(overrides(&s, true), Overrides::default());
         s.hdri_visible = false;
@@ -942,8 +946,10 @@ mod tests {
 
     #[test]
     fn textures_replace_the_wall_and_floor_colours() {
-        let mut s = Settings::default();
-        s.cornell_room = true;
+        let mut s = Settings {
+            cornell_room: true,
+            ..Default::default()
+        };
         s.walls.texture = "bricks.png".into();
         let o = overrides(&s, false);
         assert!(o.walls.is_some());

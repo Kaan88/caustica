@@ -1072,12 +1072,14 @@ mod tests {
             Some("Neutral")
         );
         for l in LOOKS {
-            let mut s = Settings::default();
-            s.exposure = 0.37;
-            s.glare = 1.5;
-            s.gamma = 2.0;
-            s.lut_strength = 0.4;
-            s.direct = 0.8;
+            let mut s = Settings {
+                exposure: 0.37,
+                glare: 1.5,
+                gamma: 2.0,
+                lut_strength: 0.4,
+                direct: 0.8,
+                ..Default::default()
+            };
             let before = s.clone();
             l.apply(&mut s);
             s.validate().unwrap_or_else(|e| panic!("{}: {e}", l.name));

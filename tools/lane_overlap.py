@@ -289,9 +289,9 @@ def frame_numbers(lane):
 
 
 def entries_info(lane):
-    """(hotreload ENTRIES count in the working tree, added entry lines, build.rs touched?)"""
+    """(shader_entries.rs ENTRIES count in the working tree, added entry lines, build.rs touched?)"""
     out = {}
-    f = lane.files.get("src/hotreload.rs")
+    f = lane.files.get("src/shader_entries.rs")
     if f and f["text"]:
         m = re.search(r"pub const ENTRIES:[^=]*;\s*(\d+)\]", f["text"])
         rng = block_range(f["text"].splitlines(), r"pub const ENTRIES")
@@ -407,7 +407,7 @@ def main(argv):
     st = collect_fields(hl, r"pub struct Settings\b", RUST_FIELD)
     bad += print_fields("Settings fields", st, " (each also needs validate(), UI range, transport_key, keep_output/preset())")
 
-    print("  build.rs / hotreload::ENTRIES")
+    print("  build.rs / src/shader_entries.rs ENTRIES")
     counts = {}
     for ln in lanes:
         info = entries_info(ln)
@@ -419,7 +419,7 @@ def main(argv):
             print(f"    {ln.name}: ENTRIES now {hr[0]}, added {len(hr[1])} {hr[1] if hr[1] else ''}")
         if "build.rs" in info:
             print(f"    {ln.name}: build.rs touched ({len(info['build.rs'])} entry/hlsl lines added)")
-    touchers = [ln.name for ln in lanes if "build.rs" in ln.files or "src/hotreload.rs" in ln.files]
+    touchers = [ln.name for ln in lanes if "build.rs" in ln.files or "src/shader_entries.rs" in ln.files]
     if len(touchers) > 1:
         print(f"    COLLISION: {', '.join(touchers)} all edit the shader entry list; the array length and the "
               "build.rs / ENTRIES / Shaders / reload_shaders order must be redone by hand after merging")

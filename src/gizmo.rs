@@ -1255,6 +1255,45 @@ pub fn pick(s: &Settings, pixel: [f32; 2], size: [u32; 2]) -> Option<Selection> 
     best.map(|(sel, _)| sel)
 }
 
+/// What a display-only device's probe would read back, found on the CPU: the nearest visible
+/// object's id and view depth (`pick_object_hit`), its diffuse albedo, and the software view's
+/// linear colour at the pixel (`linear`, row-major RGBA at `size`). The room's walls, floor and
+/// emissive panels aren't objects, so a click there reads as a miss.
+pub fn cpu_probe(s: &Settings, pixel: [u32; 2], size: [u32; 2], linear: Option<&[f32]>) -> Probe {
+    let at = [pixel[0] as f32 + 0.5, pixel[1] as f32 + 0.5];
+    let texel = linear
+        .filter(|_| pixel[0] < size[0] && pixel[1] < size[1])
+        .and_then(|l| {
+            let i = (pixel[1] as usize * size[0] as usize + pixel[0] as usize) * 4;
+            l.get(i..i + 4).map(|c| [c[0], c[1], c[2], c[3]])
+        })
+        .unwrap_or_default();
+    let Some((i, t)) = s.pick_object_hit(at, size) else {
+        return Probe {
+            linear: texel,
+            albedo: [0.; 4],
+            depth: 0.,
+            id: 0,
+        };
+    };
+    let view = View::new(s, size);
+    let (_, d) = view.ray(Vec2::from(at));
+    let m = &s.objects[i].material;
+    let diffuse = 1. - m.metallic.clamp(0., 1.);
+    Probe {
+        linear: texel,
+        albedo: [
+            m.color[0] * diffuse,
+            m.color[1] * diffuse,
+            m.color[2] * diffuse,
+            1.,
+        ],
+        depth: t * d.dot(view.forward()),
+        // Material ids: 0..4 are the room and the main light, objects follow (`pick_from_probe`).
+        id: i as u32 + 6,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1542,44 +1581,5 @@ mod tests {
             s.objects[0].elevation, before.objects[0].elevation,
             "Y stayed"
         );
-    }
-}
-
-/// What a display-only device's probe would read back, found on the CPU: the nearest visible
-/// object's id and view depth (`pick_object_hit`), its diffuse albedo, and the software view's
-/// linear colour at the pixel (`linear`, row-major RGBA at `size`). The room's walls, floor and
-/// emissive panels aren't objects, so a click there reads as a miss.
-pub fn cpu_probe(s: &Settings, pixel: [u32; 2], size: [u32; 2], linear: Option<&[f32]>) -> Probe {
-    let at = [pixel[0] as f32 + 0.5, pixel[1] as f32 + 0.5];
-    let texel = linear
-        .filter(|_| pixel[0] < size[0] && pixel[1] < size[1])
-        .and_then(|l| {
-            let i = (pixel[1] as usize * size[0] as usize + pixel[0] as usize) * 4;
-            l.get(i..i + 4).map(|c| [c[0], c[1], c[2], c[3]])
-        })
-        .unwrap_or_default();
-    let Some((i, t)) = s.pick_object_hit(at, size) else {
-        return Probe {
-            linear: texel,
-            albedo: [0.; 4],
-            depth: 0.,
-            id: 0,
-        };
-    };
-    let view = View::new(s, size);
-    let (_, d) = view.ray(Vec2::from(at));
-    let m = &s.objects[i].material;
-    let diffuse = 1. - m.metallic.clamp(0., 1.);
-    Probe {
-        linear: texel,
-        albedo: [
-            m.color[0] * diffuse,
-            m.color[1] * diffuse,
-            m.color[2] * diffuse,
-            1.,
-        ],
-        depth: t * d.dot(view.forward()),
-        // Material ids: 0..4 are the room and the main light, objects follow (`pick_from_probe`).
-        id: i as u32 + 6,
     }
 }

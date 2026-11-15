@@ -1468,99 +1468,6 @@ fn crowd(r: &mut Rng) -> Settings {
     s
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn every_family_is_valid_and_deterministic() {
-        for (family, _, _) in FAMILIES {
-            // Thousands of objects each: a few seeds keep the debug test fast.
-            let seeds = if ["forest", "crowd"].contains(&family) {
-                3
-            } else {
-                24
-            };
-            for seed in 0..seeds {
-                let mut s = generate(family, seed).unwrap();
-                s.validate()
-                    .unwrap_or_else(|e| panic!("{family} seed {seed}: {e:#}"));
-                assert!(!s.objects.is_empty(), "{family} seed {seed} is empty");
-                assert!(s.objects.len() <= MAX_OBJECTS);
-            }
-            let a = serde_json::to_string(&generate(family, 7).unwrap()).unwrap();
-            let b = serde_json::to_string(&generate(family, 7).unwrap()).unwrap();
-            assert_eq!(a, b, "{family} is not deterministic");
-        }
-        assert!(generate("nope", 1).is_err());
-    }
-    #[test]
-    fn the_jointed_and_cloth_playgrounds_hold_together() {
-        let run = |kind: &str, seconds: f32| {
-            let mut r = Rng::new(3);
-            let mut s0 = build_playground(base(&mut r), &mut r, kind);
-            s0.validate().unwrap_or_else(|e| panic!("{kind}: {e:#}"));
-            let mut s = s0.clone();
-            let mut sim = crate::physics::Sim::new(&s);
-            sim.run(&mut s, seconds);
-            (s0, s)
-        };
-        let centre = |o: &Object| crate::geometry::object_frame(o).0;
-        // The house of cards stands (it settles by millimetres).
-        let (a, b) = run("cards", 4.);
-        let worst = a
-            .objects
-            .iter()
-            .zip(&b.objects)
-            .map(|(x, y)| (centre(x) - centre(y)).length())
-            .fold(0., f32::max);
-        assert!(worst < 0.03, "a card moved {worst}");
-        // The chain swings down but its links stay together.
-        let (_, b) = run("chain", 2.);
-        for w in b.objects[1..].windows(2) {
-            let d = (centre(&w[0]) - centre(&w[1])).length();
-            assert!(d < 0.2, "chain links {} apart", d);
-        }
-        let weight = b.objects.last().unwrap();
-        assert!(
-            centre(weight).y < 0.5,
-            "the chain fell and hangs ({:?})",
-            centre(weight)
-        );
-        // The bridge sags between its posts and carries the ball.
-        let (a, b) = run("bridge", 2.);
-        for (x, y) in a.objects.iter().zip(&b.objects) {
-            if x.name.starts_with("Plank") {
-                let (p, q) = (centre(x), centre(y));
-                assert!((p - q).length() < 0.35, "{} moved from {p} to {q}", x.name);
-            }
-        }
-        let ball = centre(b.objects.last().unwrap());
-        assert!(ball.y > -0.8, "the ball stays on the deck ({ball})");
-        // Both cloths publish a mesh; nothing falls through the floor.
-        let (_, b) = run("cloth", 1.);
-        for o in b.objects.iter().filter(|o| o.cloth.is_some()) {
-            assert!(o.mesh.starts_with("cloth:"), "{} mesh {}", o.name, o.mesh);
-            let m = crate::mesh::of(o).unwrap();
-            let (c, r) = crate::geometry::object_frame(o);
-            let k = crate::geometry::object_scale(o);
-            let low = m
-                .iter()
-                .map(|(p, _)| (c + r * (*p * k)).y)
-                .fold(f32::MAX, f32::min);
-            assert!(low > -1.01, "{} dips to {low}", o.name);
-        }
-    }
-    #[test]
-    fn menger_level_two_fits_the_object_budget() {
-        let s = generate("menger", 1).unwrap();
-        assert!(
-            s.objects.len() <= MAX_OBJECTS && s.objects.len() > 100,
-            "{} runs",
-            s.objects.len()
-        );
-    }
-}
-
 /// A box of world size `d` (width, height, length) centred at `c`, yawed by `yaw` degrees.
 fn block(name: String, d: [f32; 3], c: [f32; 3], yaw: f32, m: Material) -> Object {
     at(
@@ -1997,4 +1904,97 @@ fn build_playground(mut s: Settings, r: &mut Rng, kind: &str) -> Settings {
         }
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn every_family_is_valid_and_deterministic() {
+        for (family, _, _) in FAMILIES {
+            // Thousands of objects each: a few seeds keep the debug test fast.
+            let seeds = if ["forest", "crowd"].contains(&family) {
+                3
+            } else {
+                24
+            };
+            for seed in 0..seeds {
+                let mut s = generate(family, seed).unwrap();
+                s.validate()
+                    .unwrap_or_else(|e| panic!("{family} seed {seed}: {e:#}"));
+                assert!(!s.objects.is_empty(), "{family} seed {seed} is empty");
+                assert!(s.objects.len() <= MAX_OBJECTS);
+            }
+            let a = serde_json::to_string(&generate(family, 7).unwrap()).unwrap();
+            let b = serde_json::to_string(&generate(family, 7).unwrap()).unwrap();
+            assert_eq!(a, b, "{family} is not deterministic");
+        }
+        assert!(generate("nope", 1).is_err());
+    }
+    #[test]
+    fn the_jointed_and_cloth_playgrounds_hold_together() {
+        let run = |kind: &str, seconds: f32| {
+            let mut r = Rng::new(3);
+            let mut s0 = build_playground(base(&mut r), &mut r, kind);
+            s0.validate().unwrap_or_else(|e| panic!("{kind}: {e:#}"));
+            let mut s = s0.clone();
+            let mut sim = crate::physics::Sim::new(&s);
+            sim.run(&mut s, seconds);
+            (s0, s)
+        };
+        let centre = |o: &Object| crate::geometry::object_frame(o).0;
+        // The house of cards stands (it settles by millimetres).
+        let (a, b) = run("cards", 4.);
+        let worst = a
+            .objects
+            .iter()
+            .zip(&b.objects)
+            .map(|(x, y)| (centre(x) - centre(y)).length())
+            .fold(0., f32::max);
+        assert!(worst < 0.03, "a card moved {worst}");
+        // The chain swings down but its links stay together.
+        let (_, b) = run("chain", 2.);
+        for w in b.objects[1..].windows(2) {
+            let d = (centre(&w[0]) - centre(&w[1])).length();
+            assert!(d < 0.2, "chain links {} apart", d);
+        }
+        let weight = b.objects.last().unwrap();
+        assert!(
+            centre(weight).y < 0.5,
+            "the chain fell and hangs ({:?})",
+            centre(weight)
+        );
+        // The bridge sags between its posts and carries the ball.
+        let (a, b) = run("bridge", 2.);
+        for (x, y) in a.objects.iter().zip(&b.objects) {
+            if x.name.starts_with("Plank") {
+                let (p, q) = (centre(x), centre(y));
+                assert!((p - q).length() < 0.35, "{} moved from {p} to {q}", x.name);
+            }
+        }
+        let ball = centre(b.objects.last().unwrap());
+        assert!(ball.y > -0.8, "the ball stays on the deck ({ball})");
+        // Both cloths publish a mesh; nothing falls through the floor.
+        let (_, b) = run("cloth", 1.);
+        for o in b.objects.iter().filter(|o| o.cloth.is_some()) {
+            assert!(o.mesh.starts_with("cloth:"), "{} mesh {}", o.name, o.mesh);
+            let m = crate::mesh::of(o).unwrap();
+            let (c, r) = crate::geometry::object_frame(o);
+            let k = crate::geometry::object_scale(o);
+            let low = m
+                .iter()
+                .map(|(p, _)| (c + r * (*p * k)).y)
+                .fold(f32::MAX, f32::min);
+            assert!(low > -1.01, "{} dips to {low}", o.name);
+        }
+    }
+    #[test]
+    fn menger_level_two_fits_the_object_budget() {
+        let s = generate("menger", 1).unwrap();
+        assert!(
+            s.objects.len() <= MAX_OBJECTS && s.objects.len() > 100,
+            "{} runs",
+            s.objects.len()
+        );
+    }
 }

@@ -68,6 +68,6 @@ mod tests {
         assert_eq!(ev_to_scale(3.), 8.);
         assert_eq!(scale_to_ev(ev_to_scale(-5.)), -5.);
         assert_eq!(scale_to_ev(0.), -64.);
-        assert!(SCOTOPIC_BELOW < MESOPIC_BELOW);
+        const _: () = assert!(SCOTOPIC_BELOW < MESOPIC_BELOW);
     }
 }
