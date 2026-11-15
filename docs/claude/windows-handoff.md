@@ -12,7 +12,7 @@ Neither links, builds `bridge/*.cpp`, or runs anything. **Rule: no Windows insta
 
 ## First session on Windows, in order
 1. `git fetch origin`, check out `main` (v0.12.0). Run `tools/setup.ps1` (fetches the SDKs, now including OIDN; see the OIDN items). The fetched `scenes/{models,hdri,textures}` and `vendor/` are not in git.
-2. Build and check as `CLAUDE.md` says (`$env:CARGO_TARGET_DIR="target/validation"`; fmt, test, clippy, build), then `--self-test --debug` (it fails on any D3D12 warning). Expect 479 frames. (2026-11-11: passed, no D3D12 warnings.)
+2. Build and check as `CLAUDE.md` says (`$env:CARGO_TARGET_DIR="target/validation"`; fmt, test, clippy, build), then `--self-test --debug` (it fails on any D3D12 warning). Expect 478 frames. (2026-11-11: passed, no D3D12 warnings.)
 3. `tools/verify.ps1` (2026-11-11: PASS). Then `tools/rr_stability.py`, twice: as it stands (exposure pinned, P = 1), and once with the exposure at 2^20 (see "Exposure").
 4. `python tools/oracle.py --exe target\validation\release\caustica.exe` (default list). Linux/Vulkan gives every scene ok, gem-display the loosest at 1.0127. Then the extra runs in "Accuracy" and "Spectral".
 5. By hand, what hidden runs can't exercise: Tab and shortcuts, typing into sliders, undo of panel edits, the restore-last-session prompt, the flashlight row, the CPU view, the Renderer menu, auto exposure while walking from a bright room into a dark one, the Realtime and Accurate presets, and the Still denoiser row.
