@@ -5,7 +5,7 @@
                            [--cpu-integrator 0|1|2|same] [--keep-filter] [--time T]
                            [--cpu-truth rows|all] [--cpu-set key=json] [--gpu-set key=json]
                            [--size 320x240] [--gpu-spp 1024] [--cpu-spp 512] [--out DIR]
-                           [--blur-frame N [--fps 24]]
+                           [--blur-frame N [--fps 24]] [--backend d3d12|vulkan]
 
 The test is statistical. d = GPU - CPU luminance per pixel; the scene structure cancels and
 what is left is the noise of both renders, so the standard error of the image mean of d is
@@ -35,7 +35,8 @@ path-traces unless --cpu-integrator says otherwise (1: BDPT; 2: photon mapping, 
 GPU's --spp as its frame, so its bias matches only with --cpu-spp equal to --gpu-spp; same: the
 GPU's --integrator; a scene file's integrator is overridden either way), and --rgb turns spectral off on both. With
 --integrator other than 0 both sides take a 1-pixel box filter unless --keep-filter. Default list:
-the scenes measured when the reference was written.
+the scenes measured when the reference was written. --backend picks the GPU side's renderer (the
+CPU side never uses one).
 """
 import argparse
 import os
@@ -115,7 +116,13 @@ def main():
     p.add_argument('--z', type=float, default=4.0)
     p.add_argument('--floor', type=float, default=0.002)
     p.add_argument('--out', default=os.path.join('captures', 'oracle'))
+    p.add_argument('--strict', action='store_true',
+                   help='a scene the CPU reference skips counts as a failure (tools/verify.ps1)')
+    p.add_argument('--backend', choices=['d3d12', 'vulkan'],
+                   help="the GPU side's renderer (default: the exe's own, D3D12 on Windows, Vulkan on Linux)")
     a = p.parse_args()
+    # A relative path fails in subprocess on Windows unless the cwd is the repo root.
+    a.exe = os.path.abspath(a.exe)
     w, h = a.size.split('x')
     os.makedirs(a.out, exist_ok=True)
     # The exposure meter and the Eyes look are display-only, but no comparison may depend on them (E7).
@@ -136,7 +143,7 @@ def main():
     cpu_extra = ['--truth', a.cpu_truth] if a.cpu_truth else []
     for kv in a.cpu_set:
         cpu_extra += ['--set', kv]
-    gpu_extra = []
+    gpu_extra = [f'--{a.backend}'] if a.backend else []
     for kv in a.gpu_set:
         gpu_extra += ['--set', kv]
     cpu_integrator = a.integrator if a.cpu_integrator == 'same' else int(a.cpu_integrator)
@@ -161,6 +168,7 @@ def main():
         if code != 0:
             why = out.strip().splitlines()[-1] if out.strip() else f'exit {code}'
             print(f'{name:28} SKIP  {why[:110]}')
+            failed += a.strict
             continue
         # The path tracer's dropped NaN/Inf samples (audit B4), summed over the CPU render.
         m = re.search(r'dropped=(\d+)', out)

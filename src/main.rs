@@ -2427,7 +2427,7 @@ impl App {
                 );
             }
             println!(
-                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3} trace_ms_mean={:.3} reconstruct_ms_mean={:.3} display_ms_mean={:.3} ui_ms_mean={:.3} {}",
+                "RENDER_OK frames={} samples={} gpu_ms={:.3} rr={} size={}x{} gpu_ms_mean={:.3} frame_ms_mean={:.3} fence_wait_ms_mean={:.3} trace_ms_mean={:.3} reconstruct_ms_mean={:.3} display_ms_mean={:.3} ui_ms_mean={:.3} backend={} {}",
                 self.rendered,
                 g.samples,
                 g.gpu_ms,
@@ -2441,6 +2441,7 @@ impl App {
                 pass_mean[1],
                 pass_mean[2],
                 pass_mean[3],
+                if g.is_vulkan() { "vulkan" } else { "d3d12" },
                 reference::display::render_ok_meter(&self.settings, g.metered)
             );
             event_loop.exit();

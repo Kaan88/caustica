@@ -30,10 +30,11 @@ import exr  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = {"raw": ["--raw"], "filter": ["--set", "temporal=false"], "temporal": []}
 BAND = (slice(60, 140), slice(250, 550))  # ceiling around the light at 800x600
+BACKEND = []  # ["--d3d12"] or ["--vulkan"] from --backend
 
 
 def render(exe, out, extra):
-    command = [str(exe), "--headless", "--width", "800", "--height", "600", "--no-rr", *extra,
+    command = [str(exe), *BACKEND, "--headless", "--width", "800", "--height", "600", "--no-rr", *extra,
                "--set", "auto_exposure=false", "--set", "eyes=false", "--capture", str(out)]
     subprocess.run(command, cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
@@ -75,8 +76,14 @@ def main():
     parser.add_argument("--static", help="Comma-separated sample counts for the still-camera check")
     parser.add_argument("--tag", action="append", required=True,
                         help="Name for this run. Repeat to also score earlier runs already in --out; the first tag is rendered.")
+    parser.add_argument("--backend", choices=["d3d12", "vulkan"], help="renderer: d3d12 or vulkan (default: the exe's own, D3D12 on Windows, Vulkan on Linux)")
     args = parser.parse_args()
     out = args.out.resolve()
+    if args.backend:
+        BACKEND[:] = [f"--{args.backend}"]
+        # Its own folder, so the cached references are that renderer's.
+        if args.out == parser.get_default("out"):
+            out = out.with_name(f"{out.name}-{args.backend}")
     out.mkdir(parents=True, exist_ok=True)
     if args.static:
         still(args.exe.resolve(), out, args.tag[0], [int(v) for v in args.static.split(",")])

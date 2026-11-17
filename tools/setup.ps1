@@ -1,4 +1,4 @@
-param([switch]$DebugBuild, [switch]$SkipBuild)
+param([switch]$DebugBuild, [switch]$SkipBuild, [switch]$VulkanLayer, [switch]$RegisterVulkanLayer, [switch]$UnregisterVulkanLayer)
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location -LiteralPath $projectRoot
@@ -111,6 +111,40 @@ function Get-Oidn([string]$version, [string]$sha256) {
     Get-ChildItem $target -Filter 'VERSION-win-*' | Remove-Item
     Set-Content -LiteralPath (Join-Path $target "VERSION-win-$version") -Value $sha256
 }
+# Vulkan SDK (LunarG), opt-in with -VulkanLayer: only for its validation layer, which
+# `--vulkan --debug` loads (the self-test's Vulkan validation runs; roadmap "D3D12 phase-out").
+# The signed installer runs silently in copy-only mode into vendor/vulkan-sdk/<version>: no
+# registry, PATH or VULKAN_SDK changes. A non-elevated run finds the layer through
+# VK_ADD_LAYER_PATH (tools/verify.ps1 sets it); an elevated loader ignores that variable, so
+# -RegisterVulkanLayer adds one value under HKLM\SOFTWARE\Khronos\Vulkan\ExplicitLayers pointing
+# at the repo's layer manifest (an explicit layer loads only when an app asks for it), and
+# -UnregisterVulkanLayer removes it. Both need an elevated shell.
+function Get-VulkanSdk([string]$version, [string]$sha256) {
+    $root = [IO.Path]::GetFullPath((Join-Path $projectRoot "vendor\vulkan-sdk\$version"))
+    if (Test-Path -LiteralPath (Join-Path $root 'Bin/VkLayer_khronos_validation.json')) { return }
+    $file = "vulkansdk-windows-X64-$version.exe"
+    $exe = Join-Path ([IO.Path]::GetTempPath()) $file
+    Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$version/windows/$file" -OutFile $exe
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
+    if ($actual -ne $sha256) { Remove-Item -LiteralPath $exe; throw "Vulkan SDK $version checksum mismatch: $actual" }
+    $p = Start-Process -FilePath $exe -ArgumentList @('--root', "`"$root`"", '--accept-licenses', '--default-answer', '--confirm-command', 'install', 'copy_only=1') -PassThru -WindowStyle Hidden
+    $p.WaitForExit()
+    Remove-Item -LiteralPath $exe
+    if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $root 'Bin/VkLayer_khronos_validation.json'))) { throw "Vulkan SDK $version install failed (exit $($p.ExitCode))" }
+}
+function Set-VulkanLayerRegistration([string]$version, [bool]$on) {
+    $key = 'HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers'
+    $manifest = (Join-Path $projectRoot "vendor\vulkan-sdk\$version\Bin\VkLayer_khronos_validation.json") -replace '/', '\'
+    if ($on) {
+        if (-not (Test-Path -LiteralPath $manifest)) { throw "No layer at ${manifest}: run with -VulkanLayer first" }
+        if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+        New-ItemProperty -Path $key -Name $manifest -Value 0 -PropertyType DWord -Force | Out-Null
+        Write-Host "Registered $manifest"
+    } elseif ((Test-Path $key) -and ((Get-Item $key).Property -contains $manifest)) {
+        Remove-ItemProperty -Path $key -Name $manifest
+        Write-Host "Unregistered $manifest"
+    }
+}
 try {
     foreach ($command in @('git','cargo')) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "$command is required. Install Rust (MSVC) and Git first." } }
     # NVIDIA DLSS 310.9.16: Ray Reconstruction and Super Resolution.
@@ -134,6 +168,11 @@ try {
     # Intel Open Image Denoise 2.5.1 (CPU device): the still-image denoiser.
     Get-Oidn '2.5.1' 'f11f91bc072a5e3a564515724cb72ab8fcfbc445c84a84c197ff9b16cc01396f'
     Get-Ffmpeg '9.0.2' '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
+    # Vulkan SDK 1.4.363.1 (LunarG; the hash is LunarG's published one), opt-in: see Get-VulkanSdk.
+    $vulkanSdk = '1.4.363.1'
+    if ($VulkanLayer) { Get-VulkanSdk $vulkanSdk 'c02932bd9a968b22d404536108adaacac908c081cd6b0113f5bfefc523dd0a6a' }
+    if ($RegisterVulkanLayer) { Set-VulkanLayerRegistration $vulkanSdk $true }
+    if ($UnregisterVulkanLayer) { Set-VulkanLayerRegistration $vulkanSdk $false }
     if (-not $SkipBuild) {
         if ($DebugBuild) { & cargo build --locked } else { & cargo build --release --locked }
         if ($LASTEXITCODE -ne 0) { throw 'Build failed. Install Visual Studio C++ Build Tools and Windows SDK (DXC), or set DXC_PATH.' }

@@ -1,6 +1,7 @@
 // The upscalers on Vulkan: NVIDIA NGX (Ray Reconstruction, DLSS Super Resolution) and Intel XeSS
 // behind a small C ABI, as ngx.cpp and xess.cpp do for D3D12. Rendering stays in Rust/HLSL;
-// images are passed as (image, view, format, width, height) and must be in GENERAL layout.
+// images are passed as (image, view, format, width, height) in GENERAL layout, except XeSS's
+// three inputs, which the Rust side moves to SHADER_READ_ONLY_OPTIMAL around xessVKExecute.
 #include <initializer_list>
 #ifdef _WIN32
 #include <windows.h>

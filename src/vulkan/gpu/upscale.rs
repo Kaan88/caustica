@@ -13,7 +13,8 @@ use ash::vk;
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
-/// An image as the bridge takes it (`VkImageRef`); GENERAL layout.
+/// An image as the bridge takes it (`VkImageRef`); GENERAL layout (XeSS's inputs are moved to
+/// SHADER_READ_ONLY_OPTIMAL around its execute, see `relayout`).
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct ImageRef {
@@ -22,6 +23,48 @@ pub(super) struct ImageRef {
     format: vk::Format,
     width: u32,
     height: u32,
+}
+
+/// Moves the images between two layouts, every earlier command before every later one. XeSS
+/// takes its inputs in SHADER_READ_ONLY_OPTIMAL (xess_vk.h; only its output in GENERAL), while
+/// everything else here keeps GENERAL: the validation layer flagged it on self-test frame 174
+/// (2026-11-17).
+#[cfg(upscalers)]
+unsafe fn relayout(
+    d: &ash::Device,
+    cmd: vk::CommandBuffer,
+    images: &[vk::Image],
+    from: vk::ImageLayout,
+    to: vk::ImageLayout,
+) {
+    let barriers: Vec<_> = images
+        .iter()
+        .map(|&image| {
+            vk::ImageMemoryBarrier2::default()
+                .src_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
+                .src_access_mask(vk::AccessFlags2::MEMORY_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
+                .dst_access_mask(vk::AccessFlags2::MEMORY_READ | vk::AccessFlags2::MEMORY_WRITE)
+                .old_layout(from)
+                .new_layout(to)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                })
+        })
+        .collect();
+    unsafe {
+        d.cmd_pipeline_barrier2(
+            cmd,
+            &vk::DependencyInfo::default().image_memory_barriers(&barriers),
+        )
+    };
 }
 
 #[cfg(upscalers)]
@@ -596,19 +639,30 @@ impl Gpu {
                     );
                     if ngx_ok(code) { 0 } else { code }
                 }
-                _ => ffi::caustica_xessvk_eval(
-                    self.up.xess,
-                    cmd,
-                    &color,
-                    &depth,
-                    &motion,
-                    &out,
-                    w,
-                    h,
-                    jitter[0],
-                    jitter[1],
-                    history_reset,
-                ),
+                _ => {
+                    let d = &self.device.device;
+                    let inputs = [color.image, depth.image, motion.image];
+                    let (general, read) = (
+                        vk::ImageLayout::GENERAL,
+                        vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                    );
+                    relayout(d, cmd, &inputs, general, read);
+                    let code = ffi::caustica_xessvk_eval(
+                        self.up.xess,
+                        cmd,
+                        &color,
+                        &depth,
+                        &motion,
+                        &out,
+                        w,
+                        h,
+                        jitter[0],
+                        jitter[1],
+                        history_reset,
+                    );
+                    relayout(d, cmd, &inputs, read, general);
+                    code
+                }
             };
             full_barrier(&self.device.device, cmd);
             self.pre_expose(c, input, true);

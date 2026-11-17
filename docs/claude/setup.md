@@ -27,6 +27,7 @@ Moved out of `CLAUDE.md` on 2026-11-02 (unchanged text). Paths are relative to t
 
 - Hardware and drivers: RTX 4070 Ti SUPER 16 GB, driver 616.64, Windows 11.
 - Toolchain: Rust 1.99.1 MSVC, DXC from Windows SDK 10.0.26100, Python 3.13 with numpy and Pillow (for `tools/rr_stability.py`).
+- Vulkan validation layer (2026-11-17): LunarG Vulkan SDK 1.4.363.1, installed copy-only by `tools/setup.ps1 -VulkanLayer` into `vendor/vulkan-sdk/1.4.363.1` (installer SHA-256 pinned, equal to LunarG's published hash; Authenticode-signed by LunarG) and registered for elevated runs with `-RegisterVulkanLayer` (testing.md). Development only: nothing from it ships, so it is not in THIRD-PARTY-NOTICES.md. The driver's loader is 1.4.357.
 
 ### Windows checks on Linux (2026-11-10)
 

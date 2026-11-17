@@ -11,7 +11,10 @@ then scores the linear HDR output against a 16,384-spp full-resolution reference
 - RMSE after a 5x5 blur (bias, smearing)
 - edge sharpness: gradient energy relative to the reference (1.0 = as sharp, <1 blurry)
 
-Usage, from native/:  python tools/upscale_quality.py --exe target/validation/release/caustica.exe
+Usage, from the repo root:  python tools/upscale_quality.py --exe target/validation/release/caustica.exe [--backend d3d12|vulkan]
+
+With --backend vulkan, FSR is skipped (it has no Vulkan path) and the default output folder is
+captures/upscale-vulkan, so each renderer keeps its own references.
 """
 import argparse
 import subprocess
@@ -35,8 +38,11 @@ CASES = {
 }
 
 
+BACKEND = []  # ["--d3d12"] or ["--vulkan"] from --backend
+
+
 def render(exe, out, extra):
-    command = [str(exe), "--preset", "0", "--headless", "--width", "1280", "--height", "720", "--scale", "0.5", *extra,
+    command = [str(exe), *BACKEND, "--preset", "0", "--headless", "--width", "1280", "--height", "720", "--scale", "0.5", *extra,
                "--set", "auto_exposure=false", "--set", "eyes=false", "--capture", str(out)]
     subprocess.run(command, cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
@@ -59,15 +65,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--exe", type=Path, default=ROOT / "target/release/caustica.exe")
     parser.add_argument("--out", type=Path, default=ROOT / "captures/upscale")
+    parser.add_argument("--backend", choices=["d3d12", "vulkan"], help="renderer: d3d12 or vulkan (default: the exe's own, D3D12 on Windows, Vulkan on Linux)")
     args = parser.parse_args()
     out = args.out.resolve()
+    if args.backend:
+        BACKEND[:] = [f"--{args.backend}"]
+        if args.out == parser.get_default("out"):
+            out = out.with_name(f"{out.name}-{args.backend}")
     out.mkdir(parents=True, exist_ok=True)
     exe = args.exe.resolve()
     references = {}
     for name, yaw in [("still", "0"), ("orbit", "14.75")]:
         path = out / f"ref_{name}.exr"
         if not path.exists():
-            subprocess.run([str(exe), "--preset", "0", "--headless", "--width", "1280", "--height", "720", "--scale", "1", "--no-rr", "--raw",
+            subprocess.run([str(exe), *BACKEND, "--preset", "0", "--headless", "--width", "1280", "--height", "720", "--scale", "1", "--no-rr", "--raw",
                             "--frames", "1024", "--spp", "16", "--samples", "16384", "--set", "sobol=false", "--set", f"yaw={yaw}",
                             "--capture", str(path)], cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         reference = exr.read(path)
@@ -77,6 +88,9 @@ def main():
         references[name] = (compressed(reference), ~rim)
     print(f"{'':26} {'still: RMSE / no light rim / blurred / sharpness':50} orbit: same")
     for case, extra in CASES.items():
+        if case == "FSR" and args.backend == "vulkan":
+            print(f"{case:26} skipped: no FSR on Vulkan")
+            continue
         line = f"{case:26}"
         for name, motion in [("still", ["--frames", "160"]), ("orbit", ["--frames", "124", "--orbit-test", "--spp", "2"])]:
             slug = case.split(" ")[0].lower() + ("_rr" if case == "DLSS RR" else "")

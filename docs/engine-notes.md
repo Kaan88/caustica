@@ -116,3 +116,4 @@ Since 2026-11-15 this file is an index: each section is its own file in `docs/no
 - [UI layout B: tool rail and inspector (2026-11-12)](notes/ui-layout-b-tool-rail-and-inspector-2026-11-12.md)
 - [UI skin: Instrument (2026-11-12)](notes/ui-skin-instrument-2026-11-12.md)
 - [Linux packages and release CI (2026-11-15)](notes/linux-packages.md)
+- [D3D12 phase-out (2026-11-17)](notes/d3d12-phase-out.md)

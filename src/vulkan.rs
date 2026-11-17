@@ -201,9 +201,13 @@ impl Device {
                 // Small types the upscalers' shaders use, where the device has them.
                 let mut has11 = vk::PhysicalDeviceVulkan11Features::default();
                 let mut has12 = vk::PhysicalDeviceVulkan12Features::default();
+                let mut has13 = vk::PhysicalDeviceVulkan13Features::default();
+                let mut has_mutable = vk::PhysicalDeviceMutableDescriptorTypeFeaturesEXT::default();
                 let mut has = vk::PhysicalDeviceFeatures2::default()
                     .push_next(&mut has11)
-                    .push_next(&mut has12);
+                    .push_next(&mut has12)
+                    .push_next(&mut has13)
+                    .push_next(&mut has_mutable);
                 instance.get_physical_device_features2(phys, &mut has);
                 let has_int16 = has.features.shader_int16;
                 let anisotropy = has.features.sampler_anisotropy != 0;
@@ -226,10 +230,24 @@ impl Device {
                     .shader_float16(has12.shader_float16 != 0)
                     .shader_int8(has12.shader_int8 != 0)
                     .storage_buffer8_bit_access(has12.storage_buffer8_bit_access != 0);
+                // XeSS's shaders declare integer dot products (DP4a) and its descriptor sets use
+                // VK_DESCRIPTOR_TYPE_MUTABLE_EXT; the validation layer flags both unless the
+                // features are on (self-test frame 174, 2026-11-17). xessVKGetRequiredDeviceFeatures
+                // can't patch a chain that sets pEnabledFeatures, so they are enabled here, where
+                // the device has them.
                 let mut f13 = vk::PhysicalDeviceVulkan13Features::default()
                     .synchronization2(true)
                     .dynamic_rendering(true)
-                    .maintenance4(true);
+                    .maintenance4(true)
+                    .shader_integer_dot_product(has13.shader_integer_dot_product != 0);
+                // The EXT name, or the VALVE one it was promoted from (same feature struct).
+                let mutable = extensions.iter().any(|&p| {
+                    let n = CStr::from_ptr(p);
+                    n == ext::mutable_descriptor_type::NAME
+                        || n == ash::valve::mutable_descriptor_type::NAME
+                }) && has_mutable.mutable_descriptor_type != 0;
+                let mut fmut = vk::PhysicalDeviceMutableDescriptorTypeFeaturesEXT::default()
+                    .mutable_descriptor_type(true);
                 let mut fas = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default()
                     .acceleration_structure(true);
                 let mut frq = vk::PhysicalDeviceRayQueryFeaturesKHR::default().ray_query(true);
@@ -254,6 +272,9 @@ impl Device {
                     .push_next(&mut f13);
                 if rt {
                     info = info.push_next(&mut fas).push_next(&mut frq);
+                }
+                if mutable {
+                    info = info.push_next(&mut fmut);
                 }
                 let device = instance
                     .create_device(phys, &info, None)

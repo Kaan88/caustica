@@ -34,8 +34,11 @@ def main():
     parser.add_argument("--exe", type=Path, default=ROOT / "target/release/caustica.exe")
     parser.add_argument("--output", type=Path, default=ROOT / "captures/rr-stability/regression")
     parser.add_argument("--before", type=Path, help="Optional existing baseline sequence for comparison")
+    parser.add_argument("--backend", choices=["d3d12", "vulkan"], help="renderer: d3d12 or vulkan (default: the exe's own, D3D12 on Windows, Vulkan on Linux)")
     args = parser.parse_args()
     output = args.output.resolve()
+    if args.backend and args.output == parser.get_default("output"):
+        output = output.with_name(f"{output.name}-{args.backend}")
     output.mkdir(parents=True, exist_ok=True)
     # Every surface is unlit, so paths end at the first hit: emissive walls
     # and black blocks with no light sampling and no Monte Carlo noise.
@@ -57,7 +60,7 @@ def main():
     settings = output / "edges.json"
     settings.write_text(json.dumps(scene), encoding="utf-8")
     sequence = output / "stationary"
-    command = [str(args.exe.resolve()), "--headless", "--frames", "96",
+    command = [str(args.exe.resolve()), *([f"--{args.backend}"] if args.backend else []), "--headless", "--frames", "96",
                "--width", "640", "--height", "480", "--require-rr", "--debug",
                "--settings", str(settings), "--capture-sequence", str(sequence)]
     subprocess.run(command, cwd=ROOT, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
