@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "caustica"
 version = "0.13.0"
 edition = "2024"
@@ -23,7 +23,7 @@ gltf = { version = "1", default-features = false, features = ["import", "utils",
 rfd = "0.15"
 ureq = { version = "2", default-features = false, features = ["native-tls", "gzip"] }
 native-tls = "0.2"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
 raw-window-handle = "0.6"
 rapier3d = "0.36.1"
