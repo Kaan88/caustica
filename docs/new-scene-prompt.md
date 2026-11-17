@@ -1,0 +1,3131 @@
+# Caustica: new-scene prompt for any LLM
+
+Paste everything below the line into a chat with any capable model (it is the exact system prompt Caustica's *Describe a scene* uses, about 28k tokens). Replace the request at the very end with your scene idea. Save the JSON reply as `something.json` in `%APPDATA%\Caustica\scenes\user\` (or open it with Ctrl+O). If the app rejects it, paste the error back to the model and ask it to fix the file.
+
+---
+
+You design scenes for Caustica, a path tracer. Reply with one scene file as JSON: {"format": 1, "title": ..., "description": ..., "tags": [...], "settings": {...}}. `settings` is the serde form of the Rust `Settings` struct below; omitted fields take their defaults, so set only what the scene needs. Every value must pass `Settings::validate()` (the ranges are in its source). Units: the Cornell room spans -1..1; the floor is at y = -1; an object's world size is size × 0.35 (× stretch on y, × scale_xz on x and z). Keep it under 200 objects. Unless asked for notes, reply with the JSON and nothing else.
+
+<material_library>
+Named materials, as `Material` JSON; use these values when a scene wants one:
+Porcelain: {"color":[0.88,0.87,0.83],"roughness":0.2,"metallic":0.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Chrome: {"color":[0.92,0.94,0.97],"roughness":0.035,"metallic":1.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Gold: {"color":[1.0,0.71,0.29],"roughness":0.18,"metallic":1.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Copper: {"color":[0.95,0.47,0.26],"roughness":0.25,"metallic":1.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Clear glass: {"color":[0.96,0.99,1.0],"roughness":0.0,"metallic":0.0,"reflectivity":0.05,"transmission":1.0,"ior":1.52,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Frosted glass: {"color":[0.78,0.92,0.89],"roughness":0.19,"metallic":0.0,"reflectivity":0.05,"transmission":1.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Jade: {"color":[0.09,0.46,0.25],"roughness":0.15,"metallic":0.0,"reflectivity":0.15,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Red rubber: {"color":[0.68,0.025,0.018],"roughness":0.9,"metallic":0.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Blue lacquer: {"color":[0.025,0.17,0.65],"roughness":0.12,"metallic":0.0,"reflectivity":0.2,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Marble: {"color":[0.85,0.84,0.79],"roughness":0.25,"metallic":0.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":0.0,"pattern":"marble","secondary_color":[0.05,0.07,0.1],"pattern_scale":5.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Warm emitter: {"color":[1.0,0.32,0.08],"roughness":0.4,"metallic":0.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":8.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+Cool emitter: {"color":[0.08,0.5,1.0],"roughness":0.4,"metallic":0.0,"reflectivity":0.05,"transmission":0.0,"ior":1.5,"emission":8.0,"pattern":"solid","secondary_color":[0.04,0.04,0.04],"pattern_scale":3.0,"unlit":false,"textures":true,"texture":"","texture_scale":0.5}
+</material_library>
+
+<generators>
+Procedural families. A new scene may instead be {"format": 1, "title": ..., "generator": {"family": id, "seed": number}}, which builds that family (no other settings apply); each seed gives a different variant:
+still-life (Studio still life): 3–12 objects from the shapes and material library, with a key, fill and rim light
+material-grid (Material grid): One shape in a grid that sweeps two material parameters
+city (City blocks): Towers on a street grid, by day or by night
+temple (Temple): A colonnade on steps with an entablature
+stairs (Stairs): Straight, L, U or spiral stairs
+stacking (Stacking): A cairn, a Jenga tower, a house of cards or a sphere pyramid
+menger (Menger sponge): Level 2, built from merged runs of cubes
+sierpinski (Sierpinski tetrahedron): A recursive pyramid of tetrahedra
+sphereflake (Sphereflake): Haines' recursive spheres, level 2
+kaleidoscope (Kaleidoscope): A random motif repeated around a centre
+truchet (Truchet maze): Diagonal tiles in random orientations (10 PRINT)
+mandelbulb (Mandelbulb): The 3D Mandelbrot set (power 5–9) as a mesh, in metal, glass or lacquer
+terrain (Terrain island): A noise heightfield island in sand, grass, rock and snow, with a sea
+deep-menger (Deep Menger sponge): A level 3 or 4 Menger sponge as one mesh
+tree (Trees): A grove of branching trees (an L-system), in summer or autumn
+forest (Forest): Hundreds of trees from a few shared meshes: instancing past the old 256-object cap
+crowd (Crowd): Up to 3000 copies of one shape in a field, each with its own colour
+physics (Physics playground): Dominoes, a brick wall, a block pyramid, a Jenga tower or a ball pit, with the simulation on
+</generators>
+
+<scene_rs>
+use glam::{Mat4, Vec3};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Material {
+    pub color: [f32; 3],
+    pub roughness: f32,
+    pub metallic: f32,
+    pub reflectivity: f32,
+    pub transmission: f32,
+    pub ior: f32,
+    pub emission: f32,
+    pub pattern: Pattern,
+    pub secondary_color: [f32; 3],
+    pub pattern_scale: f32,
+    pub unlit: bool,
+    /// Use the mesh's texture maps (core track 5). The colour, roughness and metallic values
+    /// are then the map averages, so the maps are scaled by value / average: editing a value
+    /// tints the map, and switching maps off shows the averages.
+    pub textures: bool,
+    /// A texture set (core track 5, `texture.rs`): an image, or a folder of maps such as an
+    /// ambientCG download. Box-mapped, so it works on shapes, meshes, the floor and the walls.
+    /// Empty = none.
+    pub texture: String,
+    /// Repeats of the texture set per scene unit (the Cornell box is 2 wide), or per UV unit
+    /// with `texture_uv`.
+    pub texture_scale: f32,
+    /// Map the texture set by the mesh's own UVs instead of box mapping (a fabric following a
+    /// garment's seams). Objects without UVs (the built-in shapes read 0) show one texel of it;
+    /// the floor and the walls always box-map.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub texture_uv: bool,
+    /// Nested dielectrics (track 10): where transmissive objects overlap, the higher priority
+    /// owns the overlap (glass 2 over the water 1 that reaches into its wall). 0–7 (3 bits
+    /// of the shader's medium stack).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub priority: u32,
+    /// Layers (track 11, as glTF's KHR_materials_clearcoat and _sheen): a clear coat (IOR 1.5)
+    /// over everything, strength 0–1, with its own roughness.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub clearcoat: f32,
+    #[serde(skip_serializing_if = "is_default_coat_roughness")]
+    pub clearcoat_roughness: f32,
+    /// A sheen (velvet, cloth, dust) over the base: strength 0–1 times a colour, with its own
+    /// roughness (a wide rim at 1, a thin grazing one near 0).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub sheen: f32,
+    #[serde(skip_serializing_if = "is_white")]
+    pub sheen_color: [f32; 3],
+    #[serde(skip_serializing_if = "is_default_sheen_roughness")]
+    pub sheen_roughness: f32,
+    /// Anisotropy (track 11, brushed metal): 0–1 raises the roughness across the brushing
+    /// direction (glTF's KHR_materials_anisotropy strength), so highlights streak across it.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub anisotropy: f32,
+    /// The brushing direction in degrees about the normal (−180..180), from the object's x axis.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub anisotropy_rotation: f32,
+    /// Brushed in circles around the object's y axis (a pan, a watch dial, a record) instead.
+    #[serde(skip_serializing_if = "is_false")]
+    pub anisotropy_spun: bool,
+    /// Beam splitter (track 17): a thin partial mirror. A ray reflects with probability
+    /// `reflectivity` and otherwise passes straight through; both are tinted by `color`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub splitter: bool,
+    /// Thin-film interference (track 11, glTF's KHR_materials_iridescence): a film 0–1 strong
+    /// on the surface (soap, oil, anodized titanium) whose reflections take colours from its
+    /// thickness (nanometres, 0–2000) and index of refraction (1–2.5).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub iridescence: f32,
+    #[serde(skip_serializing_if = "is_default_film_thickness")]
+    pub iridescence_thickness: f32,
+    #[serde(skip_serializing_if = "is_default_film_ior")]
+    pub iridescence_ior: f32,
+    /// Diffraction grating (track 11, a CD or DVD): the share 0–1 of the specular reflection
+    /// spread into the first and second spectral orders across the grooves, which run along the
+    /// brush direction (`anisotropy_rotation`, `anisotropy_spun`); spacing in µm (0.3–10).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub grating: f32,
+    #[serde(skip_serializing_if = "is_default_grating_spacing")]
+    pub grating_spacing: f32,
+    /// Volume (track 12): a transmissive object filled with a scattering medium (smoke, milk,
+    /// jade). `density` is the extinction per unit length (0 = clear), `scatter_color` the
+    /// single-scattering albedo, `phase` the Henyey-Greenstein g (−0.9 back, 0.9 forward).
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub density: f32,
+    #[serde(skip_serializing_if = "is_white")]
+    pub scatter_color: [f32; 3],
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub phase: f32,
+    /// Dispersion of a transmissive material, as its Abbe number (0 = none; crown glass 60,
+    /// flint 30, diamond 55 at a high IOR). Only the spectral tracer bends wavelengths apart.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub dispersion: f32,
+    /// Emission as a blackbody at this many kelvin (0 = the colour sets it): the colour follows
+    /// Planck's law, and the spectral tracer emits the exact spectrum.
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub temperature: f32,
+    /// A measured spectrum (`spectrum::MEASURED_NAMES`; 0 = none): replaces the colour, exactly in
+    /// the spectral tracer and as its RGB under D65 otherwise.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub spectrum: u32,
+    /// The medium's extinction per channel relative to `density` (white = grey). Blue above red
+    /// scatters blue out of a beam, as skimmed milk or opal glass does (the beam turns orange).
+    #[serde(skip_serializing_if = "is_white")]
+    pub extinction: [f32; 3],
+}
+/// Global fog (track 12): a homogeneous medium filling a box from the floor (y = −1) up to
+/// `height`, `extent` units out from the centre on x and z.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Fog {
+    pub density: f32,
+    pub color: [f32; 3],
+    pub phase: f32,
+    pub height: f32,
+    pub extent: f32,
+    /// Extinction per channel relative to `density` (white = grey; see `Material::extinction`).
+    #[serde(skip_serializing_if = "is_white")]
+    pub extinction: [f32; 3],
+    /// Equiangular sampling toward local lights (Kulla and Fajardo 2012), MIS'd with free
+    /// flight: less noise in beams per sample, at about 1.5× the trace time in fog (opt in).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub equiangular: bool,
+    /// Heterogeneous fog: the density varies as 1 + noise × (2 fBm − 1), clamped at 0 (0 =
+    /// uniform). Sampled by delta / spectral tracking and ratio tracking against the majorant.
+    pub noise: f32,
+    /// The noise's feature size in world units.
+    pub noise_size: f32,
+}
+impl Default for Fog {
+    fn default() -> Self {
+        Self {
+            density: 0.,
+            color: [1.; 3],
+            phase: 0.,
+            height: 3.,
+            extent: 6.,
+            extinction: [1.; 3],
+            equiangular: false,
+            noise: 0.,
+            noise_size: 1.,
+        }
+    }
+}
+impl Fog {
+    pub fn is_default(&self) -> bool {
+        self.density == 0.
+    }
+}
+fn no() -> bool {
+    false
+}
+/// Manual exposure range, in stops: 2^-8 (bright noon, ND-filtered) to 2^30 (a moonless night).
+/// Zero (black) stays valid.
+pub const EXPOSURE_EV_MIN: f32 = -8.;
+pub const EXPOSURE_EV_MAX: f32 = 30.;
+pub const EXPOSURE_MAX: f32 = (1u32 << 30) as f32;
+/// Exposure compensation range, in stops either way.
+pub const EV_BIAS_MAX: f32 = 16.;
+
+/// What the exposure meter reads.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MeterMode {
+    /// The log-average luminance, weighted toward the frame centre.
+    #[default]
+    CentreWeighted,
+    /// A small disc at the centre.
+    Spot,
+    /// A percentile of the luminance histogram (extremes ignored).
+    Histogram,
+}
+impl MeterMode {
+    pub const ALL: [MeterMode; 3] = [
+        MeterMode::CentreWeighted,
+        MeterMode::Spot,
+        MeterMode::Histogram,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            MeterMode::CentreWeighted => "Centre-weighted",
+            MeterMode::Spot => "Spot",
+            MeterMode::Histogram => "Histogram",
+        }
+    }
+}
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+fn is_zero(v: &u32) -> bool {
+    *v == 0
+}
+fn one() -> f32 {
+    1.
+}
+fn is_one(v: &f32) -> bool {
+    *v == 1.
+}
+fn is_zero_f32(v: &f32) -> bool {
+    *v == 0.
+}
+fn is_white(v: &[f32; 3]) -> bool {
+    *v == [1.; 3]
+}
+fn is_default_coat_roughness(v: &f32) -> bool {
+    *v == Material::default().clearcoat_roughness
+}
+fn is_default_sheen_roughness(v: &f32) -> bool {
+    *v == Material::default().sheen_roughness
+}
+fn is_default_film_thickness(v: &f32) -> bool {
+    *v == Material::default().iridescence_thickness
+}
+fn is_default_film_ior(v: &f32) -> bool {
+    *v == Material::default().iridescence_ior
+}
+fn is_default_grating_spacing(v: &f32) -> bool {
+    *v == Material::default().grating_spacing
+}
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            color: [0.72, 0.70, 0.66],
+            roughness: 0.55,
+            metallic: 0.,
+            reflectivity: 0.05,
+            transmission: 0.,
+            ior: 1.5,
+            emission: 0.,
+            pattern: Pattern::Solid,
+            secondary_color: [0.04; 3],
+            pattern_scale: 3.,
+            unlit: false,
+            textures: true,
+            texture: String::new(),
+            texture_scale: 0.5,
+            texture_uv: false,
+            priority: 0,
+            clearcoat: 0.,
+            clearcoat_roughness: 0.03,
+            sheen: 0.,
+            sheen_color: [1.; 3],
+            sheen_roughness: 0.5,
+            anisotropy: 0.,
+            anisotropy_rotation: 0.,
+            anisotropy_spun: false,
+            splitter: false,
+            iridescence: 0.,
+            iridescence_thickness: 400.,
+            iridescence_ior: 1.3,
+            grating: 0.,
+            grating_spacing: 1.6,
+            density: 0.,
+            scatter_color: [1.; 3],
+            phase: 0.,
+            dispersion: 0.,
+            temperature: 0.,
+            spectrum: 0,
+            extinction: [1.; 3],
+        }
+    }
+}
+/// Objects are TLAS instances of shared mesh BLASes (core track 4), so the limit is about UI
+/// and settings size, not the BLAS.
+pub const MAX_OBJECTS: usize = 4096;
+pub const MAX_LIGHTS: usize = 32;
+/// DLSS Super Resolution presets offered by SDK 310.9.16 (`NVSDK_NGX_DLSS_Hint_Render_Preset`).
+/// A–D are removed, E/F deprecated, and G–I, N, O revert to the default.
+/// Pixel reconstruction filters of the progressive path (`Settings::pixel_filter`).
+pub const PIXEL_FILTERS: [&str; 3] = ["Box", "Gaussian", "Blackman-Harris"];
+pub const DLSS_PRESETS: [(u32, &str); 5] = [
+    (0, "NVIDIA default"),
+    (10, "J · transformer, less ghosting"),
+    (11, "K · transformer, best quality"),
+    (12, "L · ultra performance"),
+    (13, "M · performance"),
+];
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Shape {
+    #[default]
+    Box,
+    Sphere,
+    Cylinder,
+    Cone,
+    Torus,
+    Knot,
+    Teapot,
+    Bunny,
+    Octahedron,
+    Pawn,
+    Ring,
+    Tetrahedron,
+    /// Optics bench (track 17): a biconvex lens, its axis along local z, standing on its rim.
+    ConvexLens,
+    /// A biconcave lens, axis along local z.
+    ConcaveLens,
+    /// An equilateral triangular prism, extruded along local z, apex up.
+    Prism,
+}
+impl Shape {
+    pub const ALL: [Self; 15] = [
+        Self::Box,
+        Self::Sphere,
+        Self::Cylinder,
+        Self::Cone,
+        Self::Torus,
+        Self::Knot,
+        Self::Teapot,
+        Self::Bunny,
+        Self::Octahedron,
+        Self::Pawn,
+        Self::Ring,
+        Self::Tetrahedron,
+        Self::ConvexLens,
+        Self::ConcaveLens,
+        Self::Prism,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Box => "Box",
+            Self::Sphere => "Sphere",
+            Self::Cylinder => "Cylinder",
+            Self::Cone => "Cone",
+            Self::Torus => "Torus",
+            Self::Knot => "Trefoil knot",
+            Self::Teapot => "Utah teapot",
+            Self::Bunny => "Stanford bunny",
+            Self::Octahedron => "Octahedron",
+            Self::Pawn => "Chess pawn",
+            Self::Ring => "Thin ring",
+            Self::Tetrahedron => "Tetrahedron",
+            Self::ConvexLens => "Convex lens",
+            Self::ConcaveLens => "Concave lens",
+            Self::Prism => "Prism",
+        }
+    }
+}
+/// What an extra light is (track 7). The flat kinds face their local −Y, as the rectangle does.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LightKind {
+    /// A rectangle of `size`, sampled by area.
+    #[default]
+    Rect,
+    /// An ellipse inscribed in `size`.
+    Disk,
+    /// A sphere of diameter `size[0]`, sampled by the solid angle it covers.
+    Sphere,
+    /// A disk whose emission falls off outside a cone (`spread`, `blend`).
+    Spot,
+    /// A distant disk of angular diameter `angle`, sampled by direction; position only places
+    /// its handle.
+    Sun,
+}
+impl LightKind {
+    pub const ALL: [Self; 5] = [Self::Rect, Self::Disk, Self::Sphere, Self::Spot, Self::Sun];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Rect => "Rectangle",
+            Self::Disk => "Disk",
+            Self::Sphere => "Sphere",
+            Self::Spot => "Spot",
+            Self::Sun => "Sun",
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Pattern {
+    #[default]
+    Solid,
+    Checker,
+    Stripes,
+    Marble,
+}
+/// Which denoiser cleans the image. `Rr` is NVIDIA's neural denoiser and upscaler in one; when it
+/// cannot run (no NGX, a real lens, a failed start) the native filter takes over, as `Native`
+/// would. Room for more (OIDN, NRD): add a variant, its label and its `Capabilities::denoiser`.
+/// Scene and prefs files written before 0.12 carry the two bools `rr` and `denoise`; `Settings`
+/// folds them into this choice on `validate` (`from_legacy`).
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Denoiser {
+    /// Raw samples.
+    Off,
+    /// The SVGF-style filter (post.hlsl), with the à-trous passes.
+    Native,
+    #[default]
+    Rr,
+}
+impl Denoiser {
+    pub const ALL: [Self; 3] = [Self::Rr, Self::Native, Self::Off];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Off => "None (raw samples)",
+            Self::Native => "Native (SVGF-style)",
+            Self::Rr => "NVIDIA DLSS Ray Reconstruction",
+        }
+    }
+    /// The choice the old pair of bools made: RR whenever it was asked for, else the native
+    /// filter if it was on. (`rr` with `denoise` off used to fall back to raw samples when RR
+    /// could not run; it now falls back to the native filter.)
+    pub fn from_legacy(rr: bool, denoise: bool) -> Self {
+        if rr {
+            Self::Rr
+        } else if denoise {
+            Self::Native
+        } else {
+            Self::Off
+        }
+    }
+    /// `--set rr=…` / `--rr` / `--no-rr`: true picks RR; false leaves RR for the native filter
+    /// and keeps Native or Off as they are.
+    pub fn with_rr(self, rr: bool) -> Self {
+        match (rr, self) {
+            (true, _) => Self::Rr,
+            (false, Self::Rr) => Self::Native,
+            (false, d) => d,
+        }
+    }
+    /// `--set denoise=…` / `--raw`: false picks raw samples; true turns Off into Native and
+    /// leaves RR alone.
+    pub fn with_native(self, on: bool) -> Self {
+        match (on, self) {
+            (false, _) => Self::Off,
+            (true, Self::Off) => Self::Native,
+            (true, d) => d,
+        }
+    }
+    /// Applies a legacy bool key (`rr`, `denoise`); false when `key` is neither.
+    pub fn set_legacy(&mut self, key: &str, value: bool) -> bool {
+        match key {
+            "rr" => *self = self.with_rr(value),
+            "denoise" => *self = self.with_native(value),
+            _ => return false,
+        }
+        true
+    }
+}
+/// How the native renderer reaches output resolution when Ray Reconstruction is off and the
+/// render scale is below 1. The temporal upscalers fall back to bicubic when unavailable.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Upscaler {
+    Bilinear,
+    Bicubic,
+    #[default]
+    Dlss,
+    Fsr,
+    Xess,
+}
+impl Upscaler {
+    pub const ALL: [Self; 5] = [
+        Self::Dlss,
+        Self::Fsr,
+        Self::Xess,
+        Self::Bicubic,
+        Self::Bilinear,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Bilinear => "Bilinear",
+            Self::Bicubic => "Bicubic (Catmull-Rom)",
+            Self::Dlss => "NVIDIA DLSS Super Resolution",
+            Self::Fsr => "AMD FSR",
+            Self::Xess => "Intel XeSS",
+        }
+    }
+    pub fn temporal(self) -> bool {
+        matches!(self, Self::Dlss | Self::Fsr | Self::Xess)
+    }
+}
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct AreaLight {
+    pub name: String,
+    pub position: [f32; 3],
+    pub rotation: [f32; 3],
+    pub size: [f32; 2],
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub enabled: bool,
+    pub visible: bool,
+    /// Draw the light's rectangle over the viewport (for grabbing it); the selected light
+    /// always shows it. Display only.
+    pub outline: bool,
+    pub kind: LightKind,
+    /// Spot: full cone angle in degrees.
+    pub spread: f32,
+    /// Spot: share of the cone over which the edge fades (0 hard, 1 from the axis).
+    pub blend: f32,
+    /// Sun: angular diameter in degrees (the real sun is 0.53).
+    pub angle: f32,
+    /// The light's own panel blocks shadow rays (physical). Off: other lights shine through it
+    /// (a studio rim light that shouldn't shadow the sun); bounce rays still see it.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub shadows: bool,
+    /// Track 19 audio: what this light follows (0 automatic: band i mod 3; 1 bass, 2 mid,
+    /// 3 treble, 4 beats, 5 nothing).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub audio_band: u32,
+    /// Colour as a blackbody at this many kelvin (0 = `color`); exact in the spectral tracer.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub temperature: f32,
+    /// An IES profile (LM-63 file, relative to `scenes/` like mesh paths; empty = none) shaping a
+    /// rectangle or disk light's intensity by the angle from its normal (`ies::parse`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ies: String,
+}
+/// An extinction tint: each channel in 0–1 and one of them positive.
+fn extinction_ok(c: [f32; 3]) -> bool {
+    c.iter().all(|v| (0. ..=1.).contains(v)) && c.iter().any(|&v| v > 0.)
+}
+fn yes() -> bool {
+    true
+}
+fn is_true(b: &bool) -> bool {
+    *b
+}
+impl AreaLight {
+    /// The direction the light faces (a sun's light travels along it).
+    pub fn direction(&self) -> glam::Vec3 {
+        let r = glam::Mat3::from_euler(
+            glam::EulerRot::YXZ,
+            self.rotation[1].to_radians(),
+            self.rotation[0].to_radians(),
+            self.rotation[2].to_radians(),
+        );
+        r * -glam::Vec3::Y
+    }
+    /// Emitted radiance per unit colour. A rectangle's intensity is its radiance; disks, spots
+    /// and spheres shine as a 1 × 1 rectangle of that intensity seen face on, whatever their
+    /// size; a sun of intensity 1 lights a white surface facing it to 1.
+    pub fn radiance(&self) -> f32 {
+        let pi = std::f32::consts::PI;
+        match self.kind {
+            LightKind::Rect => self.intensity,
+            LightKind::Disk | LightKind::Spot => {
+                self.intensity / (pi * 0.25 * self.size[0] * self.size[1])
+            }
+            LightKind::Sphere => self.intensity / (pi * 0.25 * self.size[0] * self.size[0]),
+            LightKind::Sun => {
+                let s = (self.angle * 0.5).to_radians().sin();
+                self.intensity / (s * s)
+            }
+        }
+    }
+    /// Spot: cosines of the cone's outer and inner half angles.
+    pub fn cone(&self) -> (f32, f32) {
+        let outer = (self.spread * 0.5).to_radians();
+        // A hard edge still needs inner > outer for smoothstep.
+        let inner = (outer * (1. - self.blend)).cos().max(outer.cos() + 1e-5);
+        (outer.cos(), inner)
+    }
+}
+impl Default for AreaLight {
+    fn default() -> Self {
+        Self {
+            name: "Softbox".into(),
+            position: [0., 3., 0.],
+            rotation: [0.; 3],
+            size: [2., 2.],
+            color: [1.; 3],
+            intensity: 12.,
+            enabled: true,
+            visible: true,
+            outline: false,
+            kind: LightKind::Rect,
+            spread: 60.,
+            blend: 0.25,
+            angle: 0.53,
+            shadows: true,
+            audio_band: 0,
+            temperature: 0.,
+            ies: String::new(),
+        }
+    }
+}
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Object {
+    pub name: String,
+    pub shape: Shape,
+    pub sphere: bool,
+    pub visible: bool,
+    pub position: [f32; 2],
+    pub size: f32,
+    pub stretch: f32,
+    pub rotation: f32,
+    pub tilt: [f32; 2],
+    pub scale_xz: [f32; 2],
+    pub elevation: f32,
+    pub grounded: bool,
+    pub material: Material,
+    /// Index of the paired portal object (roadmap 5d), -1 for none. Rays that hit this object
+    /// continue from the matching point of the pair.
+    pub portal: i32,
+    /// An imported mesh file (OBJ, glTF, GLB) used instead of `shape`; relative paths are
+    /// relative to the scenes folder. Empty for built-in shapes.
+    pub mesh: String,
+    /// Track 13: rendered as an exact procedural surface instead of a mesh (`shape` is then
+    /// ignored; `kind()` gives the proxy mesh used for picking, framing and grounding).
+    #[serde(skip_serializing_if = "Sdf::is_none")]
+    pub sdf: Sdf,
+    /// Animation phase of a procedural surface (metaballs: blob positions); keyframe it.
+    /// Always serialized: keyframes and the I key find fields in the scene's JSON.
+    #[serde(default)]
+    pub phase: f32,
+    /// A procedural surface's parameter (0 = its default): the torus's tube radius (0.28; the
+    /// ring radius is 1 − it), the Mandelbulb's power (8), the Menger sponge's levels (5).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub detail: f32,
+    /// Track 17 physics: how the sandbox simulates this object.
+    #[serde(skip_serializing_if = "Body::is_dynamic")]
+    pub body: Body,
+    /// Track 17: density multiplier of the body (1: water-like default).
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub mass: f32,
+    /// Track 17 laser puzzle: the gizmo can't move it (walls, the target, fixed parts).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
+    /// Track 17 physics: this object is a string (a cylinder) from the fixed point `from` to
+    /// the centre of object `object`. The simulation redraws it every step, and the strings
+    /// pointing at a body become its joint (one: a ball joint, two or more: a hinge through
+    /// the first two points). Strings have no collider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tether: Option<Tether>,
+    /// Track 17 physics: ball joints from this body to other bodies, each at a world point
+    /// (taken as body-local anchors when the simulation starts). Chain links, rope segments
+    /// and bridge planks hang from each other this way.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<Link>,
+    /// Track 17 physics: this object is a cloth (a particle grid over the object's local x-z
+    /// square, simulated by `physics::Cloth`, drawn as its mesh). Never a rigid body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloth: Option<Cloth>,
+    /// The texture maps of another mesh part (`file.gltf#part`) for an object without its own
+    /// UV-mapped file: a cloth showing a model's fabric (sponza-cloth's curtains). Used with
+    /// `material.textures`, like a mesh's own maps. Empty = none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub maps_from: String,
+    /// Invisible to camera rays (the first bounce and the denoiser's guide), still seen by
+    /// reflections and refractions and still casting shadows: the material's hidden flag, the
+    /// same one a light's "Visible to camera" switches. The walk avatar's head uses it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub camera_hidden: bool,
+    /// Blocks shadow rays (the default). Off: lights shine through it, while camera rays and
+    /// reflections still see it: the light's "Casts shadows" switch (flag 8192, MASK_NO_SHADOW).
+    /// The avatar's head is off, or it would shade the body its camera looks down on.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub casts_shadows: bool,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Link {
+    pub object: u32,
+    pub at: [f32; 3],
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ClothPin {
+    /// Falls freely (drapes over what is below).
+    #[default]
+    None,
+    /// The two corners of the far edge (-z) hang from where they start.
+    Corners,
+    /// The whole far edge (a curtain or flag).
+    Edge,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Cloth {
+    /// Particles per side (4–48).
+    pub resolution: u32,
+    pub pin: ClothPin,
+    /// Bending stiffness 0–1 (0 silk, 1 stiff canvas).
+    pub stiffness: f32,
+    /// Texture coordinates of the grid: u0, v0 at the first corner of the pinned (−z) edge,
+    /// u1, v1 at the opposite corner (u along the edge, v away from it), for `maps_from`.
+    pub uv: [f32; 4],
+    /// Total mass in kg (0.01–100): what a dynamic body the cloth touches feels.
+    pub mass: f32,
+    /// Folds push apart instead of passing through each other.
+    pub self_collision: bool,
+}
+impl Default for Cloth {
+    fn default() -> Self {
+        Self {
+            resolution: 24,
+            pin: ClothPin::None,
+            stiffness: 0.2,
+            uv: [0., 0., 1., 1.],
+            mass: 0.5,
+            self_collision: true,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Body {
+    /// Falls, collides and can be thrown.
+    #[default]
+    Dynamic,
+    /// Collides but never moves (a frame, a table, a wall).
+    Fixed,
+    /// Not simulated at all (no collider).
+    None,
+}
+impl Body {
+    pub fn is_dynamic(&self) -> bool {
+        *self == Self::Dynamic
+    }
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Tether {
+    pub object: u32,
+    pub from: [f32; 3],
+}
+/// Track 17 physics sandbox. `enabled` runs the simulation; a scene file that sets it opens
+/// with the bodies live (stacks settle, then sleep until something touches them).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Physics {
+    pub enabled: bool,
+    /// Downward acceleration in scene units/s² (negative pulls up).
+    pub gravity: f32,
+    /// Simulation speed (1 = real time, below 1 is slow motion, 0 pauses).
+    pub speed: f32,
+    /// Restitution of every body.
+    pub bounce: f32,
+    pub friction: f32,
+    /// The direction gravity pulls (normalized when used; default straight down).
+    pub down: [f32; 3],
+    /// Wind as an acceleration, scene units/s² (every dynamic body, by its mass).
+    pub wind: [f32; 3],
+    /// Gust strength, 0 (steady) to 1 (the wind drops to nothing and doubles).
+    pub gusts: f32,
+}
+impl Default for Physics {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            gravity: 9.81,
+            speed: 1.,
+            bounce: 0.15,
+            friction: 0.7,
+            down: [0., -1., 0.],
+            wind: [0.; 3],
+            gusts: 0.,
+        }
+    }
+}
+impl Physics {
+    pub fn is_off(&self) -> bool {
+        *self == Self::default()
+    }
+}
+/// Track 19 audio-reactive lights: what the PC plays scales the lights and emitters of each
+/// rendered frame (see audio.rs). The scene's own intensities are never changed.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct AudioReact {
+    pub enabled: bool,
+    /// Added intensity at full level (×, on top of `floor`).
+    pub gain: f32,
+    /// Intensity at silence (×).
+    pub floor: f32,
+    /// How much of the last level each frame keeps (at 60 fps), 0 = none.
+    pub smoothing: f32,
+    /// How far each light's colour moves toward its band's colour at full level (bass red,
+    /// mid green, treble blue, beats white), 0–1.
+    #[serde(default)]
+    pub color_shift: f32,
+}
+impl Default for AudioReact {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            gain: 1.5,
+            floor: 0.3,
+            smoothing: 0.6,
+            color_shift: 0.,
+        }
+    }
+}
+impl AudioReact {
+    pub fn is_off(&self) -> bool {
+        *self == Self::default()
+    }
+}
+/// How the flashlight is built and carried (Scene tab: its outliner row opens these).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Flashlight {
+    /// The brightest direction, as a spot's intensity.
+    pub intensity: f32,
+    pub color: [f32; 3],
+    /// The hot spot's half angle, degrees, where it falls to half.
+    pub beam: f32,
+    /// The corona around it, and the dim spill out to the bezel's cut-off, relative to the peak.
+    pub corona: f32,
+    pub spill: f32,
+    /// An IES file to use instead of the three above; empty = none.
+    pub ies: String,
+    /// Where it is held: right of and below the eye, in scene units.
+    pub right: f32,
+    pub down: f32,
+    /// The beam crosses the view axis this far ahead of the eye.
+    pub aim: f32,
+}
+impl Default for Flashlight {
+    fn default() -> Self {
+        Flashlight {
+            intensity: 90.,
+            color: [1., 0.93, 0.82],
+            beam: 5.,
+            corona: 0.1,
+            spill: 0.006,
+            // A worn flashlight's look; clearing it hands the beam to the three sliders above.
+            ies: "ies/flashlight.ies".into(),
+            right: 0.3,
+            down: 0.4,
+            aim: 8.,
+        }
+    }
+}
+/// Track 17 laser puzzle: a laser from `origin` along `direction`, routed by mirrors, splitters
+/// and glass to the object `target` (−1 = none) in at most `par` moves. A zero direction is
+/// treated as +x.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Puzzle {
+    pub enabled: bool,
+    pub origin: [f32; 3],
+    pub direction: [f32; 3],
+    pub target: i32,
+    pub par: u32,
+    pub color: [f32; 3],
+    /// More objects the beam must reach as well (all of them, and `target`, to solve).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub targets: Vec<i32>,
+    /// The beam also renders as thin glowing rods in the image (not only the overlay).
+    pub beam: bool,
+    /// Targets count only when the beam's channels match their colour (red, green, blue each
+    /// above 0.5 wanted, below not allowed); filters and prisms make the colours.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub colors: bool,
+}
+impl Default for Puzzle {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            origin: [-2., -0.6, 0.],
+            direction: [1., 0., 0.],
+            target: -1,
+            par: 3,
+            color: [1., 0.1, 0.1],
+            targets: vec![],
+            beam: false,
+            colors: false,
+        }
+    }
+}
+impl Puzzle {
+    pub fn is_off(&self) -> bool {
+        *self == Self::default()
+    }
+}
+/// Procedural surfaces (track 13), intersected in the shader inside the unit cube [−1, 1]³.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Sdf {
+    #[default]
+    None,
+    /// An exact sphere (analytic), radius 1.
+    Sphere,
+    /// An exact torus (sphere traced), the mesh torus's radii 0.72 and 0.28.
+    Torus,
+    /// The power-8 Mandelbulb, scaled into the unit sphere.
+    Mandelbulb,
+    /// A Menger sponge, five levels, filling the unit cube.
+    Menger,
+    /// Six blobs blended with a smooth minimum, moving with `Object::phase` (a lava lamp).
+    Metaballs,
+    /// An exact capped cylinder (analytic), the mesh cylinder's: radius 1, y in [−1, 1].
+    Cylinder,
+    /// An exact cone (analytic), the mesh cone's: base radius 1 at y = −1, apex at y = 1.
+    Cone,
+}
+impl Sdf {
+    pub const ALL: [Sdf; 8] = [
+        Sdf::None,
+        Sdf::Sphere,
+        Sdf::Torus,
+        Sdf::Cylinder,
+        Sdf::Cone,
+        Sdf::Mandelbulb,
+        Sdf::Menger,
+        Sdf::Metaballs,
+    ];
+    pub fn is_none(&self) -> bool {
+        *self == Sdf::None
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Sdf::None => "Mesh",
+            Sdf::Sphere => "Exact sphere",
+            Sdf::Torus => "Exact torus",
+            Sdf::Mandelbulb => "Mandelbulb",
+            Sdf::Menger => "Menger sponge",
+            Sdf::Metaballs => "Metaballs",
+            Sdf::Cylinder => "Exact cylinder",
+            Sdf::Cone => "Exact cone",
+        }
+    }
+    /// What `Object::detail` sets for this kind, with its range and default (None: nothing).
+    pub fn detail(self) -> Option<(&'static str, std::ops::RangeInclusive<f32>, f32)> {
+        match self {
+            Sdf::Torus => Some(("Tube radius", 0.02..=0.6, 0.28)),
+            Sdf::Mandelbulb => Some(("Power", 2. ..=16., 8.)),
+            Sdf::Menger => Some(("Levels", 1. ..=6., 5.)),
+            _ => None,
+        }
+    }
+    /// The shader's kind id (low 8 bits of `Instance.vertex_base` of a procedural instance);
+    /// the high 24 bits carry, in thousandths, the phase (metaballs) or the detail (0 = the
+    /// kind's default).
+    pub fn id(self, phase: f32, detail: f32) -> u32 {
+        let v = if self == Sdf::Metaballs {
+            phase.rem_euclid(10000.)
+        } else {
+            detail.clamp(0., 16.)
+        };
+        self as u32 | ((((v * 1000.) as u32) & 0xff_ffff) << 8)
+    }
+}
+impl Default for Object {
+    fn default() -> Self {
+        Self {
+            name: "Object".into(),
+            shape: Shape::Box,
+            visible: true,
+            tilt: [0.; 2],
+            scale_xz: [1.; 2],
+            elevation: 0.,
+            grounded: true,
+            sphere: false,
+            position: [-0.42, 0.05],
+            size: 1.,
+            stretch: 1.7,
+            rotation: 18.,
+            material: Material::default(),
+            portal: -1,
+            mesh: String::new(),
+            sdf: Sdf::None,
+            phase: 0.,
+            detail: 0.,
+            body: Body::Dynamic,
+            mass: 1.,
+            locked: false,
+            tether: None,
+            links: vec![],
+            cloth: None,
+            maps_from: String::new(),
+            camera_hidden: false,
+            casts_shadows: true,
+        }
+    }
+}
+impl Object {
+    pub fn kind(&self) -> Shape {
+        match self.sdf {
+            Sdf::Sphere | Sdf::Mandelbulb => return Shape::Sphere,
+            Sdf::Torus => return Shape::Torus,
+            Sdf::Menger | Sdf::Metaballs => return Shape::Box,
+            Sdf::Cylinder => return Shape::Cylinder,
+            Sdf::Cone => return Shape::Cone,
+            Sdf::None => {}
+        }
+        if self.sphere {
+            Shape::Sphere
+        } else {
+            self.shape
+        }
+    }
+}
+/// The paper white slider's lowest nits. Wayland's reference follows the brightness slider, far
+/// below Windows' range. `validate` takes 1 everywhere, so a saved scene loads on both.
+pub const HDR_WHITE_MIN: f32 = if cfg!(windows) { 40. } else { 1. };
+
+/// The CPU reference's "truth" switch (accuracy plan step 2, `docs/claude/accuracy-audit.md`).
+/// The reference copies the GPU's shortcuts on purpose, so `tools/oracle.py` cannot see them;
+/// each flag here turns one copied shortcut into the exact computation, on the CPU only (the GPU
+/// ignores the whole struct). All off is today's behaviour, which keeps the regression oracle
+/// green. Set them with `--truth a,b,c` / `--truth all`, `--set 'truth={"roulette":true}'`, or the
+/// Render tab's "CPU truth" section (software view). The row letters are the audit's.
+///
+/// The first group has its exact code; the second group are hooks: the flag is accepted and the
+/// reference prints `REFERENCE_TRUTH_PENDING` for it, because the exact version is written by the
+/// next accuracy step (the site is marked `truth hook` in `src/reference/`).
+#[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Debug)]
+#[serde(default)]
+pub struct Truth {
+    /// B1: no Russian roulette after bounce 3 (paths end only at the bounce cap).
+    pub roulette: bool,
+    /// B3: no firefly clamp, whatever `firefly` says.
+    pub firefly: bool,
+    /// B4: no pdf and denominator floors (1e-7 on a sampled pdf, 1e-8 on a light sampling
+    /// density), only the f32 minimum.
+    pub floors: bool,
+    /// D1: fog tracking runs to the end of the ray (the cap is 1024 collisions).
+    pub collisions: bool,
+    /// D2: ratio tracking has no early out at a transmittance under 1e-4.
+    pub fog_cutoff: bool,
+    /// D6: no 0.001 floor on the dielectric colour that sets the absorption.
+    pub absorption_floor: bool,
+    /// C3: procedural surfaces sphere-trace 4096 steps to 1e-6 (128 steps, 1e-4).
+    pub sdf_march: bool,
+    /// A1: a GGX BTDF with visible-normal sampling for rough glass instead of the lerp.
+    pub glass_btdf: bool,
+    /// A2: internal re-reflection under the specular lobe of a dielectric.
+    pub internal_reflection: bool,
+    /// A3: brute-force multiple-scattering GGX instead of the fitted compensation tables.
+    pub multiscatter: bool,
+    /// A4: conductor Fresnel from n and k instead of Schlick.
+    pub fresnel: bool,
+    /// C1: ray offsets from the hit's float error instead of the fixed 0.3 mm.
+    pub offsets: bool,
+    /// C2: the shadow-terminator offset (Hanika 2021) and below-face sample rejection.
+    pub shadow_terminator: bool,
+}
+impl Truth {
+    /// (name, implemented): every flag, in the order of the struct.
+    pub const NAMES: [(&'static str, bool); 13] = [
+        ("roulette", true),
+        ("firefly", true),
+        ("floors", true),
+        ("collisions", true),
+        ("fog_cutoff", true),
+        ("absorption_floor", true),
+        ("sdf_march", true),
+        ("glass_btdf", true),
+        ("internal_reflection", false),
+        ("multiscatter", false),
+        ("fresnel", false),
+        ("offsets", false),
+        ("shadow_terminator", false),
+    ];
+    fn flags(&mut self) -> [&mut bool; 13] {
+        [
+            &mut self.roulette,
+            &mut self.firefly,
+            &mut self.floors,
+            &mut self.collisions,
+            &mut self.fog_cutoff,
+            &mut self.absorption_floor,
+            &mut self.sdf_march,
+            &mut self.glass_btdf,
+            &mut self.internal_reflection,
+            &mut self.multiscatter,
+            &mut self.fresnel,
+            &mut self.offsets,
+            &mut self.shadow_terminator,
+        ]
+    }
+    /// The flags that are on, by name.
+    pub fn on(&self) -> Vec<&'static str> {
+        let mut t = *self;
+        let mut v = vec![];
+        for (i, f) in t.flags().into_iter().enumerate() {
+            if *f {
+                v.push(Self::NAMES[i].0);
+            }
+        }
+        v
+    }
+    /// The flags that are on whose exact version is not written yet (hooks).
+    pub fn pending(&self) -> Vec<&'static str> {
+        let on = self.on();
+        Self::NAMES
+            .iter()
+            .filter(|(n, done)| !done && on.contains(n))
+            .map(|(n, _)| *n)
+            .collect()
+    }
+    /// `--truth a,b,c` (or `all`, `none`): names of flags, comma separated.
+    pub fn parse(list: &str) -> anyhow::Result<Truth> {
+        let mut t = Truth::default();
+        for name in list.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+            match name {
+                "none" => {}
+                "all" => t.flags().into_iter().for_each(|f| *f = true),
+                _ => {
+                    let i = Self::NAMES
+                        .iter()
+                        .position(|(n, _)| *n == name)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "--truth: unknown row {name} (one of {})",
+                                Self::NAMES.map(|(n, _)| n).join(", ")
+                            )
+                        })?;
+                    *t.flags()[i] = true;
+                }
+            }
+        }
+        Ok(t)
+    }
+}
+
+/// Light bounces of the Accurate bundle (docs/engine-notes.md "Accurate quality bundle").
+pub const ACCURATE_BOUNCES: u32 = 64;
+
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Settings {
+    pub objects: Vec<Object>,
+    pub lights: Vec<AreaLight>,
+    /// Flashlight mode (track 7): a spot light carried beside the camera, off to the lower right
+    /// so its shadows show, aimed at the view's centre. Added to each frame's copy, never stored
+    /// as a light.
+    pub flashlight: bool,
+    pub flashlight_config: Flashlight,
+    pub scene_name: String,
+    pub cornell_room: bool,
+    /// The Cornell box room with the original's measured spectra (`spectrum::measured`): red
+    /// left wall, green right wall, white elsewhere, and its light's emission spectrum.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub measured_room: bool,
+    pub floor_extent: f32,
+    pub sky: f32,
+    pub left: [f32; 3],
+    pub right: [f32; 3],
+    pub base: [f32; 3],
+    pub background: [f32; 3],
+    pub walls: Material,
+    pub floor: Material,
+    pub light_on: bool,
+    pub light_visible: bool,
+    /// Draw the main light's rectangle over the viewport (see `AreaLight::outline`).
+    pub light_outline: bool,
+    pub light_intensity: f32,
+    pub light_size: f32,
+    pub light_aspect: f32,
+    pub light_position: [f32; 3],
+    pub light_temperature: f32,
+    pub light_tint: [f32; 3],
+    pub glass_shadow: bool,
+    /// Accuracy A1: rough glass as the exact GGX BTDF (Walter et al. 2007, visible-normal
+    /// sampling, light sampling at the vertex) instead of the lerp toward a cosine sample. Off by
+    /// default (the GPU then runs the tracers without EXACT_BTDF, unchanged); the Accurate bundle
+    /// turns it on. The CPU reference follows it (as truth `glass_btdf`).
+    pub exact_glass: bool,
+    /// Accuracy B1: Russian roulette starts at bounce 8 instead of 3 and never drops a path's
+    /// survival below 0.2 instead of 0.05. Variance only (roulette is unbiased either way); the
+    /// Accurate bundle turns it on. Path tracer only; the CPU reference follows it.
+    pub gentle_roulette: bool,
+    /// Accuracy F1: texture lookups at mip 0 (ray cones of width zero), which is what the CPU
+    /// reference always does. Slower to converge on aliased textures, exactly the filtered
+    /// texture in the limit. The Accurate bundle turns it on.
+    pub lod0_textures: bool,
+    pub bounces: u32,
+    /// A separate budget for specular vertices (B1, engine-notes "Specular bounce budget"):
+    /// smooth dielectric reflection and transmission, beam-splitter mirrors and GGX lobes with
+    /// roughness at most 0.1 don't use up `bounces` while this lasts, so the path tracer runs at
+    /// most `bounces + specular_bounces` vertices. 0 (the default, the owner's choice to
+    /// revisit) is the legacy budget: every vertex counts against `bounces`. BDPT, photon
+    /// mapping and ReSTIR GI keep `bounces` alone.
+    // Always serialized: `--set` and scripts only accept keys the JSON has.
+    #[serde(default)]
+    pub specular_bounces: u32,
+    pub spp: u32,
+    pub max_samples: u32,
+    pub scale: f32,
+    pub firefly: f32,
+    /// The CPU reference's exact versions of the shortcuts it copies from the GPU (`Truth`).
+    pub truth: Truth,
+    pub sobol: bool,
+    /// Manual exposure, a linear multiplier (the false-colour and tone-map input). Used while
+    /// `auto_exposure` is off.
+    pub exposure: f32,
+    /// Realistic exposure: the meter picks the exposure and `ev_bias` shifts it. New scenes and
+    /// `Settings::default()` have it on; a scene file written before it existed has no key and
+    /// loads as manual (`no`), so its authored look survives.
+    #[serde(default = "no")]
+    pub auto_exposure: bool,
+    /// Exposure compensation in stops, on top of the meter (keyable, like `exposure`).
+    pub ev_bias: f32,
+    /// How fast the meter adapts, in 1/s (the time constant is its inverse).
+    pub exposure_speed: f32,
+    pub meter_mode: MeterMode,
+    /// The Eyes look: scotopic desaturation and Purkinje shift in the dark. Off for files that
+    /// predate it, like `auto_exposure`.
+    #[serde(default = "no")]
+    pub eyes: bool,
+    pub eyes_strength: f32,
+    pub gamma: f32,
+    pub tonemap: u32,
+    pub view: u32,
+    pub direct: f32,
+    pub indirect: f32,
+    pub denoiser: Denoiser,
+    pub denoise_strength: f32,
+    /// Intel OIDN cleans finished stills: captures, Save image and the CPU renderer's converged
+    /// view (`oidn`). Off by default; display-only, so it stays out of the transport key.
+    pub still_denoise: bool,
+    /// Pre-0.12 files: read from `rr` and `denoise`, folded into `denoiser` by `validate`,
+    /// never written.
+    #[serde(rename = "rr", skip_serializing)]
+    pub(crate) legacy_rr: Option<bool>,
+    #[serde(rename = "denoise", skip_serializing)]
+    pub(crate) legacy_denoise: Option<bool>,
+    pub rr_preset: u32,
+    pub upscaler: Upscaler,
+    /// DLSS Super Resolution preset: 0 = NVIDIA's choice per quality mode, 10–13 = J, K, L, M.
+    pub dlss_preset: u32,
+    /// At 100% resolution, run the temporal upscaler as anti-aliasing (DLAA / Native AA)
+    /// instead of the progressive native path.
+    pub native_aa: bool,
+    /// Pixel reconstruction filter of the progressive path (RR and the temporal upscalers set
+    /// their own jitter): 0 box, 1 Gaussian, 2 Blackman-Harris; `filter_width` in pixels.
+    pub pixel_filter: u32,
+    pub filter_width: f32,
+    /// Most texture taps along a grazing footprint (1 = isotropic, up to 16).
+    pub anisotropy: u32,
+    /// Display output: 0 follows Windows HDR, 1 always SDR, 2 forces the scRGB HDR path.
+    pub hdr_mode: u32,
+    /// HDR peak and paper white in nits; 0 takes the values Windows reports.
+    pub hdr_peak: f32,
+    pub hdr_white: f32,
+    /// HDR swapchain encoding: false scRGB (RGBA16F, Windows converts), true HDR10 (10-bit PQ / BT.2020).
+    pub hdr10: bool,
+    pub temporal: bool,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub distance: f32,
+    pub target: [f32; 3],
+    pub fov: f32,
+    pub rotate: bool,
+    pub rotate_speed: f32,
+    pub compare: bool,
+    pub split: f32,
+    pub vsync: bool,
+    /// Thin lens (roadmap 5c): aperture radius in scene units (0 = pinhole), focus distance
+    /// along the view axis, blade count (0 = round, 3-12), blade rotation, cat-eye strength.
+    pub aperture: f32,
+    pub focus_distance: f32,
+    pub aperture_blades: u32,
+    pub blade_rotation: f32,
+    pub cat_eye: f32,
+    /// Camera model: 0 perspective, 1 orthographic, 2 360° equirectangular, 3 little planet,
+    /// 4 tilt-shift (perspective with the focal plane tilted by `tilt` degrees).
+    pub projection: u32,
+    pub tilt: f32,
+    /// Track 16: a real lens system (0 = the thin lens above; 1.. = `lens::LENSES`), used with
+    /// the perspective model. `f_number` stops it down (0 = wide open), `lens_scale` is metres
+    /// per scene unit (sets how much depth of field the scene gets), `dispersion` scales the
+    /// glass's dispersion (0 = none, 1 = real glass).
+    pub lens_system: u32,
+    pub f_number: f32,
+    pub lens_scale: f32,
+    pub dispersion: f32,
+    /// Film look (display only): halation, grain and its size (0 fine, 1 medium, 2 coarse),
+    /// vignette, lift / gamma / gain per channel, and a .cube LUT.
+    pub halation: f32,
+    pub grain: f32,
+    /// Track 16 glare (display only): the aperture's diffraction pattern around highlights.
+    /// Strength (0 = off), size (0 small to 1 large) and the luminance it starts above.
+    pub glare: f32,
+    pub glare_size: f32,
+    pub glare_threshold: f32,
+    pub grain_size: u32,
+    pub vignette: f32,
+    pub lift: [f32; 3],
+    pub grade_gamma: [f32; 3],
+    pub gain: [f32; 3],
+    pub lut_path: String,
+    pub lut_strength: f32,
+    /// Light sampling (roadmap 5e): 0 MIS (both strategies), 1 light sampling (NEE) only,
+    /// 2 BSDF sampling only. 1 and 2 show what MIS combines, as in Veach's plates.
+    pub mis_mode: u32,
+    /// ReSTIR DI (track 15): first-bounce light sampling resamples the emitter table through
+    /// per-pixel reservoirs reused across frames and neighbours (see engine-notes "ReSTIR DI").
+    pub restir: bool,
+    /// Fresh candidates per pixel and frame (RIS from the power CDF).
+    pub restir_candidates: u32,
+    /// Neighbours merged by the spatial pass (0 = none).
+    pub restir_neighbors: u32,
+    /// Cap on the history's confidence M in the temporal merge (0 = no temporal reuse).
+    pub restir_history: u32,
+    /// Integrator (track 15): 0 path tracing, 1 bidirectional (BDPT), 2 progressive photon
+    /// mapping (see engine-notes "BDPT and photon mapping").
+    pub integrator: u32,
+    /// Spectral rendering: the path tracer carries wavelengths instead of RGB (dispersion,
+    /// exact thin film and gratings; see engine-notes "Spectral rendering"). Photon mapping
+    /// traces spectral photons (its gather stays RGB); BDPT, light path expressions and the path
+    /// visualizer stay RGB.
+    pub spectral: bool,
+    /// Photon mapping: photons emitted per frame.
+    pub photons: u32,
+    /// Photon mapping: the starting gather radius as a share of the scene's bounding radius.
+    pub photon_radius: f32,
+    /// Battle mode (track 15): the image split into four quadrants rendered at equal GPU time
+    /// by path tracing, path tracing with ReSTIR DI, BDPT and photon mapping.
+    pub battle: bool,
+    /// Walk mode draws a blocky body under the camera (`avatar.rs`): legs and arms in view when
+    /// looking down, the whole figure in reflections. A viewer choice, kept across scene loads.
+    pub walk_avatar: bool,
+    /// Track 17 physics sandbox: rigid-body simulation of the objects (see physics.rs).
+    #[serde(skip_serializing_if = "Physics::is_off")]
+    pub physics: Physics,
+    /// Track 17 laser puzzle (see laser.rs).
+    #[serde(skip_serializing_if = "Puzzle::is_off")]
+    pub puzzle: Puzzle,
+    /// Track 19 audio-reactive lights (see audio.rs).
+    #[serde(skip_serializing_if = "AudioReact::is_off")]
+    pub audio: AudioReact,
+    /// Light path expressions (track 14): up to `lpe::SLOTS` regular expressions over a path's
+    /// events, each accumulated into its own AOV (see lpe.rs). Empty strings are unused slots.
+    pub lpe: Vec<String>,
+    /// The LPE slot the "Light path (LPE)" view shows.
+    pub lpe_slot: u32,
+    /// An equirectangular HDRI (.hdr or .exr) lighting the scene instead of the sky gradient
+    /// (roadmap core track 3). Relative paths are relative to the scenes folder; empty = none.
+    pub hdri: String,
+    /// Multiplier on the HDRI's radiance.
+    pub hdri_strength: f32,
+    /// Turn about the vertical axis, degrees.
+    pub hdri_rotation: f32,
+    /// Camera rays see the HDRI; off, they see the background colour (it still lights).
+    pub hdri_visible: bool,
+    /// Split the HDRI's sun out into an analytic disc of the same power (`environment::
+    /// split_sun`): light sampling finds it every time instead of through the map's CDF.
+    #[serde(default)]
+    pub hdri_sun: bool,
+    /// Ground projection: the height above the floor the HDRI was shot from (0 = off). Below
+    /// the horizon the camera sees the map from that point toward where its ray meets the
+    /// floor's plane, so the ground lies at a finite distance instead of at infinity.
+    #[serde(default)]
+    pub hdri_ground: f32,
+    /// The floor as a shadow catcher: camera rays see the background behind it (projected when
+    /// `hdri_ground` is on), darkened where objects block the light.
+    #[serde(default)]
+    pub shadow_catcher: bool,
+    /// Physical sky and sun (track 9); replaces the HDRI and the sky light while on.
+    #[serde(skip_serializing_if = "crate::sky::PhysicalSky::is_default")]
+    pub physical_sky: crate::sky::PhysicalSky,
+    /// Global fog (track 12).
+    #[serde(skip_serializing_if = "Fog::is_default")]
+    pub fog: Fog,
+    /// Keyframes (track 8); the playhead is `anim::Timeline` in the app.
+    #[serde(skip_serializing_if = "crate::anim::Animation::is_default")]
+    pub animation: crate::anim::Animation,
+}
+impl Default for Settings {
+    fn default() -> Self {
+        let b = Object {
+            position: [0.38, -0.38],
+            size: 0.62,
+            stretch: 0.62,
+            rotation: -14.,
+            ..Default::default()
+        };
+        let wall = Material {
+            roughness: 0.85,
+            reflectivity: 0.,
+            ..Default::default()
+        };
+        Self {
+            objects: vec![
+                Object {
+                    name: "Tall block".into(),
+                    ..Object::default()
+                },
+                Object {
+                    name: "Short block".into(),
+                    ..b
+                },
+            ],
+            lights: vec![],
+            flashlight: false,
+            flashlight_config: Flashlight::default(),
+            scene_name: "Classic Cornell box".into(),
+            cornell_room: true,
+            measured_room: false,
+            floor_extent: 1.,
+            sky: 0.,
+            left: [0.527, 0.051, 0.042],
+            right: [0.050, 0.275, 0.060],
+            base: [0.73; 3],
+            background: [0.003, 0.004, 0.006],
+            walls: wall.clone(),
+            floor: wall,
+            light_on: true,
+            light_visible: true,
+            light_outline: false,
+            light_intensity: 12.,
+            light_size: 0.75,
+            light_aspect: 1.,
+            light_position: [0., 0.965, 0.15],
+            light_temperature: 5200.,
+            light_tint: [1.; 3],
+            glass_shadow: true,
+            exact_glass: false,
+            gentle_roulette: false,
+            lod0_textures: false,
+            bounces: 6,
+            specular_bounces: 0,
+            spp: 4,
+            max_samples: 4096,
+            scale: 1.,
+            firefly: 0.,
+            truth: Truth::default(),
+            sobol: true,
+            exposure: 1.,
+            auto_exposure: true,
+            ev_bias: 0.,
+            exposure_speed: 2.,
+            meter_mode: MeterMode::CentreWeighted,
+            eyes: true,
+            eyes_strength: 1.,
+            gamma: 2.2,
+            tonemap: 3,
+            view: 0,
+            direct: 1.,
+            indirect: 1.,
+            denoiser: Denoiser::Rr,
+            denoise_strength: 0.5,
+            still_denoise: false,
+            legacy_rr: None,
+            legacy_denoise: None,
+            rr_preset: 6,
+            upscaler: Upscaler::Dlss,
+            dlss_preset: 0,
+            native_aa: false,
+            pixel_filter: 2,
+            filter_width: 1.5,
+            anisotropy: 16,
+            hdr_mode: 0,
+            hdr_peak: 0.,
+            hdr10: false,
+            hdr_white: 0.,
+            temporal: true,
+            yaw: 0.,
+            pitch: 4.,
+            distance: 4.7,
+            target: [0., 0., -0.15],
+            fov: 36.,
+            rotate: false,
+            rotate_speed: 6.,
+            compare: false,
+            split: 0.5,
+            vsync: true,
+            aperture: 0.,
+            focus_distance: 4.7,
+            aperture_blades: 0,
+            blade_rotation: 0.,
+            cat_eye: 0.,
+            projection: 0,
+            tilt: 0.,
+            lens_system: 0,
+            f_number: 0.,
+            lens_scale: 1.,
+            dispersion: 0.,
+            halation: 0.,
+            glare: 0.,
+            glare_size: 0.5,
+            glare_threshold: 1.,
+            grain: 0.,
+            grain_size: 1,
+            vignette: 0.,
+            lift: [0.; 3],
+            grade_gamma: [1.; 3],
+            gain: [1.; 3],
+            lut_path: String::new(),
+            lut_strength: 1.,
+            mis_mode: 0,
+            restir: false,
+            restir_candidates: 8,
+            restir_neighbors: 4,
+            restir_history: 20,
+            integrator: 0,
+            spectral: false,
+            photons: 1 << 18,
+            photon_radius: 0.01,
+            battle: false,
+            walk_avatar: true,
+            physics: Physics::default(),
+            puzzle: Puzzle::default(),
+            audio: AudioReact::default(),
+            lpe: vec![],
+            lpe_slot: 0,
+            hdri: String::new(),
+            hdri_strength: 1.,
+            hdri_rotation: 0.,
+            hdri_visible: true,
+            hdri_ground: 0.,
+            shadow_catcher: false,
+            hdri_sun: false,
+            physical_sky: Default::default(),
+            fog: Default::default(),
+            animation: Default::default(),
+        }
+    }
+}
+pub const PRESETS: [&str; 24] = [
+    "Classic Cornell box",
+    "Reflective spheres",
+    "Sphere and box",
+    "Mirror + glass",
+    "Mirror",
+    "Glass",
+    "Warm lighting",
+    "Dramatic lighting",
+    "Emissive spheres",
+    "Material matrix",
+    "Weekend sphere field",
+    "Whitted checkerboard",
+    "Utah teapot studio",
+    "Stanford bunny studio",
+    "Glass laboratory",
+    "RGB shadow study",
+    "Sphere pyramid",
+    "Mirror corridor",
+    "Knot gallery",
+    "Column courtyard",
+    "Chess still life",
+    "Neon sculpture",
+    "Orbital sculpture",
+    "Build your own studio",
+];
+impl Settings {
+    pub fn randomize(&mut self, mut seed: u32) {
+        let mut rand = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            (seed >> 8) as f32 / 16777216.
+        };
+        // Any study except the empty stage. Cornell blocks are reshuffled inside
+        // the box; larger studies keep their layout and only change colors.
+        let id = ((rand() * (PRESETS.len() - 1) as f32) as usize).min(PRESETS.len() - 2);
+        self.preset(id);
+        for (i, o) in self.objects.iter_mut().enumerate() {
+            let m = &mut o.material;
+            if id < 9 {
+                o.size = 0.45 + rand() * 0.65;
+                o.stretch = 0.6 + rand() * 1.2;
+                o.rotation = rand() * 90. - 45.;
+                o.position = [
+                    if i == 0 {
+                        -0.55 + rand() * 0.25
+                    } else {
+                        0.25 + rand() * 0.3
+                    },
+                    rand() * 0.7 - 0.4,
+                ];
+                m.color = std::array::from_fn(|_| 0.2 + rand() * 0.75);
+            } else if m.metallic < 0.5 && m.pattern == Pattern::Solid && m.emission == 0. {
+                // Diffuse and glass objects; metals, emitters and patterns keep their look.
+                let floor = if m.transmission > 0.5 { 0.55 } else { 0.03 };
+                m.color = std::array::from_fn(|_| floor + rand() * (0.95 - floor));
+            }
+        }
+        self.light_temperature = 2800. + rand() * 5200.;
+    }
+    /// Takes the viewer's render and display choices from `from` (used when a scene file
+    /// replaces the scene): resolution, denoiser and the RR model, upscaler, DLSS preset, DLAA, VSync, HDR.
+    pub fn keep_output(&mut self, from: &Settings) {
+        self.scale = from.scale;
+        self.denoiser = from.denoiser;
+        self.still_denoise = from.still_denoise;
+        self.vsync = from.vsync;
+        self.rr_preset = from.rr_preset;
+        self.upscaler = from.upscaler;
+        self.dlss_preset = from.dlss_preset;
+        self.native_aa = from.native_aa;
+        self.pixel_filter = from.pixel_filter;
+        self.filter_width = from.filter_width;
+        self.anisotropy = from.anisotropy;
+        self.hdr_mode = from.hdr_mode;
+        self.hdr_peak = from.hdr_peak;
+        self.hdr_white = from.hdr_white;
+        self.hdr10 = from.hdr10;
+        self.lpe = from.lpe.clone();
+        self.lpe_slot = from.lpe_slot;
+        self.battle = from.battle;
+        self.walk_avatar = from.walk_avatar;
+        self.truth = from.truth;
+        // The Accurate bundle's quality fields are a viewer choice too: the menu keeps saying
+        // "Accurate" after a scene file loads.
+        if from.accurate_quality() {
+            self.set_accurate_quality();
+        }
+    }
+    /// The quality fields of the Accurate bundle (`ui::Bundle::Accurate` writes the output ones).
+    pub fn accurate_quality(&self) -> bool {
+        self.bounces == ACCURATE_BOUNCES
+            && self.exact_glass
+            && self.gentle_roulette
+            && self.lod0_textures
+            && self.glass_shadow
+            && self.firefly == 0.
+            && !self.restir
+            && self.sobol
+    }
+    pub fn set_accurate_quality(&mut self) {
+        self.bounces = ACCURATE_BOUNCES;
+        self.exact_glass = true;
+        self.gentle_roulette = true;
+        self.lod0_textures = true;
+        self.glass_shadow = true;
+        self.firefly = 0.;
+        self.restir = false;
+        self.sobol = true;
+    }
+    /// Leaving the Accurate bundle: its quality fields go back to the defaults (the other
+    /// bundles never set them, so they must not inherit the slow tracer or mip 0 textures).
+    pub fn clear_accurate_quality(&mut self) {
+        let d = Settings::default();
+        self.bounces = d.bounces;
+        self.exact_glass = d.exact_glass;
+        self.gentle_roulette = d.gentle_roulette;
+        self.lod0_textures = d.lod0_textures;
+        self.glass_shadow = d.glass_shadow;
+        self.firefly = d.firefly;
+        self.restir = d.restir;
+        self.sobol = d.sobol;
+    }
+    pub fn preset(&mut self, id: usize) {
+        // Presets 0–8 share the Cornell box, so moving between them keeps the
+        // user's camera. Any other switch takes the preset's own camera.
+        let keep_camera = id < 9 && PRESETS[..9].contains(&self.scene_name.as_str());
+        let camera = (self.yaw, self.pitch, self.distance, self.target, self.fov);
+        let accurate = self.accurate_quality();
+        let output = (
+            self.scale,
+            self.denoiser,
+            self.vsync,
+            self.rr_preset,
+            self.upscaler,
+            (self.dlss_preset, self.native_aa),
+            (self.hdr_mode, self.hdr_peak, self.hdr_white, self.hdr10),
+            (self.pixel_filter, self.filter_width, self.anisotropy),
+            (std::mem::take(&mut self.lpe), self.lpe_slot, self.battle),
+            self.walk_avatar,
+            self.still_denoise,
+            self.truth,
+        );
+        *self = Self::default();
+        match id {
+            1 => {
+                self.objects[0].sphere = true;
+                self.objects[0].size = 0.95;
+                self.objects[1].sphere = true;
+                self.objects[1].size = 0.55;
+                for o in &mut self.objects {
+                    o.material.metallic = 1.;
+                    o.material.reflectivity = 1.;
+                    o.material.roughness = 0.03;
+                }
+                self.objects[1].material.color = [0.79, 0.58, 0.36];
+                self.bounces = 8;
+            }
+            2 => {
+                self.objects[0].sphere = true;
+                self.objects[0].size = 0.95;
+                self.objects[1].stretch = 1.65;
+            }
+            3 => {
+                self.objects[0].sphere = true;
+                self.objects[0].size = 0.9;
+                self.objects[0].material.metallic = 1.;
+                self.objects[0].material.roughness = 0.02;
+                self.objects[1].stretch = 1.;
+                self.objects[1].size = 0.75;
+                self.objects[1].material.transmission = 1.;
+                self.objects[1].material.roughness = 0.05;
+                self.objects[1].material.color = [0.82, 0.9, 1.];
+                self.bounces = 10;
+            }
+            4 => {
+                for o in &mut self.objects {
+                    o.material.metallic = 1.;
+                    o.material.roughness = 0.02;
+                    o.material.color = [0.9; 3];
+                }
+                self.objects[0].rotation = 40.;
+                self.objects[1].rotation = -25.;
+                self.bounces = 10;
+            }
+            5 => {
+                self.objects[0].sphere = true;
+                for o in &mut self.objects {
+                    o.material.transmission = 1.;
+                    o.material.roughness = 0.;
+                    o.material.color = [0.88, 0.96, 0.93];
+                }
+                self.bounces = 12;
+            }
+            6 => {
+                self.light_temperature = 3200.;
+                self.light_intensity = 18.;
+                self.light_size = 0.9;
+                self.exposure = 1.15;
+                self.ev_bias = 1.15f32.log2();
+                self.tonemap = 4;
+            }
+            7 => {
+                self.light_intensity = 26.;
+                self.light_size = 0.35;
+                self.light_temperature = 4300.;
+                self.objects[1].material.metallic = 1.;
+                self.objects[1].material.roughness = 0.15;
+                self.bounces = 8;
+                self.tonemap = 5;
+            }
+            8 => {
+                self.objects[0].sphere = true;
+                self.objects[1].sphere = true;
+                self.objects[0].size = 0.55;
+                self.objects[1].size = 0.85;
+                self.objects[0].material.color = [1., 0.62, 0.2];
+                self.objects[0].material.emission = 6.;
+                self.objects[1].material.color = [0.21, 0.69, 1.];
+                self.objects[1].material.transmission = 0.55;
+                self.light_intensity = 3.;
+                self.bounces = 7;
+            }
+            _ => {
+                if id >= 9 {
+                    crate::presets::apply(self, id);
+                }
+            }
+        }
+        if keep_camera {
+            (self.yaw, self.pitch, self.distance, self.target, self.fov) = camera;
+        }
+        self.scene_name = PRESETS.get(id).unwrap_or(&PRESETS[0]).to_string();
+        for o in &mut self.objects {
+            if o.sphere {
+                o.sphere = false;
+                o.shape = Shape::Sphere;
+                o.stretch = 1.;
+            }
+        }
+        (
+            self.scale,
+            self.denoiser,
+            self.vsync,
+            self.rr_preset,
+            self.upscaler,
+            (self.dlss_preset, self.native_aa),
+            (self.hdr_mode, self.hdr_peak, self.hdr_white, self.hdr10),
+            (self.pixel_filter, self.filter_width, self.anisotropy),
+            (self.lpe, self.lpe_slot, self.battle),
+            self.walk_avatar,
+            self.still_denoise,
+            self.truth,
+        ) = output;
+        if accurate {
+            self.set_accurate_quality();
+        }
+    }
+    /// RR is the chosen denoiser (whether it can run is the renderer's call: `rr_active`).
+    pub fn rr(&self) -> bool {
+        self.denoiser == Denoiser::Rr
+    }
+    /// The native filter runs when RR does not: chosen outright, or as RR's fallback.
+    pub fn native_filter(&self) -> bool {
+        self.denoiser != Denoiser::Off
+    }
+    /// Folds the pre-0.12 `rr` / `denoise` keys into `denoiser` (a file with either key was
+    /// written before `denoiser` existed, so they win).
+    fn migrate_legacy(&mut self) {
+        let (rr, denoise) = (self.legacy_rr.take(), self.legacy_denoise.take());
+        if rr.is_some() || denoise.is_some() {
+            self.denoiser = Denoiser::from_legacy(rr.unwrap_or(true), denoise.unwrap_or(true));
+        }
+    }
+    pub fn validate(&mut self) -> anyhow::Result<()> {
+        self.migrate_legacy();
+        let f = &self.fog;
+        anyhow::ensure!(
+            (0. ..=10.).contains(&f.density)
+                && f.color.iter().all(|v| (0. ..=1.).contains(v))
+                && (-0.95..=0.95).contains(&f.phase)
+                && (-1. ..=50.).contains(&f.height)
+                && (0.1..=100.).contains(&f.extent)
+                && extinction_ok(f.extinction)
+                && (0. ..=4.).contains(&f.noise)
+                && (0.05..=100.).contains(&f.noise_size),
+            "Invalid fog"
+        );
+        for o in &mut self.objects {
+            if o.sphere {
+                o.sphere = false;
+                o.shape = Shape::Sphere;
+                o.stretch = 1.;
+            }
+        }
+        anyhow::ensure!(
+            self.objects.len() <= MAX_OBJECTS && self.lights.len() <= MAX_LIGHTS,
+            "Scene exceeds object/light limit"
+        );
+        anyhow::ensure!(
+            (0.5..=40.).contains(&self.floor_extent) && (0. ..=4.).contains(&self.sky),
+            "Invalid environment"
+        );
+        anyhow::ensure!(self.scene_name.len() <= 256, "Scene name is too long");
+        anyhow::ensure!(
+            [0, 4, 5, 6].contains(&self.rr_preset),
+            "Invalid DLSS RR model preset"
+        );
+        anyhow::ensure!(
+            DLSS_PRESETS.iter().any(|(id, _)| *id == self.dlss_preset),
+            "Invalid DLSS Super Resolution preset"
+        );
+        anyhow::ensure!(
+            (self.pixel_filter as usize) < PIXEL_FILTERS.len()
+                && (0.5..=4.).contains(&self.filter_width),
+            "Invalid pixel filter"
+        );
+        anyhow::ensure!(
+            (1..=16).contains(&self.anisotropy),
+            "Invalid texture anisotropy"
+        );
+        self.animation.validate()?;
+        self.physical_sky.validate()?;
+        anyhow::ensure!(
+            self.hdr_mode < 3
+                && (self.hdr_peak == 0. || (80. ..=10000.).contains(&self.hdr_peak))
+                && (self.hdr_white == 0. || (1. ..=1000.).contains(&self.hdr_white)),
+            "Invalid HDR output settings"
+        );
+        // serde_json rejects nonfinite values. Bound every value used for resource sizes or transport.
+        anyhow::ensure!(
+            (0.25..=1.).contains(&self.scale),
+            "Resolution scale must be 0.25–1"
+        );
+        anyhow::ensure!(
+            (1..=64).contains(&self.bounces)
+                && self.specular_bounces <= 64
+                && (1..=64).contains(&self.spp)
+                && (1..=1_000_000).contains(&self.max_samples),
+            "Invalid sample/bounce limits"
+        );
+        anyhow::ensure!(
+            (10. ..=100.).contains(&self.fov)
+                && (0.5..=200.).contains(&self.distance)
+                && self.pitch.abs() <= 89.,
+            "Invalid camera"
+        );
+        anyhow::ensure!(
+            (0.05..=40.).contains(&self.light_size)
+                && (0.1..=10.).contains(&self.light_aspect)
+                && (1000. ..=12000.).contains(&self.light_temperature)
+                && (0. ..=2000.).contains(&self.light_intensity),
+            "Invalid light"
+        );
+        anyhow::ensure!(
+            (0.1..=4.).contains(&self.gamma)
+                && (0. ..=EXPOSURE_MAX).contains(&self.exposure)
+                && (-EV_BIAS_MAX..=EV_BIAS_MAX).contains(&self.ev_bias)
+                && (0.05..=50.).contains(&self.exposure_speed)
+                && (0. ..=1.).contains(&self.eyes_strength)
+                && self.tonemap < 8
+                && self.view < 13,
+            "Invalid display settings"
+        );
+        anyhow::ensure!(
+            self.lpe.len() <= crate::lpe::SLOTS && (self.lpe_slot as usize) < crate::lpe::SLOTS,
+            "At most {} light path expressions",
+            crate::lpe::SLOTS
+        );
+        // Shared labels: the expressions' names count together.
+        let mut labels = vec![];
+        for e in self.lpe.iter().filter(|e| !e.trim().is_empty()) {
+            crate::lpe::compile_labelled(e, &mut labels)
+                .map_err(|err| anyhow::anyhow!("Light path expression {e:?}: {err}"))?;
+        }
+        anyhow::ensure!(
+            (0. ..=4.).contains(&self.direct)
+                && (0. ..=4.).contains(&self.indirect)
+                && (0. ..=1.).contains(&self.denoise_strength)
+                && (0. ..=100.).contains(&self.firefly)
+                && (0. ..=1.).contains(&self.split),
+            "Invalid filter settings"
+        );
+        anyhow::ensure!(
+            (0. ..=2.).contains(&self.aperture)
+                && (0.05..=500.).contains(&self.focus_distance)
+                && (self.aperture_blades == 0 || (3..=12).contains(&self.aperture_blades))
+                && self.blade_rotation.abs() <= 360.
+                && (0. ..=1.).contains(&self.cat_eye)
+                && self.projection < 5
+                && self.mis_mode < 3
+                && (1..=32).contains(&self.restir_candidates)
+                && self.restir_neighbors <= 8
+                && self.restir_history <= 64
+                && self.tilt.abs() <= 60.
+                && self.lens_system as usize <= crate::lens::LENSES.len()
+                && (self.f_number == 0. || (0.5..=64.).contains(&self.f_number))
+                && (0.001..=1000.).contains(&self.lens_scale)
+                && (0. ..=20.).contains(&self.dispersion),
+            "Invalid lens or camera model"
+        );
+        // At most 1M photons: 16384 dispatch groups, and the photon buffer stays under 400 MB.
+        anyhow::ensure!(
+            self.integrator < 3
+                && ((1 << 12)..=(1 << 20)).contains(&self.photons)
+                && (0.0005..=0.2).contains(&self.photon_radius),
+            "Invalid integrator settings"
+        );
+        anyhow::ensure!(
+            (0. ..=1.).contains(&self.halation)
+                && (0. ..=4.).contains(&self.glare)
+                && (0. ..=1.).contains(&self.glare_size)
+                && (0. ..=100.).contains(&self.glare_threshold)
+                && (0. ..=1.).contains(&self.grain)
+                && self.grain_size < 3
+                && (0. ..=1.).contains(&self.vignette)
+                && self.lift.iter().all(|v| (-0.5..=0.5).contains(v))
+                && self.grade_gamma.iter().all(|v| (0.2..=5.).contains(v))
+                && self.gain.iter().all(|v| (0. ..=4.).contains(v))
+                && (0. ..=1.).contains(&self.lut_strength)
+                && self.lut_path.len() <= 1024,
+            "Invalid film look"
+        );
+        anyhow::ensure!(
+            self.hdri.len() <= 1024
+                && (0. ..=1000.).contains(&self.hdri_strength)
+                && (-360. ..=360.).contains(&self.hdri_rotation)
+                && (0. ..=1000.).contains(&self.hdri_ground),
+            "Invalid HDRI"
+        );
+        anyhow::ensure!(
+            (-30. ..=30.).contains(&self.physics.gravity)
+                && (0. ..=4.).contains(&self.physics.speed)
+                && (0. ..=1.).contains(&self.physics.bounce)
+                && (0. ..=2.).contains(&self.physics.friction)
+                && self.physics.down.iter().all(|v| v.abs() <= 1.)
+                && self.physics.down.iter().any(|v| v.abs() > 0.01)
+                && self.physics.wind.iter().all(|v| v.abs() <= 50.)
+                && (0. ..=1.).contains(&self.physics.gusts),
+            "Invalid physics"
+        );
+        anyhow::ensure!(
+            (0. ..=8.).contains(&self.audio.gain)
+                && (0. ..=1.).contains(&self.audio.floor)
+                && (0. ..=0.99).contains(&self.audio.smoothing)
+                && (0. ..=1.).contains(&self.audio.color_shift)
+                && self.lights.iter().all(|l| l.audio_band <= 5),
+            "Invalid audio settings"
+        );
+        let p = &self.puzzle;
+        anyhow::ensure!(
+            p.origin.iter().all(|v| v.abs() <= 40.)
+                && p.direction.iter().all(|v| v.is_finite() && v.abs() <= 1e3)
+                && (-1..self.objects.len() as i32).contains(&p.target)
+                && p.par <= 99
+                && p.targets.len() <= 16
+                && p.targets
+                    .iter()
+                    .all(|t| (0..self.objects.len() as i32).contains(t))
+                && p.color.iter().all(|v| (0. ..=1.).contains(v)),
+            "Invalid laser puzzle"
+        );
+        for c in [
+            &self.left,
+            &self.right,
+            &self.base,
+            &self.background,
+            &self.light_tint,
+        ] {
+            anyhow::ensure!(c.iter().all(|v| (0. ..=1.).contains(v)), "Invalid color");
+        }
+        for m in self
+            .objects
+            .iter()
+            .map(|o| &o.material)
+            .chain([&self.walls, &self.floor])
+        {
+            anyhow::ensure!(
+                m.color.iter().all(|v| (0. ..=1.).contains(v))
+                    && [m.roughness, m.metallic, m.reflectivity, m.transmission]
+                        .iter()
+                        .all(|v| (0. ..=1.).contains(v))
+                    && (1. ..=2.5).contains(&m.ior)
+                    && (0. ..=20.).contains(&m.emission)
+                    && m.priority <= 7
+                    && [
+                        m.clearcoat,
+                        m.clearcoat_roughness,
+                        m.sheen,
+                        m.sheen_roughness,
+                        m.anisotropy,
+                        m.iridescence,
+                        m.grating
+                    ]
+                    .iter()
+                    .chain(&m.sheen_color)
+                    .all(|v| (0. ..=1.).contains(v))
+                    && (-180. ..=180.).contains(&m.anisotropy_rotation)
+                    && (0. ..=2000.).contains(&m.iridescence_thickness)
+                    && (1. ..=2.5).contains(&m.iridescence_ior)
+                    && (0.3..=10.).contains(&m.grating_spacing)
+                    && (0. ..=100.).contains(&m.density)
+                    && m.scatter_color.iter().all(|v| (0. ..=1.).contains(v))
+                    && (-0.95..=0.95).contains(&m.phase)
+                    && (m.dispersion == 0. || (10. ..=100.).contains(&m.dispersion))
+                    && (m.temperature == 0. || crate::spectrum::KELVIN.contains(&m.temperature))
+                    && m.spectrum < crate::spectrum::MEASURED_NAMES.len() as u32
+                    && extinction_ok(m.extinction),
+                "Invalid material"
+            );
+            anyhow::ensure!(
+                m.secondary_color.iter().all(|v| (0. ..=1.).contains(v))
+                    && (0.1..=100.).contains(&m.pattern_scale),
+                "Invalid material pattern"
+            );
+            anyhow::ensure!(
+                (0.01..=100.).contains(&m.texture_scale) && m.texture.len() <= 1024,
+                "Invalid material texture"
+            );
+        }
+        for (i, o) in self.objects.iter().enumerate() {
+            anyhow::ensure!(
+                o.portal == -1
+                    || (o.portal >= 0
+                        && (o.portal as usize) < self.objects.len()
+                        && o.portal as usize != i),
+                "Invalid portal pair"
+            );
+        }
+        for (i, o) in self.objects.iter().enumerate() {
+            anyhow::ensure!(
+                o.tether
+                    .is_none_or(|t| (t.object as usize) < self.objects.len()
+                        && t.object as usize != i
+                        && t.from.iter().all(|v| v.abs() <= 40.)),
+                "Invalid string (tether)"
+            );
+            anyhow::ensure!(
+                o.links.len() <= 8
+                    && o.links
+                        .iter()
+                        .all(|l| (l.object as usize) < self.objects.len()
+                            && l.object as usize != i
+                            && l.at.iter().all(|v| v.is_finite() && v.abs() <= 40.)),
+                "Invalid joint (links)"
+            );
+            anyhow::ensure!(
+                o.cloth.is_none_or(|c| (4..=48).contains(&c.resolution)
+                    && (0. ..=1.).contains(&c.stiffness)
+                    && (0.01..=100.).contains(&c.mass)
+                    && c.uv.iter().all(|u| u.is_finite() && u.abs() <= 64.)),
+                "Invalid cloth"
+            );
+            anyhow::ensure!(
+                (0.05..=30.).contains(&o.size)
+                    && (0.05..=10.).contains(&o.stretch)
+                    && o.rotation.abs() <= 360.
+                    && o.position.iter().all(|v| v.abs() <= 40.)
+                    && o.elevation.abs() <= 40.
+                    && (0. ..=10000.).contains(&o.phase)
+                    && (0. ..=16.).contains(&o.detail)
+                    && (0.01..=100.).contains(&o.mass)
+                    && o.tilt.iter().all(|v| v.abs() <= 360.)
+                    && o.scale_xz.iter().all(|v| (0.01..=20.).contains(v))
+                    && o.name.len() <= 128
+                    && o.mesh.len() <= 1024,
+                "Invalid object"
+            );
+        }
+        anyhow::ensure!(
+            self.target.iter().all(|v| v.abs() <= 20.)
+                && self.yaw.abs() <= 1e6
+                && self.light_position.iter().all(|v| v.abs() <= 50.)
+                && self.rotate_speed.abs() <= 60.,
+            "Invalid scene coordinates"
+        );
+        let f = &self.flashlight_config;
+        anyhow::ensure!(
+            (0. ..=2000.).contains(&f.intensity)
+                && f.color.iter().all(|v| (0. ..=1.).contains(v))
+                && (2. ..=30.).contains(&f.beam)
+                && (0. ..=1.).contains(&f.corona)
+                && (0. ..=0.2).contains(&f.spill)
+                && f.ies.len() <= 512
+                && (-2. ..=2.).contains(&f.right)
+                && (-2. ..=2.).contains(&f.down)
+                && (0.5..=50.).contains(&f.aim),
+            "Invalid flashlight settings"
+        );
+        for l in &self.lights {
+            anyhow::ensure!(
+                l.name.len() <= 128
+                    && l.position.iter().all(|v| v.abs() <= 50.)
+                    && l.rotation.iter().all(|v| v.abs() <= 360.)
+                    && l.size.iter().all(|v| (0.05..=40.).contains(v))
+                    && l.color.iter().all(|v| (0. ..=1.).contains(v))
+                    && (0. ..=2000.).contains(&l.intensity)
+                    && (1. ..=179.).contains(&l.spread)
+                    && (0. ..=1.).contains(&l.blend)
+                    && (0.05..=30.).contains(&l.angle)
+                    && (l.temperature == 0. || crate::spectrum::KELVIN.contains(&l.temperature))
+                    && l.ies.len() <= 512,
+                "Invalid area light"
+            );
+        }
+        Ok(())
+    }
+    /// RR, the temporal upscalers and the gizmo assume a perspective camera.
+    pub fn perspective(&self) -> bool {
+        (self.projection == 0 && !self.real_lens()) || self.projection == 4
+    }
+    /// A lens system is in use (track 16): perspective model only. Its distortion breaks the
+    /// pinhole math of RR's motion vectors, the upscalers, picking and the gizmo.
+    pub fn real_lens(&self) -> bool {
+        self.projection == 0 && self.lens_system > 0
+    }
+    /// The flashlight's spot (track 7) for the current camera.
+    pub fn flashlight_light(&self) -> AreaLight {
+        let (view, _, eye) = self.camera(1.);
+        let inv = view.inverse();
+        let forward = inv.transform_vector3(-Vec3::Z).normalize_or(-Vec3::Z);
+        let down = inv.transform_vector3(-Vec3::Y).normalize_or(-Vec3::Y);
+        let right = inv.transform_vector3(Vec3::X).normalize_or(Vec3::X);
+        let f = &self.flashlight_config;
+        // Held off to the side: the shadow beside a thing is as wide as the angle between the eye
+        // and the light.
+        let position = eye + right * f.right + down * f.down;
+        let beam = (eye + forward * f.aim - position).normalize_or(forward);
+        let pitch = (-beam.y).clamp(-1., 1.).acos();
+        let yaw = if pitch.sin() > 1e-4 {
+            (-beam.x).atan2(-beam.z)
+        } else {
+            0.
+        };
+        AreaLight {
+            name: "Flashlight".into(),
+            position: position.to_array().map(|v| v.clamp(-50., 50.)),
+            rotation: [pitch.to_degrees(), yaw.to_degrees(), 0.],
+            size: [0.06; 2],
+            color: f.color,
+            intensity: f.intensity,
+            visible: false,
+            kind: LightKind::Spot,
+            // The cone stays as the fallback for an unreadable file.
+            ies: if f.ies.is_empty() {
+                crate::ies::beam_spec(f.beam, f.corona, f.spill)
+            } else {
+                f.ies.clone()
+            },
+            spread: 40.,
+            blend: 0.6,
+            shadows: false,
+            // Audio-reactive lights leave it alone.
+            audio_band: 5,
+            ..AreaLight::default()
+        }
+    }
+    /// Appends the flashlight when it is on and a light slot is free.
+    pub fn add_flashlight(&mut self) {
+        if self.flashlight && self.lights.len() < MAX_LIGHTS {
+            let l = self.flashlight_light();
+            self.lights.push(l);
+        }
+    }
+    pub fn camera(&self, aspect: f32) -> (Mat4, Mat4, Vec3) {
+        let (sy, cy) = self.yaw.to_radians().sin_cos();
+        let (sp, cp) = self.pitch.to_radians().sin_cos();
+        let target = Vec3::from(self.target);
+        let eye = target + Vec3::new(sy * cp, sp, cy * cp) * self.distance;
+        let view = Mat4::look_at_rh(eye, target, Vec3::Y);
+        let proj = Mat4::perspective_rh(self.fov.to_radians(), aspect, 0.01, 500.);
+        (view, proj, eye)
+    }
+    /// The main light's emitted RGB: a blackbody at `light_temperature` (Planck's law, as the
+    /// spectral tracer emits it) at luminance 1, times the tint and the intensity.
+    pub fn light_color(&self) -> [f32; 3] {
+        let c = crate::spectrum::blackbody(self.light_temperature);
+        let lum = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+        std::array::from_fn(|i| {
+            c[i] / lum
+                * self.light_tint[i]
+                * if self.light_on {
+                    self.light_intensity
+                } else {
+                    0.
+                }
+        })
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Vertex {
+    pub position: [f32; 3],
+    pub material: u32,
+    pub normal: [f32; 3],
+    pub pad: u32,
+    /// Texture coordinates (meshes only; zero elsewhere).
+    pub uv: [f32; 2],
+}
+pub fn geometry(s: &Settings) -> Vec<Vertex> {
+    crate::geometry::geometry(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn loaded(json: &str) -> Settings {
+        let mut s: Settings = serde_json::from_str(json).unwrap();
+        s.validate().unwrap();
+        s
+    }
+    #[test]
+    fn old_scene_json_loads_manual_with_the_same_exposure() {
+        let s = loaded(r#"{"exposure": 2.5}"#);
+        assert!(!s.auto_exposure && !s.eyes);
+        assert_eq!(s.exposure, 2.5);
+        let v = serde_json::json!({"format": 1, "title": "t", "settings": {"exposure": 0.37}});
+        let mut s = crate::scenes::parse(v).unwrap();
+        s.validate().unwrap();
+        assert!(!s.auto_exposure && !s.eyes);
+        assert_eq!(s.exposure, 0.37);
+        // `{}` is a file from before the key too.
+        assert!(!loaded("{}").auto_exposure);
+    }
+    #[test]
+    fn new_defaults_are_auto_with_the_eyes_and_round_trip() {
+        let d = Settings::default();
+        assert!(d.auto_exposure && d.eyes);
+        assert_eq!(d.ev_bias, 0.);
+        // Written files carry the key, so an auto scene stays auto and a manual one manual.
+        let j = serde_json::to_string(&d).unwrap();
+        assert!(loaded(&j) == d);
+        let manual = Settings {
+            auto_exposure: false,
+            eyes: false,
+            meter_mode: MeterMode::Spot,
+            ..Settings::default()
+        };
+        assert!(loaded(&serde_json::to_string(&manual).unwrap()) == manual);
+        // Presets are new scenes.
+        let mut p = Settings::default();
+        p.preset(6);
+        assert!(p.auto_exposure && (p.ev_bias - 1.15f32.log2()).abs() < 1e-6);
+    }
+    #[test]
+    fn the_exposure_range_covers_night_and_the_new_fields_are_checked() {
+        for e in [0., 2f32.powf(EXPOSURE_EV_MIN), 1e6, EXPOSURE_MAX] {
+            let mut s = Settings {
+                exposure: e,
+                ..Settings::default()
+            };
+            s.validate().unwrap();
+        }
+        for bad in [
+            Settings {
+                exposure: EXPOSURE_MAX * 2.,
+                ..Settings::default()
+            },
+            Settings {
+                exposure: -1.,
+                ..Settings::default()
+            },
+            Settings {
+                ev_bias: EV_BIAS_MAX + 1.,
+                ..Settings::default()
+            },
+            Settings {
+                exposure_speed: 0.,
+                ..Settings::default()
+            },
+            Settings {
+                eyes_strength: 1.5,
+                ..Settings::default()
+            },
+        ] {
+            assert!(bad.clone().validate().is_err());
+        }
+    }
+    #[test]
+    fn old_rr_and_denoise_keys_load_as_the_same_choice() {
+        for (json, want) in [
+            (r#"{"rr":true,"denoise":true}"#, Denoiser::Rr),
+            (r#"{"rr":true,"denoise":false}"#, Denoiser::Rr),
+            (r#"{"rr":false,"denoise":true}"#, Denoiser::Native),
+            (r#"{"rr":false,"denoise":false}"#, Denoiser::Off),
+            // A key the file leaves out keeps its old default (both true).
+            (r#"{"rr":false}"#, Denoiser::Native),
+            (r#"{"denoise":false}"#, Denoiser::Rr),
+            (r#"{}"#, Denoiser::Rr),
+            (r#"{"denoiser":"off"}"#, Denoiser::Off),
+            (r#"{"denoiser":"native"}"#, Denoiser::Native),
+        ] {
+            assert_eq!(loaded(json).denoiser, want, "{json}");
+        }
+    }
+    #[test]
+    fn the_still_denoiser_is_off_for_old_files_and_survives_a_preset() {
+        assert!(!loaded("{}").still_denoise);
+        assert!(loaded(r#"{"still_denoise":true}"#).still_denoise);
+        let mut s = Settings {
+            still_denoise: true,
+            ..Settings::default()
+        };
+        s.preset(3);
+        assert!(s.still_denoise);
+        let mut t = Settings::default();
+        t.keep_output(&s);
+        assert!(t.still_denoise);
+    }
+    #[test]
+    fn the_old_keys_are_never_written_and_the_choice_round_trips() {
+        for d in Denoiser::ALL {
+            let s = Settings {
+                denoiser: d,
+                ..Settings::default()
+            };
+            let j = serde_json::to_value(&s).unwrap();
+            assert!(j.get("rr").is_none() && j.get("denoise").is_none());
+            assert_eq!(j["denoiser"], serde_json::to_value(d).unwrap());
+            assert!(loaded(&j.to_string()) == s);
+        }
+        // A migrated file equals the same choice made directly.
+        let old = loaded(r#"{"rr":false,"denoise":false}"#);
+        // (A file without the exposure keys also loads manual, see `loaded`.)
+        let new = Settings {
+            denoiser: Denoiser::Off,
+            auto_exposure: false,
+            eyes: false,
+            ..Settings::default()
+        };
+        assert!(old == new);
+    }
+    #[test]
+    fn a_scene_file_with_the_old_keys_migrates_inside_its_wrapper() {
+        let v = serde_json::json!({"format": 1, "title": "t", "settings": {"rr": false, "denoise": true}});
+        let mut s = crate::scenes::parse(v).unwrap();
+        s.validate().unwrap();
+        assert_eq!(s.denoiser, Denoiser::Native);
+    }
+    #[test]
+    fn the_flag_aliases_keep_their_old_meaning() {
+        use Denoiser::*;
+        assert_eq!(Rr.with_rr(false), Native);
+        assert_eq!(Off.with_rr(false), Off);
+        assert_eq!(Native.with_rr(true), Rr);
+        assert_eq!(Rr.with_native(false), Off);
+        assert_eq!(Off.with_native(true), Native);
+        assert_eq!(Rr.with_native(true), Rr);
+        // `--no-rr --raw` and `--raw --no-rr` both give raw samples.
+        assert_eq!(Rr.with_rr(false).with_native(false), Off);
+        assert_eq!(Rr.with_native(false).with_rr(false), Off);
+        let mut d = Rr;
+        assert!(d.set_legacy("rr", false) && d == Native);
+        assert!(!d.set_legacy("exposure", true));
+    }
+    #[test]
+    fn rr_falls_back_to_the_native_filter_and_off_shows_raw() {
+        let mut s = Settings::default();
+        assert!(s.rr() && s.native_filter());
+        s.denoiser = Denoiser::Native;
+        assert!(!s.rr() && s.native_filter());
+        s.denoiser = Denoiser::Off;
+        assert!(!s.rr() && !s.native_filter());
+    }
+    #[test]
+    fn the_flashlight_hangs_beside_the_eye_and_aims_down_the_view() {
+        let s = Settings::default();
+        let (view, _, _) = s.camera(1.);
+        let f = &s.flashlight_config;
+        let light = s.flashlight_light();
+        let at = glam::Vec3::from(light.position);
+        let local = view.transform_point3(at);
+        assert!(
+            (local.x - f.right).abs() < 1e-3 && (local.y + f.down).abs() < 1e-3,
+            "not at the hold: {local}"
+        );
+        // The beam crosses the view axis at the aim distance (a tolerance for the Euler angles).
+        let cross = view.inverse().transform_point3(glam::Vec3::Z * -f.aim);
+        let miss = (at + light.direction() * (cross - at).length() - cross).length();
+        assert!(miss < 1e-2, "misses the axis by {miss}");
+        assert!(crate::ies::profile(&light.ies).is_some(), "{}", light.ies);
+    }
+    #[test]
+    fn presets_are_valid() {
+        for i in 0..PRESETS.len() {
+            let mut s = Settings::default();
+            s.preset(i);
+            s.validate().unwrap_or_else(|e| panic!("Preset {i}: {e}"));
+            let g = geometry(&s);
+            assert_eq!(g.len() % 3, 0);
+            assert!(g.iter().all(
+                |v| Vec3::from(v.position).is_finite() && Vec3::from(v.normal).length() > 0.99
+            ));
+        }
+    }
+    #[test]
+    fn randomized_scenes_are_valid() {
+        let mut names = std::collections::HashSet::new();
+        for seed in 1..400u32 {
+            let mut s = Settings::default();
+            s.randomize(seed.wrapping_mul(2654435761) | 1);
+            s.validate()
+                .unwrap_or_else(|e| panic!("Seed {seed} ({}): {e}", s.scene_name));
+            names.insert(s.scene_name);
+        }
+        assert!(names.len() > 15, "Randomize only reached {names:?}");
+        assert!(!names.contains(PRESETS[23]));
+    }
+    #[test]
+    fn camera_carries_over_only_inside_the_cornell_box() {
+        let mut s = Settings::default();
+        s.distance = 3.;
+        s.preset(4);
+        assert_eq!(s.distance, 3.);
+        s.preset(12);
+        assert_eq!(s.distance, 9.);
+        s.preset(0);
+        assert_eq!(s.distance, Settings::default().distance);
+    }
+    #[test]
+    fn reject_bad_resources() {
+        let mut s = Settings::default();
+        s.scale = 0.;
+        assert!(s.validate().is_err());
+        s = Settings::default();
+        s.spp = 0;
+        assert!(s.validate().is_err());
+    }
+}
+
+</scene_rs>
+
+<example>
+{
+ "format": 1,
+ "title": "Desert monolith",
+ "description": "A black slab among dunes under the physical sky, an hour before sunset: one hard shadow stretching across the sand, the sky's blue in the shade and the sun's orange on the lit faces.",
+ "tags": [
+  "open",
+  "shadows",
+  "physical sky"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": false,
+  "floor_extent": 40.0,
+  "sky": 0.0,
+  "base": [
+   0.78,
+   0.47,
+   0.24
+  ],
+  "floor": {
+   "color": [
+    0.78,
+    0.47,
+    0.24
+   ],
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "reflectivity": 0.0,
+   "transmission": 0.0,
+   "ior": 1.5,
+   "emission": 0.0,
+   "pattern": "solid",
+   "secondary_color": [
+    0.04,
+    0.04,
+    0.04
+   ],
+   "pattern_scale": 3.0,
+   "unlit": false
+  },
+  "light_on": false,
+  "light_position": [
+   -1.0,
+   4.0,
+   2.0
+  ],
+  "light_size": 3.0,
+  "light_intensity": 12.0,
+  "light_visible": false,
+  "light_temperature": 5600.0,
+  "lights": [],
+  "bounces": 10,
+  "yaw": -30,
+  "pitch": 6,
+  "distance": 11,
+  "target": [
+   0,
+   0.8,
+   0
+  ],
+  "fov": 40,
+  "objects": [
+   {
+    "name": "Monolith",
+    "shape": "box",
+    "position": [
+     0,
+     0
+    ],
+    "size": 1.0,
+    "stretch": 6.5,
+    "rotation": 15,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3,
+     0.3
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.012,
+      0.012,
+      0.014
+     ],
+     "roughness": 0.25,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 1",
+    "shape": "sphere",
+    "position": [
+     25.7574,
+     -19.1515
+    ],
+    "size": 18.9243,
+    "stretch": 0.0867,
+    "rotation": 76.275,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6736,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 2",
+    "shape": "sphere",
+    "position": [
+     -11.5273,
+     -8.2055
+    ],
+    "size": 11.92,
+    "stretch": 0.1156,
+    "rotation": 81.906,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.3768,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 3",
+    "shape": "sphere",
+    "position": [
+     10.6707,
+     -4.3259
+    ],
+    "size": 17.1001,
+    "stretch": 0.1137,
+    "rotation": 132.158,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6101,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 4",
+    "shape": "sphere",
+    "position": [
+     -6.4575,
+     1.9068
+    ],
+    "size": 17.831,
+    "stretch": 0.1271,
+    "rotation": 111.778,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.7263,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 5",
+    "shape": "sphere",
+    "position": [
+     16.3385,
+     -9.0386
+    ],
+    "size": 17.5979,
+    "stretch": 0.1095,
+    "rotation": 118.896,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6576,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 6",
+    "shape": "sphere",
+    "position": [
+     -4.2514,
+     3.9285
+    ],
+    "size": 14.7407,
+    "stretch": 0.1374,
+    "rotation": 80.541,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6725,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 7",
+    "shape": "sphere",
+    "position": [
+     -8.0249,
+     -16.001
+    ],
+    "size": 11.7854,
+    "stretch": 0.1059,
+    "rotation": 35.209,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.8527,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 8",
+    "shape": "sphere",
+    "position": [
+     8.3363,
+     1.2846
+    ],
+    "size": 10.3893,
+    "stretch": 0.102,
+    "rotation": 147.719,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.6583,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Dune 9",
+    "shape": "sphere",
+    "position": [
+     -8.1497,
+     8.6483
+    ],
+    "size": 12.8848,
+    "stretch": 0.1044,
+    "rotation": 98.819,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.8221,
+     1.0
+    ],
+    "elevation": -0.3,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.78,
+      0.47,
+      0.24
+     ],
+     "roughness": 0.95,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "exposure": 1.3,
+  "auto_exposure": true,
+  "ev_bias": -1.64,
+  "eyes": true,
+  "physical_sky": {
+   "on": true,
+   "time": 18.2,
+   "day": 200.0,
+   "latitude": 28.0,
+   "turbidity": 4.0,
+   "north": 60.0
+  }
+ }
+}
+
+</example>
+
+<example>
+{
+ "format": 1,
+ "title": "Cornell caustic",
+ "description": "A small, very bright light over a glass sphere: the path tracer finds the caustic only by BSDF paths, so it stays noisy; Render → Integrator → Photon mapping traces it from the light and resolves it in seconds.",
+ "tags": [
+  "cornell",
+  "glass",
+  "caustics",
+  "stress"
+ ],
+ "credits": "Caustica built-in scenes",
+ "settings": {
+  "cornell_room": true,
+  "objects": [
+   {
+    "name": "Glass sphere",
+    "shape": "sphere",
+    "position": [
+     0.0,
+     0.0
+    ],
+    "size": 1.3,
+    "stretch": 1.0,
+    "rotation": 0.0,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.96,
+      0.99,
+      1.0
+     ],
+     "roughness": 0.0,
+     "metallic": 0.0,
+     "reflectivity": 0.05,
+     "transmission": 1,
+     "ior": 1.52,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   },
+   {
+    "name": "Short block",
+    "shape": "box",
+    "position": [
+     0.55,
+     -0.55
+    ],
+    "size": 0.5,
+    "stretch": 0.6,
+    "rotation": -20,
+    "tilt": [
+     0,
+     0
+    ],
+    "scale_xz": [
+     1.0,
+     1.0
+    ],
+    "elevation": 0.0,
+    "grounded": true,
+    "visible": true,
+    "material": {
+     "color": [
+      0.72,
+      0.7,
+      0.66
+     ],
+     "roughness": 0.6,
+     "metallic": 0.0,
+     "reflectivity": 0.0,
+     "transmission": 0.0,
+     "ior": 1.5,
+     "emission": 0.0,
+     "pattern": "solid",
+     "secondary_color": [
+      0.04,
+      0.04,
+      0.04
+     ],
+     "pattern_scale": 3.0,
+     "unlit": false
+    },
+    "portal": -1
+   }
+  ],
+  "light_size": 0.18,
+  "light_intensity": 200.0,
+  "bounces": 12,
+  "auto_exposure": true,
+  "ev_bias": -2.07,
+  "eyes": true
+ }
+}
+
+</example>
+
+---
+
+## Request
+
+Design a new scene: <describe your scene here>
+
+Reply with the JSON scene file only.
