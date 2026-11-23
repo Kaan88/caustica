@@ -22,10 +22,10 @@ jobs:
       TAG: ${{ inputs.tag }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: tools-src
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
           path: src
@@ -50,7 +50,7 @@ jobs:
         run: |
           cp tools-src/tools/appimage.sh tools-src/tools/fetch_assets.sh tools-src/tools/fetch_assets.ps1 \
             tools-src/tools/sponza.sha256 src/tools/
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: dtolnay/rust-toolchain@1.120.0
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src
@@ -63,7 +63,7 @@ jobs:
       - name: Fetch SDKs
         working-directory: src
         run: sh tools/setup.sh
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             src/scenes/models
