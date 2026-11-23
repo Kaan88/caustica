@@ -30,16 +30,16 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Pinned to the owner's local toolchain, so CI clippy flags what local clippy flags.
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: dtolnay/rust-toolchain@1.120.0
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       # Vendor SDKs (DLSS, FSR, XeSS) and ffmpeg, pinned by commit / hash in the script.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: vendor
           key: vendor-${{ hashFiles('tools/setup.ps1') }}
@@ -73,7 +73,7 @@ jobs:
       # The shipped scenes' models, HDRIs and textures (~870 MB, gitignored, pinned by SHA-256 in
       # the script) go into the release zip and installer. Cached by the script's hash, so a
       # release only downloads what changed.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         if: env.PACKAGE == 'true'
         with:
           path: |
@@ -127,7 +127,7 @@ jobs:
           & $iscc /Qp "/DAppVersion=$env:CAUSTICA_VERSION" "/DSourceDir=$env:DIST" installer/caustica.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "SETUP=dist/caustica-v$env:CAUSTICA_VERSION-setup.exe" >> $env:GITHUB_ENV
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: env.PACKAGE == 'true'
         with:
           name: windows
@@ -142,11 +142,11 @@ jobs:
   linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Pinned to the owner's local toolchain, so CI clippy flags what local clippy flags.
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: dtolnay/rust-toolchain@1.120.0
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
@@ -156,7 +156,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends pkg-config libssl-dev libudev-dev \
             libxkbcommon-dev libwayland-dev libx11-dev unzip
       # DXC (SPIR-V), OIDN, the DLSS and XeSS headers and the Vulkan headers.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: vendor
           key: vendor-linux-${{ hashFiles('tools/setup.sh') }}
@@ -183,7 +183,7 @@ jobs:
         run: cargo clippy --locked -- -D warnings
       - name: Test
         run: cargo test --locked
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         if: env.PACKAGE == 'true'
         with:
           path: |
@@ -212,7 +212,7 @@ jobs:
       - name: tar.gz and distro packages
         if: env.PACKAGE == 'true'
         run: sh tools/package_linux.sh dist/stage "$PKG_VERSION" dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: env.PACKAGE == 'true'
         with:
           name: linux
@@ -233,10 +233,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: assets
           merge-multiple: true
@@ -255,7 +255,7 @@ jobs:
             { echo "First release"; echo; git log HEAD --no-merges --format='- %s (%h)'; } > notes.md
           fi
       - name: GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           target_commitish: ${{ github.sha }}
